@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enventory - ROMEO BARBERSHOP</title>
+  <style>
+    :root {
+      --ink: #2a2118;
+      --muted: #77695c;
+      --accent-dark: #8c642e;
+      --accent: #b7863f;
+      --surface: rgba(255,255,255,.96);
+      --line: rgba(229,213,190,.8);
+      --shadow: 0 18px 40px rgba(76,54,28,.14);
+      --danger: #ba3a2c;
+      --success: #18794e;
+      --warning: #b7863f;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(183,134,63,0.18), transparent 28%),
+        linear-gradient(135deg, #f8f2e8 0%, #f0e4d0 100%);
+      color: var(--ink);
+    }
+
+    .app { min-height: 100vh; padding: 24px; }
+
+    .header {
+      position: relative;
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: #ffffff;
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .header-menu {
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      z-index: 20;
+    }
+
+    .menu-toggle {
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color: #fff;
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      cursor: pointer;
+      font-size: 28px;
+      line-height: 1;
+      transition: transform .18s ease;
+    }
+
+    .menu-toggle:hover,
+    .action-btn:hover,
+    .item-card:hover,
+    .history-item:hover,
+    .summary-card:hover {
+      transform: translateY(-3px);
+    }
+
+    .page-grid {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .panel,
+    .summary-card {
+      background: var(--surface);
+      border: 1px solid rgba(229,213,190,.8);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .panel { padding: 20px; }
+
+    .left-panel {
+      display: grid;
+      gap: 16px;
+      position: sticky;
+      top: 20px;
+    }
+
+    .search-box,
+    .field input,
+    .field textarea,
+    .field select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 13px 15px;
+      background: #fffaf2;
+      color: var(--ink);
+      font-size: 15px;
+      font-family: inherit;
+    }
+
+    .field textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    .search-box:focus,
+    .field input:focus,
+    .field textarea:focus,
+    .field select:focus {
+      outline: none;
+      border-color: #2a2118;
+      box-shadow: 0 0 0 3px rgba(183,134,63,.16);
+    }
+
+    .item-list {
+      display: grid;
+      gap: 10px;
+      max-height: 66vh;
+      overflow-y: auto;
+      padding-left: 6px;
+    }
+
+    .item-card {
+      border: 1px solid transparent;
+      background: #fffaf2;
+      border-radius: 18px;
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: transform .18s ease, border-color .18s ease, background .18s ease;
+      text-align: right;
+    }
+
+    .item-card.active {
+      border-color: rgba(183,134,63,0.44);
+      background: linear-gradient(135deg, rgba(183,134,63,0.16), rgba(255,255,255,.94));
+    }
+
+    .item-card.low {
+      border-color: rgba(183,134,63,0.28);
+      background: linear-gradient(135deg, rgba(183,134,63,.08), rgba(255,255,255,.96));
+    }
+
+    .item-card strong {
+      display: block;
+      font-size: 17px;
+      margin-bottom: 4px;
+    }
+
+    .item-meta {
+      color: var(--muted);
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .main-panel {
+      display: grid;
+      gap: 18px;
+    }
+
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .hero h2 {
+      margin: 0 0 8px;
+      font-size: 28px;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .hero-badge {
+      min-width: 130px;
+      text-align: center;
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: white;
+      padding: 16px 20px;
+      border-radius: 20px;
+      font-weight: 900;
+      font-size: 22px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .summary-card {
+      padding: 18px;
+      transition: transform .18s ease;
+    }
+
+    .summary-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+
+    .summary-card strong {
+      font-size: 30px;
+    }
+
+    .summary-card.low strong { color: #2a2118; }
+    .summary-card.good strong { color: #2a2118; }
+    .summary-card.value strong { color: #2a2118; }
+
+    .editor-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    .field label {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--muted);
+    }
+
+    .action-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .action-btn {
+      border: none;
+      border-radius: 16px;
+      padding: 12px 18px;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform .18s ease;
+    }
+
+    .action-btn.primary {
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: white;
+    }
+
+    .action-btn.soft {
+      background: #ead9bd;
+      color: var(--ink);
+    }
+
+    .action-btn.danger {
+      background: linear-gradient(135deg, var(--danger), #8f281f);
+      color: white;
+      border: none;
+    }
+
+    .history-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .history-item {
+      background: #fffaf2;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+      display: grid;
+      gap: 10px;
+      transition: transform .18s ease;
+    }
+
+    .history-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .history-amount {
+      font-size: 24px;
+      font-weight: 900;
+    }
+
+    .history-amount.in { color: var(--success); }
+    .history-amount.out { color: var(--danger); }
+
+    .history-meta {
+      color: var(--muted);
+      font-size: 13px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .history-note {
+      color: var(--ink);
+      line-height: 1.7;
+    }
+
+    .history-empty {
+      padding: 26px;
+      text-align: center;
+      color: var(--muted);
+      background: #fffaf2;
+      border: 1px dashed var(--line);
+      border-radius: 20px;
+    }
+
+    .sidebar-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(34,23,12,.34);
+      display: none;
+      z-index: 999;
+    }
+
+    .sidebar-overlay.active { display: block; }
+
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: -320px;
+      width: min(320px,85vw);
+      height: 100vh;
+      background: #fffaf2;
+      border-right: 1px solid rgba(229,213,190,.8);
+      box-shadow: var(--shadow);
+      padding: 24px 18px;
+      z-index: 1000;
+      transition: left .2s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    .sidebar.active { left: 0; }
+
+    .sidebar h3 {
+      margin: 0 0 8px;
+      color: #2a2118;
+      font-size: 22px;
+      text-align: left;
+      direction: ltr;
+    }
+
+    .sidebar-link,
+    .sidebar button {
+      width: 100%;
+      border: none;
+      border-radius: 16px;
+      padding: 14px 16px;
+      background: #ead9bd;
+      color: var(--ink);
+      text-align: left;
+      direction: ltr;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .sidebar-link.active {
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: white;
+    }
+
+    @media (max-width: 1180px) {
+      .page-grid,
+      .summary-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .left-panel { position: static; }
+    }
+
+    @media (max-width: 860px) {
+      .editor-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero,
+      .history-top {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .header-menu {
+        position: static;
+        width: 100%;
+        margin-bottom: 16px;
+      }
+
+      .app { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div class="header-menu">
+        <button type="button" class="menu-toggle" id="menuToggle">⋯</button>
+      </div>
+      <h1>ROMEO BARBERSHOP</h1>
+    </div>
+
+    <div class="page-grid">
+      <aside class="left-panel">
+        <section class="panel">
+          <input class="search-box" id="searchInput" type="text" placeholder="Search item">
+        </section>
+
+        <section class="panel">
+          <div class="action-row">
+            <button type="button" class="action-btn primary" id="addItemBtn">Add Item</button>
+            <button type="button" class="action-btn soft" id="resetBtn">Reset Items</button>
+          </div>
+        </section>
+
+        <section class="item-list" id="itemList"></section>
+      </aside>
+
+      <main class="main-panel">
+        <section class="panel hero">
+          <div>
+            <h2 id="itemTitle">Select Item</h2>
+            <p id="itemSubtitle">اختار منتج من القائمة، وعدّل الكمية والحد الأدنى وسعر الشراء أو سجّل حركة دخول وخروج للمخزون.</p>
+          </div>
+          <div class="hero-badge" id="itemCode">INV</div>
+        </section>
+
+        <section class="summary-grid">
+          <article class="summary-card">
+            <span>Current Stock</span>
+            <strong id="currentStock">0</strong>
+          </article>
+          <article class="summary-card low">
+            <span>Minimum Stock</span>
+            <strong id="minimumStock">0</strong>
+          </article>
+          <article class="summary-card value">
+            <span>Buy Price</span>
+            <strong id="buyPrice">0</strong>
+          </article>
+          <article class="summary-card good">
+            <span>Low Stock Items</span>
+            <strong id="lowStockCount">0</strong>
+          </article>
+        </section>
+
+        <section class="panel">
+          <div class="editor-grid">
+            <div class="field">
+              <label for="itemName">Item Name</label>
+              <input id="itemName" type="text">
+            </div>
+            <div class="field">
+              <label for="itemCodeInput">Item Code</label>
+              <input id="itemCodeInput" type="text">
+            </div>
+            <div class="field">
+              <label for="itemCategory">Category</label>
+              <input id="itemCategory" type="text" placeholder="Hair / Beard / Skin / Retail">
+            </div>
+            <div class="field">
+              <label for="itemQuantity">Current Quantity</label>
+              <input id="itemQuantity" type="number" min="0">
+            </div>
+            <div class="field">
+              <label for="itemMinimum">Minimum Stock</label>
+              <input id="itemMinimum" type="number" min="0">
+            </div>
+            <div class="field">
+              <label for="itemBuyPrice">Buy Price</label>
+              <input id="itemBuyPrice" type="number" min="0" step="0.01">
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="action-row">
+            <button type="button" class="action-btn primary" id="saveItemBtn">Save Item</button>
+            <button type="button" class="action-btn danger" id="deleteItemBtn">Delete Item</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="editor-grid">
+            <div class="field">
+              <label for="movementType">Movement Type</label>
+              <select id="movementType">
+                <option value="in">Stock In</option>
+                <option value="out">Stock Out</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="movementQuantity">Quantity</label>
+              <input id="movementQuantity" type="number" min="1" step="1">
+            </div>
+            <div class="field">
+              <label for="movementDate">Date</label>
+              <input id="movementDate" type="date">
+            </div>
+            <div class="field">
+              <label for="movementReason">Reason</label>
+              <input id="movementReason" type="text" placeholder="Purchase / Sale / Waste / Adjustment">
+            </div>
+            <div class="field full">
+              <label for="movementNote">Note</label>
+              <textarea id="movementNote" placeholder="اكتب ملاحظات عن الحركة"></textarea>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="action-row">
+            <button type="button" class="action-btn primary" id="addMovementBtn">Add Movement</button>
+            <button type="button" class="action-btn soft" id="clearMovementBtn">Clear Movement</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="history-list" id="historyList"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar" id="sidebar">
+    <h3>Menu</h3>
+    <button class="sidebar-link" type="button" data-href="index.html" data-permission="access_cashier">cashier</button>
+    <button class="sidebar-link" type="button" data-href="income-statement.html" data-permission="view_income_statement">income statement</button>
+    <button class="sidebar-link" type="button" data-href="staff-accounting.html" data-permission="view_staff_accounting">staff accounting</button>
+    <button class="sidebar-link" type="button" data-href="system-access.html" data-permission="manage_users">system access</button>
+    <button class="sidebar-link" type="button" data-href="withdrawals.html">Withdrawals</button>
+    <button class="sidebar-link" type="button" data-href="expenses.html">Expenses</button>
+    <button class="sidebar-link active" type="button">Enventory</button>
+    <button class="sidebar-link" type="button" data-href="staff-discount.html">staff Discount</button>
+    <button class="sidebar-link" type="button" data-href="attendance.html">Attendance</button>
+    <button class="sidebar-link" type="button" data-href="bookings.html">Bookings</button>
+    <button class="sidebar-link" type="button" data-href="customer-data.html">Customer Data</button>
+    <button type="button" id="logoutBtn">Logout</button>
+  </aside>
+
+  <script src="./text-fix.js"></script>
+  <script>
+    const INVENTORY_KEY = "romeo-pos-inventory";
+    const INVENTORY_LOG_KEY = "romeo-pos-inventory-log";
+    const DEFAULT_ITEMS = [
+      { id: 1, name: "Hair Wax", code: "INV01", category: "Retail", quantity: 12, minimum: 5, buyPrice: 80 },
+      { id: 2, name: "Shampoo", code: "INV02", category: "Hair", quantity: 8, minimum: 4, buyPrice: 120 },
+      { id: 3, name: "Beard Oil", code: "INV03", category: "Beard", quantity: 3, minimum: 5, buyPrice: 90 },
+      { id: 4, name: "Face Mask", code: "INV04", category: "Skin", quantity: 10, minimum: 6, buyPrice: 45 }
+    ];
+  </script>
+  <script src="./auth.js"></script>
+  <script>
+    RomeoAuth.requireAuth();
+
+    const elements = {
+      searchInput: document.getElementById("searchInput"),
+      itemList: document.getElementById("itemList"),
+      itemTitle: document.getElementById("itemTitle"),
+      itemSubtitle: document.getElementById("itemSubtitle"),
+      itemCode: document.getElementById("itemCode"),
+      currentStock: document.getElementById("currentStock"),
+      minimumStock: document.getElementById("minimumStock"),
+      buyPrice: document.getElementById("buyPrice"),
+      lowStockCount: document.getElementById("lowStockCount"),
+      itemName: document.getElementById("itemName"),
+      itemCodeInput: document.getElementById("itemCodeInput"),
+      itemCategory: document.getElementById("itemCategory"),
+      itemQuantity: document.getElementById("itemQuantity"),
+      itemMinimum: document.getElementById("itemMinimum"),
+      itemBuyPrice: document.getElementById("itemBuyPrice"),
+      movementType: document.getElementById("movementType"),
+      movementQuantity: document.getElementById("movementQuantity"),
+      movementDate: document.getElementById("movementDate"),
+      movementReason: document.getElementById("movementReason"),
+      movementNote: document.getElementById("movementNote"),
+      historyList: document.getElementById("historyList")
+    };
+
+    const menuToggle = document.getElementById("menuToggle");
+    const sidebar = document.getElementById("sidebar");
+    const sidebarOverlay = document.getElementById("sidebarOverlay");
+    const addItemBtn = document.getElementById("addItemBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const saveItemBtn = document.getElementById("saveItemBtn");
+    const deleteItemBtn = document.getElementById("deleteItemBtn");
+    const addMovementBtn = document.getElementById("addMovementBtn");
+    const clearMovementBtn = document.getElementById("clearMovementBtn");
+
+    function cloneDefaults() {
+      return DEFAULT_ITEMS.map(item => ({ ...item }));
+    }
+
+    function getItems() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(INVENTORY_KEY) || "[]");
+        if (Array.isArray(parsed) && parsed.length) return parsed;
+        return cloneDefaults();
+      } catch (error) {
+        return cloneDefaults();
+      }
+    }
+
+    function getLog() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(INVENTORY_LOG_KEY) || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        return [];
+      }
+    }
+
+    let items = getItems();
+    let movementLog = getLog();
+    let selectedId = items[0]?.id || null;
+
+    if (!localStorage.getItem(INVENTORY_KEY)) {
+      localStorage.setItem(INVENTORY_KEY, JSON.stringify(items));
+    }
+
+    if (!elements.movementDate.value) {
+      elements.movementDate.value = new Date().toISOString().slice(0, 10);
+    }
+
+    function saveItems() {
+      localStorage.setItem(INVENTORY_KEY, JSON.stringify(items));
+    }
+
+    function saveLog() {
+      localStorage.setItem(INVENTORY_LOG_KEY, JSON.stringify(movementLog));
+    }
+
+    function formatMoney(value) {
+      return Number(value || 0).toLocaleString("en-US");
+    }
+
+    function numberValue(value) {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function getSelectedItem() {
+      return items.find(item => item.id === selectedId) || null;
+    }
+
+    function getItemLog(itemId) {
+      return movementLog.filter(entry => entry.itemId === itemId);
+    }
+
+    function isLowStock(item) {
+      return numberValue(item.quantity) <= numberValue(item.minimum);
+    }
+
+    function renderItemList() {
+      const query = elements.searchInput.value.trim().toLowerCase();
+      const filtered = items.filter(item =>
+        !query ||
+        String(item.name || "").toLowerCase().includes(query) ||
+        String(item.code || "").toLowerCase().includes(query) ||
+        String(item.category || "").toLowerCase().includes(query)
+      );
+
+      elements.itemList.innerHTML = "";
+
+      filtered.forEach(item => {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = `item-card${item.id === selectedId ? " active" : ""}${isLowStock(item) ? " low" : ""}`;
+        card.innerHTML = `
+          <strong>${item.name}</strong>
+          <div class="item-meta">
+            <span>${item.code}</span>
+            <span>Qty ${numberValue(item.quantity)}</span>
+          </div>
+        `;
+        card.addEventListener("click", () => {
+          selectedId = item.id;
+          renderAll();
+        });
+        elements.itemList.appendChild(card);
+      });
+
+      if (!filtered.length) {
+        elements.itemList.innerHTML = `<div class="history-empty">No item found.</div>`;
+      }
+    }
+
+    function renderHero() {
+      const item = getSelectedItem();
+      if (!item) {
+        elements.itemTitle.textContent = "No Item Selected";
+        elements.itemSubtitle.textContent = "أضف صنف جديد أو اختر صنف من القائمة على الشمال.";
+        elements.itemCode.textContent = "--";
+        return;
+      }
+
+      elements.itemTitle.textContent = item.name;
+      elements.itemSubtitle.textContent = `الصنف الحالي في قسم ${item.category || "General"}، ويمكنك تعديل بياناته أو تسجيل حركة دخول وخروج للمخزون.`;
+      elements.itemCode.textContent = item.code;
+    }
+
+    function fillItemForm() {
+      const item = getSelectedItem();
+      if (!item) {
+        elements.itemName.value = "";
+        elements.itemCodeInput.value = "";
+        elements.itemCategory.value = "";
+        elements.itemQuantity.value = "";
+        elements.itemMinimum.value = "";
+        elements.itemBuyPrice.value = "";
+        elements.currentStock.textContent = "0";
+        elements.minimumStock.textContent = "0";
+        elements.buyPrice.textContent = "0";
+        return;
+      }
+
+      elements.itemName.value = item.name;
+      elements.itemCodeInput.value = item.code;
+      elements.itemCategory.value = item.category;
+      elements.itemQuantity.value = item.quantity;
+      elements.itemMinimum.value = item.minimum;
+      elements.itemBuyPrice.value = item.buyPrice;
+      elements.currentStock.textContent = numberValue(item.quantity);
+      elements.minimumStock.textContent = numberValue(item.minimum);
+      elements.buyPrice.textContent = formatMoney(item.buyPrice);
+    }
+
+    function renderSummary() {
+      elements.lowStockCount.textContent = items.filter(isLowStock).length;
+    }
+
+    function renderHistory() {
+      const item = getSelectedItem();
+      const logs = item ? getItemLog(item.id) : [];
+      const sorted = [...logs].sort((a, b) => new Date(b.date) - new Date(a.date));
+      elements.historyList.innerHTML = "";
+
+      if (!item) {
+        elements.historyList.innerHTML = `<div class="history-empty">لا يوجد صنف مختار الآن.</div>`;
+        return;
+      }
+
+      if (!sorted.length) {
+        elements.historyList.innerHTML = `<div class="history-empty">لا توجد حركات مخزون لهذا الصنف حتى الآن.</div>`;
+        return;
+      }
+
+      sorted.forEach(entry => {
+        const row = document.createElement("article");
+        row.className = "history-item";
+        row.innerHTML = `
+          <div class="history-top">
+            <div class="history-amount ${entry.type}">${entry.type === "in" ? "+" : "-"}${numberValue(entry.quantity)}</div>
+            <button type="button" class="action-btn soft" data-delete-log-id="${entry.id}">Delete</button>
+          </div>
+          <div class="history-meta">
+            <span>${entry.reason || (entry.type === "in" ? "Stock In" : "Stock Out")}</span>
+            <span>${entry.date}</span>
+          </div>
+          <div class="history-note">${entry.note || "No note"}</div>
+        `;
+        elements.historyList.appendChild(row);
+      });
+    }
+
+    function renderAll() {
+      if (!items.find(item => item.id === selectedId)) {
+        selectedId = items[0]?.id || null;
+      }
+      renderItemList();
+      renderHero();
+      fillItemForm();
+      renderSummary();
+      renderHistory();
+    }
+
+    function addItem() {
+      const name = prompt("اكتب اسم الصنف");
+      if (!name) return;
+
+      const code = prompt("اكتب كود الصنف", `INV${String(items.length + 1).padStart(2, "0")}`);
+      if (!code) return;
+
+      const item = {
+        id: Date.now(),
+        name: name.trim(),
+        code: code.trim().toUpperCase(),
+        category: "General",
+        quantity: 0,
+        minimum: 0,
+        buyPrice: 0
+      };
+
+      items.unshift(item);
+      selectedId = item.id;
+      saveItems();
+      renderAll();
+    }
+
+    function saveItem() {
+      const item = getSelectedItem();
+      if (!item) return;
+
+      item.name = elements.itemName.value.trim() || item.name;
+      item.code = elements.itemCodeInput.value.trim().toUpperCase() || item.code;
+      item.category = elements.itemCategory.value.trim() || item.category;
+      item.quantity = numberValue(elements.itemQuantity.value);
+      item.minimum = numberValue(elements.itemMinimum.value);
+      item.buyPrice = numberValue(elements.itemBuyPrice.value);
+
+      saveItems();
+      renderAll();
+    }
+
+    function deleteItem() {
+      const item = getSelectedItem();
+      if (!item) return;
+      if (!confirm(`تحذف الصنف ${item.name}؟`)) return;
+
+      items = items.filter(entry => entry.id !== item.id);
+      movementLog = movementLog.filter(entry => entry.itemId !== item.id);
+      saveItems();
+      saveLog();
+      selectedId = items[0]?.id || null;
+      renderAll();
+    }
+
+    function addMovement() {
+      const item = getSelectedItem();
+      const quantity = numberValue(elements.movementQuantity.value);
+      if (!item) {
+        alert("اختار صنف الأول.");
+        return;
+      }
+
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        alert("اكتب كمية صحيحة.");
+        return;
+      }
+
+      const type = elements.movementType.value;
+      if (type === "out" && quantity > numberValue(item.quantity)) {
+        alert("الكمية المسحوبة أكبر من الموجود في المخزون.");
+        return;
+      }
+
+      item.quantity = type === "in"
+        ? numberValue(item.quantity) + quantity
+        : numberValue(item.quantity) - quantity;
+
+      movementLog.unshift({
+        id: Date.now(),
+        itemId: item.id,
+        type,
+        quantity,
+        date: elements.movementDate.value || new Date().toISOString().slice(0, 10),
+        reason: elements.movementReason.value.trim(),
+        note: elements.movementNote.value.trim()
+      });
+
+      saveItems();
+      saveLog();
+      clearMovement();
+      renderAll();
+    }
+
+    function clearMovement() {
+      elements.movementType.value = "in";
+      elements.movementQuantity.value = "";
+      elements.movementDate.value = new Date().toISOString().slice(0, 10);
+      elements.movementReason.value = "";
+      elements.movementNote.value = "";
+    }
+
+    function deleteLog(id) {
+      const entry = movementLog.find(item => item.id === id);
+      const item = entry ? items.find(product => product.id === entry.itemId) : null;
+      if (!entry || !item) return;
+
+      item.quantity = entry.type === "in"
+        ? numberValue(item.quantity) - numberValue(entry.quantity)
+        : numberValue(item.quantity) + numberValue(entry.quantity);
+
+      movementLog = movementLog.filter(log => log.id !== id);
+      saveItems();
+      saveLog();
+      renderAll();
+    }
+
+    function resetItems() {
+      if (!confirm("ترجع المخزون للبيانات التجريبية؟")) return;
+      items = cloneDefaults();
+      movementLog = [];
+      saveItems();
+      saveLog();
+      selectedId = items[0]?.id || null;
+      renderAll();
+    }
+
+    function openSidebar() {
+      sidebar.classList.add("active");
+      sidebarOverlay.classList.add("active");
+    }
+
+    function closeSidebar() {
+      sidebar.classList.remove("active");
+      sidebarOverlay.classList.remove("active");
+    }
+
+    document.querySelectorAll(".sidebar-link[data-permission]").forEach(link => {
+      if (!RomeoAuth.hasPermission(link.dataset.permission)) {
+        link.style.display = "none";
+      }
+    });
+
+    document.querySelectorAll(".sidebar-link[data-href]").forEach(link => {
+      link.addEventListener("click", () => {
+        window.location.href = link.dataset.href;
+      });
+    });
+
+    elements.searchInput.addEventListener("input", renderItemList);
+    addItemBtn.addEventListener("click", addItem);
+    resetBtn.addEventListener("click", resetItems);
+    saveItemBtn.addEventListener("click", saveItem);
+    deleteItemBtn.addEventListener("click", deleteItem);
+    addMovementBtn.addEventListener("click", addMovement);
+    clearMovementBtn.addEventListener("click", clearMovement);
+    elements.historyList.addEventListener("click", event => {
+      const btn = event.target.closest("[data-delete-log-id]");
+      if (!btn) return;
+      if (!confirm("تحذف حركة المخزون دي؟")) return;
+      deleteLog(Number(btn.dataset.deleteLogId));
+    });
+    menuToggle.addEventListener("click", openSidebar);
+    sidebarOverlay.addEventListener("click", closeSidebar);
+    document.getElementById("logoutBtn").addEventListener("click", () => RomeoAuth.logout());
+
+    clearMovement();
+    renderAll();
+  </script>
+</body>
+</html>
+
+

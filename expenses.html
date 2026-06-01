@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Expenses - ROMEO BARBERSHOP</title>
+  <style>
+    :root {
+      --ink: #2a2118;
+      --muted: #77695c;
+      --accent-dark: #8c642e;
+      --accent: #b7863f;
+      --surface: rgba(255,255,255,.96);
+      --line: rgba(229,213,190,.8);
+      --shadow: 0 18px 40px rgba(76,54,28,.14);
+      --danger: #ba3a2c;
+      --success: #18794e;
+      --warning: #b7863f;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(183,134,63,0.18), transparent 28%),
+        linear-gradient(135deg, #f8f2e8 0%, #f0e4d0 100%);
+      color: var(--ink);
+    }
+
+    .app { min-height: 100vh; padding: 24px; }
+
+    .header {
+      position: relative;
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: #ffffff;
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .header-menu {
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      z-index: 20;
+    }
+
+    .menu-toggle {
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color: #fff;
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      cursor: pointer;
+      font-size: 28px;
+      line-height: 1;
+      transition: transform .18s ease;
+    }
+
+    .menu-toggle:hover,
+    .action-btn:hover,
+    .category-card:hover,
+    .history-item:hover,
+    .summary-card:hover {
+      transform: translateY(-3px);
+    }
+
+    .page-grid {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .panel,
+    .summary-card {
+      background: var(--surface);
+      border: 1px solid rgba(229,213,190,.8);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .panel { padding: 20px; }
+
+    .left-panel {
+      display: grid;
+      gap: 16px;
+      position: sticky;
+      top: 20px;
+    }
+
+    .search-box,
+    .field input,
+    .field textarea,
+    .field select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 13px 15px;
+      background: #fffaf2;
+      color: var(--ink);
+      font-size: 15px;
+      font-family: inherit;
+    }
+
+    .field textarea {
+      min-height: 110px;
+      resize: vertical;
+    }
+
+    .search-box:focus,
+    .field input:focus,
+    .field textarea:focus,
+    .field select:focus {
+      outline: none;
+      border-color: #2a2118;
+      box-shadow: 0 0 0 3px rgba(183,134,63,.16);
+    }
+
+    .category-list {
+      display: grid;
+      gap: 10px;
+      max-height: 66vh;
+      overflow-y: auto;
+      padding-left: 6px;
+    }
+
+    .category-card {
+      border: 1px solid transparent;
+      background: #fffaf2;
+      border-radius: 18px;
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: transform .18s ease, border-color .18s ease, background .18s ease;
+      text-align: right;
+    }
+
+    .category-card.active {
+      border-color: rgba(183,134,63,0.44);
+      background: linear-gradient(135deg, rgba(183,134,63,0.16), rgba(255,255,255,.94));
+    }
+
+    .category-card strong {
+      display: block;
+      font-size: 17px;
+      margin-bottom: 4px;
+    }
+
+    .category-meta {
+      color: var(--muted);
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .main-panel {
+      display: grid;
+      gap: 18px;
+    }
+
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .hero h2 {
+      margin: 0 0 8px;
+      font-size: 28px;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .hero-badge {
+      min-width: 130px;
+      text-align: center;
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: white;
+      padding: 16px 20px;
+      border-radius: 20px;
+      font-weight: 900;
+      font-size: 22px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .summary-card {
+      padding: 18px;
+      transition: transform .18s ease;
+    }
+
+    .summary-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+
+    .summary-card strong {
+      font-size: 30px;
+    }
+
+    .summary-card.total strong { color: #2a2118; }
+    .summary-card.count strong { color: #2a2118; }
+    .summary-card.average strong { color: #2a2118; }
+
+    .editor-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    .field label {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--muted);
+    }
+
+    .action-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .action-btn {
+      border: none;
+      border-radius: 16px;
+      padding: 12px 18px;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform .18s ease;
+    }
+
+    .action-btn.primary {
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: white;
+    }
+
+    .action-btn.soft {
+      background: #ead9bd;
+      color: var(--ink);
+    }
+
+    .history-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .history-item {
+      background: #fffaf2;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+      display: grid;
+      gap: 10px;
+      transition: transform .18s ease;
+    }
+
+    .history-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .history-amount {
+      font-size: 24px;
+      font-weight: 900;
+      color: #2a2118;
+    }
+
+    .history-meta {
+      color: var(--muted);
+      font-size: 13px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .history-note {
+      color: var(--ink);
+      line-height: 1.7;
+    }
+
+    .history-empty {
+      padding: 26px;
+      text-align: center;
+      color: var(--muted);
+      background: #fffaf2;
+      border: 1px dashed var(--line);
+      border-radius: 20px;
+    }
+
+    .sidebar-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(34,23,12,.34);
+      display: none;
+      z-index: 999;
+    }
+
+    .sidebar-overlay.active { display: block; }
+
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: -320px;
+      width: min(320px,85vw);
+      height: 100vh;
+      background: #fffaf2;
+      border-right: 1px solid rgba(229,213,190,.8);
+      box-shadow: var(--shadow);
+      padding: 24px 18px;
+      z-index: 1000;
+      transition: left .2s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    .sidebar.active { left: 0; }
+
+    .sidebar h3 {
+      margin: 0 0 8px;
+      color: #2a2118;
+      font-size: 22px;
+      text-align: left;
+      direction: ltr;
+    }
+
+    .sidebar-link,
+    .sidebar button {
+      width: 100%;
+      border: none;
+      border-radius: 16px;
+      padding: 14px 16px;
+      background: #ead9bd;
+      color: var(--ink);
+      text-align: left;
+      direction: ltr;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .sidebar-link.active {
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: white;
+    }
+
+    @media (max-width: 1180px) {
+      .page-grid,
+      .summary-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .left-panel {
+        position: static;
+      }
+    }
+
+    @media (max-width: 860px) {
+      .editor-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero,
+      .history-top {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .header-menu {
+        position: static;
+        width: 100%;
+        margin-bottom: 16px;
+      }
+
+      .app { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div class="header-menu">
+        <button type="button" class="menu-toggle" id="menuToggle">⋯</button>
+      </div>
+      <h1>ROMEO BARBERSHOP</h1>
+    </div>
+
+    <div class="page-grid">
+      <aside class="left-panel">
+        <section class="panel">
+          <input class="search-box" id="searchInput" type="text" placeholder="Search category">
+        </section>
+
+        <section class="category-list" id="categoryList"></section>
+      </aside>
+
+      <main class="main-panel">
+        <section class="panel hero">
+          <div>
+            <h2 id="categoryTitle">Select Category</h2>
+            <p id="categorySubtitle">اختار نوع المصروف، ثم سجل المبلغ والتاريخ والملاحظة. كل المصروفات الخاصة بالتصنيف المختار ستظهر في السجل تحت.</p>
+          </div>
+          <div class="hero-badge" id="categoryCode">EXP</div>
+        </section>
+
+        <section class="summary-grid">
+          <article class="summary-card total">
+            <span>Category Expenses</span>
+            <strong id="categoryExpenses">0</strong>
+          </article>
+          <article class="summary-card count">
+            <span>Category Records</span>
+            <strong id="categoryRecords">0</strong>
+          </article>
+          <article class="summary-card total">
+            <span>Total Expenses</span>
+            <strong id="allExpenses">0</strong>
+          </article>
+          <article class="summary-card average">
+            <span>Average Expense</span>
+            <strong id="averageExpense">0</strong>
+          </article>
+        </section>
+
+        <section class="panel">
+          <div class="editor-grid">
+            <div class="field">
+              <label for="expenseAmount">Amount</label>
+              <input id="expenseAmount" type="number" min="0" step="0.01" placeholder="0">
+            </div>
+            <div class="field">
+              <label for="expenseDate">Date</label>
+              <input id="expenseDate" type="date">
+            </div>
+            <div class="field">
+              <label for="expenseCategory">Category</label>
+              <select id="expenseCategory"></select>
+            </div>
+            <div class="field">
+              <label for="expenseTitle">Title</label>
+              <input id="expenseTitle" type="text" placeholder="Electricity / Rent / Supplies">
+            </div>
+            <div class="field full">
+              <label for="expenseNote">Note</label>
+              <textarea id="expenseNote" placeholder="اكتب تفاصيل المصروف أو أي ملاحظة إضافية"></textarea>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="action-row">
+            <button type="button" class="action-btn primary" id="saveBtn">Add Expense</button>
+            <button type="button" class="action-btn soft" id="clearBtn">Clear Form</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="history-list" id="historyList"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar" id="sidebar">
+    <h3>Menu</h3>
+    <button class="sidebar-link" type="button" data-href="index.html" data-permission="access_cashier">cashier</button>
+    <button class="sidebar-link" type="button" data-href="income-statement.html" data-permission="view_income_statement">income statement</button>
+    <button class="sidebar-link" type="button" data-href="staff-accounting.html" data-permission="view_staff_accounting">staff accounting</button>
+    <button class="sidebar-link" type="button" data-href="system-access.html" data-permission="manage_users">system access</button>
+    <button class="sidebar-link" type="button" data-href="withdrawals.html">Withdrawals</button>
+    <button class="sidebar-link active" type="button">Expenses</button>
+    <button class="sidebar-link" type="button" data-href="enventory.html">Enventory</button>
+    <button class="sidebar-link" type="button" data-href="staff-discount.html">staff Discount</button>
+    <button class="sidebar-link" type="button" data-href="attendance.html">Attendance</button>
+    <button class="sidebar-link" type="button" data-href="bookings.html">Bookings</button>
+    <button class="sidebar-link" type="button" data-href="customer-data.html">Customer Data</button>
+    <button type="button" id="logoutBtn">Logout</button>
+  </aside>
+
+  <script src="./text-fix.js"></script>
+  <script>
+    const EXPENSES_KEY = "romeo-pos-expenses";
+    const EXPENSE_CATEGORIES = [
+      { id: "supplies", name: "Supplies", code: "SUP" },
+      { id: "utilities", name: "Utilities", code: "UTL" },
+      { id: "rent", name: "Rent", code: "RNT" },
+      { id: "maintenance", name: "Maintenance", code: "MNT" },
+      { id: "marketing", name: "Marketing", code: "MRK" },
+      { id: "other", name: "Other", code: "OTH" }
+    ];
+  </script>
+  <script src="./auth.js"></script>
+  <script>
+    RomeoAuth.requireAuth();
+
+    const API_URL = "https://script.google.com/macros/s/AKfycbxccEe9PidccnIyetWB5fQOUQVVBb-MImglR24hfGVrI1y464BKRWooEQoerFqfv2z4/exec";
+    const elements = {
+      searchInput: document.getElementById("searchInput"),
+      categoryList: document.getElementById("categoryList"),
+      categoryTitle: document.getElementById("categoryTitle"),
+      categorySubtitle: document.getElementById("categorySubtitle"),
+      categoryCode: document.getElementById("categoryCode"),
+      categoryExpenses: document.getElementById("categoryExpenses"),
+      categoryRecords: document.getElementById("categoryRecords"),
+      allExpenses: document.getElementById("allExpenses"),
+      averageExpense: document.getElementById("averageExpense"),
+      expenseAmount: document.getElementById("expenseAmount"),
+      expenseDate: document.getElementById("expenseDate"),
+      expenseCategory: document.getElementById("expenseCategory"),
+      expenseTitle: document.getElementById("expenseTitle"),
+      expenseNote: document.getElementById("expenseNote"),
+      historyList: document.getElementById("historyList")
+    };
+
+    const menuToggle = document.getElementById("menuToggle");
+    const sidebar = document.getElementById("sidebar");
+    const sidebarOverlay = document.getElementById("sidebarOverlay");
+    const saveBtn = document.getElementById("saveBtn");
+    const clearBtn = document.getElementById("clearBtn");
+
+    let expenseList = getExpenses();
+    let selectedCategoryId = EXPENSE_CATEGORIES[0]?.id || null;
+
+    populateCategorySelect();
+
+    if (!elements.expenseDate.value) {
+      elements.expenseDate.value = new Date().toISOString().slice(0, 10);
+    }
+
+    function formatMoney(value) {
+      return Number(value || 0).toLocaleString("en-US");
+    }
+
+    function getExpenses() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(EXPENSES_KEY) || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function saveExpenses() {
+      localStorage.setItem(EXPENSES_KEY, JSON.stringify(expenseList));
+    }
+
+    async function saveExpenseToSheet(expense) {
+      const category = EXPENSE_CATEGORIES.find(item => item.id === expense.categoryId);
+      const response = await fetch(API_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "expense",
+          expenseId: expense.id,
+          category: category ? category.name : expense.categoryId,
+          amount: expense.amount,
+          title: expense.title,
+          note: expense.note,
+          date: expense.date
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to save expense (${response.status})`);
+      }
+
+      const data = await response.json();
+      if (data.status !== "success") {
+        throw new Error(data.message || "Failed to save expense");
+      }
+    }
+
+    async function deleteExpenseFromSheet(expense) {
+      const category = EXPENSE_CATEGORIES.find(item => item.id === expense.categoryId);
+      const response = await fetch(API_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "deleteExpense",
+          expenseId: expense.id,
+          category: category ? category.name : expense.categoryId,
+          amount: expense.amount,
+          title: expense.title,
+          note: expense.note,
+          date: expense.date
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to delete expense (${response.status})`);
+      }
+
+      const data = await response.json();
+      if (data.status !== "success") {
+        throw new Error(data.message || "Failed to delete expense");
+      }
+    }
+
+    function populateCategorySelect() {
+      elements.expenseCategory.innerHTML = "";
+      EXPENSE_CATEGORIES.forEach(category => {
+        const option = document.createElement("option");
+        option.value = category.id;
+        option.textContent = category.name;
+        elements.expenseCategory.appendChild(option);
+      });
+    }
+
+    function getSelectedCategory() {
+      return EXPENSE_CATEGORIES.find(category => category.id === selectedCategoryId) || null;
+    }
+
+    function getCategoryExpenses(categoryId) {
+      return expenseList.filter(item => item.categoryId === categoryId);
+    }
+
+    function renderCategoryList() {
+      const query = elements.searchInput.value.trim().toLowerCase();
+      const filtered = EXPENSE_CATEGORIES.filter(category =>
+        !query ||
+        category.name.toLowerCase().includes(query) ||
+        category.code.toLowerCase().includes(query)
+      );
+
+      elements.categoryList.innerHTML = "";
+
+      filtered.forEach(category => {
+        const total = getCategoryExpenses(category.id).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = `category-card${category.id === selectedCategoryId ? " active" : ""}`;
+        card.innerHTML = `
+          <strong>${category.name}</strong>
+          <div class="category-meta">
+            <span>${category.code}</span>
+            <span>${formatMoney(total)}</span>
+          </div>
+        `;
+        card.addEventListener("click", () => {
+          selectedCategoryId = category.id;
+          elements.expenseCategory.value = category.id;
+          renderAll();
+        });
+        elements.categoryList.appendChild(card);
+      });
+
+      if (!filtered.length) {
+        elements.categoryList.innerHTML = `<div class="history-empty">No category found.</div>`;
+      }
+    }
+
+    function renderHero() {
+      const category = getSelectedCategory();
+      if (!category) {
+        elements.categoryTitle.textContent = "No Category Selected";
+        elements.categorySubtitle.textContent = "اختر تصنيف من القائمة على الشمال لتسجيل المصروفات.";
+        elements.categoryCode.textContent = "--";
+        return;
+      }
+
+      elements.categoryTitle.textContent = category.name;
+      elements.categorySubtitle.textContent = `كل المصروفات الخاصة بتصنيف ${category.name} ستظهر هنا مع ملخص تلقائي وسجل كامل.`;
+      elements.categoryCode.textContent = category.code;
+    }
+
+    function renderSummary() {
+      const category = getSelectedCategory();
+      const categoryItems = category ? getCategoryExpenses(category.id) : [];
+      const categoryTotal = categoryItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const allTotal = expenseList.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const average = expenseList.length ? allTotal / expenseList.length : 0;
+
+      elements.categoryExpenses.textContent = formatMoney(categoryTotal);
+      elements.categoryRecords.textContent = categoryItems.length;
+      elements.allExpenses.textContent = formatMoney(allTotal);
+      elements.averageExpense.textContent = formatMoney(average);
+    }
+
+    function renderHistory() {
+      const category = getSelectedCategory();
+      const items = category ? getCategoryExpenses(category.id) : [];
+      const sorted = [...items].sort((a, b) => new Date(b.date) - new Date(a.date));
+      elements.historyList.innerHTML = "";
+
+      if (!category) {
+        elements.historyList.innerHTML = `<div class="history-empty">لا يوجد تصنيف مختار الآن.</div>`;
+        return;
+      }
+
+      if (!sorted.length) {
+        elements.historyList.innerHTML = `<div class="history-empty">لا توجد مصروفات مسجلة لهذا التصنيف حتى الآن.</div>`;
+        return;
+      }
+
+      sorted.forEach(item => {
+        const row = document.createElement("article");
+        row.className = "history-item";
+        row.innerHTML = `
+          <div class="history-top">
+            <div class="history-amount">${formatMoney(item.amount)}</div>
+            <button type="button" class="action-btn soft" data-delete-id="${item.id}">Delete</button>
+          </div>
+          <div class="history-meta">
+            <span>${item.title || category.name}</span>
+            <span>${item.date}</span>
+            <span>${category.code}</span>
+          </div>
+          <div class="history-note">${item.note || "No note"}</div>
+        `;
+        elements.historyList.appendChild(row);
+      });
+    }
+
+    function renderAll() {
+      if (!EXPENSE_CATEGORIES.find(category => category.id === selectedCategoryId)) {
+        selectedCategoryId = EXPENSE_CATEGORIES[0]?.id || null;
+      }
+      renderCategoryList();
+      renderHero();
+      renderSummary();
+      renderHistory();
+    }
+
+    function clearForm() {
+      elements.expenseAmount.value = "";
+      elements.expenseTitle.value = "";
+      elements.expenseNote.value = "";
+      elements.expenseDate.value = new Date().toISOString().slice(0, 10);
+      elements.expenseCategory.value = selectedCategoryId || EXPENSE_CATEGORIES[0]?.id || "";
+    }
+
+    async function addExpense() {
+      const amount = Number(elements.expenseAmount.value);
+      const categoryId = elements.expenseCategory.value;
+      const category = EXPENSE_CATEGORIES.find(item => item.id === categoryId);
+
+      if (!category) {
+        alert("اختار تصنيف صحيح.");
+        return;
+      }
+
+      if (!Number.isFinite(amount) || amount <= 0) {
+        alert("اكتب مبلغ مصروف صحيح.");
+        return;
+      }
+
+      const expense = {
+        id: Date.now(),
+        categoryId,
+        amount,
+        date: elements.expenseDate.value || new Date().toISOString().slice(0, 10),
+        title: elements.expenseTitle.value.trim(),
+        note: elements.expenseNote.value.trim()
+      };
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving...";
+
+      try {
+        await saveExpenseToSheet(expense);
+        expenseList.unshift(expense);
+        selectedCategoryId = categoryId;
+        saveExpenses();
+        clearForm();
+        renderAll();
+      } catch (error) {
+        console.error(error);
+        alert(error.message || "تعذر حفظ المصروف في الشيت.");
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Add Expense";
+      }
+    }
+
+    async function deleteExpense(id) {
+      const expense = expenseList.find(item => item.id === id);
+      if (!expense) {
+        return;
+      }
+
+      try {
+        await deleteExpenseFromSheet(expense);
+        expenseList = expenseList.filter(item => item.id !== id);
+        saveExpenses();
+        renderAll();
+      } catch (error) {
+        console.error(error);
+        alert(error.message || "تعذر حذف المصروف من الشيت.");
+      }
+    }
+
+    function openSidebar() {
+      sidebar.classList.add("active");
+      sidebarOverlay.classList.add("active");
+    }
+
+    function closeSidebar() {
+      sidebar.classList.remove("active");
+      sidebarOverlay.classList.remove("active");
+    }
+
+    document.querySelectorAll(".sidebar-link[data-permission]").forEach(link => {
+      if (!RomeoAuth.hasPermission(link.dataset.permission)) {
+        link.style.display = "none";
+      }
+    });
+
+    document.querySelectorAll(".sidebar-link[data-href]").forEach(link => {
+      link.addEventListener("click", () => {
+        window.location.href = link.dataset.href;
+      });
+    });
+
+    elements.searchInput.addEventListener("input", renderCategoryList);
+    elements.expenseCategory.addEventListener("change", event => {
+      selectedCategoryId = event.target.value;
+      renderAll();
+    });
+    saveBtn.addEventListener("click", addExpense);
+    clearBtn.addEventListener("click", clearForm);
+    elements.historyList.addEventListener("click", async event => {
+      const btn = event.target.closest("[data-delete-id]");
+      if (!btn) return;
+      if (!confirm("تحذف المصروف ده؟")) return;
+      btn.disabled = true;
+      btn.textContent = "Deleting...";
+      await deleteExpense(Number(btn.dataset.deleteId));
+    });
+    menuToggle.addEventListener("click", openSidebar);
+    sidebarOverlay.addEventListener("click", closeSidebar);
+    document.getElementById("logoutBtn").addEventListener("click", () => RomeoAuth.logout());
+
+    clearForm();
+    renderAll();
+  </script>
+</body>
+</html>

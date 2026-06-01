@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Income Statement - ROMEO BARBERSHOP</title>
+  <style>
+    :root {
+      --ink: #2a2118;
+      --muted: #77695c;
+      --accent: #b7863f;
+      --accent-dark: #8c642e;
+      --success: #18794e;
+      --danger: #ba3a2c;
+      --border: #e5d5be;
+      --shadow: 0 18px 40px rgba(76,54,28,.14);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(183,134,63,0.18), transparent 28%),
+        linear-gradient(135deg, #f8f2e8 0%, #f0e4d0 100%);
+      color: var(--ink);
+    }
+
+    .app {
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .header {
+      position: relative;
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: #ffffff;
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 34px;
+      letter-spacing: 1px;
+    }
+
+    .header-menu {
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      z-index: 20;
+    }
+
+    .menu-toggle {
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      cursor: pointer;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .sidebar-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(34,23,12,0.34);
+      display: none;
+      z-index: 999;
+    }
+
+    .sidebar-overlay.active {
+      display: block;
+    }
+
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: -320px;
+      width: min(320px, 85vw);
+      height: 100vh;
+      background: #fffaf2;
+      border-right: 1px solid rgba(229,213,190,.8);
+      box-shadow: var(--shadow);
+      padding: 24px 18px;
+      z-index: 1000;
+      transition: left 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    .sidebar.active {
+      left: 0;
+    }
+
+    .sidebar h3 {
+      margin: 0 0 8px;
+      color: #2a2118;
+      font-size: 22px;
+      text-align: left;
+      direction: ltr;
+    }
+
+    .sidebar-link,
+    .sidebar button {
+      width: 100%;
+      border: none;
+      border-radius: 16px;
+      padding: 14px 16px;
+      background: #ead9bd;
+      color: var(--ink);
+      text-align: left;
+      direction: ltr;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .sidebar-link.active {
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: white;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+
+    .card,
+    .summary-card {
+      background: rgba(255,250,242,0.9);
+      border: 1px solid rgba(229,213,190,.8);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: 22px;
+    }
+
+    .card h2,
+    .summary-card h2 {
+      margin: 0 0 10px;
+      font-size: 17px;
+      color: var(--muted);
+      direction: ltr;
+      text-align: left;
+    }
+
+    .metric-value {
+      font-size: 34px;
+      font-weight: 800;
+      color: #2a2118;
+      direction: ltr;
+      text-align: left;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .summary-card.total-income .metric-value {
+      color: #2a2118;
+    }
+
+    .summary-card.net-profit .metric-value {
+      color: #2a2118;
+    }
+
+    .summary-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    @media (max-width: 960px) {
+      .header-menu {
+        position: static;
+        width: 100%;
+        margin-bottom: 16px;
+      }
+
+      .grid,
+      .summary-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .app {
+        padding: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div class="header-menu">
+        <button type="button" class="menu-toggle" id="menuToggle">⋯</button>
+      </div>
+
+      <h1>ROMEO BARBERSHOP</h1>
+    </div>
+
+    <section class="grid">
+      <div class="card">
+        <h2>Total Clients</h2>
+        <div class="metric-value" id="totalClients">Loading...</div>
+      </div>
+
+      <div class="card">
+        <h2>Total staff sales</h2>
+        <div class="metric-value" id="totalStaffSales">Loading...</div>
+      </div>
+
+      <div class="card">
+        <h2>Withdraw</h2>
+        <div class="metric-value" id="withdrawAmount">0 EGP</div>
+      </div>
+
+      <div class="card">
+        <h2>Expenses</h2>
+        <div class="metric-value" id="expensesAmount">0 EGP</div>
+      </div>
+    </section>
+
+    <section class="summary-grid">
+      <div class="summary-card total-income">
+        <h2>Total income</h2>
+        <div class="metric-value" id="totalIncome">Loading...</div>
+        <p>إجمالي الدخل قبل المصروفات والسحب.</p>
+      </div>
+      
+      <div class="summary-card net-profit">
+        <h2>Net profit</h2>
+        <div class="metric-value" id="netProfit">55 EGP</div>
+        <p>صافي الربح بعد خصم السحب والمصروفات.</p>
+      </div>
+    </section>
+  </div>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar" id="sidebar">
+    <h3>Menu</h3>
+    <button class="sidebar-link" type="button" data-href="index.html" data-permission="access_cashier">cashier</button>
+    <button class="sidebar-link active" type="button">income statement</button>
+    <button class="sidebar-link" type="button" data-href="staff-accounting.html" data-permission="view_staff_accounting">staff accounting</button>
+    <button class="sidebar-link" type="button" data-href="system-access.html" data-permission="manage_users">system access</button>
+    <button class="sidebar-link" type="button" data-href="withdrawals.html">Withdrawals</button>
+    <button class="sidebar-link" type="button" data-href="expenses.html">Expenses</button>
+    <button class="sidebar-link" type="button" data-href="enventory.html">Enventory</button>
+    <button class="sidebar-link" type="button" data-href="staff-discount.html">staff Discount</button>
+    <button class="sidebar-link" type="button" data-href="attendance.html">Attendance</button>
+    <button class="sidebar-link" type="button" data-href="bookings.html">Bookings</button>
+    <button class="sidebar-link" type="button" data-href="customer-data.html">Customer Data</button>
+    <button type="button" id="logoutBtn">Logout</button>
+  </aside>
+
+  <script src="./text-fix.js"></script>
+  <script src="./auth.js"></script>
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbwX8FC3PWZNqN-NvcCzxJO65H-XHDkpFKf3SUlh19JB-JDNcumkd7aMgybC6I9Wutqp/exec";
+    RomeoAuth.requireAuth("view_income_statement");
+    const menuToggle = document.getElementById("menuToggle");
+    const sidebar = document.getElementById("sidebar");
+    const sidebarOverlay = document.getElementById("sidebarOverlay");
+    const totalIncomeEl = document.getElementById("totalIncome");
+    const netProfitEl = document.getElementById("netProfit");
+    const totalClientsEl = document.getElementById("totalClients");
+    const totalStaffSalesEl = document.getElementById("totalStaffSales");
+    const withdrawAmountEl = document.getElementById("withdrawAmount");
+    const expensesAmountEl = document.getElementById("expensesAmount");
+
+    const WITHDRAWALS_KEY = "romeo-pos-withdrawals";
+    const EXPENSES_KEY = "romeo-pos-expenses";
+
+    const totals = {
+      income: 0,
+      withdrawals: 0,
+      expenses: 0
+    };
+
+    function openSidebar() {
+      sidebar.classList.add("active");
+      sidebarOverlay.classList.add("active");
+    }
+
+    function closeSidebar() {
+      sidebar.classList.remove("active");
+      sidebarOverlay.classList.remove("active");
+    }
+
+    document.querySelectorAll(".sidebar-link[data-permission]").forEach(link => {
+      if (!RomeoAuth.hasPermission(link.dataset.permission)) {
+        link.style.display = "none";
+      }
+    });
+
+    document.querySelectorAll(".sidebar-link[data-href]").forEach(link => {
+      link.addEventListener("click", () => {
+        window.location.href = link.dataset.href;
+      });
+    });
+
+    menuToggle.addEventListener("click", openSidebar);
+    sidebarOverlay.addEventListener("click", closeSidebar);
+    document.getElementById("logoutBtn").addEventListener("click", () => RomeoAuth.logout());
+
+    function formatCurrency(value) {
+      return Number(value || 0).toLocaleString("en-US");
+    }
+
+    function readStore(key, fallback = []) {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key) || "null");
+        return Array.isArray(parsed) ? parsed : fallback;
+      } catch (error) {
+        return fallback;
+      }
+    }
+
+    function refreshLocalTotals() {
+      const withdrawals = readStore(WITHDRAWALS_KEY, []);
+      const withdrawTotal = withdrawals.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+      totals.withdrawals = withdrawTotal;
+      withdrawAmountEl.textContent = `${formatCurrency(withdrawTotal)} EGP`;
+
+      const expenses = readStore(EXPENSES_KEY, []);
+      const expenseTotal = expenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+      totals.expenses = expenseTotal;
+      expensesAmountEl.textContent = `${formatCurrency(expenseTotal)} EGP`;
+
+      updateNetProfit();
+    }
+
+    function updateNetProfit() {
+      const net = totals.income - totals.withdrawals - totals.expenses;
+      netProfitEl.textContent = `${formatCurrency(net)} EGP`;
+    }
+
+    async function fetchTotalClients() {
+      try {
+        totalClientsEl.textContent = "Loading...";
+        const res = await fetch(API_URL, {
+          method: "POST",
+          body: JSON.stringify({ action: "totalClients" })
+        });
+        if (!res.ok) throw new Error("خطأ في الاتصال");
+        const data = await res.json();
+        if (data.status !== "success") {
+          throw new Error(data.message || "فشل جلب إجمالي العملاء");
+        }
+        const value = Number(data.totalClients || 0);
+        totalClientsEl.textContent = formatCurrency(value);
+      } catch (err) {
+        console.error(err);
+        totalClientsEl.textContent = err instanceof Error ? err.message : "تعذر التحميل";
+      }
+    }
+
+    async function fetchTotalIncome() {
+      try {
+        totalIncomeEl.textContent = "Loading...";
+        const res = await fetch(API_URL, {
+          method: "POST",
+          body: JSON.stringify({ action: "totalIncome" })
+        });
+        if (!res.ok) throw new Error("خطأ في الاتصال");
+        const data = await res.json();
+        if (data.status !== "success") {
+          throw new Error(data.message || "فشل جلب إجمالي الدخل");
+        }
+        const value = Number(data.totalIncome || 0);
+        totals.income = value;
+        totalIncomeEl.textContent = `${formatCurrency(value)} EGP`;
+        updateNetProfit();
+      } catch (err) {
+        console.error(err);
+        totalIncomeEl.textContent = err instanceof Error ? err.message : "تعذر التحميل";
+      }
+    }
+
+    async function fetchTotalStaffSales() {
+      try {
+        totalStaffSalesEl.textContent = "Loading...";
+        const res = await fetch(API_URL, {
+          method: "POST",
+          body: JSON.stringify({ action: "totalStaffSales" })
+        });
+        if (!res.ok) throw new Error("خطأ في الاتصال");
+        const data = await res.json();
+        if (data.status !== "success") {
+          throw new Error(data.message || "فشل جلب إجمالي مبيعات الموظفين");
+        }
+        const value = Number(data.totalStaffSales || 0);
+        totalStaffSalesEl.textContent = `${formatCurrency(value)} EGP`;
+      } catch (err) {
+        console.error(err);
+        totalStaffSalesEl.textContent = err instanceof Error ? err.message : "تعذر التحميل";
+      }
+    }
+    refreshLocalTotals();
+    fetchTotalClients();
+    fetchTotalIncome();
+    fetchTotalStaffSales();
+
+    window.addEventListener("storage", event => {
+      if ([WITHDRAWALS_KEY, EXPENSES_KEY].includes(event.key)) {
+        refreshLocalTotals();
+      }
+    });
+  </script>
+</body>
+</html>

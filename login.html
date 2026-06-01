@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - ROMEO BARBERSHOP</title>
+  <style>
+    :root {
+      --ink: #2a2118;
+      --muted: #77695c;
+      --accent-dark: #8c642e;
+      --success: #18794e;
+      --danger: #ba3a2c;
+      --border: #e5d5be;
+      --shadow: 0 18px 40px rgba(76,54,28,.14);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(183,134,63,0.18), transparent 28%),
+        linear-gradient(135deg, #f8f2e8 0%, #f0e4d0 100%);
+      color: var(--ink);
+    }
+
+    .login-card {
+      width: min(460px, 100%);
+      background: rgba(255,250,242,0.95);
+      border: 1px solid rgba(229,213,190,.8);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      padding: 28px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      text-align: center;
+      color: #2a2118;
+      font-size: 34px;
+    }
+
+    p {
+      margin: 0 0 22px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .field label {
+      font-weight: 700;
+    }
+
+    .field input {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      font-size: 16px;
+      background: #fffaf2;
+      outline: none;
+    }
+
+    .primary-btn {
+      width: 100%;
+      border: none;
+      border-radius: 18px;
+      padding: 16px;
+      font-size: 17px;
+      font-weight: 800;
+      color: white;
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--success), #0f5a39);
+    }
+
+    .status {
+      margin-top: 16px;
+      padding: 14px;
+      border-radius: 14px;
+      display: none;
+    }
+
+    .status.error {
+      display: block;
+      background: rgba(186,58,44,0.12);
+      color: var(--danger);
+      border: 1px solid rgba(186,58,44,0.18);
+    }
+
+    .hint {
+      margin-top: 16px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    /* Splash animation on successful login */
+    .splash {
+      position: fixed;
+      inset: 0;
+      display: none;
+      place-items: center;
+      background: rgba(255,250,242,0.9);
+      z-index: 2000;
+      animation: fadeOut 1.2s ease forwards;
+    }
+    .splash.active { display: grid; }
+    .splash .scissor {
+      font-size: 96px;
+      color: #2a2118;
+      animation: cut 1s ease forwards;
+    }
+    @keyframes cut {
+      0%   { transform: scale(0.1) rotate(-20deg); opacity: 0; }
+      50%  { transform: scale(1.05) rotate(6deg); opacity: 1; }
+      80%  { transform: scale(1) rotate(0deg); }
+      100% { transform: scale(0.95) rotate(-4deg); }
+    }
+    @keyframes fadeOut {
+      0%   { opacity: 1; }
+      70%  { opacity: 1; }
+      100% { opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="splash" id="loginSplash">
+    <div class="scissor">✂</div>
+  </div>
+  <div class="login-card">
+    <h1>ROMEO BARBERSHOP</h1>
+    <p>ادخل بياناتك لتسجيل الدخول، ثم سيتم توجيهك للصفحة المطلوبة تلقائيًا.</p>
+
+    <form id="loginForm">
+      <div class="field">
+        <label for="username">اسم المستخدم</label>
+        <input id="username" type="text" autocomplete="username" required>
+      </div>
+
+      <div class="field">
+        <label for="password">كلمة المرور</label>
+        <input id="password" type="password" autocomplete="current-password" required>
+      </div>
+
+      <button class="primary-btn" type="submit">تسجيل الدخول</button>
+      <div class="status" id="statusBox"></div>
+    </form>
+
+  </div>
+
+  <script src="./auth.js"></script>
+  <script>
+    if (RomeoAuth.getCurrentUser()) {
+      window.location.href = RomeoAuth.getReturnTo();
+    }
+
+    const loginForm = document.getElementById("loginForm");
+    const statusBox = document.getElementById("statusBox");
+    const splash = document.getElementById("loginSplash");
+
+    loginForm.addEventListener("submit", event => {
+      event.preventDefault();
+
+      const result = RomeoAuth.login(
+        document.getElementById("username").value.trim(),
+        document.getElementById("password").value
+      );
+
+      if (!result.success) {
+        statusBox.textContent = result.message;
+        statusBox.className = "status error";
+        return;
+      }
+
+      splash.classList.add("active");
+      setTimeout(() => {
+        window.location.href = RomeoAuth.getReturnTo();
+      }, 1000);
+    });
+  </script>
+</body>
+</html>

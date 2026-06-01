@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Staff Accounting - ROMEO BARBERSHOP</title>
+  <style>
+    :root {
+      --ink: #2a2118;
+      --muted: #77695c;
+      --accent-dark: #8c642e;
+      --accent: #b7863f;
+      --surface: rgba(255,255,255,.96);
+      --line: rgba(229,213,190,.8);
+      --shadow: 0 18px 40px rgba(76,54,28,.14);
+      --success: #18794e;
+      --danger: #ba3a2c;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(183,134,63,0.18), transparent 28%),
+        linear-gradient(135deg, #f8f2e8 0%, #f0e4d0 100%);
+      color: var(--ink);
+    }
+
+    .app {
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .header {
+      position: relative;
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: #ffffff;
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .header-menu {
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      z-index: 20;
+    }
+
+    .menu-toggle {
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color: #fff;
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      cursor: pointer;
+      font-size: 28px;
+      line-height: 1;
+      transition: transform .18s ease;
+    }
+
+    .menu-toggle:hover,
+    .action-btn:hover,
+    .employee-card:hover,
+    .summary-card:hover {
+      transform: translateY(-3px);
+    }
+
+    .page-grid {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .panel,
+    .summary-card {
+      background: var(--surface);
+      border: 1px solid rgba(229,213,190,.8);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .panel {
+      padding: 20px;
+    }
+
+    .left-panel {
+      display: grid;
+      gap: 16px;
+      position: sticky;
+      top: 20px;
+    }
+
+    .panel-title {
+      margin: 0 0 8px;
+      font-size: 24px;
+    }
+
+    .panel-subtitle {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 14px;
+    }
+
+    .search-box,
+    .field input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 13px 15px;
+      background: #fffaf2;
+      color: var(--ink);
+      font-size: 15px;
+      font-family: inherit;
+    }
+
+    .search-box:focus,
+    .field input:focus {
+      outline: none;
+      border-color: #2a2118;
+      box-shadow: 0 0 0 3px rgba(183,134,63,.16);
+    }
+
+    .percent-input-wrap {
+      position: relative;
+    }
+
+    .percent-input-wrap input {
+      direction: ltr;
+      text-align: right;
+      padding-right: 42px;
+      -moz-appearance: textfield;
+    }
+
+    .percent-input-wrap input::-webkit-outer-spin-button,
+    .percent-input-wrap input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    .percent-input-wrap::after {
+      content: "%";
+      position: absolute;
+      top: 50%;
+      right: 16px;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-weight: 900;
+      pointer-events: none;
+    }
+
+    .employee-list {
+      display: grid;
+      gap: 10px;
+      max-height: 66vh;
+      overflow-y: auto;
+      padding-left: 6px;
+    }
+
+    .employee-card {
+      border: 1px solid transparent;
+      background: #fffaf2;
+      border-radius: 18px;
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: transform .18s ease, border-color .18s ease, background .18s ease;
+      text-align: right;
+    }
+
+    .employee-card.active {
+      border-color: rgba(183,134,63,0.44);
+      background: linear-gradient(135deg, rgba(183,134,63,0.16), rgba(255,255,255,.94));
+    }
+
+    .employee-card strong {
+      display: block;
+      font-size: 17px;
+      margin-bottom: 4px;
+    }
+
+    .employee-meta {
+      color: var(--muted);
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .list-actions,
+    .detail-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .action-btn {
+      border: none;
+      border-radius: 16px;
+      padding: 12px 18px;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform .18s ease, opacity .18s ease;
+    }
+
+    .action-btn.primary {
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: white;
+    }
+
+    .action-btn.soft {
+      background: #ead9bd;
+      color: var(--ink);
+    }
+
+    .action-btn.danger {
+      background: #fffaf2;
+      color: #2a2118;
+      border: 1px solid var(--line);
+    }
+
+    .staff-total-card {
+      border-radius: 20px;
+      padding: 18px;
+      background: #fffaf2;
+      border: 1px solid var(--line);
+      text-align: center;
+    }
+
+    .staff-total-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+
+    .staff-total-card strong {
+      font-size: 32px;
+    }
+
+    .main-panel {
+      display: grid;
+      gap: 18px;
+    }
+
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .hero h2 {
+      margin: 0 0 8px;
+      font-size: 28px;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .hero-badge {
+      min-width: 120px;
+      text-align: center;
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: white;
+      padding: 16px 20px;
+      border-radius: 20px;
+      font-weight: 900;
+      font-size: 26px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .summary-card {
+      padding: 18px;
+      transition: transform .18s ease;
+    }
+
+    .summary-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+
+    .summary-card strong {
+      font-size: 28px;
+    }
+
+    .summary-card.net strong {
+      color: #2a2118;
+    }
+
+    .editor-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .field label {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--muted);
+    }
+
+    .totals-panel {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .total-box {
+      border-radius: 20px;
+      padding: 18px;
+      background: #fffaf2;
+      border: 1px solid var(--line);
+    }
+
+    .total-box span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+
+    .total-box strong {
+      font-size: 30px;
+    }
+
+    .sidebar-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(34,23,12,.34);
+      display: none;
+      z-index: 999;
+    }
+
+    .sidebar-overlay.active { display: block; }
+
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: -320px;
+      width: min(320px,85vw);
+      height: 100vh;
+      background: #fffaf2;
+      border-right: 1px solid rgba(229,213,190,.8);
+      box-shadow: var(--shadow);
+      padding: 24px 18px;
+      z-index: 1000;
+      transition: left .2s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    .sidebar.active { left: 0; }
+
+    .sidebar h3 {
+      margin: 0 0 8px;
+      color: #2a2118;
+      font-size: 22px;
+      text-align: left;
+      direction: ltr;
+    }
+
+    .sidebar-link,
+    .sidebar button {
+      width: 100%;
+      border: none;
+      border-radius: 16px;
+      padding: 14px 16px;
+      background: #ead9bd;
+      color: var(--ink);
+      text-align: left;
+      direction: ltr;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .sidebar-link.active {
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: white;
+    }
+
+    @media (max-width: 1180px) {
+      .page-grid,
+      .summary-grid,
+      .totals-panel {
+        grid-template-columns: 1fr;
+      }
+
+      .left-panel {
+        position: static;
+      }
+    }
+
+    @media (max-width: 860px) {
+      .editor-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .header-menu {
+        position: static;
+        width: 100%;
+        margin-bottom: 16px;
+      }
+
+      .app {
+        padding: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div class="header-menu">
+        <button type="button" class="menu-toggle" id="menuToggle">⋯</button>
+      </div>
+      <h1>ROMEO BARBERSHOP</h1>
+    </div>
+
+    <div class="page-grid">
+      <aside class="left-panel">
+        <section class="panel">
+          <input class="search-box" id="searchInput" type="text" placeholder="Search by name or code">
+        </section>
+
+        <section class="panel">
+          <div class="list-actions">
+            <button type="button" class="action-btn primary" id="addStaffBtn">Add Employee</button>
+            <button type="button" class="action-btn soft" id="resetBtn">Reset Data</button>
+          </div>
+        </section>
+
+        <section class="employee-list" id="employeeList"></section>
+      </aside>
+
+      <main class="main-panel">
+        <section class="panel hero">
+          <div>
+            <h2 id="employeeTitle">Select Staff</h2>
+            <p id="employeeSubtitle">لما تختار موظف، هتظهر هنا تفاصيل حسابه كاملة وصافي مستحقاته.</p>
+          </div>
+          <div class="hero-badge" id="employeeCode">--</div>
+        </section>
+
+        <section class="summary-grid">
+          <article class="summary-card">
+            <span>Total Clients</span>
+            <strong id="sumClients">0</strong>
+          </article>
+          <article class="summary-card">
+            <span>Salaries</span>
+            <strong id="sumSalary">0</strong>
+          </article>
+          <article class="summary-card">
+            <span>Total Sales</span>
+            <strong id="sumSales">0</strong>
+          </article>
+          <article class="summary-card">
+            <span>Percentage Of Salaries</span>
+            <strong id="sumPercentage">0</strong>
+          </article>
+          <article class="summary-card">
+            <span>Withdrawals</span>
+            <strong id="sumWithdrawals">0</strong>
+          </article>
+          <article class="summary-card">
+            <span>dedution</span>
+            <strong id="sumDedution">0</strong>
+          </article>
+          <article class="summary-card">
+            <span>Bonus</span>
+            <strong id="sumBonus">0</strong>
+          </article>
+          <article class="summary-card net">
+            <span>Net Salary</span>
+            <strong id="sumNet">0</strong>
+          </article>
+        </section>
+
+        <section class="panel">
+          <div class="editor-grid">
+            <div class="field">
+              <label for="staffName">Staff Name</label>
+              <input id="staffName" type="text">
+            </div>
+            <div class="field">
+              <label for="staffCode">Staff Code</label>
+              <input id="staffCode" type="text">
+            </div>
+            <div class="field">
+              <label for="staffPercentage">Percentage Of Salaries</label>
+              <div class="percent-input-wrap">
+                <input id="staffPercentage" type="number" min="0" max="100" step="0.01" inputmode="decimal">
+              </div>
+            </div>
+            <div class="field">
+              <label for="staffSalary">Salaries</label>
+              <input id="staffSalary" type="number">
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="detail-actions">
+            <button type="button" class="action-btn primary" id="saveBtn">Save Changes</button>
+            <button type="button" class="action-btn danger" id="deleteBtn">Delete Employee</button>
+          </div>
+        </section>
+
+        <section class="totals-panel">
+          <article class="total-box">
+            <span>Employee Count</span>
+            <strong id="overallStaff">0</strong>
+          </article>
+          <article class="total-box">
+            <span>Net Total Salary</span>
+            <strong id="overallNet">0</strong>
+          </article>
+          <article class="total-box">
+            <span>Total Salary Package</span>
+            <strong id="overallPackage">0</strong>
+          </article>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar" id="sidebar">
+    <h3>Menu</h3>
+    <button class="sidebar-link" type="button" data-href="index.html" data-permission="access_cashier">cashier</button>
+    <button class="sidebar-link" type="button" data-href="income-statement.html" data-permission="view_income_statement">income statement</button>
+    <button class="sidebar-link active" type="button">staff accounting</button>
+    <button class="sidebar-link" type="button" data-href="system-access.html" data-permission="manage_users">system access</button>
+    <button class="sidebar-link" type="button" data-href="withdrawals.html">Withdrawals</button>
+    <button class="sidebar-link" type="button" data-href="expenses.html">Expenses</button>
+    <button class="sidebar-link" type="button" data-href="enventory.html">Enventory</button>
+    <button class="sidebar-link" type="button" data-href="staff-discount.html">staff Discount</button>
+    <button class="sidebar-link" type="button" data-href="attendance.html">Attendance</button>
+    <button class="sidebar-link" type="button" data-href="bookings.html">Bookings</button>
+    <button class="sidebar-link" type="button" data-href="customer-data.html">Customer Data</button>
+    <button type="button" id="logoutBtn">Logout</button>
+  </aside>
+
+  <script src="./text-fix.js"></script>
+  <script src="./auth.js"></script>
+  <script>
+    RomeoAuth.requireAuth("view_staff_accounting");
+
+    const API_URL = "https://script.google.com/macros/s/AKfycbwX8FC3PWZNqN-NvcCzxJO65H-XHDkpFKf3SUlh19JB-JDNcumkd7aMgybC6I9Wutqp/exec";
+    const STAFF_KEY = "romeo-pos-staff-accounting-v2";
+    const WITHDRAWALS_KEY = "romeo-pos-withdrawals";
+    const BARBER_NAMES_BY_CODE = {
+      R01: "KAREEM",
+      R02: "8AYTH",
+      R03: "ELEBY",
+      R07: "RAMDAN",
+      R08: "KHALED",
+      R09: "MOHAMED"
+    };
+    const DEFAULT_STAFF = [
+      { id: 1, name: "Ramdan", code: "R07", customers: 2, totalSales: 450, percentage: 225, withdraw: 380, debt: 0, lateDiscount: 0, salary: 0, bonus: 0 },
+      { id: 2, name: "Khaled", code: "R08", customers: 0, totalSales: 0, percentage: 0, withdraw: 65, debt: 0, lateDiscount: 0, salary: 2500, bonus: 0 },
+      { id: 3, name: "Mohamed Emmad", code: "R09", customers: 0, totalSales: 0, percentage: 0, withdraw: 0, debt: 0, lateDiscount: 0, salary: 2500, bonus: 0 },
+      { id: 4, name: "Karem", code: "R01", customers: 0, totalSales: 0, percentage: 0, withdraw: 5270, debt: 0, lateDiscount: 0, salary: 5500, bonus: 0 },
+      { id: 5, name: "Eleby", code: "R03", customers: 0, totalSales: 0, percentage: 0, withdraw: 0, debt: 0, lateDiscount: 0, salary: 3300, bonus: 0 },
+      { id: 6, name: "8atyh", code: "R02", customers: 0, totalSales: 0, percentage: 0, withdraw: 0, debt: 0, lateDiscount: 0, salary: 3300, bonus: 0 }
+    ];
+
+    const elements = {
+      employeeList: document.getElementById("employeeList"),
+      searchInput: document.getElementById("searchInput"),
+      employeeTitle: document.getElementById("employeeTitle"),
+      employeeSubtitle: document.getElementById("employeeSubtitle"),
+      employeeCode: document.getElementById("employeeCode"),
+      sumClients: document.getElementById("sumClients"),
+      sumSalary: document.getElementById("sumSalary"),
+      sumSales: document.getElementById("sumSales"),
+      sumPercentage: document.getElementById("sumPercentage"),
+      sumWithdrawals: document.getElementById("sumWithdrawals"),
+      sumDedution: document.getElementById("sumDedution"),
+      sumBonus: document.getElementById("sumBonus"),
+      sumNet: document.getElementById("sumNet"),
+      overallStaff: document.getElementById("overallStaff"),
+      overallNet: document.getElementById("overallNet"),
+      overallPackage: document.getElementById("overallPackage"),
+      fields: {
+        name: document.getElementById("staffName"),
+        code: document.getElementById("staffCode"),
+        percentage: document.getElementById("staffPercentage"),
+        salary: document.getElementById("staffSalary"),
+      }
+    };
+
+    const menuToggle = document.getElementById("menuToggle");
+    const sidebar = document.getElementById("sidebar");
+    const sidebarOverlay = document.getElementById("sidebarOverlay");
+    const addStaffBtn = document.getElementById("addStaffBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const saveBtn = document.getElementById("saveBtn");
+    const deleteBtn = document.getElementById("deleteBtn");
+
+    function cloneDefaults() {
+      return DEFAULT_STAFF.map(item => ({ ...item }));
+    }
+
+    function getStoredStaff() {
+      const stored = localStorage.getItem(STAFF_KEY);
+      if (!stored) {
+        const seed = cloneDefaults();
+        localStorage.setItem(STAFF_KEY, JSON.stringify(seed));
+        return seed;
+      }
+
+      try {
+        const parsed = JSON.parse(stored);
+        return Array.isArray(parsed) && parsed.length ? parsed : cloneDefaults();
+      } catch (error) {
+        return cloneDefaults();
+      }
+    }
+
+    let staffList = getStoredStaff();
+    let selectedId = staffList[0]?.id || null;
+    let staffClientRequestId = 0;
+    let staffSalesRequestId = 0;
+
+    function saveStaff() {
+      localStorage.setItem(STAFF_KEY, JSON.stringify(staffList));
+    }
+
+    function numberValue(value) {
+      const parsed = typeof value === "number"
+        ? value
+        : parseFloat(String(value).replace(/[^\d.-]/g, ""));
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function formatMoney(value) {
+      return numberValue(value).toLocaleString("en-US");
+    }
+
+    function formatPercentage(value) {
+      return `${numberValue(value).toLocaleString("en-US", { maximumFractionDigits: 2 })}%`;
+    }
+
+    function readArrayStore(key) {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key) || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function normalizeName(value) {
+      return String(value || "").trim().toLowerCase();
+    }
+
+    function getStaffWithdrawalsTotal(staff) {
+      const staffId = String(staff.id);
+      const staffName = normalizeName(staff.name);
+
+      return readArrayStore(WITHDRAWALS_KEY)
+        .filter(item => {
+          const sameId = String(item.staffId) === staffId;
+          const sameName = item.staffName && normalizeName(item.staffName) === staffName;
+          return sameId || sameName;
+        })
+        .reduce((sum, item) => sum + numberValue(item.amount), 0);
+    }
+
+    function calculateCommission(staff) {
+      return numberValue(staff.totalSales) * (numberValue(staff.percentage) / 100);
+    }
+
+    function calculatePackage(staff) {
+      return numberValue(staff.salary) + calculateCommission(staff) + numberValue(staff.bonus);
+    }
+
+    function calculateDeduction(staff) {
+      return numberValue(staff.debt) + numberValue(staff.lateDiscount);
+    }
+
+    function calculateNet(staff) {
+      return calculatePackage(staff) - getStaffWithdrawalsTotal(staff) - calculateDeduction(staff);
+    }
+
+    function refreshSelectedFinancialSummary(staff) {
+      const withdrawalsTotal = getStaffWithdrawalsTotal(staff);
+      elements.sumSalary.textContent = formatMoney(staff.salary);
+      elements.sumPercentage.textContent = formatPercentage(staff.percentage);
+      elements.sumWithdrawals.textContent = formatMoney(withdrawalsTotal);
+      elements.sumDedution.textContent = formatMoney(calculateDeduction(staff));
+      elements.sumBonus.textContent = formatMoney(staff.bonus);
+      elements.sumNet.textContent = formatMoney(calculateNet(staff));
+    }
+
+    function getSelectedStaff() {
+      return staffList.find(staff => staff.id === selectedId) || null;
+    }
+
+    function getBarberSheetName(staff) {
+      const code = String(staff.code || "").trim().toUpperCase();
+      return BARBER_NAMES_BY_CODE[code] || String(staff.name || "").trim().toUpperCase();
+    }
+
+    async function fetchStaffClientCount(staff) {
+      const requestId = ++staffClientRequestId;
+      elements.sumClients.textContent = "Loading...";
+
+      try {
+        const response = await fetch(API_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "staffClientCount",
+            barber: getBarberSheetName(staff)
+          })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || `خطأ في تحميل عدد العملاء (${response.status})`);
+        }
+
+        const data = await response.json();
+        if (data.status !== "success") {
+          throw new Error(data.message || "تعذر تحميل عدد العملاء");
+        }
+
+        if (requestId === staffClientRequestId && selectedId === staff.id) {
+          elements.sumClients.textContent = formatMoney(data.totalClients);
+        }
+      } catch (error) {
+        console.error(error);
+        if (requestId === staffClientRequestId && selectedId === staff.id) {
+          elements.sumClients.textContent = "0";
+        }
+      }
+    }
+
+    async function fetchStaffTotalSales(staff) {
+      const requestId = ++staffSalesRequestId;
+      elements.sumSales.textContent = "Loading...";
+
+      try {
+        const response = await fetch(API_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "staffTotalSales",
+            barber: getBarberSheetName(staff)
+          })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || `Failed to load total sales (${response.status})`);
+        }
+
+        const data = await response.json();
+        if (data.status !== "success") {
+          throw new Error(data.message || "Failed to load total sales");
+        }
+
+        if (requestId === staffSalesRequestId && selectedId === staff.id) {
+          staff.totalSales = numberValue(data.totalSales);
+          elements.sumSales.textContent = formatMoney(staff.totalSales);
+          refreshSelectedFinancialSummary(staff);
+          renderEmployeeList();
+          renderOverall();
+        }
+      } catch (error) {
+        console.error(error);
+        if (requestId === staffSalesRequestId && selectedId === staff.id) {
+          elements.sumSales.textContent = "0";
+        }
+      }
+    }
+
+    function renderEmployeeList() {
+      const query = elements.searchInput.value.trim().toLowerCase();
+      const filtered = staffList.filter(staff =>
+        !query ||
+        staff.name.toLowerCase().includes(query) ||
+        staff.code.toLowerCase().includes(query)
+      );
+
+      elements.employeeList.innerHTML = "";
+
+      filtered.forEach(staff => {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = `employee-card${staff.id === selectedId ? " active" : ""}`;
+        card.innerHTML = `
+          <strong>${staff.name}</strong>
+          <div class="employee-meta">
+            <span>${staff.code}</span>
+            <span>Net ${formatMoney(calculateNet(staff))}</span>
+          </div>
+        `;
+        card.addEventListener("click", () => {
+          selectedId = staff.id;
+          renderAll();
+        });
+        elements.employeeList.appendChild(card);
+      });
+
+      if (!filtered.length) {
+        elements.employeeList.innerHTML = `<div class="panel" style="padding:18px; text-align:center; color:var(--muted);">No staff found.</div>`;
+      }
+    }
+
+    function fillDetails() {
+      const staff = getSelectedStaff();
+
+      if (!staff) {
+        elements.employeeTitle.textContent = "No Staff Selected";
+        elements.employeeSubtitle.textContent = "أضف موظف جديد عشان تبدأ.";
+        elements.employeeCode.textContent = "--";
+        Object.values(elements.fields).forEach(input => input.value = "");
+        elements.sumClients.textContent = "0";
+        elements.sumSalary.textContent = "0";
+        elements.sumSales.textContent = "0";
+        elements.sumPercentage.textContent = "0%";
+        elements.sumWithdrawals.textContent = "0";
+        elements.sumDedution.textContent = "0";
+        elements.sumBonus.textContent = "0";
+        elements.sumNet.textContent = "0";
+        deleteBtn.disabled = true;
+        return;
+      }
+
+      deleteBtn.disabled = false;
+      elements.employeeTitle.textContent = staff.name;
+      elements.employeeSubtitle.textContent = `تفاصيل حساب ${staff.name} الحالية.`;
+      elements.employeeCode.textContent = staff.code;
+      elements.fields.name.value = staff.name;
+      elements.fields.code.value = staff.code;
+      elements.fields.percentage.value = numberValue(staff.percentage);
+      elements.fields.salary.value = staff.salary;
+      fetchStaffClientCount(staff);
+      fetchStaffTotalSales(staff);
+      refreshSelectedFinancialSummary(staff);
+    }
+
+    function renderOverall() {
+      const totals = staffList.reduce((acc, staff) => {
+        acc.package += calculatePackage(staff);
+        acc.net += calculateNet(staff);
+        return acc;
+      }, { package: 0, net: 0 });
+
+      elements.overallStaff.textContent = staffList.length;
+      elements.overallNet.textContent = formatMoney(totals.net);
+      elements.overallPackage.textContent = formatMoney(totals.package);
+
+    }
+
+    function renderAll() {
+      renderEmployeeList();
+      fillDetails();
+      renderOverall();
+    }
+
+    function saveSelectedStaff() {
+      const staff = getSelectedStaff();
+      if (!staff) {
+        return;
+      }
+
+      staff.name = elements.fields.name.value.trim() || staff.name;
+      staff.code = elements.fields.code.value.trim().toUpperCase() || staff.code;
+      staff.percentage = numberValue(elements.fields.percentage.value);
+      staff.salary = numberValue(elements.fields.salary.value);
+
+      saveStaff();
+      renderAll();
+    }
+
+    function addStaff() {
+      const name = prompt("اكتب اسم الموظف");
+      if (!name) return;
+
+      const code = prompt("اكتب كود الموظف", `R${String(staffList.length + 1).padStart(2, "0")}`);
+      if (!code) return;
+
+      const newStaff = {
+        id: Date.now(),
+        name: name.trim(),
+        code: code.trim().toUpperCase(),
+        percentage: 0,
+        salary: 0,
+        customers: 0,
+        totalSales: 0,
+        withdraw: 0,
+        debt: 0,
+        lateDiscount: 0,
+        bonus: 0
+      };
+
+      staffList.unshift(newStaff);
+      selectedId = newStaff.id;
+      saveStaff();
+      renderAll();
+    }
+
+    function resetData() {
+      if (!confirm("ترجع صفحة الموظفين لبيانات البداية؟")) {
+        return;
+      }
+
+      staffList = cloneDefaults();
+      selectedId = staffList[0]?.id || null;
+      saveStaff();
+      renderAll();
+    }
+
+    function deleteSelected() {
+      const staff = getSelectedStaff();
+      if (!staff) {
+        return;
+      }
+
+      if (!confirm(`تحذف الموظف ${staff.name}؟`)) {
+        return;
+      }
+
+      staffList = staffList.filter(item => item.id !== staff.id);
+      selectedId = staffList[0]?.id || null;
+      saveStaff();
+      renderAll();
+    }
+
+    function openSidebar() {
+      sidebar.classList.add("active");
+      sidebarOverlay.classList.add("active");
+    }
+
+    function closeSidebar() {
+      sidebar.classList.remove("active");
+      sidebarOverlay.classList.remove("active");
+    }
+
+    document.querySelectorAll(".sidebar-link[data-permission]").forEach(link => {
+      if (!RomeoAuth.hasPermission(link.dataset.permission)) {
+        link.style.display = "none";
+      }
+    });
+
+    document.querySelectorAll(".sidebar-link[data-href]").forEach(link => {
+      link.addEventListener("click", () => {
+        window.location.href = link.dataset.href;
+      });
+    });
+
+    elements.searchInput.addEventListener("input", renderEmployeeList);
+    addStaffBtn.addEventListener("click", addStaff);
+    resetBtn.addEventListener("click", resetData);
+    saveBtn.addEventListener("click", saveSelectedStaff);
+    deleteBtn.addEventListener("click", deleteSelected);
+    menuToggle.addEventListener("click", openSidebar);
+    sidebarOverlay.addEventListener("click", closeSidebar);
+    document.getElementById("logoutBtn").addEventListener("click", () => RomeoAuth.logout());
+
+    renderAll();
+  </script>
+</body>
+</html>
+
+
