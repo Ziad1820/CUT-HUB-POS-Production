@@ -1,0 +1,873 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="shared.css">
+  <title>DATA ANALYSIS - ROMEO BARBERSHOP</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --panel: #fffaf2;
+      --ink: #2a2118;
+      --muted: #77695c;
+      --accent: #b7863f;
+      --accent-dark: #8c642e;
+      --success: #18794e;
+      --danger: #ba3a2c;
+      --border: #e5d5be;
+      --shadow: 0 18px 40px rgba(76,54,28,.14);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(183,134,63,.18), transparent 28%),
+        linear-gradient(135deg, #f8f2e8 0%, #f0e4d0 100%);
+      color: var(--ink);
+    }
+
+    .app { min-height: 100vh; padding: 24px; }
+
+    .header {
+      position: relative;
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: #fff;
+      border-radius: 24px;
+      padding: 28px 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .header h1 { margin: 0 0 8px; font-size: 34px; letter-spacing: 1px; }
+    .header p { margin: 0; color: rgba(255,255,255,.82); font-weight: 700; }
+
+    .header-menu {
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      z-index: 20;
+    }
+
+    .menu-toggle {
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color: #fff;
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      cursor: pointer;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .sidebar-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(34,23,12,.34);
+      display: none;
+      z-index: 999;
+    }
+
+    .sidebar-overlay.active { display: block; }
+
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: -320px;
+      width: min(320px, 85vw);
+      height: 100vh;
+      background: #fffaf2;
+      border-right: 1px solid rgba(229,213,190,.8);
+      box-shadow: var(--shadow);
+      padding: 24px 18px;
+      z-index: 1000;
+      transition: left .2s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    .sidebar.active { left: 0; }
+
+    .sidebar h3 {
+      margin: 0 0 8px;
+      color: var(--ink);
+      font-size: 22px;
+      text-align: left;
+      direction: ltr;
+    }
+
+    .sidebar-link,
+    .sidebar button {
+      width: 100%;
+      border: none;
+      border-radius: 16px;
+      padding: 14px 16px;
+      background: #ead9bd;
+      color: var(--ink);
+      text-align: left;
+      direction: ltr;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .sidebar-link.active {
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: #fff;
+    }
+
+    .panel {
+      background: rgba(255,250,242,.96);
+      border: 1px solid rgba(229,213,190,.8);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: 22px;
+      margin-bottom: 22px;
+    }
+
+    .filters {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 14px;
+      align-items: end;
+    }
+
+    .field { display: grid; gap: 8px; }
+    .field label { color: var(--muted); font-size: 14px; font-weight: 900; }
+
+    .field input,
+    .field select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 13px 15px;
+      background: #fffaf2;
+      color: var(--ink);
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+    }
+
+    .field input:focus,
+    .field select:focus {
+      border-color: #2a2118;
+      box-shadow: 0 0 0 3px rgba(183,134,63,.16);
+    }
+
+    .action-btn {
+      border: none;
+      border-radius: 16px;
+      padding: 14px 18px;
+      background: #ead9bd;
+      color: var(--ink);
+      font-weight: 900;
+      font-size: 15px;
+      cursor: pointer;
+      min-height: 48px;
+    }
+
+    .action-btn.dark {
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: #fff;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .tab-btn {
+      border: none;
+      border-radius: 999px;
+      background: #ead9bd;
+      color: var(--ink);
+      padding: 12px 16px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .tab-btn.active {
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: #fff;
+    }
+
+    .tab-page { display: none; }
+    .tab-page.active { display: block; }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+
+    .metric {
+      background: rgba(255,250,242,.96);
+      border: 1px solid rgba(229,213,190,.9);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      padding: 20px;
+      min-height: 132px;
+      display: grid;
+      align-content: space-between;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 12px;
+      font-size: 32px;
+      color: var(--ink);
+      line-height: 1.2;
+      direction: ltr;
+      text-align: left;
+    }
+
+    .metric.success strong { color: var(--success); }
+    .metric.danger strong { color: var(--danger); }
+
+    .analysis-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .section-title {
+      margin: 0 0 14px;
+      font-size: 22px;
+      color: var(--ink);
+    }
+
+    .bar-list { display: grid; gap: 12px; }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: minmax(110px, 1fr) minmax(120px, auto);
+      gap: 12px;
+      align-items: center;
+    }
+
+    .bar-label { font-weight: 900; overflow-wrap: anywhere; }
+    .bar-value { color: var(--muted); font-weight: 900; direction: ltr; text-align: left; }
+    .bar-track {
+      grid-column: 1 / -1;
+      height: 12px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(229,213,190,.65);
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: 0;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #18794e, #b7863f);
+      transition: width .2s ease;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: #fffaf2;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+    }
+
+    th,
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(229,213,190,.75);
+      text-align: start;
+      vertical-align: middle;
+    }
+
+    th {
+      color: var(--muted);
+      background: rgba(234,217,189,.45);
+      font-weight: 900;
+    }
+
+    td.amount,
+    th.amount {
+      direction: ltr;
+      text-align: left;
+      font-weight: 900;
+    }
+
+    .empty-state,
+    .status-line {
+      padding: 24px;
+      text-align: center;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .insight-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .insight {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: #fffaf2;
+      padding: 16px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .insight strong { font-size: 18px; }
+    .insight span { color: var(--muted); font-weight: 700; }
+
+    @media (max-width: 1180px) {
+      .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .analysis-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 720px) {
+      .app { padding: 14px; }
+      .header { padding: 82px 18px 24px; }
+      .header h1 { font-size: 28px; }
+      .filters,
+      .metrics { grid-template-columns: 1fr; }
+      .metric strong { font-size: 28px; }
+      .bar-row { grid-template-columns: 1fr; }
+      .bar-value { text-align: start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar" id="sidebar">
+    <h3>Menu</h3>
+    <button class="sidebar-link" type="button" data-href="index.html">cashier</button>
+    <button class="sidebar-link" type="button" data-href="invoices.html">invoices</button>
+    <button class="sidebar-link" type="button" data-href="income-statement.html" data-permission="view_income_statement">income statement</button>
+    <button class="sidebar-link active" type="button" data-permission="view_income_statement">DATA ANALYSIS</button>
+      <button class="sidebar-link" type="button" data-href="daily-closing.html" data-permission="view_income_statement">daily closing</button>
+      <button class="sidebar-link" type="button" data-href="activity-log.html" data-permission="manage_users">Activity Log</button>
+    <button class="sidebar-link" type="button" data-href="staff-accounting.html" data-permission="view_staff_accounting">staff accounting</button>
+    <button class="sidebar-link" type="button" data-href="system-access.html" data-permission="manage_users">system access</button>
+    <button class="sidebar-link" type="button" data-href="withdrawals.html">Withdrawals</button>
+    <button class="sidebar-link" type="button" data-href="expenses.html">Expenses</button>
+    <button class="sidebar-link" type="button" data-href="enventory.html">Enventory</button>
+    <button class="sidebar-link" type="button" data-href="staff-discount.html">staff Discount</button>
+    <button class="sidebar-link" type="button" data-href="attendance.html">Attendance</button>
+    <button class="sidebar-link" type="button" data-href="bookings.html">Bookings</button>
+    <button class="sidebar-link" type="button" data-href="customer-data.html">Customer Data</button>
+    <button type="button" id="logoutBtn">Logout</button>
+  </aside>
+
+  <main class="app">
+    <header class="header">
+      <div class="header-menu">
+        <button type="button" class="menu-toggle" id="menuToggle">...</button>
+      </div>
+      <h1>ROMEO BARBERSHOP</h1>
+      <p>DATA ANALYSIS</p>
+    </header>
+
+    <section class="panel">
+      <div class="filters">
+        <div class="field">
+          <label for="fromDate">From Date</label>
+          <input id="fromDate" type="date">
+        </div>
+        <div class="field">
+          <label for="toDate">To Date</label>
+          <input id="toDate" type="date">
+        </div>
+        <div class="field">
+          <label for="barberFilter">Barber</label>
+          <select id="barberFilter">
+            <option value="">All barbers</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="paymentFilter">Payment Method</label>
+          <select id="paymentFilter">
+            <option value="">All methods</option>
+          </select>
+        </div>
+        <button type="button" class="action-btn dark" id="refreshBtn">Refresh</button>
+      </div>
+    </section>
+
+    <section class="tabs" aria-label="Data analysis sections">
+      <button type="button" class="tab-btn active" data-tab="overview">Overview</button>
+      <button type="button" class="tab-btn" data-tab="sales">Sales</button>
+      <button type="button" class="tab-btn" data-tab="staff">Staff</button>
+      <button type="button" class="tab-btn" data-tab="customers">Customers</button>
+    </section>
+
+    <section class="tab-page active" id="tab-overview">
+      <div class="metrics">
+        <article class="metric success"><span>Total Sales</span><strong id="totalSales">0 EGP</strong></article>
+        <article class="metric"><span>Invoices</span><strong id="invoiceCount">0</strong></article>
+        <article class="metric"><span>Average Invoice</span><strong id="averageInvoice">0 EGP</strong></article>
+        <article class="metric"><span>Unique Customers</span><strong id="uniqueCustomers">0</strong></article>
+      </div>
+
+      <div class="analysis-grid">
+        <section class="panel">
+          <h2 class="section-title">Payment Mix</h2>
+          <div class="bar-list" id="paymentBars"></div>
+        </section>
+        <section class="panel">
+          <h2 class="section-title">Smart Insights</h2>
+          <div class="insight-list" id="insightsList"></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="tab-page" id="tab-sales">
+      <div class="analysis-grid">
+        <section class="panel">
+          <h2 class="section-title">Top Services</h2>
+          <div class="bar-list" id="serviceBars"></div>
+        </section>
+        <section class="panel">
+          <h2 class="section-title">Daily Sales Trend</h2>
+          <div class="bar-list" id="dailyBars"></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="tab-page" id="tab-staff">
+      <section class="panel">
+        <h2 class="section-title">Barber Performance</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Barber</th>
+                <th class="amount">Sales</th>
+                <th>Invoices</th>
+                <th class="amount">Average</th>
+                <th>Share</th>
+              </tr>
+            </thead>
+            <tbody id="barberRows">
+              <tr><td colspan="5" class="status-line">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section class="tab-page" id="tab-customers">
+      <div class="analysis-grid">
+        <section class="panel">
+          <h2 class="section-title">Customer Snapshot</h2>
+          <div class="metrics">
+            <article class="metric"><span>Known Customers</span><strong id="knownCustomers">0</strong></article>
+            <article class="metric"><span>Walk-in Invoices</span><strong id="walkInInvoices">0</strong></article>
+          </div>
+        </section>
+        <section class="panel">
+          <h2 class="section-title">Top Customers</h2>
+          <div class="bar-list" id="customerBars"></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script src="text-fix.js"></script>
+  <script src="api.js"></script>
+  <script src="auth.js"></script>
+  <script src="layout.js"></script>
+  <script src="keyboard-navigation.js"></script>
+  <script src="language.js"></script>
+  <script>
+    const currentUser = RomeoAuth.requireAuth("view_income_statement");
+
+    const PAYMENT_TRANSLATIONS = {
+      "Ù†Ù‚Ø¯ÙŠ": "Cash",
+      "Ø§Ù†Ø³ØªØ§ Ø¨Ø§ÙŠ": "Instapay",
+      "ÙÙˆØ¯Ø§ÙÙˆÙ† ÙƒØ§Ø´": "Vodafone Cash",
+      "ÙÙŠØ²Ø§": "Visa"
+    };
+
+    const elements = {
+      fromDate: document.getElementById("fromDate"),
+      toDate: document.getElementById("toDate"),
+      barberFilter: document.getElementById("barberFilter"),
+      paymentFilter: document.getElementById("paymentFilter"),
+      refreshBtn: document.getElementById("refreshBtn"),
+      totalSales: document.getElementById("totalSales"),
+      invoiceCount: document.getElementById("invoiceCount"),
+      averageInvoice: document.getElementById("averageInvoice"),
+      uniqueCustomers: document.getElementById("uniqueCustomers"),
+      knownCustomers: document.getElementById("knownCustomers"),
+      walkInInvoices: document.getElementById("walkInInvoices"),
+      paymentBars: document.getElementById("paymentBars"),
+      serviceBars: document.getElementById("serviceBars"),
+      dailyBars: document.getElementById("dailyBars"),
+      barberRows: document.getElementById("barberRows"),
+      customerBars: document.getElementById("customerBars"),
+      insightsList: document.getElementById("insightsList")
+    };
+
+    let invoices = [];
+    let filteredInvoices = [];
+
+    function getLanguage() {
+      return window.RomeoLanguage && typeof RomeoLanguage.getCurrentLanguage === "function"
+        ? RomeoLanguage.getCurrentLanguage()
+        : "ar";
+    }
+
+    function localize(ar, en) {
+      return getLanguage() === "en" ? en : ar;
+    }
+
+    function formatNumber(value) {
+      return Number(value || 0).toLocaleString(getLanguage() === "en" ? "en-US" : "ar-EG");
+    }
+
+    function formatMoney(value) {
+      const amount = Math.round(Number(value) || 0);
+      return getLanguage() === "en"
+        ? `${formatNumber(amount)} EGP`
+        : `${formatNumber(amount)} جنيه`;
+    }
+
+    function parseAmount(value) {
+      if (typeof value === "number") return value;
+      let text = String(value || "").trim();
+      if (!text) return 0;
+      if (text.includes(",") && !text.includes(".")) {
+        text = /,\d{1,2}$/.test(text) ? text.replace(",", ".") : text.replace(/,/g, "");
+      } else {
+        text = text.replace(/,/g, "");
+      }
+      const number = parseFloat(text.replace(/[^\d.-]/g, ""));
+      return Number.isFinite(number) ? number : 0;
+    }
+
+    function getDateKey(value) {
+      const text = String(value || "").trim();
+      const match = text.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (match) {
+        return `${match[1]}-${String(match[2]).padStart(2, "0")}-${String(match[3]).padStart(2, "0")}`;
+      }
+      return "";
+    }
+
+    function getInvoiceDate(invoice) {
+      return invoice.dateKey || getDateKey(invoice.date);
+    }
+
+    function normalize(value) {
+      return String(value || "").replace(/\s+/g, " ").trim();
+    }
+
+    function splitServices(value) {
+      return normalize(value)
+        .split(/[ØŒ,]/)
+        .map(item => normalize(item))
+        .filter(Boolean);
+    }
+
+    function getPaymentLabel(value) {
+      const payment = normalize(value || localize("ØºÙŠØ± Ù…Ø­Ø¯Ø¯", "Unknown"));
+      return getLanguage() === "en" ? (PAYMENT_TRANSLATIONS[payment] || payment) : payment;
+    }
+
+    function groupBy(items, keyGetter) {
+      const map = new Map();
+      items.forEach(item => {
+        const key = keyGetter(item);
+        if (!map.has(key)) {
+          map.set(key, { key, total: 0, count: 0 });
+        }
+        const entry = map.get(key);
+        entry.total += parseAmount(item.total);
+        entry.count += 1;
+      });
+      return Array.from(map.values()).sort((a, b) => b.total - a.total || b.count - a.count);
+    }
+
+    function renderBars(container, rows, options = {}) {
+      container.innerHTML = "";
+      if (!rows.length) {
+        container.innerHTML = `<div class="empty-state">${localize("Ù„Ø§ ØªÙˆØ¬Ø¯ Ø¨ÙŠØ§Ù†Ø§Øª ÙÙŠ Ø§Ù„ÙØªØ±Ø© Ø§Ù„Ø­Ø§Ù„ÙŠØ©.", "No data for the selected period.")}</div>`;
+        return;
+      }
+
+      const maxValue = Math.max(...rows.map(row => options.valueGetter ? options.valueGetter(row) : row.total), 1);
+      rows.slice(0, options.limit || 8).forEach(row => {
+        const value = options.valueGetter ? options.valueGetter(row) : row.total;
+        const percent = Math.max(4, Math.round((value / maxValue) * 100));
+        const node = document.createElement("div");
+        node.className = "bar-row";
+        node.innerHTML = `
+          <div class="bar-label">${escapeHtml(row.key)}</div>
+          <div class="bar-value">${escapeHtml(options.formatValue ? options.formatValue(row) : formatMoney(row.total))}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${percent}%"></div></div>
+        `;
+        container.appendChild(node);
+      });
+    }
+
+    function renderSummary(items) {
+      const total = items.reduce((sum, invoice) => sum + parseAmount(invoice.total), 0);
+      const average = items.length ? total / items.length : 0;
+      const customers = new Set(
+        items
+          .map(invoice => normalize(invoice.customerPhone || invoice.customerName))
+          .filter(Boolean)
+      );
+      const known = items.filter(invoice => normalize(invoice.customerName) || normalize(invoice.customerPhone)).length;
+
+      elements.totalSales.textContent = formatMoney(total);
+      elements.invoiceCount.textContent = formatNumber(items.length);
+      elements.averageInvoice.textContent = formatMoney(average);
+      elements.uniqueCustomers.textContent = formatNumber(customers.size);
+      elements.knownCustomers.textContent = formatNumber(known);
+      elements.walkInInvoices.textContent = formatNumber(Math.max(items.length - known, 0));
+    }
+
+    function renderPaymentMix(items) {
+      const rows = groupBy(items, invoice => getPaymentLabel(invoice.paymentMethod || invoice.payment || localize("ØºÙŠØ± Ù…Ø­Ø¯Ø¯", "Unknown")));
+      renderBars(elements.paymentBars, rows, { limit: 6 });
+    }
+
+    function renderServices(items) {
+      const serviceMap = new Map();
+      items.forEach(invoice => {
+        splitServices(invoice.services).forEach(service => {
+          if (!serviceMap.has(service)) {
+            serviceMap.set(service, { key: service, total: 0, count: 0 });
+          }
+          const entry = serviceMap.get(service);
+          entry.count += 1;
+          entry.total += parseAmount(invoice.total);
+        });
+      });
+      const rows = Array.from(serviceMap.values()).sort((a, b) => b.count - a.count || b.total - a.total);
+      renderBars(elements.serviceBars, rows, {
+        limit: 10,
+        valueGetter: row => row.count,
+        formatValue: row => `${formatNumber(row.count)} ${localize("Ù…Ø±Ø©", "times")}`
+      });
+    }
+
+    function renderDailyTrend(items) {
+      const rows = groupBy(items, invoice => getInvoiceDate(invoice) || localize("Ø¨Ø¯ÙˆÙ† ØªØ§Ø±ÙŠØ®", "No date"))
+        .sort((a, b) => String(a.key).localeCompare(String(b.key)));
+      renderBars(elements.dailyBars, rows, { limit: 12 });
+    }
+
+    function renderBarbers(items) {
+      const total = items.reduce((sum, item) => sum + parseAmount(item.total), 0);
+      const rows = groupBy(items, invoice => normalize(invoice.barber) || localize("ØºÙŠØ± Ù…Ø­Ø¯Ø¯", "Unknown"));
+      elements.barberRows.innerHTML = "";
+
+      if (!rows.length) {
+        elements.barberRows.innerHTML = `<tr><td colspan="5" class="empty-state">${localize("Ù„Ø§ ØªÙˆØ¬Ø¯ Ø¨ÙŠØ§Ù†Ø§Øª ÙÙŠ Ø§Ù„ÙØªØ±Ø© Ø§Ù„Ø­Ø§Ù„ÙŠØ©.", "No data for the selected period.")}</td></tr>`;
+        return;
+      }
+
+      rows.forEach(row => {
+        const average = row.count ? row.total / row.count : 0;
+        const share = total ? Math.round((row.total / total) * 100) : 0;
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${escapeHtml(row.key)}</td>
+          <td class="amount">${formatMoney(row.total)}</td>
+          <td>${formatNumber(row.count)}</td>
+          <td class="amount">${formatMoney(average)}</td>
+          <td>${formatNumber(share)}%</td>
+        `;
+        elements.barberRows.appendChild(tr);
+      });
+    }
+
+    function renderCustomers(items) {
+      const customerMap = new Map();
+      items.forEach(invoice => {
+        const key = normalize(invoice.customerPhone || invoice.customerName);
+        if (!key) return;
+        const label = normalize(invoice.customerName) || key;
+        if (!customerMap.has(key)) {
+          customerMap.set(key, { key: label, total: 0, count: 0 });
+        }
+        const entry = customerMap.get(key);
+        entry.total += parseAmount(invoice.total);
+        entry.count += 1;
+      });
+      const rows = Array.from(customerMap.values()).sort((a, b) => b.total - a.total || b.count - a.count);
+      renderBars(elements.customerBars, rows, {
+        limit: 8,
+        formatValue: row => `${formatMoney(row.total)} / ${formatNumber(row.count)}`
+      });
+    }
+
+    function renderInsights(items) {
+      const total = items.reduce((sum, item) => sum + parseAmount(item.total), 0);
+      const payments = groupBy(items, invoice => getPaymentLabel(invoice.paymentMethod || invoice.payment || localize("ØºÙŠØ± Ù…Ø­Ø¯Ø¯", "Unknown")));
+      const barbers = groupBy(items, invoice => normalize(invoice.barber) || localize("ØºÙŠØ± Ù…Ø­Ø¯Ø¯", "Unknown"));
+      const days = groupBy(items, invoice => getInvoiceDate(invoice) || localize("Ø¨Ø¯ÙˆÙ† ØªØ§Ø±ÙŠØ®", "No date"));
+      const bestPayment = payments[0];
+      const bestBarber = barbers[0];
+      const bestDay = days.sort((a, b) => b.total - a.total)[0];
+
+      const insights = [
+        bestPayment && {
+          title: localize("Ø£Ø¹Ù„Ù‰ Ø·Ø±ÙŠÙ‚Ø© Ø¯ÙØ¹", "Top payment method"),
+          text: `${bestPayment.key} - ${formatMoney(bestPayment.total)}`
+        },
+        bestBarber && {
+          title: localize("Ø£Ø¹Ù„Ù‰ Ø­Ù„Ø§Ù‚ Ù…Ø¨ÙŠØ¹Ø§Øª", "Top barber by sales"),
+          text: `${bestBarber.key} - ${formatMoney(bestBarber.total)}`
+        },
+        bestDay && {
+          title: localize("Ø£Ù‚ÙˆÙ‰ ÙŠÙˆÙ… ÙÙŠ Ø§Ù„ÙØªØ±Ø©", "Best day in period"),
+          text: `${bestDay.key} - ${formatMoney(bestDay.total)}`
+        },
+        {
+          title: localize("Ù…ØªÙˆØ³Ø· Ù‚ÙŠÙ…Ø© Ø§Ù„ÙØ§ØªÙˆØ±Ø©", "Average ticket"),
+          text: formatMoney(items.length ? total / items.length : 0)
+        }
+      ].filter(Boolean);
+
+      elements.insightsList.innerHTML = insights.map(item => `
+        <div class="insight">
+          <strong>${escapeHtml(item.title)}</strong>
+          <span>${escapeHtml(item.text)}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderAll() {
+      renderSummary(filteredInvoices);
+      renderPaymentMix(filteredInvoices);
+      renderServices(filteredInvoices);
+      renderDailyTrend(filteredInvoices);
+      renderBarbers(filteredInvoices);
+      renderCustomers(filteredInvoices);
+      renderInsights(filteredInvoices);
+    }
+
+    function applyFilters() {
+      const from = elements.fromDate.value;
+      const to = elements.toDate.value;
+      const barber = elements.barberFilter.value;
+      const payment = elements.paymentFilter.value;
+
+      filteredInvoices = invoices.filter(invoice => {
+        const date = getInvoiceDate(invoice);
+        const invoicePayment = normalize(invoice.paymentMethod || invoice.payment);
+        const matchesFrom = !from || (date && date >= from);
+        const matchesTo = !to || (date && date <= to);
+        const matchesBarber = !barber || normalize(invoice.barber) === barber;
+        const matchesPayment = !payment || invoicePayment === payment;
+        return matchesFrom && matchesTo && matchesBarber && matchesPayment;
+      });
+
+      renderAll();
+    }
+
+    function renderFilterOptions() {
+      const selectedBarber = elements.barberFilter.value;
+      const selectedPayment = elements.paymentFilter.value;
+      const barbers = [...new Set(invoices.map(invoice => normalize(invoice.barber)).filter(Boolean))].sort();
+      const payments = [...new Set(invoices.map(invoice => normalize(invoice.paymentMethod || invoice.payment)).filter(Boolean))].sort();
+
+      elements.barberFilter.innerHTML = `<option value="">${localize("ÙƒÙ„ Ø§Ù„Ø­Ù„Ø§Ù‚ÙŠÙ†", "All barbers")}</option>`;
+      barbers.forEach(barber => {
+        const option = document.createElement("option");
+        option.value = barber;
+        option.textContent = barber;
+        elements.barberFilter.appendChild(option);
+      });
+
+      elements.paymentFilter.innerHTML = `<option value="">${localize("ÙƒÙ„ Ø§Ù„Ø·Ø±Ù‚", "All methods")}</option>`;
+      payments.forEach(payment => {
+        const option = document.createElement("option");
+        option.value = payment;
+        option.textContent = getPaymentLabel(payment);
+        elements.paymentFilter.appendChild(option);
+      });
+
+      if (barbers.includes(selectedBarber)) elements.barberFilter.value = selectedBarber;
+      if (payments.includes(selectedPayment)) elements.paymentFilter.value = selectedPayment;
+    }
+
+    async function loadInvoices() {
+      elements.refreshBtn.disabled = true;
+      elements.refreshBtn.textContent = localize("Ø¬Ø§Ø±ÙŠ Ø§Ù„ØªØ­Ø¯ÙŠØ«...", "Refreshing...");
+
+      try {
+        const result = await RomeoApi.request({ action: "getInvoices" });
+        if (result.status !== "success") {
+          throw new Error(result.message || localize("ØªØ¹Ø°Ø± ØªØ­Ù…ÙŠÙ„ Ø§Ù„ÙÙˆØ§ØªÙŠØ±.", "Could not load invoices."));
+        }
+        invoices = Array.isArray(result.invoices) ? result.invoices : [];
+        renderFilterOptions();
+        applyFilters();
+      } catch (error) {
+        console.error(error);
+        invoices = [];
+        filteredInvoices = [];
+        renderAll();
+        alert(error.message || localize("ØªØ¹Ø°Ø± ØªØ­Ù…ÙŠÙ„ Ø§Ù„ØªØ­Ù„ÙŠÙ„Ø§Øª.", "Could not load analysis."));
+      } finally {
+        elements.refreshBtn.disabled = false;
+        elements.refreshBtn.textContent = localize("ØªØ­Ø¯ÙŠØ«", "Refresh");
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    document.querySelectorAll(".tab-btn").forEach(button => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll(".tab-btn").forEach(item => item.classList.remove("active"));
+        document.querySelectorAll(".tab-page").forEach(item => item.classList.remove("active"));
+        button.classList.add("active");
+        document.getElementById(`tab-${button.dataset.tab}`).classList.add("active");
+      });
+    });
+
+    [elements.fromDate, elements.toDate, elements.barberFilter, elements.paymentFilter].forEach(element => {
+      element.addEventListener("change", applyFilters);
+    });
+
+    elements.refreshBtn.addEventListener("click", loadInvoices);
+    window.addEventListener("romeo-language-change", () => {
+      renderFilterOptions();
+      renderAll();
+    });
+
+    loadInvoices();
+  </script>
+</body>
+</html>

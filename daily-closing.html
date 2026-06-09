@@ -1,0 +1,584 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="shared.css">
+  <title>Daily Closing - ROMEO BARBERSHOP</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --panel: #fffaf2;
+      --ink: #2a2118;
+      --muted: #77695c;
+      --accent: #b7863f;
+      --accent-dark: #8c642e;
+      --success: #18794e;
+      --danger: #ba3a2c;
+      --border: #e5d5be;
+      --shadow: 0 18px 40px rgba(76,54,28,.14);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(183,134,63,.18), transparent 28%),
+        linear-gradient(135deg, #f8f2e8 0%, #f0e4d0 100%);
+      color: var(--ink);
+    }
+
+    .app { min-height: 100vh; padding: 24px; }
+
+    .header {
+      position: relative;
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: #fff;
+      border-radius: 24px;
+      padding: 28px 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .header h1 { margin: 0 0 8px; font-size: 34px; letter-spacing: 1px; }
+    .header p { margin: 0; color: rgba(255,255,255,.82); font-weight: 700; }
+
+    .header-menu { position: absolute; top: 24px; left: 24px; z-index: 20; }
+
+    .menu-toggle {
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color: #fff;
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      cursor: pointer;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .sidebar-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(34,23,12,.34);
+      display: none;
+      z-index: 999;
+    }
+
+    .sidebar-overlay.active { display: block; }
+
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: -320px;
+      width: min(320px, 85vw);
+      height: 100vh;
+      background: #fffaf2;
+      border-right: 1px solid rgba(229,213,190,.8);
+      box-shadow: var(--shadow);
+      padding: 24px 18px;
+      z-index: 1000;
+      transition: left .2s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    .sidebar.active { left: 0; }
+
+    .sidebar h3 {
+      margin: 0 0 8px;
+      color: var(--ink);
+      font-size: 22px;
+      text-align: left;
+      direction: ltr;
+    }
+
+    .sidebar-link,
+    .sidebar button {
+      width: 100%;
+      border: none;
+      border-radius: 16px;
+      padding: 14px 16px;
+      background: #ead9bd;
+      color: var(--ink);
+      text-align: left;
+      direction: ltr;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .sidebar-link.active {
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: #fff;
+    }
+
+    .panel {
+      background: rgba(255,250,242,.96);
+      border: 1px solid rgba(229,213,190,.8);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: 22px;
+      margin-bottom: 22px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto auto;
+      gap: 14px;
+      align-items: end;
+    }
+
+    .field { display: grid; gap: 8px; }
+    .field label { color: var(--muted); font-size: 14px; font-weight: 900; }
+
+    .field input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 13px 15px;
+      background: #fffaf2;
+      color: var(--ink);
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+    }
+
+    .field input:focus {
+      border-color: #2a2118;
+      box-shadow: 0 0 0 3px rgba(183,134,63,.16);
+    }
+
+    .action-btn {
+      border: none;
+      border-radius: 16px;
+      padding: 14px 18px;
+      background: #ead9bd;
+      color: var(--ink);
+      font-weight: 900;
+      font-size: 15px;
+      cursor: pointer;
+      min-height: 48px;
+      white-space: nowrap;
+    }
+
+    .action-btn.dark { background: linear-gradient(135deg, #24180d, #5f4524); color: #fff; }
+    .action-btn.success { background: var(--success); color: #fff; }
+    .action-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .metric {
+      background: #fff;
+      border: 1px solid rgba(229,213,190,.8);
+      border-radius: 20px;
+      padding: 18px;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 28px;
+      line-height: 1.15;
+    }
+
+    .metric.net strong { color: var(--success); }
+    .metric.net.negative strong { color: var(--danger); }
+
+    .status {
+      margin-top: 14px;
+      color: var(--muted);
+      font-weight: 800;
+      line-height: 1.7;
+    }
+
+    .status.error { color: var(--danger); }
+    .status.success { color: var(--success); }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid rgba(229,213,190,.8);
+      border-radius: 20px;
+      background: #fffaf2;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 980px;
+    }
+
+    th,
+    td {
+      padding: 14px 12px;
+      border-bottom: 1px solid rgba(229,213,190,.72);
+      text-align: right;
+      vertical-align: middle;
+      font-size: 14px;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 13px;
+      background: rgba(234,217,189,.4);
+      white-space: nowrap;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    .amount { font-weight: 900; white-space: nowrap; }
+    .empty { text-align: center; color: var(--muted); padding: 26px 12px; }
+
+    @media (max-width: 960px) {
+      .app { padding: 14px; }
+      .header-menu { position: static; width: 100%; margin-bottom: 16px; }
+      .controls,
+      .metrics { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <div class="header-menu">
+        <button type="button" class="menu-toggle" id="menuToggle">...</button>
+      </div>
+      <h1>ROMEO BARBERSHOP</h1>
+      <p>Daily closing with totals, previous closings, and activity tracking</p>
+    </header>
+
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <aside class="sidebar" id="sidebar">
+      <h3>Menu</h3>
+      <button class="sidebar-link" type="button" data-href="index.html" data-permission="access_cashier">cashier</button>
+      <button class="sidebar-link" type="button" data-href="invoices.html" data-permission="access_cashier">invoices</button>
+      <button class="sidebar-link" type="button" data-href="income-statement.html" data-permission="view_income_statement">income statement</button>
+      <button class="sidebar-link active" type="button" data-permission="view_income_statement">daily closing</button>
+      <button class="sidebar-link" type="button" data-href="data-analysis.html" data-permission="view_income_statement">Data Analysis</button>
+      <button class="sidebar-link" type="button" data-href="activity-log.html" data-permission="manage_users">Activity Log</button>
+      <button class="sidebar-link" type="button" data-href="staff-accounting.html" data-permission="view_staff_accounting">Staff Accounting</button>
+      <button class="sidebar-link" type="button" data-href="system-access.html" data-permission="manage_users">System Access</button>
+      <button class="sidebar-link" type="button" data-href="withdrawals.html">Withdrawals</button>
+      <button class="sidebar-link" type="button" data-href="expenses.html">Expenses</button>
+      <button class="sidebar-link" type="button" data-href="enventory.html">Inventory</button>
+      <button class="sidebar-link" type="button" data-href="staff-discount.html">Staff Discount</button>
+      <button class="sidebar-link" type="button" data-href="attendance.html">Attendance</button>
+      <button class="sidebar-link" type="button" data-href="bookings.html">Bookings</button>
+      <button class="sidebar-link" type="button" data-href="customer-data.html">Customer Data</button>
+      <button class="sidebar-link" type="button" id="logoutBtn">Logout</button>
+    </aside>
+
+    <section class="panel">
+      <div class="controls">
+        <div class="field">
+          <label for="closingDate">Select Date</label>
+          <input id="closingDate" type="date">
+        </div>
+        <button type="button" class="action-btn" id="previewBtn">Preview Day Numbers</button>
+        <button type="button" class="action-btn success" id="closeDayBtn">Close Day</button>
+      </div>
+
+      <div class="metrics">
+        <div class="metric"><span>Sales Total</span><strong id="salesTotal">0 EGP</strong></div>
+        <div class="metric"><span>Cash</span><strong id="cashTotal">0 EGP</strong></div>
+        <div class="metric"><span>Visa</span><strong id="visaTotal">0 EGP</strong></div>
+        <div class="metric"><span>Instapay</span><strong id="instapayTotal">0 EGP</strong></div>
+        <div class="metric"><span>Vodafone Cash</span><strong id="vodafoneTotal">0 EGP</strong></div>
+        <div class="metric"><span>Expenses</span><strong id="expensesTotal">0 EGP</strong></div>
+        <div class="metric"><span>Withdrawals</span><strong id="withdrawalsTotal">0 EGP</strong></div>
+        <div class="metric net" id="netMetric"><span>Net Total</span><strong id="netTotal">0 EGP</strong></div>
+      </div>
+
+      <div class="status" id="statusLine">Choose a date, then preview the day numbers.</div>
+    </section>
+
+    <section class="panel">
+      <h2 style="margin:0 0 16px;">Previous Daily Closings</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Sales</th>
+              <th>Cash</th>
+              <th>Visa</th>
+              <th>Instapay</th>
+              <th>Vodafone</th>
+              <th>Expenses</th>
+              <th>Withdrawals</th>
+              <th>Net</th>
+              <th>Closed By</th>
+              <th>Closed At</th>
+            </tr>
+          </thead>
+          <tbody id="closingsBody">
+            <tr><td class="empty" colspan="11">Loading previous closings...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="text-fix.js"></script>
+  <script src="api.js"></script>
+  <script src="auth.js"></script>
+  <script src="layout.js"></script>
+  <script src="keyboard-navigation.js"></script>
+  <script src="language.js"></script>
+  <script>
+    const currentUser = RomeoAuth.requireAuth("view_income_statement");
+    const isManager = RomeoAuth.hasPermission("manage_users");
+
+    const elements = {
+      closingDate: document.getElementById("closingDate"),
+      previewBtn: document.getElementById("previewBtn"),
+      closeDayBtn: document.getElementById("closeDayBtn"),
+      statusLine: document.getElementById("statusLine"),
+      salesTotal: document.getElementById("salesTotal"),
+      cashTotal: document.getElementById("cashTotal"),
+      visaTotal: document.getElementById("visaTotal"),
+      instapayTotal: document.getElementById("instapayTotal"),
+      vodafoneTotal: document.getElementById("vodafoneTotal"),
+      expensesTotal: document.getElementById("expensesTotal"),
+      withdrawalsTotal: document.getElementById("withdrawalsTotal"),
+      netTotal: document.getElementById("netTotal"),
+      netMetric: document.getElementById("netMetric"),
+      closingsBody: document.getElementById("closingsBody")
+    };
+
+    let latestPreview = null;
+    let closings = [];
+
+    function todayKey() {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Africa/Cairo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      }).format(new Date());
+    }
+
+    function numberValue(value) {
+      if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+      const num = parseFloat(String(value || "").replace(/[^\d.-]/g, ""));
+      return Number.isFinite(num) ? num : 0;
+    }
+
+    function formatMoney(value) {
+      return `${Math.round(numberValue(value)).toLocaleString("en-US")} EGP`;
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function setStatus(message, type) {
+      elements.statusLine.textContent = message;
+      elements.statusLine.className = `status ${type || ""}`.trim();
+    }
+
+    function normalizePreview(data) {
+      const sales = numberValue(data.salesTotal ?? data.todaySales ?? data.totalSales);
+      const cash = numberValue(data.cashTotal);
+      const visa = numberValue(data.visaTotal);
+      const instapay = numberValue(data.instapayTotal);
+      const vodafone = numberValue(data.vodafoneCashTotal ?? data.vodafoneTotal);
+      const expenses = numberValue(data.expensesTotal);
+      const withdrawals = numberValue(data.withdrawalsTotal);
+      const net = numberValue(data.netTotal ?? (sales - expenses - withdrawals));
+
+      return {
+        date: data.date || data.reportDate || elements.closingDate.value,
+        salesTotal: sales,
+        cashTotal: cash,
+        visaTotal: visa,
+        instapayTotal: instapay,
+        vodafoneCashTotal: vodafone,
+        expensesTotal: expenses,
+        withdrawalsTotal: withdrawals,
+        netTotal: net,
+        alreadyClosed: Boolean(data.alreadyClosed),
+        closedBy: data.closedBy || "",
+        closedAt: data.closedAt || ""
+      };
+    }
+
+    function renderPreview(preview) {
+      latestPreview = preview;
+      elements.salesTotal.textContent = formatMoney(preview.salesTotal);
+      elements.cashTotal.textContent = formatMoney(preview.cashTotal);
+      elements.visaTotal.textContent = formatMoney(preview.visaTotal);
+      elements.instapayTotal.textContent = formatMoney(preview.instapayTotal);
+      elements.vodafoneTotal.textContent = formatMoney(preview.vodafoneCashTotal);
+      elements.expensesTotal.textContent = formatMoney(preview.expensesTotal);
+      elements.withdrawalsTotal.textContent = formatMoney(preview.withdrawalsTotal);
+      elements.netTotal.textContent = formatMoney(preview.netTotal);
+      elements.netMetric.classList.toggle("negative", preview.netTotal < 0);
+
+      if (preview.alreadyClosed && !isManager) {
+        elements.closeDayBtn.disabled = true;
+        setStatus(`This day is already closed by ${preview.closedBy || "another user"}. Only a manager can close the same day again.`, "error");
+        return;
+      }
+
+      elements.closeDayBtn.disabled = false;
+      setStatus(preview.alreadyClosed ? "This day is already closed. You can close it again because you have manager permission." : "Preview is ready. Review the numbers, then close the day.", "success");
+    }
+
+    async function loadPreview() {
+      const date = elements.closingDate.value;
+      if (!date) {
+        setStatus("Choose a date first.", "error");
+        return;
+      }
+
+      elements.previewBtn.disabled = true;
+      elements.previewBtn.textContent = "Previewing...";
+      setStatus("Loading day numbers...", "");
+
+      try {
+        const response = await RomeoApi.request({
+          action: "getDailyClosingPreview",
+          date,
+          reportDate: date
+        });
+
+        if (response.status !== "success") {
+          throw new Error(response.message || "Could not load day numbers.");
+        }
+
+        renderPreview(normalizePreview(response.preview || response));
+      } catch (error) {
+        latestPreview = null;
+        elements.closeDayBtn.disabled = true;
+        setStatus(error.message || "Could not load day numbers. Make sure getDailyClosingPreview exists in App Script.", "error");
+      } finally {
+        elements.previewBtn.disabled = false;
+        elements.previewBtn.textContent = "Preview Day Numbers";
+      }
+    }
+
+    function renderClosings() {
+      if (!closings.length) {
+        elements.closingsBody.innerHTML = `<tr><td class="empty" colspan="11">No saved daily closings yet.</td></tr>`;
+        return;
+      }
+
+      elements.closingsBody.innerHTML = closings.map(item => `
+        <tr>
+          <td>${escapeHtml(item.date || item.reportDate || "-")}</td>
+          <td class="amount">${formatMoney(item.salesTotal)}</td>
+          <td class="amount">${formatMoney(item.cashTotal)}</td>
+          <td class="amount">${formatMoney(item.visaTotal)}</td>
+          <td class="amount">${formatMoney(item.instapayTotal)}</td>
+          <td class="amount">${formatMoney(item.vodafoneCashTotal || item.vodafoneTotal)}</td>
+          <td class="amount">${formatMoney(item.expensesTotal)}</td>
+          <td class="amount">${formatMoney(item.withdrawalsTotal)}</td>
+          <td class="amount">${formatMoney(item.netTotal)}</td>
+          <td>${escapeHtml(item.closedBy || item.closedByDisplayName || "-")}</td>
+          <td>${escapeHtml(item.closedAt || item.createdAt || "-")}</td>
+        </tr>
+      `).join("");
+    }
+
+    async function loadClosings() {
+      try {
+        const response = await RomeoApi.request({ action: "getDailyClosings" });
+        if (response.status !== "success") {
+          throw new Error(response.message || "Could not load previous closings.");
+        }
+
+        closings = response.closings || response.dailyClosings || [];
+        renderClosings();
+      } catch (error) {
+        closings = [];
+        elements.closingsBody.innerHTML = `<tr><td class="empty" colspan="11">${escapeHtml(error.message || "Could not load previous closings.")}</td></tr>`;
+      }
+    }
+
+    async function closeDay() {
+      const date = elements.closingDate.value;
+      if (!date) {
+        setStatus("Choose a date first.", "error");
+        return;
+      }
+
+      if (!latestPreview || latestPreview.date !== date) {
+        await loadPreview();
+      }
+
+      if (!latestPreview) return;
+
+      if (latestPreview.alreadyClosed && !isManager) {
+        setStatus("Only a manager can close the same day again.", "error");
+        return;
+      }
+
+      const confirmMessage = latestPreview.alreadyClosed
+        ? "This day is already closed. Do you want to close it again with manager permission?"
+        : "Do you want to close this day and save it to the sheet?";
+
+      if (!confirm(confirmMessage)) return;
+
+      elements.closeDayBtn.disabled = true;
+      elements.closeDayBtn.textContent = "Closing...";
+
+      try {
+        const response = await RomeoApi.request({
+          action: "closeDay",
+          date,
+          reportDate: date,
+          preview: latestPreview
+        });
+
+        if (response.status !== "success") {
+          throw new Error(response.message || "Could not close the day.");
+        }
+
+        setStatus("Day closed and saved in Activity Log.", "success");
+        await loadClosings();
+        await loadPreview();
+      } catch (error) {
+        setStatus(error.message || "Could not close the day.", "error");
+      } finally {
+        elements.closeDayBtn.textContent = "Close Day";
+        elements.closeDayBtn.disabled = latestPreview?.alreadyClosed && !isManager;
+      }
+    }
+
+    elements.closingDate.value = todayKey();
+    elements.previewBtn.addEventListener("click", loadPreview);
+    elements.closeDayBtn.addEventListener("click", closeDay);
+    elements.closingDate.addEventListener("change", () => {
+      latestPreview = null;
+      elements.closeDayBtn.disabled = false;
+      setStatus("Choose a date, then preview the day numbers.", "");
+    });
+
+    loadClosings();
+    loadPreview();
+  </script>
+</body>
+</html>
+

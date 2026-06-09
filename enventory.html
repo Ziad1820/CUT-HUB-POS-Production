@@ -1,9 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Enventory - ROMEO BARBERSHOP</title>
+    <link rel="stylesheet" href="shared.css">
+<title>Enventory - ROMEO BARBERSHOP</title>
   <style>
     :root {
       --ink: #2a2118;
@@ -422,7 +423,7 @@
   <div class="app">
     <div class="header">
       <div class="header-menu">
-        <button type="button" class="menu-toggle" id="menuToggle">⋯</button>
+        <button type="button" class="menu-toggle" id="menuToggle">â‹¯</button>
       </div>
       <h1>ROMEO BARBERSHOP</h1>
     </div>
@@ -447,7 +448,7 @@
         <section class="panel hero">
           <div>
             <h2 id="itemTitle">Select Item</h2>
-            <p id="itemSubtitle">اختار منتج من القائمة، وعدّل الكمية والحد الأدنى وسعر الشراء أو سجّل حركة دخول وخروج للمخزون.</p>
+            <p id="itemSubtitle">Ø§Ø®ØªØ§Ø± Ù…Ù†ØªØ¬ Ù…Ù† Ø§Ù„Ù‚Ø§Ø¦Ù…Ø©ØŒ ÙˆØ¹Ø¯Ù‘Ù„ Ø§Ù„ÙƒÙ…ÙŠØ© ÙˆØ§Ù„Ø­Ø¯ Ø§Ù„Ø£Ø¯Ù†Ù‰ ÙˆØ³Ø¹Ø± Ø§Ù„Ø´Ø±Ø§Ø¡ Ø£Ùˆ Ø³Ø¬Ù‘Ù„ Ø­Ø±ÙƒØ© Ø¯Ø®ÙˆÙ„ ÙˆØ®Ø±ÙˆØ¬ Ù„Ù„Ù…Ø®Ø²ÙˆÙ†.</p>
           </div>
           <div class="hero-badge" id="itemCode">INV</div>
         </section>
@@ -530,7 +531,7 @@
             </div>
             <div class="field full">
               <label for="movementNote">Note</label>
-              <textarea id="movementNote" placeholder="اكتب ملاحظات عن الحركة"></textarea>
+              <textarea id="movementNote" placeholder="Ø§ÙƒØªØ¨ Ù…Ù„Ø§Ø­Ø¸Ø§Øª Ø¹Ù† Ø§Ù„Ø­Ø±ÙƒØ©"></textarea>
             </div>
           </div>
         </section>
@@ -553,7 +554,11 @@
   <aside class="sidebar" id="sidebar">
     <h3>Menu</h3>
     <button class="sidebar-link" type="button" data-href="index.html" data-permission="access_cashier">cashier</button>
+    <button class="sidebar-link" type="button" data-href="invoices.html">invoices</button>
     <button class="sidebar-link" type="button" data-href="income-statement.html" data-permission="view_income_statement">income statement</button>
+    <button class="sidebar-link" type="button" data-href="daily-closing.html" data-permission="view_income_statement">daily closing</button>
+    <button class="sidebar-link" type="button" data-href="data-analysis.html" data-permission="view_income_statement">DATA ANALYSIS</button>
+      <button class="sidebar-link" type="button" data-href="activity-log.html" data-permission="manage_users">Activity Log</button>
     <button class="sidebar-link" type="button" data-href="staff-accounting.html" data-permission="view_staff_accounting">staff accounting</button>
     <button class="sidebar-link" type="button" data-href="system-access.html" data-permission="manage_users">system access</button>
     <button class="sidebar-link" type="button" data-href="withdrawals.html">Withdrawals</button>
@@ -577,7 +582,9 @@
       { id: 4, name: "Face Mask", code: "INV04", category: "Skin", quantity: 10, minimum: 6, buyPrice: 45 }
     ];
   </script>
+  <script src="./api.js"></script>
   <script src="./auth.js"></script>
+  <script src="./layout.js"></script>
   <script>
     RomeoAuth.requireAuth();
 
@@ -717,13 +724,13 @@
       const item = getSelectedItem();
       if (!item) {
         elements.itemTitle.textContent = "No Item Selected";
-        elements.itemSubtitle.textContent = "أضف صنف جديد أو اختر صنف من القائمة على الشمال.";
+        elements.itemSubtitle.textContent = "Ø£Ø¶Ù ØµÙ†Ù Ø¬Ø¯ÙŠØ¯ Ø£Ùˆ Ø§Ø®ØªØ± ØµÙ†Ù Ù…Ù† Ø§Ù„Ù‚Ø§Ø¦Ù…Ø© Ø¹Ù„Ù‰ Ø§Ù„Ø´Ù…Ø§Ù„.";
         elements.itemCode.textContent = "--";
         return;
       }
 
       elements.itemTitle.textContent = item.name;
-      elements.itemSubtitle.textContent = `الصنف الحالي في قسم ${item.category || "General"}، ويمكنك تعديل بياناته أو تسجيل حركة دخول وخروج للمخزون.`;
+      elements.itemSubtitle.textContent = `Ø§Ù„ØµÙ†Ù Ø§Ù„Ø­Ø§Ù„ÙŠ ÙÙŠ Ù‚Ø³Ù… ${item.category || "General"}ØŒ ÙˆÙŠÙ…ÙƒÙ†Ùƒ ØªØ¹Ø¯ÙŠÙ„ Ø¨ÙŠØ§Ù†Ø§ØªÙ‡ Ø£Ùˆ ØªØ³Ø¬ÙŠÙ„ Ø­Ø±ÙƒØ© Ø¯Ø®ÙˆÙ„ ÙˆØ®Ø±ÙˆØ¬ Ù„Ù„Ù…Ø®Ø²ÙˆÙ†.`;
       elements.itemCode.textContent = item.code;
     }
 
@@ -764,12 +771,12 @@
       elements.historyList.innerHTML = "";
 
       if (!item) {
-        elements.historyList.innerHTML = `<div class="history-empty">لا يوجد صنف مختار الآن.</div>`;
+        elements.historyList.innerHTML = `<div class="history-empty">Ù„Ø§ ÙŠÙˆØ¬Ø¯ ØµÙ†Ù Ù…Ø®ØªØ§Ø± Ø§Ù„Ø¢Ù†.</div>`;
         return;
       }
 
       if (!sorted.length) {
-        elements.historyList.innerHTML = `<div class="history-empty">لا توجد حركات مخزون لهذا الصنف حتى الآن.</div>`;
+        elements.historyList.innerHTML = `<div class="history-empty">Ù„Ø§ ØªÙˆØ¬Ø¯ Ø­Ø±ÙƒØ§Øª Ù…Ø®Ø²ÙˆÙ† Ù„Ù‡Ø°Ø§ Ø§Ù„ØµÙ†Ù Ø­ØªÙ‰ Ø§Ù„Ø¢Ù†.</div>`;
         return;
       }
 
@@ -803,10 +810,10 @@
     }
 
     function addItem() {
-      const name = prompt("اكتب اسم الصنف");
+      const name = prompt("Ø§ÙƒØªØ¨ Ø§Ø³Ù… Ø§Ù„ØµÙ†Ù");
       if (!name) return;
 
-      const code = prompt("اكتب كود الصنف", `INV${String(items.length + 1).padStart(2, "0")}`);
+      const code = prompt("Ø§ÙƒØªØ¨ ÙƒÙˆØ¯ Ø§Ù„ØµÙ†Ù", `INV${String(items.length + 1).padStart(2, "0")}`);
       if (!code) return;
 
       const item = {
@@ -843,7 +850,7 @@
     function deleteItem() {
       const item = getSelectedItem();
       if (!item) return;
-      if (!confirm(`تحذف الصنف ${item.name}؟`)) return;
+      if (!confirm(`ØªØ­Ø°Ù Ø§Ù„ØµÙ†Ù ${item.name}ØŸ`)) return;
 
       items = items.filter(entry => entry.id !== item.id);
       movementLog = movementLog.filter(entry => entry.itemId !== item.id);
@@ -857,18 +864,18 @@
       const item = getSelectedItem();
       const quantity = numberValue(elements.movementQuantity.value);
       if (!item) {
-        alert("اختار صنف الأول.");
+        alert("Ø§Ø®ØªØ§Ø± ØµÙ†Ù Ø§Ù„Ø£ÙˆÙ„.");
         return;
       }
 
       if (!Number.isFinite(quantity) || quantity <= 0) {
-        alert("اكتب كمية صحيحة.");
+        alert("Ø§ÙƒØªØ¨ ÙƒÙ…ÙŠØ© ØµØ­ÙŠØ­Ø©.");
         return;
       }
 
       const type = elements.movementType.value;
       if (type === "out" && quantity > numberValue(item.quantity)) {
-        alert("الكمية المسحوبة أكبر من الموجود في المخزون.");
+        alert("Ø§Ù„ÙƒÙ…ÙŠØ© Ø§Ù„Ù…Ø³Ø­ÙˆØ¨Ø© Ø£ÙƒØ¨Ø± Ù…Ù† Ø§Ù„Ù…ÙˆØ¬ÙˆØ¯ ÙÙŠ Ø§Ù„Ù…Ø®Ø²ÙˆÙ†.");
         return;
       }
 
@@ -916,7 +923,7 @@
     }
 
     function resetItems() {
-      if (!confirm("ترجع المخزون للبيانات التجريبية؟")) return;
+      if (!confirm("ØªØ±Ø¬Ø¹ Ø§Ù„Ù…Ø®Ø²ÙˆÙ† Ù„Ù„Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„ØªØ¬Ø±ÙŠØ¨ÙŠØ©ØŸ")) return;
       items = cloneDefaults();
       movementLog = [];
       saveItems();
@@ -957,7 +964,7 @@
     elements.historyList.addEventListener("click", event => {
       const btn = event.target.closest("[data-delete-log-id]");
       if (!btn) return;
-      if (!confirm("تحذف حركة المخزون دي؟")) return;
+      if (!confirm("ØªØ­Ø°Ù Ø­Ø±ÙƒØ© Ø§Ù„Ù…Ø®Ø²ÙˆÙ† Ø¯ÙŠØŸ")) return;
       deleteLog(Number(btn.dataset.deleteLogId));
     });
     menuToggle.addEventListener("click", openSidebar);
@@ -967,6 +974,8 @@
     clearMovement();
     renderAll();
   </script>
+  <script src="keyboard-navigation.js"></script>
+  <script src="language.js"></script>
 </body>
 </html>
 

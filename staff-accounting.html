@@ -1,9 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Staff Accounting - ROMEO BARBERSHOP</title>
+    <link rel="stylesheet" href="shared.css">
+<title>Staff Accounting - ROMEO BARBERSHOP</title>
   <style>
     :root {
       --ink: #2a2118;
@@ -442,7 +443,7 @@
   <div class="app">
     <div class="header">
       <div class="header-menu">
-        <button type="button" class="menu-toggle" id="menuToggle">⋯</button>
+        <button type="button" class="menu-toggle" id="menuToggle">â‹¯</button>
       </div>
       <h1>ROMEO BARBERSHOP</h1>
     </div>
@@ -467,7 +468,7 @@
         <section class="panel hero">
           <div>
             <h2 id="employeeTitle">Select Staff</h2>
-            <p id="employeeSubtitle">لما تختار موظف، هتظهر هنا تفاصيل حسابه كاملة وصافي مستحقاته.</p>
+            <p id="employeeSubtitle">Ù„Ù…Ø§ ØªØ®ØªØ§Ø± Ù…ÙˆØ¸ÙØŒ Ù‡ØªØ¸Ù‡Ø± Ù‡Ù†Ø§ ØªÙØ§ØµÙŠÙ„ Ø­Ø³Ø§Ø¨Ù‡ ÙƒØ§Ù…Ù„Ø© ÙˆØµØ§ÙÙŠ Ù…Ø³ØªØ­Ù‚Ø§ØªÙ‡.</p>
           </div>
           <div class="hero-badge" id="employeeCode">--</div>
         </section>
@@ -560,7 +561,11 @@
   <aside class="sidebar" id="sidebar">
     <h3>Menu</h3>
     <button class="sidebar-link" type="button" data-href="index.html" data-permission="access_cashier">cashier</button>
+    <button class="sidebar-link" type="button" data-href="invoices.html">invoices</button>
     <button class="sidebar-link" type="button" data-href="income-statement.html" data-permission="view_income_statement">income statement</button>
+    <button class="sidebar-link" type="button" data-href="daily-closing.html" data-permission="view_income_statement">daily closing</button>
+    <button class="sidebar-link" type="button" data-href="data-analysis.html" data-permission="view_income_statement">DATA ANALYSIS</button>
+      <button class="sidebar-link" type="button" data-href="activity-log.html" data-permission="manage_users">Activity Log</button>
     <button class="sidebar-link active" type="button">staff accounting</button>
     <button class="sidebar-link" type="button" data-href="system-access.html" data-permission="manage_users">system access</button>
     <button class="sidebar-link" type="button" data-href="withdrawals.html">Withdrawals</button>
@@ -574,11 +579,13 @@
   </aside>
 
   <script src="./text-fix.js"></script>
+  <script src="./api.js"></script>
   <script src="./auth.js"></script>
+  <script src="./layout.js"></script>
   <script>
     RomeoAuth.requireAuth("view_staff_accounting");
 
-    const API_URL = "https://script.google.com/macros/s/AKfycbwX8FC3PWZNqN-NvcCzxJO65H-XHDkpFKf3SUlh19JB-JDNcumkd7aMgybC6I9Wutqp/exec";
+    const API_URL = RomeoApi.API_URL;
     const STAFF_KEY = "romeo-pos-staff-accounting-v2";
     const WITHDRAWALS_KEY = "romeo-pos-withdrawals";
     const BARBER_NAMES_BY_CODE = {
@@ -751,12 +758,12 @@
 
         if (!response.ok) {
           const errorText = await response.text();
-          throw new Error(errorText || `خطأ في تحميل عدد العملاء (${response.status})`);
+          throw new Error(errorText || `Ø®Ø·Ø£ ÙÙŠ ØªØ­Ù…ÙŠÙ„ Ø¹Ø¯Ø¯ Ø§Ù„Ø¹Ù…Ù„Ø§Ø¡ (${response.status})`);
         }
 
         const data = await response.json();
         if (data.status !== "success") {
-          throw new Error(data.message || "تعذر تحميل عدد العملاء");
+          throw new Error(data.message || "ØªØ¹Ø°Ø± ØªØ­Ù…ÙŠÙ„ Ø¹Ø¯Ø¯ Ø§Ù„Ø¹Ù…Ù„Ø§Ø¡");
         }
 
         if (requestId === staffClientRequestId && selectedId === staff.id) {
@@ -846,7 +853,7 @@
 
       if (!staff) {
         elements.employeeTitle.textContent = "No Staff Selected";
-        elements.employeeSubtitle.textContent = "أضف موظف جديد عشان تبدأ.";
+        elements.employeeSubtitle.textContent = "Ø£Ø¶Ù Ù…ÙˆØ¸Ù Ø¬Ø¯ÙŠØ¯ Ø¹Ø´Ø§Ù† ØªØ¨Ø¯Ø£.";
         elements.employeeCode.textContent = "--";
         Object.values(elements.fields).forEach(input => input.value = "");
         elements.sumClients.textContent = "0";
@@ -863,7 +870,7 @@
 
       deleteBtn.disabled = false;
       elements.employeeTitle.textContent = staff.name;
-      elements.employeeSubtitle.textContent = `تفاصيل حساب ${staff.name} الحالية.`;
+      elements.employeeSubtitle.textContent = `ØªÙØ§ØµÙŠÙ„ Ø­Ø³Ø§Ø¨ ${staff.name} Ø§Ù„Ø­Ø§Ù„ÙŠØ©.`;
       elements.employeeCode.textContent = staff.code;
       elements.fields.name.value = staff.name;
       elements.fields.code.value = staff.code;
@@ -909,10 +916,10 @@
     }
 
     function addStaff() {
-      const name = prompt("اكتب اسم الموظف");
+      const name = prompt("Ø§ÙƒØªØ¨ Ø§Ø³Ù… Ø§Ù„Ù…ÙˆØ¸Ù");
       if (!name) return;
 
-      const code = prompt("اكتب كود الموظف", `R${String(staffList.length + 1).padStart(2, "0")}`);
+      const code = prompt("Ø§ÙƒØªØ¨ ÙƒÙˆØ¯ Ø§Ù„Ù…ÙˆØ¸Ù", `R${String(staffList.length + 1).padStart(2, "0")}`);
       if (!code) return;
 
       const newStaff = {
@@ -936,7 +943,7 @@
     }
 
     function resetData() {
-      if (!confirm("ترجع صفحة الموظفين لبيانات البداية؟")) {
+      if (!confirm("ØªØ±Ø¬Ø¹ ØµÙØ­Ø© Ø§Ù„Ù…ÙˆØ¸ÙÙŠÙ† Ù„Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ø¨Ø¯Ø§ÙŠØ©ØŸ")) {
         return;
       }
 
@@ -952,7 +959,7 @@
         return;
       }
 
-      if (!confirm(`تحذف الموظف ${staff.name}؟`)) {
+      if (!confirm(`ØªØ­Ø°Ù Ø§Ù„Ù…ÙˆØ¸Ù ${staff.name}ØŸ`)) {
         return;
       }
 
@@ -995,7 +1002,8 @@
 
     renderAll();
   </script>
+  <script src="keyboard-navigation.js"></script>
+  <script src="language.js"></script>
 </body>
 </html>
-
 

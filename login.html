@@ -1,9 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login - ROMEO BARBERSHOP</title>
+    <link rel="stylesheet" href="shared.css">
+<title>Login - ROMEO BARBERSHOP</title>
   <style>
     :root {
       --ink: #2a2118;
@@ -135,30 +136,33 @@
 </head>
 <body>
   <div class="splash" id="loginSplash">
-    <div class="scissor">✂</div>
+    <div class="scissor">âœ‚</div>
   </div>
   <div class="login-card">
     <h1>ROMEO BARBERSHOP</h1>
-    <p>ادخل بياناتك لتسجيل الدخول، ثم سيتم توجيهك للصفحة المطلوبة تلقائيًا.</p>
+    <p>Ø§Ø¯Ø®Ù„ Ø¨ÙŠØ§Ù†Ø§ØªÙƒ Ù„ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„ØŒ Ø«Ù… Ø³ÙŠØªÙ… ØªÙˆØ¬ÙŠÙ‡Ùƒ Ù„Ù„ØµÙØ­Ø© Ø§Ù„Ù…Ø·Ù„ÙˆØ¨Ø© ØªÙ„Ù‚Ø§Ø¦ÙŠÙ‹Ø§.</p>
 
     <form id="loginForm">
       <div class="field">
-        <label for="username">اسم المستخدم</label>
+        <label for="username">Ø§Ø³Ù… Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù…</label>
         <input id="username" type="text" autocomplete="username" required>
       </div>
 
       <div class="field">
-        <label for="password">كلمة المرور</label>
+        <label for="password">ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±</label>
         <input id="password" type="password" autocomplete="current-password" required>
       </div>
 
-      <button class="primary-btn" type="submit">تسجيل الدخول</button>
+      <button class="primary-btn" type="submit">ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„</button>
       <div class="status" id="statusBox"></div>
     </form>
 
   </div>
 
+  <script src="./text-fix.js"></script>
+  <script src="./api.js"></script>
   <script src="./auth.js"></script>
+  <script src="./layout.js"></script>
   <script>
     if (RomeoAuth.getCurrentUser()) {
       window.location.href = RomeoAuth.getReturnTo();
@@ -168,10 +172,12 @@
     const statusBox = document.getElementById("statusBox");
     const splash = document.getElementById("loginSplash");
 
-    loginForm.addEventListener("submit", event => {
+    loginForm.addEventListener("submit", async event => {
       event.preventDefault();
+      statusBox.textContent = "Ø¬Ø§Ø±ÙŠ ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„...";
+      statusBox.className = "status";
 
-      const result = RomeoAuth.login(
+      const result = await RomeoAuth.login(
         document.getElementById("username").value.trim(),
         document.getElementById("password").value
       );
@@ -188,5 +194,6 @@
       }, 1000);
     });
   </script>
+  <script src="keyboard-navigation.js"></script>
 </body>
 </html>

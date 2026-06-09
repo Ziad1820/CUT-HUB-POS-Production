@@ -1,9 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>System Access - ROMEO BARBERSHOP</title>
+    <link rel="stylesheet" href="shared.css">
+<title>System Access - ROMEO BARBERSHOP</title>
   <style>
     :root {
       --ink: #2a2118;
@@ -275,7 +276,7 @@
   <div class="app">
     <div class="header">
       <div class="header-menu">
-        <button type="button" class="menu-toggle" id="menuToggle">⋯</button>
+        <button type="button" class="menu-toggle" id="menuToggle">â‹¯</button>
       </div>
 
       <h1>ROMEO BARBERSHOP</h1>
@@ -283,43 +284,43 @@
 
     <div class="layout">
       <section class="panel">
-        <h2>إضافة أو تعديل مستخدم</h2>
-        <p>أضف اليوزر نيم والباسورد واسم صاحب اليوزر ثم اختر الصلاحيات التي تريدها له.</p>
+        <h2>Ø¥Ø¶Ø§ÙØ© Ø£Ùˆ ØªØ¹Ø¯ÙŠÙ„ Ù…Ø³ØªØ®Ø¯Ù…</h2>
+        <p>Ø£Ø¶Ù Ø§Ù„ÙŠÙˆØ²Ø± Ù†ÙŠÙ… ÙˆØ§Ù„Ø¨Ø§Ø³ÙˆØ±Ø¯ ÙˆØ§Ø³Ù… ØµØ§Ø­Ø¨ Ø§Ù„ÙŠÙˆØ²Ø± Ø«Ù… Ø§Ø®ØªØ± Ø§Ù„ØµÙ„Ø§Ø­ÙŠØ§Øª Ø§Ù„ØªÙŠ ØªØ±ÙŠØ¯Ù‡Ø§ Ù„Ù‡.</p>
 
         <div class="field">
-          <label for="displayName">اسم صاحب اليوزر</label>
-          <input id="displayName" type="text" placeholder="مثال: أحمد">
+          <label for="displayName">Ø§Ø³Ù… ØµØ§Ø­Ø¨ Ø§Ù„ÙŠÙˆØ²Ø±</label>
+          <input id="displayName" type="text" placeholder="Ù…Ø«Ø§Ù„: Ø£Ø­Ù…Ø¯">
         </div>
 
         <div class="field">
-          <label for="username">اليوزر نيم</label>
-          <input id="username" type="text" placeholder="مثال: ahmed">
+          <label for="username">Ø§Ù„ÙŠÙˆØ²Ø± Ù†ÙŠÙ…</label>
+          <input id="username" type="text" placeholder="Ù…Ø«Ø§Ù„: ahmed">
         </div>
 
         <div class="field">
-          <label for="password">الباسورد</label>
-          <input id="password" type="text" placeholder="اكتب الباسورد">
+          <label for="password">Ø§Ù„Ø¨Ø§Ø³ÙˆØ±Ø¯</label>
+          <input id="password" type="text" placeholder="Ø§ÙƒØªØ¨ Ø§Ù„Ø¨Ø§Ø³ÙˆØ±Ø¯">
         </div>
 
         <div class="permissions">
-          <label class="permission-item"><input type="checkbox" value="access_cashier" checked> يفتح شاشة الكاشير</label>
-          <label class="permission-item"><input type="checkbox" value="edit_prices"> يعدل الأسعار</label>
-          <label class="permission-item"><input type="checkbox" value="view_income_statement"> يفتح income statement</label>
-          <label class="permission-item"><input type="checkbox" value="view_staff_accounting"> يفتح staff accounting</label>
-          <label class="permission-item"><input type="checkbox" value="manage_users"> يدير المستخدمين والصلاحيات</label>
+          <label class="permission-item"><input type="checkbox" value="access_cashier" checked> ÙŠÙØªØ­ Ø´Ø§Ø´Ø© Ø§Ù„ÙƒØ§Ø´ÙŠØ±</label>
+          <label class="permission-item"><input type="checkbox" value="edit_prices"> ÙŠØ¹Ø¯Ù„ Ø§Ù„Ø£Ø³Ø¹Ø§Ø±</label>
+          <label class="permission-item"><input type="checkbox" value="view_income_statement"> ÙŠÙØªØ­ income statement</label>
+          <label class="permission-item"><input type="checkbox" value="view_staff_accounting"> ÙŠÙØªØ­ staff accounting</label>
+          <label class="permission-item"><input type="checkbox" value="manage_users"> ÙŠØ¯ÙŠØ± Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù…ÙŠÙ† ÙˆØ§Ù„ØµÙ„Ø§Ø­ÙŠØ§Øª</label>
         </div>
 
         <div class="actions">
-          <button class="primary-btn" type="button" id="saveUserBtn">حفظ المستخدم</button>
-          <button class="secondary-btn" type="button" id="resetFormBtn">تفريغ الحقول</button>
+          <button class="primary-btn" type="button" id="saveUserBtn">Ø­ÙØ¸ Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù…</button>
+          <button class="secondary-btn" type="button" id="resetFormBtn">ØªÙØ±ÙŠØº Ø§Ù„Ø­Ù‚ÙˆÙ„</button>
         </div>
 
         <div class="status" id="statusBox"></div>
       </section>
 
       <section class="panel">
-        <h2>المستخدمون الحاليون</h2>
-        <p>يمكنك تعديل أي مستخدم أو حذف أي مستخدم غير مالك النظام.</p>
+        <h2>Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù…ÙˆÙ† Ø§Ù„Ø­Ø§Ù„ÙŠÙˆÙ†</h2>
+        <p>ÙŠÙ…ÙƒÙ†Ùƒ ØªØ¹Ø¯ÙŠÙ„ Ø£ÙŠ Ù…Ø³ØªØ®Ø¯Ù… Ø£Ùˆ Ø­Ø°Ù Ø£ÙŠ Ù…Ø³ØªØ®Ø¯Ù… ØºÙŠØ± Ù…Ø§Ù„Ùƒ Ø§Ù„Ù†Ø¸Ø§Ù….</p>
         <div class="users-list" id="usersList"></div>
       </section>
     </div>
@@ -329,7 +330,11 @@
   <aside class="sidebar" id="sidebar">
     <h3>Menu</h3>
     <button class="sidebar-link" type="button" data-href="index.html" data-permission="access_cashier">cashier</button>
+    <button class="sidebar-link" type="button" data-href="invoices.html">invoices</button>
     <button class="sidebar-link" type="button" data-href="income-statement.html" data-permission="view_income_statement">income statement</button>
+    <button class="sidebar-link" type="button" data-href="daily-closing.html" data-permission="view_income_statement">daily closing</button>
+    <button class="sidebar-link" type="button" data-href="data-analysis.html" data-permission="view_income_statement">DATA ANALYSIS</button>
+      <button class="sidebar-link" type="button" data-href="activity-log.html" data-permission="manage_users">Activity Log</button>
     <button class="sidebar-link" type="button" data-href="staff-accounting.html" data-permission="view_staff_accounting">staff accounting</button>
     <button class="sidebar-link active" type="button">system access</button>
     <button class="sidebar-link" type="button" data-href="withdrawals.html">Withdrawals</button>
@@ -343,20 +348,23 @@
   </aside>
 
   <script src="./text-fix.js"></script>
+  <script src="./api.js"></script>
   <script src="./auth.js"></script>
+  <script src="./layout.js"></script>
   <script>
     RomeoAuth.requireAuth("manage_users");
 
     const permissionLabels = {
-      access_cashier: "شاشة الكاشير",
-      edit_prices: "تعديل الأسعار",
+      access_cashier: "Ø´Ø§Ø´Ø© Ø§Ù„ÙƒØ§Ø´ÙŠØ±",
+      edit_prices: "ØªØ¹Ø¯ÙŠÙ„ Ø§Ù„Ø£Ø³Ø¹Ø§Ø±",
       view_income_statement: "income statement",
       view_staff_accounting: "staff accounting",
-      manage_users: "إدارة المستخدمين"
+      manage_users: "Ø¥Ø¯Ø§Ø±Ø© Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù…ÙŠÙ†"
     };
 
     const usersList = document.getElementById("usersList");
     const statusBox = document.getElementById("statusBox");
+    let usersCache = [];
 
     function showStatus(message, type) {
       statusBox.textContent = message;
@@ -377,33 +385,46 @@
     }
 
     function renderUsers() {
-      usersList.innerHTML = RomeoAuth.getUsers().map(user => `
+      usersList.innerHTML = usersCache.map(user => `
         <div class="user-card">
           <strong>${user.displayName}</strong>
           <small>@${user.username}</small>
           <p>${user.permissions.map(permission => permissionLabels[permission] || permission).join(" - ")}</p>
           <div class="user-actions">
-            <button class="secondary-btn" type="button" onclick="editUser('${user.username}')">تعديل</button>
-            <button class="danger-btn" type="button" onclick="removeUser('${user.username}')">حذف</button>
+            <button class="secondary-btn" type="button" onclick="editUser('${user.username}')">ØªØ¹Ø¯ÙŠÙ„</button>
+            <button class="danger-btn" type="button" onclick="removeUser('${user.username}')">Ø­Ø°Ù</button>
           </div>
         </div>
       `).join("");
     }
 
-    function saveUser() {
+    async function loadUsers() {
+      try {
+        usersList.innerHTML = "<p>Ø¬Ø§Ø±ÙŠ ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù…ÙŠÙ†...</p>";
+        usersCache = await RomeoAuth.getUsers({ forceRefresh: true });
+        renderUsers();
+      } catch (error) {
+        usersList.innerHTML = "";
+        showStatus(error.message || "ØªØ¹Ø°Ø± ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù…ÙŠÙ†.", "error");
+      }
+    }
+
+    async function saveUser() {
       const displayName = document.getElementById("displayName").value.trim();
       const username = document.getElementById("username").value.trim();
       const password = document.getElementById("password").value;
       const permissions = selectedPermissions();
-      const existing = RomeoAuth.getUsers().find(user => user.username === username);
+      const existing = usersCache.find(user => user.username === username);
+
+      showStatus("Ø¬Ø§Ø±ÙŠ Ø­ÙØ¸ Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù…...", "success");
 
       const result = existing
-        ? RomeoAuth.updateUser(username, {
+        ? await RomeoAuth.updateUser(username, {
             displayName,
-            password: password || existing.password,
+            password,
             permissions
           })
-        : RomeoAuth.createUser({
+        : await RomeoAuth.createUser({
             displayName,
             username,
             password,
@@ -415,39 +436,40 @@
         return;
       }
 
-      showStatus(existing ? "تم تعديل المستخدم بنجاح." : "تم إضافة المستخدم بنجاح.", "success");
+      showStatus(existing ? "ØªÙ… ØªØ¹Ø¯ÙŠÙ„ Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… Ø¨Ù†Ø¬Ø§Ø­." : "ØªÙ… Ø¥Ø¶Ø§ÙØ© Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… Ø¨Ù†Ø¬Ø§Ø­.", "success");
       resetForm();
-      renderUsers();
+      await loadUsers();
     }
 
     window.editUser = username => {
-      const user = RomeoAuth.getUsers().find(item => item.username === username);
+      const user = usersCache.find(item => item.username === username);
       if (!user) {
         return;
       }
 
       document.getElementById("displayName").value = user.displayName;
       document.getElementById("username").value = user.username;
-      document.getElementById("password").value = user.password;
+      document.getElementById("password").value = "";
       document.querySelectorAll('.permissions input[type="checkbox"]').forEach(input => {
         input.checked = user.permissions.includes(input.value);
       });
-      showStatus(`أنت الآن تعدل المستخدم ${user.username}`, "success");
+      showStatus(`Ø£Ù†Øª Ø§Ù„Ø¢Ù† ØªØ¹Ø¯Ù„ Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… ${user.username}. Ø§ØªØ±Ùƒ ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± ÙØ§Ø±ØºØ© Ø¥Ø°Ø§ Ù„Ø§ ØªØ±ÙŠØ¯ ØªØºÙŠÙŠØ±Ù‡Ø§.`, "success");
     };
 
-    window.removeUser = username => {
-      if (!window.confirm(`هل تريد حذف المستخدم ${username}؟`)) {
+    window.removeUser = async username => {
+      if (!window.confirm(`Ù‡Ù„ ØªØ±ÙŠØ¯ Ø­Ø°Ù Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… ${username}ØŸ`)) {
         return;
       }
 
-      const result = RomeoAuth.deleteUser(username);
+      showStatus("Ø¬Ø§Ø±ÙŠ Ø­Ø°Ù Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù…...", "success");
+      const result = await RomeoAuth.deleteUser(username);
       if (!result.success) {
         showStatus(result.message, "error");
         return;
       }
 
-      showStatus("تم حذف المستخدم بنجاح.", "success");
-      renderUsers();
+      showStatus("ØªÙ… Ø­Ø°Ù Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… Ø¨Ù†Ø¬Ø§Ø­.", "success");
+      await loadUsers();
     };
 
     const menuToggle = document.getElementById("menuToggle");
@@ -482,10 +504,11 @@
     menuToggle.addEventListener("click", openSidebar);
     sidebarOverlay.addEventListener("click", closeSidebar);
 
-    renderUsers();
     resetForm();
+    loadUsers();
   </script>
+  <script src="keyboard-navigation.js"></script>
+  <script src="language.js"></script>
 </body>
 </html>
-
 

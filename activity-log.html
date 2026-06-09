@@ -1,0 +1,578 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="shared.css">
+  <title>Activity Log - ROMEO BARBERSHOP</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --panel: #fffaf2;
+      --ink: #2a2118;
+      --muted: #77695c;
+      --accent: #b7863f;
+      --accent-dark: #8c642e;
+      --success: #18794e;
+      --danger: #ba3a2c;
+      --border: #e5d5be;
+      --shadow: 0 18px 40px rgba(76,54,28,.14);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(183,134,63,.18), transparent 28%),
+        linear-gradient(135deg, #f8f2e8 0%, #f0e4d0 100%);
+      color: var(--ink);
+    }
+
+    .app { min-height: 100vh; padding: 24px; }
+
+    .header {
+      position: relative;
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: #fff;
+      border-radius: 24px;
+      padding: 28px 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .header h1 { margin: 0 0 8px; font-size: 34px; letter-spacing: 1px; }
+    .header p { margin: 0; color: rgba(255,255,255,.82); font-weight: 700; }
+
+    .header-menu {
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      z-index: 20;
+    }
+
+    .menu-toggle {
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color: #fff;
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      cursor: pointer;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .sidebar-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(34,23,12,.34);
+      display: none;
+      z-index: 999;
+    }
+
+    .sidebar-overlay.active { display: block; }
+
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: -320px;
+      width: min(320px, 85vw);
+      height: 100vh;
+      background: #fffaf2;
+      border-right: 1px solid rgba(229,213,190,.8);
+      box-shadow: var(--shadow);
+      padding: 24px 18px;
+      z-index: 1000;
+      transition: left .2s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    .sidebar.active { left: 0; }
+
+    .sidebar h3 {
+      margin: 0 0 8px;
+      color: var(--ink);
+      font-size: 22px;
+      text-align: left;
+      direction: ltr;
+    }
+
+    .sidebar-link,
+    .sidebar button {
+      width: 100%;
+      border: none;
+      border-radius: 16px;
+      padding: 14px 16px;
+      background: #ead9bd;
+      color: var(--ink);
+      text-align: left;
+      direction: ltr;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .sidebar-link.active {
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: #fff;
+    }
+
+    .panel {
+      background: rgba(255,250,242,.96);
+      border: 1px solid rgba(229,213,190,.8);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: 22px;
+      margin-bottom: 22px;
+    }
+
+    .filters {
+      display: grid;
+      grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(150px, 1fr)) auto;
+      gap: 14px;
+      align-items: end;
+    }
+
+    label {
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    input,
+    select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #fffaf2;
+      color: var(--ink);
+      padding: 14px 16px;
+      font-size: 16px;
+      min-height: 54px;
+    }
+
+    .button {
+      border: none;
+      border-radius: 16px;
+      padding: 15px 20px;
+      min-height: 54px;
+      background: #ead9bd;
+      color: var(--ink);
+      font-weight: 900;
+      font-size: 16px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .button.primary {
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: #fff;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+
+    .metric {
+      background: rgba(255,250,242,.96);
+      border: 1px solid rgba(229,213,190,.9);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      padding: 20px;
+      min-height: 118px;
+      display: grid;
+      align-content: center;
+      gap: 10px;
+    }
+
+    .metric span { color: var(--muted); font-weight: 800; }
+    .metric strong { font-size: 34px; line-height: 1; }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      background: rgba(255,250,242,.72);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 920px;
+      direction: ltr;
+    }
+
+    th,
+    td {
+      padding: 16px 14px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: rgba(234,217,189,.45);
+      color: var(--muted);
+      font-weight: 900;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 84px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: #ead9bd;
+      color: var(--ink);
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .badge.delete { background: #f4ded6; color: #a32b22; }
+    .badge.update { background: #efe2c9; color: #6c4a1f; }
+    .badge.create { background: #dff0e7; color: #18794e; }
+    .badge.login { background: #e8e3f3; color: #4e3a7d; }
+
+    .details {
+      max-width: 520px;
+      line-height: 1.7;
+      color: var(--ink);
+      white-space: pre-wrap;
+    }
+
+    .empty {
+      padding: 36px 18px;
+      text-align: center;
+      color: var(--muted);
+      font-weight: 800;
+      line-height: 1.8;
+    }
+
+    body[data-language="ar"] table { direction: rtl; }
+    body[data-language="ar"] th,
+    body[data-language="ar"] td { text-align: right; }
+
+    @media (max-width: 1100px) {
+      .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 680px) {
+      .app { padding: 14px; }
+      .header { padding: 72px 16px 24px; }
+      .header h1 { font-size: 28px; }
+      .filters,
+      .cards { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div class="header-menu"><button type="button" class="menu-toggle" id="menuToggle">...</button></div>
+      <h1>ROMEO BARBERSHOP</h1>
+      <p data-i18n="Audit trail for invoices, expenses, users, prices, and system actions">Audit trail for invoices, expenses, users, prices, and system actions</p>
+    </div>
+
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <aside class="sidebar" id="sidebar">
+      <h3>Menu</h3>
+      <button class="sidebar-link" type="button" data-href="index.html" data-permission="access_cashier">Cashier</button>
+      <button class="sidebar-link" type="button" data-href="invoices.html">Invoices</button>
+      <button class="sidebar-link" type="button" data-href="income-statement.html" data-permission="view_income_statement">Income Statement</button>
+      <button class="sidebar-link" type="button" data-href="daily-closing.html" data-permission="view_income_statement">daily closing</button>
+      <button class="sidebar-link" type="button" data-href="data-analysis.html" data-permission="view_income_statement">Data Analysis</button>
+      <button class="sidebar-link active" type="button" data-permission="manage_users">Activity Log</button>
+      <button class="sidebar-link" type="button" data-href="staff-accounting.html" data-permission="view_staff_accounting">Staff Accounting</button>
+      <button class="sidebar-link" type="button" data-href="system-access.html" data-permission="manage_users">System Access</button>
+      <button class="sidebar-link" type="button" data-href="withdrawals.html" data-permission="view_staff_accounting">Withdrawals</button>
+      <button class="sidebar-link" type="button" data-href="expenses.html" data-permission="view_income_statement">Expenses</button>
+      <button class="sidebar-link" type="button" data-href="enventory.html">Inventory</button>
+      <button class="sidebar-link" type="button" data-href="staff-discount.html">Staff Discount</button>
+      <button class="sidebar-link" type="button" data-href="attendance.html">Attendance</button>
+      <button class="sidebar-link" type="button" data-href="bookings.html">Bookings</button>
+      <button class="sidebar-link" type="button" data-href="customer-data.html">Customer Data</button>
+      <button class="sidebar-link" type="button" id="logoutBtn">Logout</button>
+    </aside>
+
+    <section class="panel">
+      <div class="filters">
+        <label>
+          <span data-i18n="Search">Search</span>
+          <input id="searchInput" type="search" placeholder="Search by user, action, or details" data-i18n-placeholder="Search by user, action, or details">
+        </label>
+        <label>
+          <span data-i18n="Action Type">Action Type</span>
+          <select id="actionFilter">
+            <option value="" data-i18n="All actions">All actions</option>
+            <option value="delete" data-i18n="Delete">Delete</option>
+            <option value="update" data-i18n="Update">Update</option>
+            <option value="create" data-i18n="Create">Create</option>
+            <option value="login" data-i18n="Login">Login</option>
+            <option value="logout" data-i18n="Logout">Logout</option>
+            <option value="close_day" data-i18n="Day Closing">Day Closing</option>
+          </select>
+        </label>
+        <label>
+          <span data-i18n="Entity Type">Entity Type</span>
+          <select id="entityFilter">
+            <option value="" data-i18n="All types">All types</option>
+            <option value="invoice" data-i18n="Invoice">Invoice</option>
+            <option value="expense" data-i18n="Expense">Expense</option>
+            <option value="withdrawal" data-i18n="Withdrawal">Withdrawal</option>
+            <option value="services" data-i18n="Services">Services</option>
+            <option value="user" data-i18n="User">User</option>
+            <option value="system" data-i18n="System">System</option>
+          </select>
+        </label>
+        <label>
+          <span data-i18n="From Date">From Date</span>
+          <input id="fromDate" type="date">
+        </label>
+        <label>
+          <span data-i18n="To Date">To Date</span>
+          <input id="toDate" type="date">
+        </label>
+        <button class="button primary" type="button" id="refreshBtn" data-i18n="Refresh">Refresh</button>
+      </div>
+    </section>
+
+    <section class="cards">
+      <div class="metric"><span data-i18n="Total Logs">Total Logs</span><strong id="totalLogs">0</strong></div>
+      <div class="metric"><span data-i18n="Deletes">Deletes</span><strong id="deleteLogs">0</strong></div>
+      <div class="metric"><span data-i18n="Updates">Updates</span><strong id="updateLogs">0</strong></div>
+      <div class="metric"><span data-i18n="Creates">Creates</span><strong id="createLogs">0</strong></div>
+    </section>
+
+    <section class="panel">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th data-i18n="Action Type">Action Type</th>
+              <th data-i18n="User">User</th>
+              <th data-i18n="Date & Time">Date & Time</th>
+              <th data-i18n="Entity Type">Entity Type</th>
+              <th data-i18n="Details">Details</th>
+            </tr>
+          </thead>
+          <tbody id="logsBody">
+            <tr><td class="empty" colspan="5" data-i18n="Loading...">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script src="text-fix.js"></script>
+  <script src="api.js"></script>
+  <script src="auth.js"></script>
+  <script src="layout.js"></script>
+  <script src="keyboard-navigation.js"></script>
+  <script src="language.js"></script>
+  <script>
+    RomeoAuth.requireAuth("manage_users");
+
+    const state = {
+      logs: [],
+      filtered: []
+    };
+
+    const els = {
+      search: document.getElementById("searchInput"),
+      action: document.getElementById("actionFilter"),
+      entity: document.getElementById("entityFilter"),
+      fromDate: document.getElementById("fromDate"),
+      toDate: document.getElementById("toDate"),
+      refresh: document.getElementById("refreshBtn"),
+      body: document.getElementById("logsBody"),
+      total: document.getElementById("totalLogs"),
+      deletes: document.getElementById("deleteLogs"),
+      updates: document.getElementById("updateLogs"),
+      creates: document.getElementById("createLogs")
+    };
+
+    const ACTION_LABELS = {
+      delete: { en: "Delete", ar: "Ø­Ø°Ù" },
+      update: { en: "Update", ar: "ØªØ¹Ø¯ÙŠÙ„" },
+      create: { en: "Create", ar: "Ø¥Ø¶Ø§ÙØ©" },
+      login: { en: "Login", ar: "ØªØ³Ø¬ÙŠÙ„ Ø¯Ø®ÙˆÙ„" },
+      logout: { en: "Logout", ar: "ØªØ³Ø¬ÙŠÙ„ Ø®Ø±ÙˆØ¬" },
+      close_day: { en: "Day Closing", ar: "ØªÙ‚ÙÙŠÙ„Ø© ÙŠÙˆÙ…" },
+      system: { en: "System", ar: "Ø§Ù„Ù†Ø¸Ø§Ù…" }
+    };
+
+    const ENTITY_LABELS = {
+      invoice: { en: "Invoice", ar: "ÙØ§ØªÙˆØ±Ø©" },
+      expense: { en: "Expense", ar: "Ù…ØµØ±ÙˆÙ" },
+      withdrawal: { en: "Withdrawal", ar: "Ø³Ø­Ø¨" },
+      services: { en: "Services", ar: "Ø§Ù„Ø®Ø¯Ù…Ø§Øª" },
+      user: { en: "User", ar: "Ù…Ø³ØªØ®Ø¯Ù…" },
+      system: { en: "System", ar: "Ø§Ù„Ù†Ø¸Ø§Ù…" }
+    };
+
+    function currentLanguage() {
+      return window.RomeoLanguage ? RomeoLanguage.getCurrentLanguage() : "ar";
+    }
+
+    function labelFrom(map, key) {
+      const language = currentLanguage();
+      return map[key] ? map[key][language] : (key || "-");
+    }
+
+    function normalizeText(value) {
+      return String(value || "").trim().toLowerCase();
+    }
+
+    function normalizeLog(log, index) {
+      const action = normalizeText(log.action || log.type || log.actionType);
+      const entityType = normalizeText(log.entityType || log.entity || log.targetType);
+
+      return {
+        logId: String(log.logId || log.id || `LOG-${index + 1}`),
+        action,
+        entityType,
+        entityId: String(log.entityId || log.targetId || ""),
+        userName: String(log.userName || log.username || log.user || "").trim(),
+        displayName: String(log.displayName || log.name || "").trim(),
+        details: String(log.details || log.description || log.message || "").trim(),
+        createdAt: String(log.createdAt || log.dateTime || log.timestamp || log.date || "").trim()
+      };
+    }
+
+    function getDateKey(value) {
+      const text = String(value || "").trim();
+      const match = text.match(/(\d{4})-(\d{2})-(\d{2})/);
+      return match ? match[0] : "";
+    }
+
+    function formatDateTime(value) {
+      const text = String(value || "").trim();
+      if (!text) return "-";
+      return text.replace("T", " ").replace(/\.\d+Z?$/, "");
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function setEmpty(message) {
+      els.body.innerHTML = `<tr><td class="empty" colspan="5">${escapeHtml(message)}</td></tr>`;
+    }
+
+    function renderMetrics() {
+      els.total.textContent = state.filtered.length;
+      els.deletes.textContent = state.filtered.filter(log => log.action === "delete").length;
+      els.updates.textContent = state.filtered.filter(log => log.action === "update").length;
+      els.creates.textContent = state.filtered.filter(log => log.action === "create").length;
+    }
+
+    function renderLogs() {
+      renderMetrics();
+
+      if (!state.filtered.length) {
+        setEmpty(currentLanguage() === "ar" ? "Ù„Ø§ ØªÙˆØ¬Ø¯ Ø¹Ù…Ù„ÙŠØ§Øª Ù…Ø·Ø§Ø¨Ù‚Ø© Ù„Ù„ÙÙ„Ø§ØªØ± Ø§Ù„Ø­Ø§Ù„ÙŠØ©." : "No activity matches the current filters.");
+        return;
+      }
+
+      els.body.innerHTML = state.filtered.map(log => {
+        const user = log.displayName || log.userName || "-";
+        const actionClass = ACTION_LABELS[log.action] ? log.action : "";
+        const entityLabel = labelFrom(ENTITY_LABELS, log.entityType);
+        const entityId = log.entityId ? ` <span class="muted">#${escapeHtml(log.entityId)}</span>` : "";
+
+        return `
+          <tr>
+            <td><span class="badge ${escapeHtml(actionClass)}">${escapeHtml(labelFrom(ACTION_LABELS, log.action))}</span></td>
+            <td>${escapeHtml(user)}</td>
+            <td>${escapeHtml(formatDateTime(log.createdAt))}</td>
+            <td>${escapeHtml(entityLabel)}${entityId}</td>
+            <td><div class="details">${escapeHtml(log.details || "-")}</div></td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function applyFilters() {
+      const query = normalizeText(els.search.value);
+      const action = normalizeText(els.action.value);
+      const entity = normalizeText(els.entity.value);
+      const fromDate = els.fromDate.value;
+      const toDate = els.toDate.value;
+
+      state.filtered = state.logs.filter(log => {
+        const haystack = normalizeText([
+          log.action,
+          log.entityType,
+          log.entityId,
+          log.userName,
+          log.displayName,
+          log.details,
+          log.createdAt
+        ].join(" "));
+        const dateKey = getDateKey(log.createdAt);
+
+        if (query && !haystack.includes(query)) return false;
+        if (action && log.action !== action) return false;
+        if (entity && log.entityType !== entity) return false;
+        if (fromDate && dateKey && dateKey < fromDate) return false;
+        if (toDate && dateKey && dateKey > toDate) return false;
+        return true;
+      });
+
+      renderLogs();
+    }
+
+    async function loadLogs() {
+      setEmpty(currentLanguage() === "ar" ? "Ø¬Ø§Ø±ÙŠ ØªØ­Ù…ÙŠÙ„ Ø³Ø¬Ù„ Ø§Ù„Ø¹Ù…Ù„ÙŠØ§Øª..." : "Loading activity log...");
+
+      try {
+        const response = await RomeoApi.request({ action: "getActivityLogs" });
+        if (response.status !== "success") {
+          throw new Error(response.message || "Activity log API is not ready.");
+        }
+
+        const rows = response.logs || response.activityLogs || [];
+        state.logs = rows.map(normalizeLog).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+        applyFilters();
+      } catch (error) {
+        state.logs = [];
+        state.filtered = [];
+        renderMetrics();
+        setEmpty(
+          currentLanguage() === "ar"
+            ? "ØµÙØ­Ø© Ø³Ø¬Ù„ Ø§Ù„Ø¹Ù…Ù„ÙŠØ§Øª Ø¬Ø§Ù‡Ø²Ø©. Ø§Ù„Ø®Ø·ÙˆØ© Ø§Ù„Ø¬Ø§ÙŠØ© Ù†Ø¶ÙŠÙ action Ø¨Ø§Ø³Ù… getActivityLogs ÙÙŠ App Script ÙˆÙ†Ù†Ø´Ø¦ Ø´ÙŠØª ACTIVITY_LOG."
+            : "Activity Log page is ready. Next, add a getActivityLogs action in App Script and create an ACTIVITY_LOG sheet."
+        );
+      }
+    }
+
+    [els.search, els.action, els.entity, els.fromDate, els.toDate].forEach(element => {
+      element.addEventListener("input", applyFilters);
+      element.addEventListener("change", applyFilters);
+    });
+
+    els.refresh.addEventListener("click", loadLogs);
+    window.addEventListener("romeo-language-change", renderLogs);
+    loadLogs();
+  </script>
+</body>
+</html>

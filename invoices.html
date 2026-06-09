@@ -1,0 +1,555 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="shared.css">
+<title>Invoices - ROMEO BARBERSHOP</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --panel: #fffaf2;
+      --ink: #2a2118;
+      --muted: #77695c;
+      --accent: #b7863f;
+      --accent-dark: #8c642e;
+      --success: #18794e;
+      --danger: #ba3a2c;
+      --border: #e5d5be;
+      --shadow: 0 18px 40px rgba(76,54,28,.14);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(183,134,63,0.18), transparent 28%),
+        linear-gradient(135deg, #f8f2e8 0%, #f0e4d0 100%);
+      color: var(--ink);
+    }
+
+    .app { min-height: 100vh; padding: 24px; }
+
+    .header {
+      position: relative;
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: #fff;
+      border-radius: 24px;
+      padding: 28px 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .header h1 {
+      margin: 0 0 8px;
+      font-size: 34px;
+      letter-spacing: 1px;
+    }
+
+    .header p { margin: 0; color: rgba(255,255,255,.82); }
+
+    .header-menu {
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      z-index: 20;
+    }
+
+    .menu-toggle {
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color: #fff;
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      cursor: pointer;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .sidebar-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(34,23,12,.34);
+      display: none;
+      z-index: 999;
+    }
+
+    .sidebar-overlay.active { display: block; }
+
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: -320px;
+      width: min(320px, 85vw);
+      height: 100vh;
+      background: #fffaf2;
+      border-right: 1px solid rgba(229,213,190,.8);
+      box-shadow: var(--shadow);
+      padding: 24px 18px;
+      z-index: 1000;
+      transition: left .2s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    .sidebar.active { left: 0; }
+
+    .sidebar h3 {
+      margin: 0 0 8px;
+      color: var(--ink);
+      font-size: 22px;
+      text-align: left;
+      direction: ltr;
+    }
+
+    .sidebar-link,
+    .sidebar button {
+      width: 100%;
+      border: none;
+      border-radius: 16px;
+      padding: 14px 16px;
+      background: #ead9bd;
+      color: var(--ink);
+      text-align: left;
+      direction: ltr;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .sidebar-link.active {
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: #fff;
+    }
+
+    .panel {
+      background: rgba(255,250,242,.96);
+      border: 1px solid rgba(229,213,190,.8);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: 22px;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1.5fr) minmax(170px, .8fr) minmax(170px, .8fr) auto auto;
+      gap: 12px;
+      align-items: end;
+      margin-bottom: 18px;
+    }
+
+    .field { display: grid; gap: 8px; }
+
+    .field label {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 13px 15px;
+      background: #fffaf2;
+      color: var(--ink);
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+    }
+
+    .field input:focus,
+    .field select:focus {
+      border-color: #2a2118;
+      box-shadow: 0 0 0 3px rgba(183,134,63,.16);
+    }
+
+    .action-btn {
+      border: none;
+      border-radius: 16px;
+      padding: 13px 18px;
+      background: #ead9bd;
+      color: var(--ink);
+      font-weight: 900;
+      font-size: 15px;
+      cursor: pointer;
+      min-height: 47px;
+      white-space: nowrap;
+    }
+
+    .action-btn.primary {
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: #fff;
+    }
+
+    .action-btn.success {
+      background: var(--success);
+      color: #fff;
+    }
+
+    .action-btn.danger {
+      background: rgba(186,58,44,.12);
+      color: var(--danger);
+    }
+
+    .action-btn:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .summary-card {
+      border: 1px solid rgba(229,213,190,.8);
+      border-radius: 20px;
+      background: #fff;
+      padding: 18px;
+    }
+
+    .summary-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .summary-card strong {
+      font-size: 30px;
+      line-height: 1;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid rgba(229,213,190,.8);
+      border-radius: 20px;
+      background: #fffaf2;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1120px;
+    }
+
+    th,
+    td {
+      padding: 14px 12px;
+      border-bottom: 1px solid rgba(229,213,190,.72);
+      text-align: right;
+      vertical-align: middle;
+      font-size: 14px;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 13px;
+      background: rgba(234,217,189,.4);
+      white-space: nowrap;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .bulk-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+      padding: 12px 14px;
+      border: 1px solid rgba(229,213,190,.8);
+      border-radius: 18px;
+      background: rgba(255,250,242,.84);
+    }
+
+    .bulk-actions span {
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .bulk-actions .action-btn {
+      min-height: 42px;
+      padding: 10px 16px;
+    }
+
+    .select-cell {
+      width: 54px;
+      text-align: center;
+    }
+
+    .invoice-checkbox,
+    #selectAllInvoices {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent-dark);
+      cursor: pointer;
+    }
+
+    .amount {
+      font-weight: 900;
+      font-size: 18px;
+      white-space: nowrap;
+    }
+
+    .note-cell {
+      min-width: 180px;
+      max-width: 260px;
+      color: var(--muted);
+      line-height: 1.6;
+      white-space: normal;
+    }
+
+    .invoice-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-start;
+      direction: ltr;
+      white-space: nowrap;
+    }
+
+    .mini-btn {
+      border: none;
+      border-radius: 12px;
+      padding: 9px 12px;
+      background: #ead9bd;
+      color: var(--ink);
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .mini-btn.dark {
+      background: #2a2118;
+      color: #fff;
+    }
+
+    .mini-btn.danger {
+      background: rgba(186,58,44,.12);
+      color: var(--danger);
+    }
+
+    .empty-state,
+    .status-line {
+      color: var(--muted);
+      text-align: center;
+      padding: 28px 12px;
+      line-height: 1.7;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(34,23,12,.42);
+      display: none;
+      place-items: center;
+      z-index: 1200;
+      padding: 18px;
+    }
+
+    .modal-overlay.active { display: grid; }
+
+    .modal {
+      width: min(620px, 100%);
+      max-height: 90vh;
+      overflow-y: auto;
+      background: #fffaf2;
+      border: 1px solid rgba(229,213,190,.9);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: 22px;
+    }
+
+    .modal-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .modal-head h2 { margin: 0; font-size: 24px; }
+
+    .close-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      border: none;
+      background: #ead9bd;
+      cursor: pointer;
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .details-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .detail-item {
+      border: 1px solid rgba(229,213,190,.8);
+      border-radius: 16px;
+      background: #fff;
+      padding: 14px;
+    }
+
+    .detail-item.full { grid-column: 1 / -1; }
+
+    .detail-item span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+
+    .detail-item strong {
+      display: block;
+      word-break: break-word;
+      line-height: 1.7;
+    }
+
+    @media (max-width: 980px) {
+      .toolbar { grid-template-columns: 1fr 1fr; }
+      .summary-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 620px) {
+      .app { padding: 14px; }
+      .header { padding: 76px 18px 22px; }
+      .header h1 { font-size: 26px; }
+      .toolbar { grid-template-columns: 1fr; }
+      .details-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <script src="text-fix.js"></script>
+  <script src="api.js"></script>
+  <script src="auth.js"></script>
+  <script src="layout.js"></script>
+  <script src="keyboard-navigation.js"></script>
+  <script src="language.js"></script>
+
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar" id="sidebar">
+    <h3>Menu</h3>
+    <button class="sidebar-link" type="button" data-href="index.html" data-permission="access_cashier">cashier</button>
+    <button class="sidebar-link active" type="button">invoices</button>
+    <button class="sidebar-link" type="button" data-href="income-statement.html" data-permission="view_income_statement">income statement</button>
+    <button class="sidebar-link" type="button" data-href="daily-closing.html" data-permission="view_income_statement">daily closing</button>
+    <button class="sidebar-link" type="button" data-href="data-analysis.html" data-permission="view_income_statement">DATA ANALYSIS</button>
+      <button class="sidebar-link" type="button" data-href="activity-log.html" data-permission="manage_users">Activity Log</button>
+    <button class="sidebar-link" type="button" data-href="staff-accounting.html" data-permission="view_staff_accounting">staff accounting</button>
+    <button class="sidebar-link" type="button" data-href="system-access.html" data-permission="manage_users">system access</button>
+    <button class="sidebar-link" type="button" data-href="withdrawals.html">Withdrawals</button>
+    <button class="sidebar-link" type="button" data-href="expenses.html">Expenses</button>
+    <button class="sidebar-link" type="button" data-href="enventory.html">Enventory</button>
+    <button class="sidebar-link" type="button" data-href="staff-discount.html">staff Discount</button>
+    <button class="sidebar-link" type="button" data-href="attendance.html">Attendance</button>
+    <button class="sidebar-link" type="button" data-href="bookings.html">Bookings</button>
+    <button class="sidebar-link" type="button" data-href="customer-data.html">Customer Data</button>
+    <button type="button" id="logoutBtn">Logout</button>
+  </aside>
+
+  <main class="app">
+    <header class="header">
+      <div class="header-menu">
+        <button type="button" class="menu-toggle" id="menuToggle">...</button>
+      </div>
+      <h1>ROMEO BARBERSHOP</h1>
+      <p>ÙƒÙ„ Ø§Ù„ÙÙˆØ§ØªÙŠØ± Ø§Ù„Ù…Ø³Ø¬Ù„Ø© ÙÙŠ Ø§Ù„Ø´ÙŠØª Ù…Ø¹ Ø§Ù„Ø¨Ø­Ø« ÙˆØ§Ù„ÙÙ„ØªØ±Ø© ÙˆØ§Ù„Ø­Ø°Ù</p>
+    </header>
+
+    <section class="panel">
+      <div class="toolbar">
+        <div class="field">
+          <label for="searchInput">Ø¨Ø­Ø« Ø¨Ø§Ø³Ù… Ø§Ù„Ø¹Ù…ÙŠÙ„ Ø£Ùˆ Ø±Ù‚Ù… Ø§Ù„Ù‡Ø§ØªÙ</label>
+          <input id="searchInput" type="search" placeholder="Ø§ÙƒØªØ¨ Ø§Ø³Ù… Ø§Ù„Ø¹Ù…ÙŠÙ„ Ø£Ùˆ Ø±Ù‚Ù… Ø§Ù„Ù‡Ø§ØªÙ">
+        </div>
+        <div class="field">
+          <label for="dateFilter">ÙÙ„ØªØ±Ø© Ø¨Ø§Ù„ØªØ§Ø±ÙŠØ®</label>
+          <input id="dateFilter" type="date">
+        </div>
+        <div class="field">
+          <label for="barberFilter">ÙÙ„ØªØ±Ø© Ø¨Ø§Ù„Ø­Ù„Ø§Ù‚</label>
+          <select id="barberFilter">
+            <option value="">ÙƒÙ„ Ø§Ù„Ø­Ù„Ø§Ù‚ÙŠÙ†</option>
+          </select>
+        </div>
+        <button type="button" class="action-btn" id="clearFiltersBtn">Ù…Ø³Ø­ Ø§Ù„ÙÙ„Ø§ØªØ±</button>
+        <button type="button" class="action-btn primary" id="reloadBtn">ØªØ­Ø¯ÙŠØ«</button>
+      </div>
+
+      <div class="summary-grid">
+        <div class="summary-card">
+          <span>Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª Ø§Ù„Ù…Ø¹Ø±ÙˆØ¶Ø©</span>
+          <strong id="visibleTotal">0 جنيه</strong>
+        </div>
+        <div class="summary-card">
+          <span>Ø¹Ø¯Ø¯ Ø§Ù„ÙÙˆØ§ØªÙŠØ± Ø§Ù„Ù…Ø¹Ø±ÙˆØ¶Ø©</span>
+          <strong id="visibleCount">0</strong>
+        </div>
+        <div class="summary-card">
+          <span>Ø¥Ø¬Ù…Ø§Ù„ÙŠ ÙƒÙ„ Ø§Ù„ÙÙˆØ§ØªÙŠØ±</span>
+          <strong id="allTotal">0 جنيه</strong>
+        </div>
+      </div>
+
+      <div class="bulk-actions">
+        <span id="selectedCount">0 selected</span>
+        <button type="button" class="action-btn danger" id="deleteSelectedBtn" disabled>Delete Selected</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="select-cell">
+                <input type="checkbox" id="selectAllInvoices" aria-label="Select all invoices">
+              </th>
+              <th>Ø§Ù„ØªØ§Ø±ÙŠØ®</th>
+              <th>Ø§Ø³Ù… Ø§Ù„Ø¹Ù…ÙŠÙ„</th>
+              <th>Ø±Ù‚Ù… Ø§Ù„Ù‡Ø§ØªÙ</th>
+              <th>Ø§Ù„Ø­Ù„Ø§Ù‚</th>
+              <th>Ø·Ø±ÙŠÙ‚Ø© Ø§Ù„Ø¯ÙØ¹</th>
+              <th>Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ</th>
+              <th>Ø§Ù„Ø®Ø¯Ù…Ø§Øª</th>
+              <th>Ø§Ù„Ù…Ù„Ø§Ø­Ø¸Ø©</th>
+              <th>Ø¥Ø¬Ø±Ø§Ø¡Ø§Øª</th>
+            </tr>
+          </thead>
+          <tbody id="invoiceRows">
+            <tr><td colspan="10" class="status-line">Ø¬Ø§Ø±ÙŠ ØªØ­Ù…ÙŠÙ„ Ø§Ù„ÙÙˆØ§ØªÙŠØ±...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal-overlay" id="invoiceModal">
+    <article class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-head">
+        <h2 id="modalTitle">ØªÙØ§ØµÙŠÙ„ Ø§Ù„ÙØ§ØªÙˆØ±Ø©</h2>
+        <button type="button" class="close-btn" id="closeModalBtn">x</button>
+      </div>
+      <div class="details-grid" id="invoiceDetails"></div>
+    </article>
+  </div>
+
+  <script src="invoices.js"></script>
+
+</body>
+</html>
+
+

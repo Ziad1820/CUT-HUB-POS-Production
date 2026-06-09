@@ -1,9 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Income Statement - ROMEO BARBERSHOP</title>
+    <link rel="stylesheet" href="shared.css">
+<title>Income Statement - ROMEO BARBERSHOP</title>
   <style>
     :root {
       --ink: #2a2118;
@@ -207,7 +208,7 @@
   <div class="app">
     <div class="header">
       <div class="header-menu">
-        <button type="button" class="menu-toggle" id="menuToggle">⋯</button>
+        <button type="button" class="menu-toggle" id="menuToggle">...</button>
       </div>
 
       <h1>ROMEO BARBERSHOP</h1>
@@ -239,13 +240,13 @@
       <div class="summary-card total-income">
         <h2>Total income</h2>
         <div class="metric-value" id="totalIncome">Loading...</div>
-        <p>إجمالي الدخل قبل المصروفات والسحب.</p>
+        <p>Total income before deducting withdrawals and expenses.</p>
       </div>
       
       <div class="summary-card net-profit">
         <h2>Net profit</h2>
         <div class="metric-value" id="netProfit">55 EGP</div>
-        <p>صافي الربح بعد خصم السحب والمصروفات.</p>
+        <p>Net profit after deducting withdrawals and expenses.</p>
       </div>
     </section>
   </div>
@@ -254,7 +255,11 @@
   <aside class="sidebar" id="sidebar">
     <h3>Menu</h3>
     <button class="sidebar-link" type="button" data-href="index.html" data-permission="access_cashier">cashier</button>
+    <button class="sidebar-link" type="button" data-href="invoices.html">invoices</button>
     <button class="sidebar-link active" type="button">income statement</button>
+    <button class="sidebar-link" type="button" data-href="daily-closing.html" data-permission="view_income_statement">daily closing</button>
+    <button class="sidebar-link" type="button" data-href="data-analysis.html" data-permission="view_income_statement">DATA ANALYSIS</button>
+      <button class="sidebar-link" type="button" data-href="activity-log.html" data-permission="manage_users">Activity Log</button>
     <button class="sidebar-link" type="button" data-href="staff-accounting.html" data-permission="view_staff_accounting">staff accounting</button>
     <button class="sidebar-link" type="button" data-href="system-access.html" data-permission="manage_users">system access</button>
     <button class="sidebar-link" type="button" data-href="withdrawals.html">Withdrawals</button>
@@ -268,9 +273,11 @@
   </aside>
 
   <script src="./text-fix.js"></script>
+  <script src="./api.js"></script>
   <script src="./auth.js"></script>
+  <script src="./layout.js"></script>
   <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbwX8FC3PWZNqN-NvcCzxJO65H-XHDkpFKf3SUlh19JB-JDNcumkd7aMgybC6I9Wutqp/exec";
+    const API_URL = RomeoApi.API_URL;
     RomeoAuth.requireAuth("view_income_statement");
     const menuToggle = document.getElementById("menuToggle");
     const sidebar = document.getElementById("sidebar");
@@ -356,16 +363,16 @@
           method: "POST",
           body: JSON.stringify({ action: "totalClients" })
         });
-        if (!res.ok) throw new Error("خطأ في الاتصال");
+        if (!res.ok) throw new Error("Connection error");
         const data = await res.json();
         if (data.status !== "success") {
-          throw new Error(data.message || "فشل جلب إجمالي العملاء");
+          throw new Error(data.message || "Failed to load total clients");
         }
         const value = Number(data.totalClients || 0);
         totalClientsEl.textContent = formatCurrency(value);
       } catch (err) {
         console.error(err);
-        totalClientsEl.textContent = err instanceof Error ? err.message : "تعذر التحميل";
+        totalClientsEl.textContent = err instanceof Error ? err.message : "Could not load";
       }
     }
 
@@ -376,10 +383,10 @@
           method: "POST",
           body: JSON.stringify({ action: "totalIncome" })
         });
-        if (!res.ok) throw new Error("خطأ في الاتصال");
+        if (!res.ok) throw new Error("Connection error");
         const data = await res.json();
         if (data.status !== "success") {
-          throw new Error(data.message || "فشل جلب إجمالي الدخل");
+          throw new Error(data.message || "Failed to load total income");
         }
         const value = Number(data.totalIncome || 0);
         totals.income = value;
@@ -387,7 +394,7 @@
         updateNetProfit();
       } catch (err) {
         console.error(err);
-        totalIncomeEl.textContent = err instanceof Error ? err.message : "تعذر التحميل";
+        totalIncomeEl.textContent = err instanceof Error ? err.message : "Could not load";
       }
     }
 
@@ -398,16 +405,16 @@
           method: "POST",
           body: JSON.stringify({ action: "totalStaffSales" })
         });
-        if (!res.ok) throw new Error("خطأ في الاتصال");
+        if (!res.ok) throw new Error("Connection error");
         const data = await res.json();
         if (data.status !== "success") {
-          throw new Error(data.message || "فشل جلب إجمالي مبيعات الموظفين");
+          throw new Error(data.message || "Failed to load total staff sales");
         }
         const value = Number(data.totalStaffSales || 0);
         totalStaffSalesEl.textContent = `${formatCurrency(value)} EGP`;
       } catch (err) {
         console.error(err);
-        totalStaffSalesEl.textContent = err instanceof Error ? err.message : "تعذر التحميل";
+        totalStaffSalesEl.textContent = err instanceof Error ? err.message : "Could not load";
       }
     }
     refreshLocalTotals();
@@ -421,5 +428,7 @@
       }
     });
   </script>
+  <script src="keyboard-navigation.js"></script>
+  <script src="language.js"></script>
 </body>
 </html>

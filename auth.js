@@ -1,5 +1,5 @@
 const RomeoAuth = (() => {
-  const USERS_KEY = "romeo-pos-users";
+  const API_URL = window.RomeoApi ? RomeoApi.API_URL : "https://script.google.com/macros/s/AKfycbzuoA28KopuKZBB28hgRW3h7obTGhWR5m9bN8T_H2EpAo30NsZBoVXJvnktoKUhHmeY/exec";
   const SESSION_KEY = "romeo-pos-session";
   const ALL_PERMISSIONS = [
     "access_cashier",
@@ -11,52 +11,41 @@ const RomeoAuth = (() => {
 
   const DEFAULT_OWNER = {
     username: "owner",
-    password: "owner123",
     displayName: "مالك النظام",
     permissions: [...ALL_PERMISSIONS]
   };
 
-  function ensureUsers() {
-    const stored = localStorage.getItem(USERS_KEY);
-    if (!stored) {
-      localStorage.setItem(USERS_KEY, JSON.stringify([DEFAULT_OWNER]));
-      return [DEFAULT_OWNER];
+  let usersCache = null;
+
+  async function apiRequest(payload) {
+    if (window.RomeoApi && typeof RomeoApi.request === "function") {
+      return RomeoApi.request(payload);
     }
 
-    try {
-      const users = JSON.parse(stored);
-      if (!Array.isArray(users) || users.length === 0) {
-        localStorage.setItem(USERS_KEY, JSON.stringify([DEFAULT_OWNER]));
-        return [DEFAULT_OWNER];
-      }
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
 
-      const hasOwner = users.some(user => user.username === DEFAULT_OWNER.username);
-      if (!hasOwner) {
-        const mergedUsers = [DEFAULT_OWNER, ...users];
-        localStorage.setItem(USERS_KEY, JSON.stringify(mergedUsers));
-        return mergedUsers;
-      }
-
-      return users;
-    } catch (error) {
-      localStorage.setItem(USERS_KEY, JSON.stringify([DEFAULT_OWNER]));
-      return [DEFAULT_OWNER];
+    if (!response.ok) {
+      throw new Error("تعذر الاتصال بقاعدة بيانات المستخدمين.");
     }
+
+    return response.json();
   }
 
-  function getUsers() {
-    return ensureUsers();
-  }
-
-  function saveUsers(users) {
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  function normalizeUser(user) {
+    return {
+      username: String(user.username || "").trim(),
+      displayName: String(user.displayName || user.username || "").trim(),
+      permissions: Array.isArray(user.permissions) ? user.permissions : []
+    };
   }
 
   function getCurrentSession() {
     const stored = localStorage.getItem(SESSION_KEY);
-    if (!stored) {
-      return null;
-    }
+    if (!stored) return null;
 
     try {
       return JSON.parse(stored);
@@ -66,32 +55,69 @@ const RomeoAuth = (() => {
     }
   }
 
+  function saveSession(user) {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ user: normalizeUser(user) }));
+  }
+
   function getCurrentUser() {
     const session = getCurrentSession();
-    if (!session || !session.username) {
-      return null;
-    }
-
-    return getUsers().find(user => user.username === session.username) || null;
+    return session && session.user ? normalizeUser(session.user) : null;
   }
 
-  function login(username, password) {
-    const user = getUsers().find(item =>
-      item.username === String(username || "").trim() &&
-      item.password === String(password || "")
-    );
+  async function login(username, password) {
+    try {
+      const result = await apiRequest({
+        action: "loginUser",
+        username: String(username || "").trim(),
+        password: String(password || "")
+      });
 
-    if (!user) {
-      return { success: false, message: "اسم المستخدم أو كلمة المرور غير صحيحة." };
+      if (result.status !== "success" || !result.user) {
+        return {
+          success: false,
+          message: result.message || "اسم المستخدم أو كلمة المرور غير صحيحة."
+        };
+      }
+
+      saveSession(result.user);
+      return { success: true, user: normalizeUser(result.user) };
+    } catch (error) {
+      return { success: false, message: error.message };
     }
-
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ username: user.username }));
-    return { success: true, user };
   }
 
-  function logout() {
+  function finishLogout() {
     localStorage.removeItem(SESSION_KEY);
+    sessionStorage.clear();
     window.location.href = "login.html";
+  }
+
+  let logoutInProgress = false;
+
+  async function logout() {
+    if (logoutInProgress) return;
+    logoutInProgress = true;
+
+    const currentUser = getCurrentUser();
+
+    if (!currentUser || !window.RomeoApi || typeof RomeoApi.request !== "function") {
+      finishLogout();
+      return;
+    }
+
+    try {
+      await RomeoApi.request({
+        action: "logoutUser",
+        currentUser,
+        actor: currentUser,
+        actorUserName: currentUser.username,
+        actorDisplayName: currentUser.displayName
+      });
+    } catch (error) {
+      console.warn("Logout activity log failed:", error);
+    } finally {
+      finishLogout();
+    }
   }
 
   function hasPermission(permission) {
@@ -121,62 +147,89 @@ const RomeoAuth = (() => {
     return params.get("returnTo") || "index.html";
   }
 
-  function createUser(userInput) {
-    const users = getUsers();
-    const username = String(userInput.username || "").trim();
-    const password = String(userInput.password || "");
-    const displayName = String(userInput.displayName || "").trim() || username;
-    const permissions = Array.isArray(userInput.permissions) ? userInput.permissions : [];
-
-    if (!username || !password || !displayName) {
-      return { success: false, message: "اكتب اسم صاحب اليوزر واسم المستخدم وكلمة المرور." };
+  async function getUsers(options = {}) {
+    if (usersCache && !options.forceRefresh) {
+      return usersCache;
     }
 
-    if (users.some(user => user.username === username)) {
-      return { success: false, message: "اسم المستخدم موجود بالفعل." };
+    const result = await apiRequest({ action: "getUsers" });
+    if (result.status !== "success") {
+      throw new Error(result.message || "تعذر تحميل المستخدمين.");
     }
 
-    const user = { username, password, displayName, permissions };
-    users.push(user);
-    saveUsers(users);
-    return { success: true, user };
+    usersCache = Array.isArray(result.users) ? result.users.map(normalizeUser) : [];
+    return usersCache;
   }
 
-  function updateUser(username, updates) {
-    const users = getUsers();
-    const index = users.findIndex(user => user.username === username);
-    if (index === -1) {
-      return { success: false, message: "المستخدم غير موجود." };
+  async function createUser(userInput) {
+    try {
+      const result = await apiRequest({
+        action: "createUser",
+        displayName: String(userInput.displayName || "").trim(),
+        username: String(userInput.username || "").trim(),
+        password: String(userInput.password || ""),
+        permissions: Array.isArray(userInput.permissions) ? userInput.permissions : []
+      });
+
+      if (result.status !== "success") {
+        return { success: false, message: result.message || "تعذر إضافة المستخدم." };
+      }
+
+      usersCache = null;
+      return { success: true, user: normalizeUser(result.user) };
+    } catch (error) {
+      return { success: false, message: error.message };
     }
-
-    if (username === DEFAULT_OWNER.username) {
-      updates.permissions = [...ALL_PERMISSIONS];
-    }
-
-    users[index] = {
-      ...users[index],
-      displayName: String(updates.displayName || users[index].displayName).trim(),
-      password: String(updates.password || users[index].password),
-      permissions: Array.isArray(updates.permissions) ? updates.permissions : users[index].permissions
-    };
-
-    saveUsers(users);
-    return { success: true, user: users[index] };
   }
 
-  function deleteUser(username) {
-    if (username === DEFAULT_OWNER.username) {
-      return { success: false, message: "لا يمكن حذف مالك النظام." };
-    }
+  async function updateUser(username, updates) {
+    try {
+      const result = await apiRequest({
+        action: "updateUser",
+        username: String(username || "").trim(),
+        displayName: String(updates.displayName || "").trim(),
+        password: String(updates.password || ""),
+        permissions: Array.isArray(updates.permissions) ? updates.permissions : []
+      });
 
+      if (result.status !== "success") {
+        return { success: false, message: result.message || "تعذر تعديل المستخدم." };
+      }
+
+      usersCache = null;
+
+      const currentUser = getCurrentUser();
+      if (currentUser && currentUser.username === username) {
+        saveSession(result.user);
+      }
+
+      return { success: true, user: normalizeUser(result.user) };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  async function deleteUser(username) {
     const currentUser = getCurrentUser();
     if (currentUser && currentUser.username === username) {
       return { success: false, message: "لا يمكنك حذف المستخدم الحالي." };
     }
 
-    const users = getUsers().filter(user => user.username !== username);
-    saveUsers(users);
-    return { success: true };
+    try {
+      const result = await apiRequest({
+        action: "deleteUser",
+        username: String(username || "").trim()
+      });
+
+      if (result.status !== "success") {
+        return { success: false, message: result.message || "تعذر حذف المستخدم." };
+      }
+
+      usersCache = null;
+      return { success: true };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
   }
 
   return {
