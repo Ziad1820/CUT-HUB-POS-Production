@@ -8,6 +8,8 @@ const RomeoLanguage = (() => {
       "cashier": "Cashier",
       "invoices": "Invoices",
       "income statement": "Income Statement",
+      "daily closing": "Daily Closing",
+      "Daily Closing": "Daily Closing",
       "DATA ANALYSIS": "Data Analysis",
       "Data Analysis": "Data Analysis",
       "Activity Log": "Activity Log",
@@ -42,6 +44,7 @@ const RomeoLanguage = (() => {
       "Attendance": "Attendance",
       "Bookings": "Bookings",
       "Customer Data": "Customer Data",
+      "Language": "Language",
       "Logout": "Logout",
       "القائمة": "Menu",
       "عربي": "Arabic",
@@ -162,6 +165,8 @@ const RomeoLanguage = (() => {
       "Invoices": "الفواتير",
       "income statement": "قائمة الدخل",
       "Income Statement": "قائمة الدخل",
+      "daily closing": "تقفيلة اليوم",
+      "Daily Closing": "تقفيلة اليوم",
       "DATA ANALYSIS": "تحليل البيانات",
       "Data Analysis": "تحليل البيانات",
       "Activity Log": "سجل العمليات",
@@ -223,6 +228,7 @@ const RomeoLanguage = (() => {
       "Attendance": "الحضور",
       "Bookings": "الحجوزات",
       "Customer Data": "بيانات العملاء",
+      "Language": "اللغة",
       "Logout": "تسجيل الخروج",
       "Arabic": "عربي",
 
@@ -410,6 +416,11 @@ const RomeoLanguage = (() => {
         ? (language === "en" ? "Arabic" : "عربي")
         : "English";
     });
+
+    const languageToggle = document.getElementById("languageToggle");
+    if (languageToggle) {
+      languageToggle.textContent = language === "ar" ? "اللغة" : "Language";
+    }
   }
 
   function saveLanguage(language) {
