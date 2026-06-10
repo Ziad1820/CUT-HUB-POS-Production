@@ -336,12 +336,39 @@ const RomeoLanguage = (() => {
 
   function translateText(value, language) {
     const key = normalize(value);
-    return DICTIONARY[language][key] || key;
+    if (DICTIONARY[language][key]) return DICTIONARY[language][key];
+
+    for (const sourceLanguage of SUPPORTED) {
+      const entries = DICTIONARY[sourceLanguage] || {};
+      const match = Object.keys(entries).find(sourceKey => normalize(entries[sourceKey]) === key);
+      if (match && DICTIONARY[language][match]) {
+        return DICTIONARY[language][match];
+      }
+    }
+
+    return key;
   }
 
   function translatePlaceholder(value, language) {
     const key = normalize(value);
-    return PLACEHOLDERS[language][key] || DICTIONARY[language][key] || key;
+    if (PLACEHOLDERS[language][key]) return PLACEHOLDERS[language][key];
+    if (DICTIONARY[language][key]) return DICTIONARY[language][key];
+
+    for (const sourceLanguage of SUPPORTED) {
+      const placeholderEntries = PLACEHOLDERS[sourceLanguage] || {};
+      const placeholderMatch = Object.keys(placeholderEntries).find(sourceKey => normalize(placeholderEntries[sourceKey]) === key);
+      if (placeholderMatch && PLACEHOLDERS[language][placeholderMatch]) {
+        return PLACEHOLDERS[language][placeholderMatch];
+      }
+
+      const dictionaryEntries = DICTIONARY[sourceLanguage] || {};
+      const dictionaryMatch = Object.keys(dictionaryEntries).find(sourceKey => normalize(dictionaryEntries[sourceKey]) === key);
+      if (dictionaryMatch && DICTIONARY[language][dictionaryMatch]) {
+        return DICTIONARY[language][dictionaryMatch];
+      }
+    }
+
+    return key;
   }
 
   function injectStyles() {
@@ -430,6 +457,7 @@ const RomeoLanguage = (() => {
     window.dispatchEvent(new CustomEvent("romeo-language-change", {
       detail: { language: nextLanguage }
     }));
+    window.setTimeout(() => translateStaticText(nextLanguage), 0);
   }
 
   function injectControl() {
@@ -490,6 +518,7 @@ const RomeoLanguage = (() => {
     window.dispatchEvent(new CustomEvent("romeo-language-change", {
       detail: { language: currentLanguage }
     }));
+    window.setTimeout(() => translateStaticText(currentLanguage), 0);
   }
 
   document.addEventListener("DOMContentLoaded", init);
