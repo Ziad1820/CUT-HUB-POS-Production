@@ -81,6 +81,7 @@
     const fourServiceHairOfferPrice = 200;
     const fiveOrMoreHairOfferPrice = 230;
     const premiumOfferExtra = 30;
+    const mainHairServiceName = "شعر";
     const hairOfferExcludedServices = new Set([
       "Ø´Ø¹Ø± Ø·ÙÙ„",
       "ØµØ¨ØºØ© Ø´Ø¹Ø±",
@@ -400,7 +401,7 @@
 
     function getHairOfferType() {
       const { eligibleItems } = splitCartByHairOfferRules();
-      const hasMainHairService = eligibleItems.some(item => normalizeServiceName(item.name) === "???");
+      const hasMainHairService = eligibleItems.some(item => normalizeServiceName(item.name) === mainHairServiceName);
       const eligibleCount = eligibleItems.length;
 
       if (!hasMainHairService) {
