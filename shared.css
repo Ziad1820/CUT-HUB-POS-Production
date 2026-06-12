@@ -133,3 +133,42 @@ body {
   background: linear-gradient(135deg, #24180d, #5f4524);
   color: #ffffff;
 }
+
+input[type="date"] {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  height: 54px !important;
+  line-height: 1.2 !important;
+  padding-inline: 14px 42px !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+input[type="date"]::-webkit-date-and-time-value {
+  min-height: 1.2em;
+  text-align: center;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset-inline-end: 14px;
+}
+
+@media (max-width: 640px) {
+  .app {
+    padding-inline: 12px;
+  }
+
+  .header {
+    border-radius: 22px;
+    padding: 28px 18px;
+  }
+
+  input[type="date"] {
+    width: 100% !important;
+    min-height: 56px !important;
+    font-size: 16px !important;
+    border-radius: 16px !important;
+    padding-inline: 12px 40px !important;
+  }
+}
