@@ -135,23 +135,28 @@ body {
 }
 
 input[type="date"] {
+  -webkit-appearance: none !important;
+  appearance: none !important;
   min-width: 0 !important;
   max-width: 100% !important;
-  height: 54px !important;
-  line-height: 1.2 !important;
-  padding-inline: 14px 42px !important;
+  height: 52px !important;
+  min-height: 0 !important;
+  max-height: 52px !important;
+  line-height: 20px !important;
+  padding: 14px !important;
   text-align: center !important;
   white-space: nowrap !important;
 }
 
 input[type="date"]::-webkit-date-and-time-value {
-  min-height: 1.2em;
+  display: block;
+  height: 20px;
+  line-height: 20px;
   text-align: center;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator {
-  position: absolute;
-  inset-inline-end: 14px;
+  margin: 0;
 }
 
 @media (max-width: 640px) {
@@ -166,9 +171,11 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
   input[type="date"] {
     width: 100% !important;
-    min-height: 56px !important;
+    height: 52px !important;
+    min-height: 0 !important;
+    max-height: 52px !important;
     font-size: 16px !important;
     border-radius: 16px !important;
-    padding-inline: 12px 40px !important;
+    padding: 14px !important;
   }
 }
