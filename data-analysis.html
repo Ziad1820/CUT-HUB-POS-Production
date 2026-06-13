@@ -427,6 +427,12 @@
         <article class="metric"><span>Unique Customers</span><strong id="uniqueCustomers">0</strong></article>
       </div>
 
+      <div class="metrics">
+        <article class="metric"><span>Expected Monthly Customers</span><strong id="expectedMonthlyCustomers">0</strong></article>
+        <article class="metric success"><span>Expected Monthly Sales</span><strong id="expectedMonthlySales">0 EGP</strong></article>
+        <article class="metric"><span>Expected Daily Customers</span><strong id="expectedDailyCustomers">0</strong></article>
+      </div>
+
       <div class="analysis-grid">
         <section class="panel">
           <h2 class="section-title">Payment Mix</h2>
@@ -517,6 +523,9 @@
       invoiceCount: document.getElementById("invoiceCount"),
       averageInvoice: document.getElementById("averageInvoice"),
       uniqueCustomers: document.getElementById("uniqueCustomers"),
+      expectedMonthlyCustomers: document.getElementById("expectedMonthlyCustomers"),
+      expectedMonthlySales: document.getElementById("expectedMonthlySales"),
+      expectedDailyCustomers: document.getElementById("expectedDailyCustomers"),
       knownCustomers: document.getElementById("knownCustomers"),
       walkInInvoices: document.getElementById("walkInInvoices"),
       paymentBars: document.getElementById("paymentBars"),
@@ -575,6 +584,20 @@
 
     function getInvoiceDate(invoice) {
       return invoice.dateKey || getDateKey(invoice.date);
+    }
+
+    function toDateKey(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function getReferenceDate() {
+      const candidate = elements.toDate.value || elements.fromDate.value || toDateKey(new Date());
+      const match = String(candidate || "").match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (!match) return new Date();
+      return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
     }
 
     function normalize(value) {
@@ -645,6 +668,32 @@
       elements.uniqueCustomers.textContent = formatNumber(customers.size);
       elements.knownCustomers.textContent = formatNumber(known);
       elements.walkInInvoices.textContent = formatNumber(Math.max(items.length - known, 0));
+      renderMonthlyForecast(items);
+    }
+
+    function renderMonthlyForecast(items) {
+      const referenceDate = getReferenceDate();
+      const year = referenceDate.getFullYear();
+      const monthIndex = referenceDate.getMonth();
+      const monthPrefix = `${year}-${String(monthIndex + 1).padStart(2, "0")}-`;
+      const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+      const today = new Date();
+      const isCurrentMonth = today.getFullYear() === year && today.getMonth() === monthIndex;
+      const elapsedDays = Math.max(1, Math.min(isCurrentMonth ? today.getDate() : referenceDate.getDate(), daysInMonth));
+      const monthItems = items.filter(invoice => String(getInvoiceDate(invoice) || "").startsWith(monthPrefix));
+      const monthlySalesSoFar = monthItems.reduce((sum, invoice) => sum + parseAmount(invoice.total), 0);
+      const monthlyCustomersSoFar = new Set(
+        monthItems
+          .map(invoice => normalize(invoice.customerPhone || invoice.customerName))
+          .filter(Boolean)
+      ).size;
+      const expectedMonthlyCustomers = Math.round((monthlyCustomersSoFar / elapsedDays) * daysInMonth);
+      const expectedMonthlySales = Math.round((monthlySalesSoFar / elapsedDays) * daysInMonth);
+      const expectedDailyCustomers = daysInMonth ? expectedMonthlyCustomers / daysInMonth : 0;
+
+      elements.expectedMonthlyCustomers.textContent = formatNumber(expectedMonthlyCustomers);
+      elements.expectedMonthlySales.textContent = formatMoney(expectedMonthlySales);
+      elements.expectedDailyCustomers.textContent = formatNumber(Math.round(expectedDailyCustomers));
     }
 
     function renderPaymentMix(items) {
