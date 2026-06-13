@@ -22,12 +22,28 @@
     const href = String(item.dataset.href || "").trim();
     if (href) return href;
 
+    if (item.classList.contains("active")) {
+      const currentPage = window.location.pathname.split("/").pop() || "index.html";
+      return currentPage;
+    }
+
     const text = String(item.textContent || "").trim().toLowerCase();
+    if (text.includes("cashier") || text.includes("الكاشير")) return "index.html";
+    if (text.includes("invoice") || text.includes("الفواتير")) return "invoices.html";
+    if (text.includes("income statement") || text.includes("قائمة الدخل")) return "income-statement.html";
     if (text.includes("data analysis") || text.includes("تحليل البيانات")) return "data-analysis.html";
     if (text.includes("daily closing") || text.includes("تقفيلة اليوم")) return "daily-closing.html";
     if (text.includes("activity log") || text.includes("سجل العمليات")) return "activity-log.html";
+    if (text.includes("staff accounting") || text.includes("حسابات الموظفين")) return "staff-accounting.html";
+    if (text.includes("system access") || text.includes("صلاحيات النظام")) return "system-access.html";
+    if (text.includes("withdrawal") || text.includes("السحوبات")) return "withdrawals.html";
+    if (text.includes("expense") || text.includes("المصروفات")) return "expenses.html";
+    if (text.includes("inventory") || text.includes("enventory") || text.includes("المخزون")) return "enventory.html";
+    if (text.includes("staff discount") || text.includes("خصومات الموظفين")) return "staff-discount.html";
+    if (text.includes("attendance") || text.includes("الحضور")) return "attendance.html";
+    if (text.includes("booking") || text.includes("الحجوزات")) return "bookings.html";
     if (text.includes("logout") || text.includes("تسجيل الخروج")) return "logout";
-    if (text.includes("language")) return "language";
+    if (text.includes("language") || text.includes("اللغة")) return "language";
 
     return text;
   }
