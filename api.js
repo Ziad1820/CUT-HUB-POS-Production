@@ -1,5 +1,5 @@
 (function () {
-  const API_URL = "https://script.google.com/macros/s/AKfycby7F5IOkMt3jN4WZjP4SicqjZGocBPsuZFNCKEX8i4EeROARAf2N9zVO_jKtMoQe8EI/exec";
+  const API_URL = "https://script.google.com/macros/s/AKfycbwcR2YBF-tiaMXx8NQLdkvzmJQupO2Vj4f4VXU1F8UH4gZKjoGO-0MvVBiGhixJMebk/exec";
   const SESSION_KEY = "romeo-pos-session";
 
   function getCurrentUserFromSession() {

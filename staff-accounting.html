@@ -129,6 +129,27 @@
       box-shadow: 0 0 0 3px rgba(183,134,63,.16);
     }
 
+    .check-field {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      min-height: 70px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 0 16px;
+      background: #fffaf2;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .check-field input {
+      width: 24px;
+      height: 24px;
+      accent-color: var(--accent-dark);
+      cursor: pointer;
+    }
+
     .percent-input-wrap {
       position: relative;
     }
@@ -528,6 +549,10 @@
               <label for="staffSalary">Salaries</label>
               <input id="staffSalary" type="number">
             </div>
+            <label class="check-field" for="staffIsBarber">
+              <span>Show as Barber</span>
+              <input id="staffIsBarber" type="checkbox">
+            </label>
           </div>
         </section>
 
@@ -626,6 +651,7 @@
         code: document.getElementById("staffCode"),
         percentage: document.getElementById("staffPercentage"),
         salary: document.getElementById("staffSalary"),
+        isBarber: document.getElementById("staffIsBarber"),
       }
     };
 
@@ -646,6 +672,7 @@
         id: staff.id || staff.staffId || `staff-${Date.now()}-${index}`,
         name: String(staff.name || staff.staffName || "").trim(),
         code: String(staff.code || staff.staffCode || "").trim().toUpperCase(),
+        isBarber: staff.isBarber !== false,
         customers: numberValue(staff.customers),
         totalSales: numberValue(staff.totalSales),
         percentage: numberValue(staff.percentage || staff.salaryPercentage),
@@ -723,7 +750,8 @@
             salary: numberValue(staff.salary),
             percentage: numberValue(staff.percentage),
             bonus: numberValue(staff.bonus),
-            deduction: calculateDeduction(staff)
+            deduction: calculateDeduction(staff),
+            isBarber: staff.isBarber !== false
           }))
         });
 
@@ -924,7 +952,13 @@
         elements.employeeTitle.textContent = "No Staff Selected";
         elements.employeeSubtitle.textContent = "Ø£Ø¶Ù Ù…ÙˆØ¸Ù Ø¬Ø¯ÙŠØ¯ Ø¹Ø´Ø§Ù† ØªØ¨Ø¯Ø£.";
         elements.employeeCode.textContent = "--";
-        Object.values(elements.fields).forEach(input => input.value = "");
+        Object.entries(elements.fields).forEach(([key, input]) => {
+          if (key === "isBarber") {
+            input.checked = false;
+          } else {
+            input.value = "";
+          }
+        });
         elements.sumClients.textContent = "0";
         elements.sumSalary.textContent = "0";
         elements.sumSales.textContent = "0";
@@ -945,6 +979,7 @@
       elements.fields.code.value = staff.code;
       elements.fields.percentage.value = numberValue(staff.percentage);
       elements.fields.salary.value = staff.salary;
+      elements.fields.isBarber.checked = staff.isBarber !== false;
       fetchStaffClientCount(staff);
       fetchStaffTotalSales(staff);
       refreshSelectedFinancialSummary(staff);
@@ -979,6 +1014,7 @@
       staff.code = elements.fields.code.value.trim().toUpperCase() || staff.code;
       staff.percentage = numberValue(elements.fields.percentage.value);
       staff.salary = numberValue(elements.fields.salary.value);
+      staff.isBarber = elements.fields.isBarber.checked;
 
       await saveStaff();
       renderAll();
@@ -1002,7 +1038,8 @@
         withdraw: 0,
         debt: 0,
         lateDiscount: 0,
-        bonus: 0
+        bonus: 0,
+        isBarber: true
       };
 
       staffList.unshift(newStaff);

@@ -256,7 +256,8 @@
       return {
         id: staff.id || staff.staffId || `staff-${index}`,
         name: String(staff.name || staff.staffName || "").trim(),
-        code: String(staff.code || staff.staffCode || "").trim().toUpperCase()
+        code: String(staff.code || staff.staffCode || "").trim().toUpperCase(),
+        isBarber: staff.isBarber !== false
       };
     }
 
@@ -269,7 +270,7 @@
 
         const sheetStaff = data.staff
           .map(normalizeStaffForBarbers)
-          .filter(staff => staff.name);
+          .filter(staff => staff.name && staff.isBarber !== false);
 
         if (!sheetStaff.length) {
           return;
