@@ -714,7 +714,7 @@
       cacheStaffList();
 
       try {
-        await RomeoApi.request({
+        const data = await RomeoApi.request({
           action: "saveStaff",
           staff: staffList.map(staff => ({
             id: staff.id,
@@ -726,8 +726,13 @@
             deduction: calculateDeduction(staff)
           }))
         });
+
+        if (!data || data.status !== "success") {
+          throw new Error(data?.message || "Staff sheet save failed.");
+        }
       } catch (error) {
         console.warn("Staff sheet save is not available yet.", error);
+        alert(`تعذر حفظ الموظفين في الشيت: ${error.message}`);
       }
     }
 
