@@ -38,14 +38,48 @@
       return Number(value || 0).toLocaleString("en-US");
     }
 
+    function normalizeStaff(staff, index = 0) {
+      return {
+        id: staff.id || staff.staffId || `staff-${index}`,
+        name: String(staff.name || staff.staffName || "").trim(),
+        code: String(staff.code || staff.staffCode || "").trim().toUpperCase()
+      };
+    }
+
     function getStaff() {
       try {
         const parsed = JSON.parse(localStorage.getItem(STAFF_SOURCE_KEY) || "[]");
         return Array.isArray(parsed) && parsed.length
-          ? parsed
+          ? parsed.map(normalizeStaff).filter(staff => staff.name)
           : DEFAULT_STAFF.map(staff => ({ ...staff }));
       } catch (error) {
         return DEFAULT_STAFF.map(staff => ({ ...staff }));
+      }
+    }
+
+    async function loadStaffFromSheet() {
+      try {
+        const data = await RomeoApi.request({ action: "getStaff" });
+        if (data.status !== "success" || !Array.isArray(data.staff)) {
+          return;
+        }
+
+        const sheetStaff = data.staff
+          .map(normalizeStaff)
+          .filter(staff => staff.name);
+
+        if (!sheetStaff.length) {
+          return;
+        }
+
+        staffList = sheetStaff;
+        selectedId = staffList.some(staff => staff.id === selectedId)
+          ? selectedId
+          : staffList[0]?.id || null;
+        localStorage.setItem(STAFF_SOURCE_KEY, JSON.stringify(sheetStaff));
+        renderAll();
+      } catch (error) {
+        console.warn("Staff sheet sync is not available yet.", error);
       }
     }
 
@@ -224,7 +258,6 @@
     }
 
     function renderAll() {
-      staffList = getStaff();
       if (!staffList.find(staff => staff.id === selectedId)) {
         selectedId = staffList[0]?.id || null;
       }
@@ -337,10 +370,16 @@
     document.getElementById("logoutBtn").addEventListener("click", () => RomeoAuth.logout());
     window.addEventListener("storage", event => {
       if (event.key === STAFF_SOURCE_KEY) {
+        staffList = getStaff();
         renderAll();
       }
     });
-    window.addEventListener("pageshow", renderAll);
+    window.addEventListener("pageshow", () => {
+      staffList = getStaff();
+      renderAll();
+      loadStaffFromSheet();
+    });
 
     renderAll();
+    loadStaffFromSheet();
 

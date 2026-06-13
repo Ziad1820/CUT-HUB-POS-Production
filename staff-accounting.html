@@ -641,6 +641,26 @@
       return DEFAULT_STAFF.map(item => ({ ...item }));
     }
 
+    function normalizeStaffRecord(staff, index = 0) {
+      return {
+        id: staff.id || staff.staffId || `staff-${Date.now()}-${index}`,
+        name: String(staff.name || staff.staffName || "").trim(),
+        code: String(staff.code || staff.staffCode || "").trim().toUpperCase(),
+        customers: numberValue(staff.customers),
+        totalSales: numberValue(staff.totalSales),
+        percentage: numberValue(staff.percentage || staff.salaryPercentage),
+        withdraw: numberValue(staff.withdraw),
+        debt: numberValue(staff.debt || staff.deduction),
+        lateDiscount: numberValue(staff.lateDiscount),
+        salary: numberValue(staff.salary || staff.salaries),
+        bonus: numberValue(staff.bonus)
+      };
+    }
+
+    function cacheStaffList() {
+      localStorage.setItem(STAFF_KEY, JSON.stringify(staffList));
+    }
+
     function getStoredStaff() {
       const stored = localStorage.getItem(STAFF_KEY);
       if (!stored) {
@@ -651,7 +671,9 @@
 
       try {
         const parsed = JSON.parse(stored);
-        return Array.isArray(parsed) && parsed.length ? parsed : cloneDefaults();
+        return Array.isArray(parsed) && parsed.length
+          ? parsed.map(normalizeStaffRecord).filter(staff => staff.name)
+          : cloneDefaults();
       } catch (error) {
         return cloneDefaults();
       }
@@ -662,8 +684,51 @@
     let staffClientRequestId = 0;
     let staffSalesRequestId = 0;
 
-    function saveStaff() {
-      localStorage.setItem(STAFF_KEY, JSON.stringify(staffList));
+    async function loadStaffFromSheet() {
+      try {
+        const data = await RomeoApi.request({ action: "getStaff" });
+        if (data.status !== "success" || !Array.isArray(data.staff)) {
+          return;
+        }
+
+        const sheetStaff = data.staff
+          .map(normalizeStaffRecord)
+          .filter(staff => staff.name);
+
+        if (!sheetStaff.length) {
+          return;
+        }
+
+        staffList = sheetStaff;
+        selectedId = staffList.some(staff => staff.id === selectedId)
+          ? selectedId
+          : staffList[0]?.id || null;
+        cacheStaffList();
+        renderAll();
+      } catch (error) {
+        console.warn("Staff sheet sync is not available yet.", error);
+      }
+    }
+
+    async function saveStaff() {
+      cacheStaffList();
+
+      try {
+        await RomeoApi.request({
+          action: "saveStaff",
+          staff: staffList.map(staff => ({
+            id: staff.id,
+            name: staff.name,
+            code: staff.code,
+            salary: numberValue(staff.salary),
+            percentage: numberValue(staff.percentage),
+            bonus: numberValue(staff.bonus),
+            deduction: calculateDeduction(staff)
+          }))
+        });
+      } catch (error) {
+        console.warn("Staff sheet save is not available yet.", error);
+      }
     }
 
     function numberValue(value) {
@@ -899,7 +964,7 @@
       renderOverall();
     }
 
-    function saveSelectedStaff() {
+    async function saveSelectedStaff() {
       const staff = getSelectedStaff();
       if (!staff) {
         return;
@@ -910,11 +975,11 @@
       staff.percentage = numberValue(elements.fields.percentage.value);
       staff.salary = numberValue(elements.fields.salary.value);
 
-      saveStaff();
+      await saveStaff();
       renderAll();
     }
 
-    function addStaff() {
+    async function addStaff() {
       const name = prompt("Ø§ÙƒØªØ¨ Ø§Ø³Ù… Ø§Ù„Ù…ÙˆØ¸Ù");
       if (!name) return;
 
@@ -937,22 +1002,22 @@
 
       staffList.unshift(newStaff);
       selectedId = newStaff.id;
-      saveStaff();
+      await saveStaff();
       renderAll();
     }
 
-    function resetData() {
+    async function resetData() {
       if (!confirm("ØªØ±Ø¬Ø¹ ØµÙØ­Ø© Ø§Ù„Ù…ÙˆØ¸ÙÙŠÙ† Ù„Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ø¨Ø¯Ø§ÙŠØ©ØŸ")) {
         return;
       }
 
       staffList = cloneDefaults();
       selectedId = staffList[0]?.id || null;
-      saveStaff();
+      await saveStaff();
       renderAll();
     }
 
-    function deleteSelected() {
+    async function deleteSelected() {
       const staff = getSelectedStaff();
       if (!staff) {
         return;
@@ -964,7 +1029,7 @@
 
       staffList = staffList.filter(item => item.id !== staff.id);
       selectedId = staffList[0]?.id || null;
-      saveStaff();
+      await saveStaff();
       renderAll();
     }
 
@@ -1000,6 +1065,7 @@
     document.getElementById("logoutBtn").addEventListener("click", () => RomeoAuth.logout());
 
     renderAll();
+    loadStaffFromSheet();
   </script>
   <script src="keyboard-navigation.js"></script>
   <script src="language.js"></script>

@@ -185,6 +185,7 @@
       { id: 5, name: "Eleby", code: "R03" },
       { id: 6, name: "8atyh", code: "R02" }
     ];
+    let barberStaffList = null;
     fixArabicInNode(document.body);
 
     function getCurrentPageLanguage() {
@@ -239,12 +240,47 @@
     }
 
     function getStoredStaffForBarbers() {
+      if (Array.isArray(barberStaffList) && barberStaffList.length) {
+        return barberStaffList;
+      }
+
       const storedStaff = getStoredList(STAFF_STORAGE_KEY)
         .filter(staff => staff && String(staff.name || "").trim());
 
       return storedStaff.length
         ? storedStaff
         : DEFAULT_BARBER_STAFF.map(staff => ({ ...staff }));
+    }
+
+    function normalizeStaffForBarbers(staff, index = 0) {
+      return {
+        id: staff.id || staff.staffId || `staff-${index}`,
+        name: String(staff.name || staff.staffName || "").trim(),
+        code: String(staff.code || staff.staffCode || "").trim().toUpperCase()
+      };
+    }
+
+    async function loadBarbersFromSheet() {
+      try {
+        const data = await RomeoApi.request({ action: "getStaff" });
+        if (data.status !== "success" || !Array.isArray(data.staff)) {
+          return;
+        }
+
+        const sheetStaff = data.staff
+          .map(normalizeStaffForBarbers)
+          .filter(staff => staff.name);
+
+        if (!sheetStaff.length) {
+          return;
+        }
+
+        barberStaffList = sheetStaff;
+        localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(sheetStaff));
+        renderBarberOptions();
+      } catch (error) {
+        console.warn("Staff sheet sync is not available yet.", error);
+      }
     }
 
     function getBarberSheetName(staff) {
@@ -1142,6 +1178,7 @@
     });
     window.addEventListener("storage", event => {
       if (event.key === STAFF_STORAGE_KEY) {
+        barberStaffList = null;
         renderBarberOptions();
       }
 
@@ -1156,7 +1193,10 @@
       updateDailyNet(latestTodaySales);
       updatePaymentMethodTotals(latestPaymentTotals);
     });
-    window.addEventListener("pageshow", renderBarberOptions);
+    window.addEventListener("pageshow", () => {
+      renderBarberOptions();
+      loadBarbersFromSheet();
+    });
     reportDateInput.addEventListener("change", fetchTodaySales);
     window.addEventListener("resize", syncServicesPanelHeight);
     if ("ResizeObserver" in window) {
@@ -1190,6 +1230,7 @@
     applyUserPermissions();
     reportDateInput.value = getReportDateKey();
     renderBarberOptions();
+    loadBarbersFromSheet();
     loadStoredServicePrices();
     renderServices();
     renderCart();
