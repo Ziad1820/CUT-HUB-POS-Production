@@ -455,6 +455,10 @@
           <h2 class="section-title">Daily Sales Trend</h2>
           <div class="bar-list" id="dailyBars"></div>
         </section>
+        <section class="panel">
+          <h2 class="section-title">Top Invoice Packages</h2>
+          <div class="bar-list" id="packageBars"></div>
+        </section>
       </div>
     </section>
 
@@ -531,6 +535,7 @@
       paymentBars: document.getElementById("paymentBars"),
       serviceBars: document.getElementById("serviceBars"),
       dailyBars: document.getElementById("dailyBars"),
+      packageBars: document.getElementById("packageBars"),
       barberRows: document.getElementById("barberRows"),
       customerBars: document.getElementById("customerBars"),
       insightsList: document.getElementById("insightsList")
@@ -721,6 +726,30 @@
       });
     }
 
+    function renderServicePackages(items) {
+      const packageMap = new Map();
+      items.forEach(invoice => {
+        const services = splitServices(invoice.services);
+        if (services.length < 2) return;
+
+        const packageName = services.join(" + ");
+        if (!packageMap.has(packageName)) {
+          packageMap.set(packageName, { key: packageName, total: 0, count: 0 });
+        }
+
+        const entry = packageMap.get(packageName);
+        entry.count += 1;
+        entry.total += parseAmount(invoice.total);
+      });
+
+      const rows = Array.from(packageMap.values()).sort((a, b) => b.count - a.count || b.total - a.total);
+      renderBars(elements.packageBars, rows, {
+        limit: 10,
+        valueGetter: row => row.count,
+        formatValue: row => `${formatNumber(row.count)} ${localize("مرة", "times")} / ${formatMoney(row.total)}`
+      });
+    }
+
     function renderDailyTrend(items) {
       const rows = groupBy(items, invoice => getInvoiceDate(invoice) || localize("Ø¨Ø¯ÙˆÙ† ØªØ§Ø±ÙŠØ®", "No date"))
         .sort((a, b) => String(a.key).localeCompare(String(b.key)));
@@ -812,6 +841,7 @@
       renderSummary(filteredInvoices);
       renderPaymentMix(filteredInvoices);
       renderServices(filteredInvoices);
+      renderServicePackages(filteredInvoices);
       renderDailyTrend(filteredInvoices);
       renderBarbers(filteredInvoices);
       renderCustomers(filteredInvoices);
