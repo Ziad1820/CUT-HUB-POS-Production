@@ -474,10 +474,15 @@
                 <th>Invoices</th>
                 <th class="amount">Average</th>
                 <th>Share</th>
+                <th>Expected Monthly Invoices</th>
+                <th>Expected Daily Invoices</th>
+                <th class="amount">Expected Monthly Sales</th>
+                <th class="amount">Expected Daily Sales</th>
+                <th>Rating</th>
               </tr>
             </thead>
             <tbody id="barberRows">
-              <tr><td colspan="5" class="status-line">Loading...</td></tr>
+              <tr><td colspan="10" class="status-line">Loading...</td></tr>
             </tbody>
           </table>
         </div>
@@ -558,6 +563,12 @@
       return Number(value || 0).toLocaleString("en-US");
     }
 
+    function formatDecimal(value, digits = 1) {
+      return Number(value || 0).toLocaleString("en-US", {
+        maximumFractionDigits: digits
+      });
+    }
+
     function formatMoney(value) {
       const amount = Math.round(Number(value) || 0);
       return getLanguage() === "en"
@@ -603,6 +614,22 @@
       const match = String(candidate || "").match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
       if (!match) return new Date();
       return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    }
+
+    function getMonthProjectionContext() {
+      const referenceDate = getReferenceDate();
+      const year = referenceDate.getFullYear();
+      const monthIndex = referenceDate.getMonth();
+      const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+      const today = new Date();
+      const isCurrentMonth = today.getFullYear() === year && today.getMonth() === monthIndex;
+      const elapsedDays = Math.max(1, Math.min(isCurrentMonth ? today.getDate() : referenceDate.getDate(), daysInMonth));
+
+      return {
+        monthPrefix: `${year}-${String(monthIndex + 1).padStart(2, "0")}-`,
+        daysInMonth,
+        elapsedDays
+      };
     }
 
     function normalize(value) {
@@ -677,14 +704,7 @@
     }
 
     function renderMonthlyForecast(items) {
-      const referenceDate = getReferenceDate();
-      const year = referenceDate.getFullYear();
-      const monthIndex = referenceDate.getMonth();
-      const monthPrefix = `${year}-${String(monthIndex + 1).padStart(2, "0")}-`;
-      const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-      const today = new Date();
-      const isCurrentMonth = today.getFullYear() === year && today.getMonth() === monthIndex;
-      const elapsedDays = Math.max(1, Math.min(isCurrentMonth ? today.getDate() : referenceDate.getDate(), daysInMonth));
+      const { monthPrefix, daysInMonth, elapsedDays } = getMonthProjectionContext();
       const monthItems = items.filter(invoice => String(getInvoiceDate(invoice) || "").startsWith(monthPrefix));
       const monthlySalesSoFar = monthItems.reduce((sum, invoice) => sum + parseAmount(invoice.total), 0);
       const monthlyCustomersSoFar = new Set(
@@ -758,7 +778,13 @@
 
     function renderBarbers(items) {
       const total = items.reduce((sum, item) => sum + parseAmount(item.total), 0);
-      const rows = groupBy(items, invoice => normalize(invoice.barber) || localize("ØºÙŠØ± Ù…Ø­Ø¯Ø¯", "Unknown"));
+      const rows = groupBy(items, invoice => normalize(invoice.barber) || "Unknown");
+      const { monthPrefix, daysInMonth, elapsedDays } = getMonthProjectionContext();
+      const monthRows = groupBy(
+        items.filter(invoice => String(getInvoiceDate(invoice) || "").startsWith(monthPrefix)),
+        invoice => normalize(invoice.barber) || "Unknown"
+      );
+      const monthMap = new Map(monthRows.map(row => [row.key, row]));
       elements.barberRows.innerHTML = "";
 
       if (!rows.length) {
@@ -766,16 +792,51 @@
         return;
       }
 
-      rows.forEach(row => {
+      const enrichedRows = rows.map(row => {
         const average = row.count ? row.total / row.count : 0;
         const share = total ? Math.round((row.total / total) * 100) : 0;
+        const monthRow = monthMap.get(row.key) || { total: 0, count: 0 };
+        const expectedMonthlyInvoices = Math.round((monthRow.count / elapsedDays) * daysInMonth);
+        const expectedMonthlySales = Math.round((monthRow.total / elapsedDays) * daysInMonth);
+
+        return {
+          ...row,
+          average,
+          share,
+          expectedMonthlyInvoices,
+          expectedDailyInvoices: daysInMonth ? expectedMonthlyInvoices / daysInMonth : 0,
+          expectedMonthlySales,
+          expectedDailySales: daysInMonth ? expectedMonthlySales / daysInMonth : 0
+        };
+      });
+
+      const maxExpectedInvoices = Math.max(...enrichedRows.map(row => row.expectedMonthlyInvoices), 1);
+      const maxExpectedSales = Math.max(...enrichedRows.map(row => row.expectedMonthlySales), 1);
+
+      enrichedRows.forEach(row => {
+        const score = Math.round(
+          ((row.expectedMonthlySales / maxExpectedSales) * 70) +
+          ((row.expectedMonthlyInvoices / maxExpectedInvoices) * 30)
+        );
+        const rating = score >= 85
+          ? localize("ممتاز", "Excellent")
+          : score >= 65
+            ? localize("قوي", "Strong")
+            : score >= 40
+              ? localize("متوسط", "Average")
+              : localize("منخفض", "Low");
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${escapeHtml(row.key)}</td>
           <td class="amount">${formatMoney(row.total)}</td>
           <td>${formatNumber(row.count)}</td>
-          <td class="amount">${formatMoney(average)}</td>
-          <td>${formatNumber(share)}%</td>
+          <td class="amount">${formatMoney(row.average)}</td>
+          <td>${formatNumber(row.share)}%</td>
+          <td>${formatNumber(row.expectedMonthlyInvoices)}</td>
+          <td>${formatDecimal(row.expectedDailyInvoices)}</td>
+          <td class="amount">${formatMoney(row.expectedMonthlySales)}</td>
+          <td class="amount">${formatMoney(row.expectedDailySales)}</td>
+          <td>${escapeHtml(rating)} (${formatNumber(score)}%)</td>
         `;
         elements.barberRows.appendChild(tr);
       });
