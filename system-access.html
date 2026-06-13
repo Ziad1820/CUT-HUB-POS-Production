@@ -365,6 +365,37 @@
     const statusBox = document.getElementById("statusBox");
     let usersCache = [];
 
+    const systemPermissions = [
+      ["access_cashier", "فتح الكاشير"],
+      ["edit_prices", "تعديل الأسعار"],
+      ["view_invoices", "فتح الفواتير"],
+      ["view_income_statement", "فتح قائمة الدخل"],
+      ["view_daily_closing", "فتح تقفيلة اليوم"],
+      ["view_data_analysis", "فتح تحليل البيانات"],
+      ["view_activity_log", "فتح سجل العمليات"],
+      ["view_staff_accounting", "فتح حسابات الموظفين"],
+      ["view_withdrawals", "فتح السحوبات"],
+      ["view_expenses", "فتح المصروفات"],
+      ["view_inventory", "فتح المخزون"],
+      ["view_staff_discount", "فتح خصومات الموظفين"],
+      ["view_attendance", "فتح الحضور"],
+      ["view_bookings", "فتح الحجوزات"],
+      ["manage_users", "يدير المستخدمين والصلاحيات"]
+    ];
+
+    Object.assign(permissionLabels, Object.fromEntries(systemPermissions));
+
+    function renderPermissionOptions() {
+      const permissionsBox = document.querySelector(".permissions");
+      if (!permissionsBox) return;
+
+      permissionsBox.innerHTML = systemPermissions.map(([value, label], index) => `
+        <label class="permission-item">
+          <input type="checkbox" value="${value}" ${index === 0 ? "checked" : ""}> ${label}
+        </label>
+      `).join("");
+    }
+
     function showStatus(message, type) {
       statusBox.textContent = message;
       statusBox.className = `status ${type}`;
@@ -503,6 +534,7 @@
     menuToggle.addEventListener("click", openSidebar);
     sidebarOverlay.addEventListener("click", closeSidebar);
 
+    renderPermissionOptions();
     resetForm();
     loadUsers();
   </script>

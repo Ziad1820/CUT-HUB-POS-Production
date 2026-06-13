@@ -4,8 +4,18 @@ const RomeoAuth = (() => {
   const ALL_PERMISSIONS = [
     "access_cashier",
     "edit_prices",
+    "view_invoices",
     "view_income_statement",
+    "view_daily_closing",
+    "view_data_analysis",
+    "view_activity_log",
     "view_staff_accounting",
+    "view_withdrawals",
+    "view_expenses",
+    "view_inventory",
+    "view_staff_discount",
+    "view_attendance",
+    "view_bookings",
     "manage_users"
   ];
 
@@ -36,11 +46,17 @@ const RomeoAuth = (() => {
   }
 
   function normalizeUser(user) {
-    return {
+    const normalized = {
       username: String(user.username || "").trim(),
       displayName: String(user.displayName || user.username || "").trim(),
       permissions: Array.isArray(user.permissions) ? user.permissions : []
     };
+
+    if (normalized.username === "owner") {
+      normalized.permissions = [...ALL_PERMISSIONS];
+    }
+
+    return normalized;
   }
 
   function getCurrentSession() {

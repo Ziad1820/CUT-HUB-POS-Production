@@ -18,6 +18,23 @@
     "logout"
   ];
 
+  const SIDEBAR_PERMISSIONS = {
+    "index.html": "access_cashier",
+    "invoices.html": "view_invoices",
+    "income-statement.html": "view_income_statement",
+    "daily-closing.html": "view_daily_closing",
+    "data-analysis.html": "view_data_analysis",
+    "activity-log.html": "view_activity_log",
+    "staff-accounting.html": "view_staff_accounting",
+    "system-access.html": "manage_users",
+    "withdrawals.html": "view_withdrawals",
+    "expenses.html": "view_expenses",
+    "enventory.html": "view_inventory",
+    "staff-discount.html": "view_staff_discount",
+    "attendance.html": "view_attendance",
+    "bookings.html": "view_bookings"
+  };
+
   function getSidebarItemKey(item) {
     const href = String(item.dataset.href || "").trim();
     if (href) return href;
@@ -66,11 +83,31 @@
   function filterPermissionLinks() {
     if (!window.RomeoAuth || typeof RomeoAuth.hasPermission !== "function") return;
 
-    document.querySelectorAll(".sidebar-link[data-permission]").forEach(link => {
-      if (!RomeoAuth.hasPermission(link.dataset.permission)) {
+    document.querySelectorAll(".sidebar-link").forEach(link => {
+      const key = getSidebarItemKey(link);
+      const permission = link.dataset.permission || SIDEBAR_PERMISSIONS[key] || "";
+
+      if (permission) {
+        link.dataset.permission = permission;
+      }
+
+      if (permission && !RomeoAuth.hasPermission(permission)) {
         link.style.display = "none";
+      } else {
+        link.style.display = "";
       }
     });
+  }
+
+  function protectCurrentPage() {
+    if (!window.RomeoAuth || typeof RomeoAuth.requireAuth !== "function") return;
+
+    const currentPage = window.location.pathname.split("/").pop() || "index.html";
+    const permission = SIDEBAR_PERMISSIONS[currentPage];
+
+    if (permission) {
+      RomeoAuth.requireAuth(permission);
+    }
   }
 
   function initSidebar() {
@@ -78,6 +115,7 @@
     const sidebar = document.getElementById("sidebar");
     const sidebarOverlay = document.getElementById("sidebarOverlay");
 
+    protectCurrentPage();
     normalizeSidebarOrder();
 
     if (!menuToggle || !sidebar || !sidebarOverlay || sidebar.dataset.layoutReady === "true") {

@@ -1,7 +1,7 @@
-﻿    const STAFF_SOURCE_KEY = "romeo-pos-staff-accounting-v2";
+    const STAFF_SOURCE_KEY = "romeo-pos-staff-accounting-v2";
     const WITHDRAWALS_KEY = "romeo-pos-withdrawals";
 
-    RomeoAuth.requireAuth();
+    RomeoAuth.requireAuth("view_withdrawals");
 
     const API_URL = RomeoApi.API_URL;
     const DEFAULT_STAFF = [

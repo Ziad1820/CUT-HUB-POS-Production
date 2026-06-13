@@ -1,4 +1,4 @@
-﻿    RomeoAuth.requireAuth();
+    RomeoAuth.requireAuth("view_invoices");
     const API_URL = RomeoApi.API_URL;
 
     const elements = {

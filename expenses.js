@@ -1,4 +1,4 @@
-﻿    const EXPENSES_KEY = "romeo-pos-expenses";
+    const EXPENSES_KEY = "romeo-pos-expenses";
     const EXPENSE_CATEGORIES = [
       { id: "supplies", name: "Supplies", code: "SUP" },
       { id: "utilities", name: "Utilities", code: "UTL" },
@@ -8,7 +8,7 @@
       { id: "other", name: "Other", code: "OTH" }
     ];
 
-    RomeoAuth.requireAuth();
+    RomeoAuth.requireAuth("view_expenses");
 
     const API_URL = RomeoApi.API_URL;
     const elements = {
