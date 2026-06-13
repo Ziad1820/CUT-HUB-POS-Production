@@ -749,7 +749,7 @@
           title: localize("Ù…ØªÙˆØ³Ø· Ù‚ÙŠÙ…Ø© Ø§Ù„ÙØ§ØªÙˆØ±Ø©", "Average ticket"),
           text: formatMoney(items.length ? total / items.length : 0)
         }
-      ].filter(Boolean);
+      ].filter(Boolean).slice(0, -1);
 
       elements.insightsList.innerHTML = insights.map(item => `
         <div class="insight">
