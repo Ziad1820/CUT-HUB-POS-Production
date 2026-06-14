@@ -998,40 +998,219 @@
       return result;
     }
 
+    function escapePrintHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
     function printInvoice(invoice) {
-      const invoiceWindow = window.open("", "", "width=360,height=640");
+      const invoiceWindow = window.open("", "", "width=420,height=720");
       if (!invoiceWindow) {
-        alert("Ø§Ù„Ù…ØªØµÙØ­ Ù…Ù†Ø¹ ÙØªØ­ Ù†Ø§ÙØ°Ø© Ø§Ù„Ø·Ø¨Ø§Ø¹Ø©. Ø§Ø³Ù…Ø­ Ø¨Ø§Ù„Ù†ÙˆØ§ÙØ° Ø§Ù„Ù…Ù†Ø¨Ø«Ù‚Ø© Ø«Ù… Ø¬Ø±Ù‘Ø¨ Ù…Ø±Ø© Ø£Ø®Ø±Ù‰.");
+        alert("المتصفح منع فتح نافذة الطباعة. اسمح بالنوافذ المنبثقة ثم جرّب مرة أخرى.");
         return;
       }
+
+      const customerName = invoice.customerName || "غير مسجل";
+      const customerPhone = invoice.customerPhone || "غير مسجل";
+      const barber = invoice.barber || "غير محدد";
+      const offerType = invoice.offerType || "عادي";
+      const paymentMethod = invoice.paymentMethod || "غير محدد";
+      const printedAt = new Date().toLocaleString("ar-EG", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+      const itemsRows = invoice.items.map((item, index) => `
+            <tr>
+              <td>${index + 1}</td>
+              <td>${escapePrintHtml(item.name)}</td>
+              <td>${escapePrintHtml(formatCurrency(item.price))}</td>
+            </tr>
+          `).join("");
 
       invoiceWindow.document.write(`
         <html lang="ar" dir="rtl">
         <head>
           <meta charset="UTF-8">
-          <title>ÙØ§ØªÙˆØ±Ø© ROMEO</title>
+          <title>فاتورة ROMEO</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 20px; color: #2a2118; }
-            h2, p { margin: 0 0 10px; }
-            .line { border-top: 1px dashed rgba(76,54,28,.58); margin: 12px 0; }
-            .item { display: flex; justify-content: space-between; margin-bottom: 8px; }
-            .total { font-size: 20px; font-weight: bold; }
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              padding: 18px;
+              color: #2a2118;
+              background: #fff;
+              font-family: Arial, "Tahoma", sans-serif;
+              direction: rtl;
+            }
+            .invoice {
+              width: 100%;
+              max-width: 420px;
+              margin: 0 auto;
+              border: 1px solid #e4d4bd;
+              border-radius: 18px;
+              overflow: hidden;
+            }
+            .header {
+              padding: 22px 18px;
+              background: #3b2412;
+              color: #fff;
+              text-align: center;
+            }
+            .brand {
+              margin: 0;
+              font-size: 24px;
+              letter-spacing: .5px;
+            }
+            .subtitle {
+              margin: 8px 0 0;
+              font-size: 14px;
+              color: #ead9c1;
+            }
+            .content { padding: 18px; }
+            .meta {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 10px;
+              margin-bottom: 16px;
+            }
+            .meta-box {
+              padding: 10px 12px;
+              border: 1px solid #ead9c1;
+              border-radius: 12px;
+              background: #fffaf3;
+            }
+            .label {
+              display: block;
+              margin-bottom: 4px;
+              color: #806b58;
+              font-size: 12px;
+              font-weight: 700;
+            }
+            .value {
+              font-size: 14px;
+              font-weight: 800;
+              word-break: break-word;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 12px 0 16px;
+              overflow: hidden;
+              border-radius: 12px;
+            }
+            th, td {
+              padding: 10px 8px;
+              border-bottom: 1px solid #ead9c1;
+              text-align: right;
+              font-size: 13px;
+            }
+            th {
+              background: #f1e2ca;
+              color: #5b3a1d;
+            }
+            .summary {
+              padding: 14px;
+              border-radius: 14px;
+              background: #18794e;
+              color: #fff;
+            }
+            .summary-row {
+              display: flex;
+              justify-content: space-between;
+              gap: 12px;
+              margin-bottom: 8px;
+              font-size: 14px;
+            }
+            .summary-row.total {
+              margin: 0;
+              padding-top: 8px;
+              border-top: 1px solid rgba(255,255,255,.25);
+              font-size: 20px;
+              font-weight: 900;
+            }
+            .footer {
+              padding: 14px 18px 18px;
+              text-align: center;
+              color: #806b58;
+              font-size: 12px;
+            }
+            @media print {
+              body { padding: 0; }
+              .invoice { border: none; border-radius: 0; max-width: none; }
+            }
           </style>
         </head>
         <body>
-          <h2>ROMEO BARBERSHOP</h2>
-          <p>Ø§Ø³Ù… Ø§Ù„Ø¹Ù…ÙŠÙ„: ${invoice.customerName || "ØºÙŠØ± Ù…Ø³Ø¬Ù„"}</p>
-          <p>Ø±Ù‚Ù… Ø§Ù„Ø¹Ù…ÙŠÙ„: ${invoice.customerPhone || "ØºÙŠØ± Ù…Ø³Ø¬Ù„"}</p>
-          <p>Ø§Ù„Ø­Ù„Ø§Ù‚: ${invoice.barber}</p>
-          <p>Ù†ÙˆØ¹ Ø§Ù„Ø¹Ø±Ø¶: ${invoice.offerType || "Ø¹Ø§Ø¯ÙŠ"}</p>
-          <p>Ø·Ø±ÙŠÙ‚Ø© Ø§Ù„Ø¯ÙØ¹: ${invoice.paymentMethod}</p>
-          <div class="line"></div>
-          ${invoice.items.map(item => `<div class="item"><span>${item.name}</span><strong>${formatCurrency(item.price)}</strong></div>`).join("")}
-          <div class="line"></div>
-          <p class="total">Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ: ${formatCurrency(invoice.total)}</p>
-          <p>Ø§Ù„Ù…Ø¯ÙÙˆØ¹: ${formatCurrency(invoice.paidAmount)}</p>
-          <p>Ø§Ù„Ø¨Ø§Ù‚ÙŠ: ${formatCurrency(invoice.remainingAmount)}</p>
-          <p>${new Date().toLocaleString("ar-EG")}</p>
+          <main class="invoice">
+            <section class="header">
+              <h1 class="brand">ROMEO BARBERSHOP</h1>
+              <p class="subtitle">فاتورة مبيعات</p>
+            </section>
+
+            <section class="content">
+              <div class="meta">
+                <div class="meta-box">
+                  <span class="label">اسم العميل</span>
+                  <span class="value">${escapePrintHtml(customerName)}</span>
+                </div>
+                <div class="meta-box">
+                  <span class="label">رقم العميل</span>
+                  <span class="value">${escapePrintHtml(customerPhone)}</span>
+                </div>
+                <div class="meta-box">
+                  <span class="label">الحلاق</span>
+                  <span class="value">${escapePrintHtml(barber)}</span>
+                </div>
+                <div class="meta-box">
+                  <span class="label">طريقة الدفع</span>
+                  <span class="value">${escapePrintHtml(paymentMethod)}</span>
+                </div>
+                <div class="meta-box">
+                  <span class="label">نوع العرض</span>
+                  <span class="value">${escapePrintHtml(offerType)}</span>
+                </div>
+                <div class="meta-box">
+                  <span class="label">التاريخ</span>
+                  <span class="value">${escapePrintHtml(printedAt)}</span>
+                </div>
+              </div>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>الخدمة</th>
+                    <th>السعر</th>
+                  </tr>
+                </thead>
+                <tbody>${itemsRows}</tbody>
+              </table>
+
+              <div class="summary">
+                <div class="summary-row">
+                  <span>المدفوع</span>
+                  <strong>${escapePrintHtml(formatCurrency(invoice.paidAmount))}</strong>
+                </div>
+                <div class="summary-row">
+                  <span>الباقي</span>
+                  <strong>${escapePrintHtml(formatCurrency(invoice.remainingAmount))}</strong>
+                </div>
+                <div class="summary-row total">
+                  <span>الإجمالي</span>
+                  <strong>${escapePrintHtml(formatCurrency(invoice.total))}</strong>
+                </div>
+              </div>
+            </section>
+
+            <footer class="footer">شكرا لزيارتكم</footer>
+          </main>
         </body>
         </html>
       `);
@@ -1046,8 +1225,8 @@
 
       const customerName = customerNameInput.value.trim();
       const customerPhone = customerPhoneInput.value.trim();
-      const barber = document.getElementById("barber").value || "ØºÙŠØ± Ù…Ø­Ø¯Ø¯";
-      const paymentMethod = getSelectedPaymentMethod() || "ØºÙŠØ± Ù…Ø­Ø¯Ø¯";
+      const barber = document.getElementById("barber").value || "غير محدد";
+      const paymentMethod = getSelectedPaymentMethod() || "غير محدد";
       const offerType = getSelectedOfferType();
       const total = getTotal();
       const paidAmount = Number(paidAmountInput.value) || 0;
@@ -1139,7 +1318,7 @@
         setLoadingState(true);
         await saveInvoice(invoiceData);
 
-        const shouldPrint = window.confirm("Ù‡Ù„ ØªØ±ÙŠØ¯ Ø·Ø¨Ø§Ø¹Ø© Ø§Ù„ÙØ§ØªÙˆØ±Ø© Ø§Ù„Ø¢Ù†ØŸ");
+        const shouldPrint = window.confirm("هل تريد طباعة الفاتورة الآن؟");
         if (shouldPrint) {
           printInvoice({
             customerName,
