@@ -1007,8 +1007,8 @@
         .replace(/'/g, "&#39;");
     }
 
-    function printInvoice(invoice) {
-      const invoiceWindow = window.open("", "", "width=420,height=720");
+    function printInvoice(invoice, existingWindow) {
+      const invoiceWindow = existingWindow || window.open("", "", "width=420,height=720");
       if (!invoiceWindow) {
         alert("المتصفح منع فتح نافذة الطباعة. اسمح بالنوافذ المنبثقة ثم جرّب مرة أخرى.");
         return;
@@ -1316,10 +1316,54 @@
 
       try {
         setLoadingState(true);
+        const shouldPrint = window.confirm("هل تريد طباعة الفاتورة الآن؟");
+        const pendingPrintWindow = shouldPrint
+          ? window.open("", "", "width=420,height=720")
+          : null;
+
+        if (shouldPrint && pendingPrintWindow) {
+          pendingPrintWindow.document.write(`
+            <html lang="ar" dir="rtl">
+              <head>
+                <meta charset="UTF-8">
+                <title>جاري تجهيز الفاتورة</title>
+                <style>
+                  body {
+                    margin: 0;
+                    min-height: 100vh;
+                    display: grid;
+                    place-items: center;
+                    color: #2a2118;
+                    background: #fffaf3;
+                    font-family: Arial, "Tahoma", sans-serif;
+                    direction: rtl;
+                  }
+                  .box {
+                    padding: 24px;
+                    border: 1px solid #ead9c1;
+                    border-radius: 18px;
+                    text-align: center;
+                  }
+                </style>
+              </head>
+              <body>
+                <div class="box">
+                  <h2>جاري تجهيز الفاتورة...</h2>
+                  <p>سيتم فتح الطباعة بعد حفظ الفاتورة.</p>
+                </div>
+              </body>
+            </html>
+          `);
+          pendingPrintWindow.document.close();
+        }
+
+        if (shouldPrint && !pendingPrintWindow) {
+          alert("المتصفح منع فتح نافذة الطباعة. اسمح بالنوافذ المنبثقة ثم جرّب مرة أخرى.");
+        }
+
         await saveInvoice(invoiceData);
 
-        const shouldPrint = window.confirm("هل تريد طباعة الفاتورة الآن؟");
-        if (shouldPrint) {
+        if (shouldPrint && pendingPrintWindow) {
           printInvoice({
             customerName,
             customerPhone,
@@ -1330,7 +1374,7 @@
             paidAmount,
             remainingAmount,
             items: [...cart]
-          });
+          }, pendingPrintWindow);
         }
 
         showStatus("ØªÙ… Ø­ÙØ¸ Ø§Ù„ÙØ§ØªÙˆØ±Ø© Ø¨Ù†Ø¬Ø§Ø­.", "success");
