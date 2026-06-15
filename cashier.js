@@ -1316,10 +1316,12 @@
 
       try {
         setLoadingState(true);
+        const pendingPrintWindow = window.open("", "", "width=420,height=720");
         const shouldPrint = window.confirm("هل تريد طباعة الفاتورة الآن؟");
-        const pendingPrintWindow = shouldPrint
-          ? window.open("", "", "width=420,height=720")
-          : null;
+
+        if (!shouldPrint && pendingPrintWindow) {
+          pendingPrintWindow.close();
+        }
 
         if (shouldPrint && pendingPrintWindow) {
           pendingPrintWindow.document.write(`
