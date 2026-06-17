@@ -1,5 +1,5 @@
 (function () {
-  const currentUser = window.RomeoAuth ? RomeoAuth.requireAuth("access_cashier") : null;
+  const currentUser = window.RomeoAuth ? RomeoAuth.requireAuth() : null;
   if (!currentUser) return;
 
   const root = document.getElementById("dashboardRoot");
@@ -337,12 +337,15 @@
     try {
       const todayKey = getRelativeDateKey(0);
       const yesterdayKey = getRelativeDateKey(-1);
-      const [invoiceResult, todayPreview, yesterdayPreview] = await Promise.all([
+      const [invoiceResponse, todayPreviewResponse, yesterdayPreviewResponse] = await Promise.allSettled([
         RomeoApi.request({ action: "getInvoices" }),
         fetchPreview(todayKey),
         fetchPreview(yesterdayKey)
       ]);
 
+      const invoiceResult = invoiceResponse.status === "fulfilled" ? invoiceResponse.value : {};
+      const todayPreview = todayPreviewResponse.status === "fulfilled" ? todayPreviewResponse.value : {};
+      const yesterdayPreview = yesterdayPreviewResponse.status === "fulfilled" ? yesterdayPreviewResponse.value : {};
       const invoices = Array.isArray(invoiceResult.invoices) ? invoiceResult.invoices : [];
       const todayInvoices = invoices.filter(invoice => getInvoiceDateKey(invoice) === todayKey);
       const yesterdayInvoices = invoices.filter(invoice => getInvoiceDateKey(invoice) === yesterdayKey);
@@ -372,7 +375,8 @@
       };
 
       renderState();
-      if (statusLine) statusLine.textContent = todayInvoices.length ? "" : t("noData");
+      const hasDashboardNumbers = todayInvoices.length || todaySalesTotal || todayExpensesTotal || todayWithdrawalsTotal;
+      if (statusLine) statusLine.textContent = hasDashboardNumbers ? "" : `${t("noData")} (${todayKey})`;
     } catch (error) {
       console.error(error);
       if (statusLine) statusLine.textContent = t("error");
