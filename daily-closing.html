@@ -171,6 +171,27 @@
     .action-btn.success { background: var(--success); color: #fff; }
     .action-btn:disabled { opacity: .55; cursor: not-allowed; }
 
+    .mini-btn {
+      border: none;
+      border-radius: 12px;
+      padding: 10px 14px;
+      background: #ead9bd;
+      color: var(--ink);
+      font-weight: 900;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .mini-btn.danger {
+      background: #f7dfd8;
+      color: var(--danger);
+    }
+
+    .mini-btn:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
     .metrics {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -222,7 +243,7 @@
     table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 980px;
+      min-width: 1080px;
     }
 
     th,
@@ -324,10 +345,11 @@
               <th>Net</th>
               <th>Closed By</th>
               <th>Closed At</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody id="closingsBody">
-            <tr><td class="empty" colspan="11">Loading previous closings...</td></tr>
+            <tr><td class="empty" colspan="12">Loading previous closings...</td></tr>
           </tbody>
         </table>
       </div>
@@ -480,7 +502,7 @@
 
     function renderClosings() {
       if (!closings.length) {
-        elements.closingsBody.innerHTML = `<tr><td class="empty" colspan="11">No saved daily closings yet.</td></tr>`;
+        elements.closingsBody.innerHTML = `<tr><td class="empty" colspan="12">No saved daily closings yet.</td></tr>`;
         return;
       }
 
@@ -497,6 +519,9 @@
           <td class="amount">${formatMoney(item.netTotal)}</td>
           <td>${escapeHtml(item.closedBy || item.closedByDisplayName || "-")}</td>
           <td>${escapeHtml(item.closedAt || item.createdAt || "-")}</td>
+          <td>
+            ${isManager ? `<button type="button" class="mini-btn danger" data-delete-closing="${escapeHtml(item.closingId || "")}" data-closing-date="${escapeHtml(item.date || item.reportDate || "")}">Delete</button>` : "-"}
+          </td>
         </tr>
       `).join("");
     }
@@ -512,7 +537,42 @@
         renderClosings();
       } catch (error) {
         closings = [];
-        elements.closingsBody.innerHTML = `<tr><td class="empty" colspan="11">${escapeHtml(error.message || "Could not load previous closings.")}</td></tr>`;
+        elements.closingsBody.innerHTML = `<tr><td class="empty" colspan="12">${escapeHtml(error.message || "Could not load previous closings.")}</td></tr>`;
+      }
+    }
+
+    async function deleteClosing(closing) {
+      if (!isManager) {
+        setStatus("Only the system owner can delete a daily closing.", "error");
+        return;
+      }
+
+      const closingDate = closing.date || closing.reportDate || "";
+      const confirmMessage = `Delete daily closing for ${closingDate || "this day"}? This action cannot be undone.`;
+      if (!confirm(confirmMessage)) return;
+
+      try {
+        setStatus("Deleting daily closing...", "");
+        const response = await RomeoApi.request({
+          action: "deleteDailyClosing",
+          closingId: closing.closingId || "",
+          date: closingDate,
+          reportDate: closingDate,
+          username: currentUser?.username || "",
+          userName: currentUser?.username || "",
+          displayName: currentUser?.displayName || currentUser?.username || "",
+          permissions: currentUser?.permissions || []
+        });
+
+        if (response.status !== "success") {
+          throw new Error(response.message || "Could not delete daily closing.");
+        }
+
+        setStatus("Daily closing deleted and saved in Activity Log.", "success");
+        await loadClosings();
+        await loadPreview();
+      } catch (error) {
+        setStatus(error.message || "Could not delete daily closing.", "error");
       }
     }
 
@@ -569,6 +629,19 @@
     elements.closingDate.value = todayKey();
     elements.previewBtn.addEventListener("click", loadPreview);
     elements.closeDayBtn.addEventListener("click", closeDay);
+    elements.closingsBody.addEventListener("click", event => {
+      const button = event.target.closest("[data-delete-closing]");
+      if (!button) return;
+
+      const closingId = button.dataset.deleteClosing || "";
+      const closingDate = button.dataset.closingDate || "";
+      const closing = closings.find(item =>
+        (closingId && String(item.closingId || "") === closingId) ||
+        String(item.date || item.reportDate || "") === closingDate
+      );
+
+      if (closing) deleteClosing(closing);
+    });
     elements.closingDate.addEventListener("change", () => {
       latestPreview = null;
       elements.closeDayBtn.disabled = false;
