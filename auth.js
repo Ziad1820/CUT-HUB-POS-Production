@@ -144,14 +144,14 @@ const RomeoAuth = (() => {
   function requireAuth(permission) {
     const user = getCurrentUser();
     if (!user) {
-      const currentPage = encodeURIComponent(window.location.pathname.split("/").pop() || "index.html");
+      const currentPage = encodeURIComponent(window.location.pathname.split("/").pop() || "dashboard.html");
       window.location.href = `login.html?returnTo=${currentPage}`;
       return null;
     }
 
     if (permission && !user.permissions.includes(permission)) {
       alert("ليس لديك صلاحية لفتح هذه الصفحة.");
-      window.location.href = "index.html";
+      window.location.href = "dashboard.html";
       return null;
     }
 
@@ -160,7 +160,7 @@ const RomeoAuth = (() => {
 
   function getReturnTo() {
     const params = new URLSearchParams(window.location.search);
-    return params.get("returnTo") || "index.html";
+    return params.get("returnTo") || "dashboard.html";
   }
 
   async function getUsers(options = {}) {

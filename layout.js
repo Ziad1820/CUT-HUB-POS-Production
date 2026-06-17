@@ -1,5 +1,6 @@
 (function () {
   const SIDEBAR_ORDER = [
+    "dashboard.html",
     "index.html",
     "invoices.html",
     "income-statement.html",
@@ -19,6 +20,7 @@
   ];
 
   const SIDEBAR_PERMISSIONS = {
+    "dashboard.html": "access_cashier",
     "index.html": "access_cashier",
     "invoices.html": "view_invoices",
     "income-statement.html": "view_income_statement",
@@ -45,6 +47,7 @@
     }
 
     const text = String(item.textContent || "").trim().toLowerCase();
+    if (text.includes("dashboard") || text.includes("لوحة التحكم")) return "dashboard.html";
     if (text.includes("cashier") || text.includes("الكاشير")) return "index.html";
     if (text.includes("invoice") || text.includes("الفواتير")) return "invoices.html";
     if (text.includes("income statement") || text.includes("قائمة الدخل")) return "income-statement.html";
@@ -63,6 +66,33 @@
     if (text.includes("language") || text.includes("اللغة")) return "language";
 
     return text;
+  }
+
+  function getLanguage() {
+    return localStorage.getItem("romeo-pos-language") || "ar";
+  }
+
+  function getDashboardLabel() {
+    return getLanguage() === "en" ? "Dashboard" : "لوحة التحكم";
+  }
+
+  function ensureDashboardLink() {
+    const sidebar = document.getElementById("sidebar");
+    if (!sidebar || sidebar.querySelector('[data-href="dashboard.html"]')) return;
+
+    const link = document.createElement("button");
+    link.type = "button";
+    link.className = "sidebar-link";
+    link.dataset.href = "dashboard.html";
+    link.dataset.permission = SIDEBAR_PERMISSIONS["dashboard.html"];
+    link.textContent = getDashboardLabel();
+
+    const firstLink = sidebar.querySelector(".sidebar-link, #logoutBtn");
+    if (firstLink) {
+      sidebar.insertBefore(link, firstLink);
+    } else {
+      sidebar.appendChild(link);
+    }
   }
 
   function normalizeSidebarOrder() {
@@ -116,6 +146,7 @@
     const sidebarOverlay = document.getElementById("sidebarOverlay");
 
     protectCurrentPage();
+    ensureDashboardLink();
     normalizeSidebarOrder();
 
     if (!menuToggle || !sidebar || !sidebarOverlay || sidebar.dataset.layoutReady === "true") {
