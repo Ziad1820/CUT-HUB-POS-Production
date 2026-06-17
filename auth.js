@@ -1,5 +1,5 @@
 const RomeoAuth = (() => {
-  const API_URL = window.RomeoApi ? RomeoApi.API_URL : "https://script.google.com/macros/s/AKfycbw1ghkgB9bfmt9xYwQ7iIiFzcclZkLfv-pz83TVJXSB6VdAUNWy_P1pVyhc6zkZE69q/exec";
+  const API_URL = window.RomeoApi ? RomeoApi.API_URL : "https://script.google.com/macros/s/AKfycbyv8OKui_rgDnmgqMybgyacnXgABz86_PwLDIbHuGy3VBdOpgXoxO7vNYU3Q5ChDeLF/exec";
   const SESSION_KEY = "romeo-pos-session";
   const ALL_PERMISSIONS = [
     "access_cashier",
