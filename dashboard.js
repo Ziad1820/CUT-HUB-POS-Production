@@ -145,6 +145,10 @@
     return String(invoice.dateKey || invoice.date || "").slice(0, 10);
   }
 
+  function getInvoicesForDate(invoices, dateKey) {
+    return invoices.filter(invoice => getInvoiceDateKey(invoice) === dateKey);
+  }
+
   function toAmount(value) {
     const number = Number(value);
     return Number.isFinite(number) ? number : 0;
@@ -347,8 +351,8 @@
       const todayPreview = todayPreviewResponse.status === "fulfilled" ? todayPreviewResponse.value : {};
       const yesterdayPreview = yesterdayPreviewResponse.status === "fulfilled" ? yesterdayPreviewResponse.value : {};
       const invoices = Array.isArray(invoiceResult.invoices) ? invoiceResult.invoices : [];
-      const todayInvoices = invoices.filter(invoice => getInvoiceDateKey(invoice) === todayKey);
-      const yesterdayInvoices = invoices.filter(invoice => getInvoiceDateKey(invoice) === yesterdayKey);
+      const todayInvoices = getInvoicesForDate(invoices, todayKey);
+      const yesterdayInvoices = getInvoicesForDate(invoices, yesterdayKey);
 
       const todaySalesFallback = todayInvoices.reduce((sum, invoice) => sum + toAmount(invoice.total), 0);
       const yesterdaySalesFallback = yesterdayInvoices.reduce((sum, invoice) => sum + toAmount(invoice.total), 0);
