@@ -212,6 +212,20 @@
     }
   }
 
+  async function fetchDashboardTodayStats(dateKey) {
+    try {
+      const result = await RomeoApi.request({
+        action: "dashboardTodayStats",
+        date: dateKey,
+        reportDate: dateKey
+      });
+
+      return result && result.status === "success" ? result : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
   function buildStaffRows(invoices) {
     const staffMap = new Map();
 
@@ -353,11 +367,13 @@
       const invoices = Array.isArray(invoiceResult.invoices) ? invoiceResult.invoices : [];
       const todayKey = getRelativeDateKey(0);
       const yesterdayKey = getPreviousDateKey(todayKey);
-      const [todayPreviewResponse, yesterdayPreviewResponse] = await Promise.allSettled([
+      const [todayStatsResponse, todayPreviewResponse, yesterdayPreviewResponse] = await Promise.allSettled([
+        fetchDashboardTodayStats(todayKey),
         fetchPreview(todayKey),
         fetchPreview(yesterdayKey)
       ]);
 
+      const todayStats = todayStatsResponse.status === "fulfilled" ? todayStatsResponse.value : {};
       const todayPreview = todayPreviewResponse.status === "fulfilled" ? todayPreviewResponse.value : {};
       const yesterdayPreview = yesterdayPreviewResponse.status === "fulfilled" ? yesterdayPreviewResponse.value : {};
       const todayInvoices = getInvoicesForDate(invoices, todayKey);
@@ -372,9 +388,9 @@
 
       lastState = {
         today: {
-          invoiceCount: todayInvoices.length,
-          customers: getUniqueCustomerCount(todayInvoices),
-          salesTotal: todaySalesTotal,
+          invoiceCount: getPreviewValue(todayStats, "todayInvoices", todayInvoices.length),
+          customers: getPreviewValue(todayStats, "todayCustomers", getUniqueCustomerCount(todayInvoices)),
+          salesTotal: getPreviewValue(todayStats, "todaySales", todaySalesTotal),
           expensesTotal: todayExpensesTotal,
           withdrawalsTotal: todayWithdrawalsTotal,
           netTotal: getPreviewValue(todayPreview, "netTotal", todaySalesTotal - todayExpensesTotal - todayWithdrawalsTotal)
