@@ -149,6 +149,33 @@
     return invoices.filter(invoice => getInvoiceDateKey(invoice) === dateKey);
   }
 
+  function getLatestInvoiceDateKey(invoices) {
+    return invoices
+      .map(getInvoiceDateKey)
+      .filter(Boolean)
+      .sort()
+      .pop() || "";
+  }
+
+  function getDashboardTodayKey(invoices) {
+    const browserTodayKey = getRelativeDateKey(0);
+    if (invoices.some(invoice => getInvoiceDateKey(invoice) === browserTodayKey)) {
+      return browserTodayKey;
+    }
+
+    return getLatestInvoiceDateKey(invoices) || browserTodayKey;
+  }
+
+  function getPreviousDateKey(dateKey) {
+    const parts = String(dateKey || "").split("-").map(Number);
+    if (parts.length !== 3 || parts.some(part => !Number.isFinite(part))) {
+      return getRelativeDateKey(-1);
+    }
+
+    const previousDate = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]) - 24 * 60 * 60 * 1000);
+    return dateKeyFromDate(previousDate);
+  }
+
   function toAmount(value) {
     const number = Number(value);
     return Number.isFinite(number) ? number : 0;
@@ -339,18 +366,17 @@
     if (statusLine) statusLine.textContent = t("loading");
 
     try {
-      const todayKey = getRelativeDateKey(0);
-      const yesterdayKey = getRelativeDateKey(-1);
-      const [invoiceResponse, todayPreviewResponse, yesterdayPreviewResponse] = await Promise.allSettled([
-        RomeoApi.request({ action: "getInvoices" }),
+      const invoiceResult = await RomeoApi.request({ action: "getInvoices" });
+      const invoices = Array.isArray(invoiceResult.invoices) ? invoiceResult.invoices : [];
+      const todayKey = getDashboardTodayKey(invoices);
+      const yesterdayKey = getPreviousDateKey(todayKey);
+      const [todayPreviewResponse, yesterdayPreviewResponse] = await Promise.allSettled([
         fetchPreview(todayKey),
         fetchPreview(yesterdayKey)
       ]);
 
-      const invoiceResult = invoiceResponse.status === "fulfilled" ? invoiceResponse.value : {};
       const todayPreview = todayPreviewResponse.status === "fulfilled" ? todayPreviewResponse.value : {};
       const yesterdayPreview = yesterdayPreviewResponse.status === "fulfilled" ? yesterdayPreviewResponse.value : {};
-      const invoices = Array.isArray(invoiceResult.invoices) ? invoiceResult.invoices : [];
       const todayInvoices = getInvoicesForDate(invoices, todayKey);
       const yesterdayInvoices = getInvoicesForDate(invoices, yesterdayKey);
 
