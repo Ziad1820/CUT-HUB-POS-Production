@@ -149,23 +149,6 @@
     return invoices.filter(invoice => getInvoiceDateKey(invoice) === dateKey);
   }
 
-  function getLatestInvoiceDateKey(invoices) {
-    return invoices
-      .map(getInvoiceDateKey)
-      .filter(Boolean)
-      .sort()
-      .pop() || "";
-  }
-
-  function getDashboardTodayKey(invoices) {
-    const browserTodayKey = getRelativeDateKey(0);
-    if (invoices.some(invoice => getInvoiceDateKey(invoice) === browserTodayKey)) {
-      return browserTodayKey;
-    }
-
-    return getLatestInvoiceDateKey(invoices) || browserTodayKey;
-  }
-
   function getPreviousDateKey(dateKey) {
     const parts = String(dateKey || "").split("-").map(Number);
     if (parts.length !== 3 || parts.some(part => !Number.isFinite(part))) {
@@ -368,7 +351,7 @@
     try {
       const invoiceResult = await RomeoApi.request({ action: "getInvoices" });
       const invoices = Array.isArray(invoiceResult.invoices) ? invoiceResult.invoices : [];
-      const todayKey = getDashboardTodayKey(invoices);
+      const todayKey = getRelativeDateKey(0);
       const yesterdayKey = getPreviousDateKey(todayKey);
       const [todayPreviewResponse, yesterdayPreviewResponse] = await Promise.allSettled([
         fetchPreview(todayKey),
