@@ -9,6 +9,7 @@
 
   let isPrivate = false;
   let lastState = null;
+  let activeDateKey = "";
 
   const LABELS = {
     ar: {
@@ -137,6 +138,15 @@
     return `${values.year}-${values.month}-${values.day}`;
   }
 
+  function dateFromDateKey(dateKey) {
+    const parts = String(dateKey || "").split("-").map(Number);
+    if (parts.length !== 3 || parts.some(part => !Number.isFinite(part))) {
+      return new Date();
+    }
+
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+
   function getRelativeDateKey(offsetDays) {
     return dateKeyFromDate(new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000));
   }
@@ -214,11 +224,15 @@
 
   async function fetchDashboardTodayStats(dateKey) {
     try {
-      const result = await RomeoApi.request({
-        action: "dashboardTodayStats",
-        date: dateKey,
-        reportDate: dateKey
-      });
+      const payload = { action: "dashboardTodayStats" };
+
+      if (dateKey) {
+        payload.date = dateKey;
+        payload.reportDate = dateKey;
+        payload.targetDate = dateKey;
+      }
+
+      const result = await RomeoApi.request(payload);
 
       return result && result.status === "success" ? result : {};
     } catch (error) {
@@ -262,7 +276,8 @@
 
     setText("heroKicker", t("live"));
     setText("heroSubtitle", t("subtitle"));
-    setText("todayLabel", `${t("today")} ${new Date().toLocaleDateString(getLocale(), { day: "2-digit", month: "short", year: "numeric" })}`);
+    const labelDate = activeDateKey ? dateFromDateKey(activeDateKey) : new Date();
+    setText("todayLabel", `${t("today")} ${labelDate.toLocaleDateString(getLocale(), { day: "2-digit", month: "short", year: "numeric" })}`);
     if (privacyToggle) privacyToggle.textContent = isPrivate ? t("show") : t("hide");
 
     const sidebar = document.getElementById("sidebar");
@@ -363,19 +378,25 @@
     if (statusLine) statusLine.textContent = t("loading");
 
     try {
-      const invoiceResult = await RomeoApi.request({ action: "getInvoices" });
-      const invoices = Array.isArray(invoiceResult.invoices) ? invoiceResult.invoices : [];
-      const todayKey = getRelativeDateKey(0);
+      const [invoiceResponse, todayStatsResponse] = await Promise.allSettled([
+        RomeoApi.request({ action: "getInvoices" }),
+        fetchDashboardTodayStats()
+      ]);
+
+      const invoiceResult = invoiceResponse.status === "fulfilled" ? invoiceResponse.value : {};
+      const todayStats = todayStatsResponse.status === "fulfilled" ? todayStatsResponse.value : {};
+      const todayKey = String(todayStats.dateKey || getRelativeDateKey(0)).slice(0, 10);
       const yesterdayKey = getPreviousDateKey(todayKey);
-      const [todayStatsResponse, todayPreviewResponse, yesterdayPreviewResponse] = await Promise.allSettled([
-        fetchDashboardTodayStats(todayKey),
+      activeDateKey = todayKey;
+
+      const [todayPreviewResponse, yesterdayPreviewResponse] = await Promise.allSettled([
         fetchPreview(todayKey),
         fetchPreview(yesterdayKey)
       ]);
 
-      const todayStats = todayStatsResponse.status === "fulfilled" ? todayStatsResponse.value : {};
       const todayPreview = todayPreviewResponse.status === "fulfilled" ? todayPreviewResponse.value : {};
       const yesterdayPreview = yesterdayPreviewResponse.status === "fulfilled" ? yesterdayPreviewResponse.value : {};
+      const invoices = Array.isArray(invoiceResult.invoices) ? invoiceResult.invoices : [];
       const todayInvoices = getInvoicesForDate(invoices, todayKey);
       const yesterdayInvoices = getInvoicesForDate(invoices, yesterdayKey);
 
@@ -404,7 +425,11 @@
       };
 
       renderState();
-      const hasDashboardNumbers = todayInvoices.length || todaySalesTotal || todayExpensesTotal || todayWithdrawalsTotal;
+      const hasDashboardNumbers =
+        lastState.today.invoiceCount ||
+        lastState.today.salesTotal ||
+        lastState.today.expensesTotal ||
+        lastState.today.withdrawalsTotal;
       if (statusLine) statusLine.textContent = hasDashboardNumbers ? "" : `${t("noData")} (${todayKey})`;
     } catch (error) {
       console.error(error);
