@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">SALONIX logo</title>
+  <desc id="desc">A rotating salon swirl mark in the ROMEO POS system palette.</desc>
+  <defs>
+    <linearGradient id="salonixGradient" x1="20" y1="20" x2="140" y2="140" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f2dfbd"/>
+      <stop offset="0.48" stop-color="#b7863f"/>
+      <stop offset="1" stop-color="#18794e"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="160" rx="36" fill="#2a1b0f"/>
+  <g fill="url(#salonixGradient)">
+    <path d="M80 14c23 0 41 12 50 28 8 15 5 31-6 45 1-22-11-41-31-48-18-7-37-2-53 13C48 29 62 14 80 14Z"/>
+    <path d="M146 80c0 23-12 41-28 50-15 8-31 5-45-6 22 1 41-11 48-31 7-18 2-37-13-53 23 8 38 22 38 40Z"/>
+    <path d="M80 146c-23 0-41-12-50-28-8-15-5-31 6-45-1 22 11 41 31 48 18 7 37 2 53-13-8 23-22 38-40 38Z"/>
+    <path d="M14 80c0-23 12-41 28-50 15-8 31-5 45 6-22-1-41 11-48 31-7 18-2 37 13 53-23-8-38-22-38-40Z"/>
+  </g>
+  <circle cx="80" cy="80" r="22" fill="#fffaf2"/>
+</svg>

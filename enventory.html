@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="shared.css">
-<title>Enventory - ROMEO BARBERSHOP</title>
+    <link rel="stylesheet" href="assets/css/shared.css">
+<title>Enventory - SALONIX</title>
   <style>
     :root {
       --ink: #2a2118;
@@ -425,7 +425,11 @@
       <div class="header-menu">
         <button type="button" class="menu-toggle" id="menuToggle">â‹¯</button>
       </div>
-      <h1>ROMEO BARBERSHOP</h1>
+      <div class="brand-lockup">
+        <img class="brand-logo" src="salonix-logo.svg" alt="SALONIX logo">
+        <h1 class="brand-name">SALONIX</h1>
+        <p class="brand-slogan">THE SMART WAY TO RUN YOUR SALON</p>
+      </div>
     </div>
 
     <div class="page-grid">
@@ -570,7 +574,7 @@
     <button type="button" id="logoutBtn">Logout</button>
   </aside>
 
-  <script src="./text-fix.js"></script>
+  <script src="assets/js/text-fix.js"></script>
   <script>
     const INVENTORY_KEY = "romeo-pos-inventory";
     const INVENTORY_LOG_KEY = "romeo-pos-inventory-log";
@@ -581,9 +585,9 @@
       { id: 4, name: "Face Mask", code: "INV04", category: "Skin", quantity: 10, minimum: 6, buyPrice: 45 }
     ];
   </script>
-  <script src="./api.js"></script>
-  <script src="./auth.js"></script>
-  <script src="./layout.js"></script>
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/auth.js"></script>
+  <script src="assets/js/layout.js"></script>
   <script>
     RomeoAuth.requireAuth("view_inventory");
 
@@ -973,9 +977,12 @@
     clearMovement();
     renderAll();
   </script>
-  <script src="keyboard-navigation.js"></script>
-  <script src="language.js"></script>
+  <script src="assets/js/keyboard-navigation.js"></script>
+  <script src="assets/js/language.js"></script>
 </body>
 </html>
+
+
+
 
 

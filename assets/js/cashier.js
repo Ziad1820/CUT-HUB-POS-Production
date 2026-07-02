@@ -46,32 +46,32 @@
     const API_URL = RomeoApi.API_URL;
     const SERVICES_STORAGE_KEY = "romeo-pos-services";
     const defaultServices = [
-      { name: "Ø´Ø¹Ø±", price: 110 },
-      { name: "Ø¯Ù‚Ù†", price: 50 },
-      { name: "Ø¯Ù‚Ù† Ø¬ÙŠÙ„ÙŠØª", price: 70 },
-      { name: "Ø´Ø¹Ø± Ø·ÙÙ„", price: 80 },
-      { name: "Ø³Ø´ÙˆØ§Ø±", price: 50 },
-      { name: "ØªÙ†Ø¹ÙŠÙ…", price: 30 },
-      { name: "ÙØªÙ„Ø©", price: 50 },
-      { name: "Ø´Ù…Ø¹", price: 50 },
-      { name: "ÙÙˆØ·Ø© Ø³Ø®Ù†Ø©", price: 20 },
-      { name: "ÙÙˆØ·Ø© Ù†Ø¹Ù†Ø§Ø¹", price: 20 },
-      { name: "ØªÙˆØ¨Ùƒ", price: 50 },
-      { name: "Ù…Ø§Ø³Ùƒ", price: 50 },
-      { name: "ØµØ¨ØºØ© Ø¯Ù‚Ù†", price: 50 },
-      { name: "ØµØ¨ØºØ© Ø´Ø¹Ø±", price: 100 },
-      { name: "ØµØ¨ØºØ© Ø³Ø¨Ù„ÙØ±", price: 600 },
-      { name: "Ø­Ù…Ø§Ù… ÙƒØ±ÙŠÙ… Ø¹Ø§Ø¯ÙŠ", price: 50 },
-      { name: "Ø­Ù…Ø§Ù… ÙƒØ±ÙŠÙ… Ø¨Ø±Ùˆ", price: 100 },
-      { name: "Ø­Ù…Ø§Ù… Ø²ÙŠØª", price: 50 },
-      { name: "Ù…Ø¹Ø§Ù„Ø¬ TCB", price: 100 },
-      { name: "Ø¬Ù„Ø³Ø© Ù‚Ø´Ø±Ø©", price: 50 },
-      { name: "Ø¬Ù„Ø³Ø© Ø¨Ø´Ø±Ø© Ø¹Ø§Ø¯ÙŠØ©", price: 200 },
-      { name: "Ø¬Ù„Ø³Ø© Ø¨Ø´Ø±Ø© Ù„ÙŠØ²Ø±", price: 300 },
-      { name: "Ø¨Ø±ÙˆØªÙŠÙ† Ø¨Ø±Ø§Ø²ÙŠÙ„ÙŠ", price: 500 },
-      { name: "Ø¨Ø±ÙˆØªÙŠÙ† CHI", price: 700 },
-      { name: "Ø¨Ø§ÙƒÙŠØªØ¬ Ø¹Ø±ÙŠØ³ Ø¯Ø§Ø®Ù„ Ø§Ù„ÙØ±Ø¹", price: 1000 },
-      { name: "Ø¨Ø§ÙƒÙŠØ¯Ø¬ Ø¹Ø±ÙŠØ³ Ø®Ø§Ø±Ø¬ Ø§Ù„ÙØ±Ø¹", price: 1500 }
+      { name: "Ã˜Â´Ã˜Â¹Ã˜Â±", price: 110 },
+      { name: "Ã˜Â¯Ã™â€šÃ™â€ ", price: 50 },
+      { name: "Ã˜Â¯Ã™â€šÃ™â€  Ã˜Â¬Ã™Å Ã™â€žÃ™Å Ã˜Âª", price: 70 },
+      { name: "Ã˜Â´Ã˜Â¹Ã˜Â± Ã˜Â·Ã™ÂÃ™â€ž", price: 80 },
+      { name: "Ã˜Â³Ã˜Â´Ã™Ë†Ã˜Â§Ã˜Â±", price: 50 },
+      { name: "Ã˜ÂªÃ™â€ Ã˜Â¹Ã™Å Ã™â€¦", price: 30 },
+      { name: "Ã™ÂÃ˜ÂªÃ™â€žÃ˜Â©", price: 50 },
+      { name: "Ã˜Â´Ã™â€¦Ã˜Â¹", price: 50 },
+      { name: "Ã™ÂÃ™Ë†Ã˜Â·Ã˜Â© Ã˜Â³Ã˜Â®Ã™â€ Ã˜Â©", price: 20 },
+      { name: "Ã™ÂÃ™Ë†Ã˜Â·Ã˜Â© Ã™â€ Ã˜Â¹Ã™â€ Ã˜Â§Ã˜Â¹", price: 20 },
+      { name: "Ã˜ÂªÃ™Ë†Ã˜Â¨Ã™Æ’", price: 50 },
+      { name: "Ã™â€¦Ã˜Â§Ã˜Â³Ã™Æ’", price: 50 },
+      { name: "Ã˜ÂµÃ˜Â¨Ã˜ÂºÃ˜Â© Ã˜Â¯Ã™â€šÃ™â€ ", price: 50 },
+      { name: "Ã˜ÂµÃ˜Â¨Ã˜ÂºÃ˜Â© Ã˜Â´Ã˜Â¹Ã˜Â±", price: 100 },
+      { name: "Ã˜ÂµÃ˜Â¨Ã˜ÂºÃ˜Â© Ã˜Â³Ã˜Â¨Ã™â€žÃ™ÂÃ˜Â±", price: 600 },
+      { name: "Ã˜Â­Ã™â€¦Ã˜Â§Ã™â€¦ Ã™Æ’Ã˜Â±Ã™Å Ã™â€¦ Ã˜Â¹Ã˜Â§Ã˜Â¯Ã™Å ", price: 50 },
+      { name: "Ã˜Â­Ã™â€¦Ã˜Â§Ã™â€¦ Ã™Æ’Ã˜Â±Ã™Å Ã™â€¦ Ã˜Â¨Ã˜Â±Ã™Ë†", price: 100 },
+      { name: "Ã˜Â­Ã™â€¦Ã˜Â§Ã™â€¦ Ã˜Â²Ã™Å Ã˜Âª", price: 50 },
+      { name: "Ã™â€¦Ã˜Â¹Ã˜Â§Ã™â€žÃ˜Â¬ TCB", price: 100 },
+      { name: "Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â© Ã™â€šÃ˜Â´Ã˜Â±Ã˜Â©", price: 50 },
+      { name: "Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â© Ã˜Â¨Ã˜Â´Ã˜Â±Ã˜Â© Ã˜Â¹Ã˜Â§Ã˜Â¯Ã™Å Ã˜Â©", price: 200 },
+      { name: "Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â© Ã˜Â¨Ã˜Â´Ã˜Â±Ã˜Â© Ã™â€žÃ™Å Ã˜Â²Ã˜Â±", price: 300 },
+      { name: "Ã˜Â¨Ã˜Â±Ã™Ë†Ã˜ÂªÃ™Å Ã™â€  Ã˜Â¨Ã˜Â±Ã˜Â§Ã˜Â²Ã™Å Ã™â€žÃ™Å ", price: 500 },
+      { name: "Ã˜Â¨Ã˜Â±Ã™Ë†Ã˜ÂªÃ™Å Ã™â€  CHI", price: 700 },
+      { name: "Ã˜Â¨Ã˜Â§Ã™Æ’Ã™Å Ã˜ÂªÃ˜Â¬ Ã˜Â¹Ã˜Â±Ã™Å Ã˜Â³ Ã˜Â¯Ã˜Â§Ã˜Â®Ã™â€ž Ã˜Â§Ã™â€žÃ™ÂÃ˜Â±Ã˜Â¹", price: 1000 },
+      { name: "Ã˜Â¨Ã˜Â§Ã™Æ’Ã™Å Ã˜Â¯Ã˜Â¬ Ã˜Â¹Ã˜Â±Ã™Å Ã˜Â³ Ã˜Â®Ã˜Â§Ã˜Â±Ã˜Â¬ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â±Ã˜Â¹", price: 1500 }
     ];
     let availableServices = defaultServices.map(service => ({ ...service }));
 
@@ -81,19 +81,19 @@
     const fourServiceHairOfferPrice = 200;
     const fiveOrMoreHairOfferPrice = 230;
     const premiumOfferExtra = 30;
-    const mainHairServiceName = "شعر";
+    const mainHairServiceName = "Ø´Ø¹Ø±";
     const hairOfferExcludedServices = new Set([
-      "Ø´Ø¹Ø± Ø·ÙÙ„",
-      "ØµØ¨ØºØ© Ø´Ø¹Ø±",
-      "ØµØ¨ØºØ© Ø¯Ù‚Ù†",
-      "Ù…Ø¹Ø§Ù„Ø¬ TCB",
-      "Ø¬Ù„Ø³Ø© Ø¨Ø´Ø±Ø© Ø¹Ø§Ø¯ÙŠØ©",
-      "Ø¬Ù„Ø³Ø© Ø¨Ø´Ø±Ø© Ù„ÙŠØ²Ø±",
-      "Ø¨Ø±ÙˆØªÙŠÙ† CHI",
-      "Ø¨Ø±ÙˆØªÙŠÙ† Ø¨Ø±Ø§Ø²ÙŠÙ„ÙŠ",
-      "ØµØ¨ØºØ© Ø³Ø¨Ù„ÙØ±",
-      "Ø¨Ø§ÙƒÙŠØªØ¬ Ø¹Ø±ÙŠØ³ Ø¯Ø§Ø®Ù„ Ø§Ù„ÙØ±Ø¹",
-      "Ø¨Ø§ÙƒÙŠØ¯Ø¬ Ø¹Ø±ÙŠØ³ Ø®Ø§Ø±Ø¬ Ø§Ù„ÙØ±Ø¹"
+      "Ã˜Â´Ã˜Â¹Ã˜Â± Ã˜Â·Ã™ÂÃ™â€ž",
+      "Ã˜ÂµÃ˜Â¨Ã˜ÂºÃ˜Â© Ã˜Â´Ã˜Â¹Ã˜Â±",
+      "Ã˜ÂµÃ˜Â¨Ã˜ÂºÃ˜Â© Ã˜Â¯Ã™â€šÃ™â€ ",
+      "Ã™â€¦Ã˜Â¹Ã˜Â§Ã™â€žÃ˜Â¬ TCB",
+      "Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â© Ã˜Â¨Ã˜Â´Ã˜Â±Ã˜Â© Ã˜Â¹Ã˜Â§Ã˜Â¯Ã™Å Ã˜Â©",
+      "Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â© Ã˜Â¨Ã˜Â´Ã˜Â±Ã˜Â© Ã™â€žÃ™Å Ã˜Â²Ã˜Â±",
+      "Ã˜Â¨Ã˜Â±Ã™Ë†Ã˜ÂªÃ™Å Ã™â€  CHI",
+      "Ã˜Â¨Ã˜Â±Ã™Ë†Ã˜ÂªÃ™Å Ã™â€  Ã˜Â¨Ã˜Â±Ã˜Â§Ã˜Â²Ã™Å Ã™â€žÃ™Å ",
+      "Ã˜ÂµÃ˜Â¨Ã˜ÂºÃ˜Â© Ã˜Â³Ã˜Â¨Ã™â€žÃ™ÂÃ˜Â±",
+      "Ã˜Â¨Ã˜Â§Ã™Æ’Ã™Å Ã˜ÂªÃ˜Â¬ Ã˜Â¹Ã˜Â±Ã™Å Ã˜Â³ Ã˜Â¯Ã˜Â§Ã˜Â®Ã™â€ž Ã˜Â§Ã™â€žÃ™ÂÃ˜Â±Ã˜Â¹",
+      "Ã˜Â¨Ã˜Â§Ã™Æ’Ã™Å Ã˜Â¯Ã˜Â¬ Ã˜Â¹Ã˜Â±Ã™Å Ã˜Â³ Ã˜Â®Ã˜Â§Ã˜Â±Ã˜Â¬ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â±Ã˜Â¹"
     ]);
 
     defaultServices.forEach(service => {
@@ -108,17 +108,17 @@
     }));
     hairOfferExcludedServices.clear();
     [
-      "Ø´Ø¹Ø± Ø·ÙÙ„",
-      "ØµØ¨ØºØ© Ø´Ø¹Ø±",
-      "ØµØ¨ØºØ© Ø¯Ù‚Ù†",
-      "Ù…Ø¹Ø§Ù„Ø¬ TCB",
-      "Ø¬Ù„Ø³Ø© Ø¨Ø´Ø±Ø© Ø¹Ø§Ø¯ÙŠØ©",
-      "Ø¬Ù„Ø³Ø© Ø¨Ø´Ø±Ø© Ù„ÙŠØ²Ø±",
-      "Ø¨Ø±ÙˆØªÙŠÙ† CHI",
-      "Ø¨Ø±ÙˆØªÙŠÙ† Ø¨Ø±Ø§Ø²ÙŠÙ„ÙŠ",
-      "ØµØ¨ØºØ© Ø³Ø¨Ù„ÙØ±",
-      "Ø¨Ø§ÙƒÙŠØªØ¬ Ø¹Ø±ÙŠØ³ Ø¯Ø§Ø®Ù„ Ø§Ù„ÙØ±Ø¹",
-      "Ø¨Ø§ÙƒÙŠØ¯Ø¬ Ø¹Ø±ÙŠØ³ Ø®Ø§Ø±Ø¬ Ø§Ù„ÙØ±Ø¹"
+      "Ã˜Â´Ã˜Â¹Ã˜Â± Ã˜Â·Ã™ÂÃ™â€ž",
+      "Ã˜ÂµÃ˜Â¨Ã˜ÂºÃ˜Â© Ã˜Â´Ã˜Â¹Ã˜Â±",
+      "Ã˜ÂµÃ˜Â¨Ã˜ÂºÃ˜Â© Ã˜Â¯Ã™â€šÃ™â€ ",
+      "Ã™â€¦Ã˜Â¹Ã˜Â§Ã™â€žÃ˜Â¬ TCB",
+      "Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â© Ã˜Â¨Ã˜Â´Ã˜Â±Ã˜Â© Ã˜Â¹Ã˜Â§Ã˜Â¯Ã™Å Ã˜Â©",
+      "Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â© Ã˜Â¨Ã˜Â´Ã˜Â±Ã˜Â© Ã™â€žÃ™Å Ã˜Â²Ã˜Â±",
+      "Ã˜Â¨Ã˜Â±Ã™Ë†Ã˜ÂªÃ™Å Ã™â€  CHI",
+      "Ã˜Â¨Ã˜Â±Ã™Ë†Ã˜ÂªÃ™Å Ã™â€  Ã˜Â¨Ã˜Â±Ã˜Â§Ã˜Â²Ã™Å Ã™â€žÃ™Å ",
+      "Ã˜ÂµÃ˜Â¨Ã˜ÂºÃ˜Â© Ã˜Â³Ã˜Â¨Ã™â€žÃ™ÂÃ˜Â±",
+      "Ã˜Â¨Ã˜Â§Ã™Æ’Ã™Å Ã˜ÂªÃ˜Â¬ Ã˜Â¹Ã˜Â±Ã™Å Ã˜Â³ Ã˜Â¯Ã˜Â§Ã˜Â®Ã™â€ž Ã˜Â§Ã™â€žÃ™ÂÃ˜Â±Ã˜Â¹",
+      "Ã˜Â¨Ã˜Â§Ã™Æ’Ã™Å Ã˜Â¯Ã˜Â¬ Ã˜Â¹Ã˜Â±Ã™Å Ã˜Â³ Ã˜Â®Ã˜Â§Ã˜Â±Ã˜Â¬ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â±Ã˜Â¹"
     ].forEach(name => hairOfferExcludedServices.add(normalizeServiceName(name)));
 
     const servicesPanel = document.querySelector(".services-panel");
@@ -294,7 +294,7 @@
       const currentValue = barberSelect.value;
       const staffList = getStoredStaffForBarbers();
 
-      barberSelect.innerHTML = '<option value="">Ø§Ø®ØªØ± Ø§Ù„Ø­Ù„Ø§Ù‚</option>';
+      barberSelect.innerHTML = '<option value="">Ã˜Â§Ã˜Â®Ã˜ÂªÃ˜Â± Ã˜Â§Ã™â€žÃ˜Â­Ã™â€žÃ˜Â§Ã™â€š</option>';
       staffList.forEach(staff => {
         const option = document.createElement("option");
         option.value = getBarberSheetName(staff);
@@ -352,7 +352,7 @@
 
     async function fetchTodayPaymentTotals() {
       try {
-        const loadingText = localizeText("Ø¬Ø§Ø±ÙŠ Ø§Ù„ØªØ­Ù…ÙŠÙ„...", "Loading...");
+        const loadingText = localizeText("Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž...", "Loading...");
         cashTodayTotal.textContent = loadingText;
         instapayTodayTotal.textContent = loadingText;
         vodafoneTodayTotal.textContent = loadingText;
@@ -377,10 +377,10 @@
         }
 
         updatePaymentMethodTotals({
-          cash: firstNumberValue(data.cashTotal, data.cash, data.cashTodayTotal, data.naqdTotal, data["Ù†Ù‚Ø¯ÙŠ"]),
-          instapay: firstNumberValue(data.instapayTotal, data.instapay, data.instapayTodayTotal, data["Ø§Ù†Ø³ØªØ§ Ø¨Ø§ÙŠ"]),
-          vodafoneCash: firstNumberValue(data.vodafoneCashTotal, data.vodafoneCash, data.vodafoneTotal, data["ÙÙˆØ¯Ø§ÙÙˆÙ† ÙƒØ§Ø´"]),
-          visa: firstNumberValue(data.visaTotal, data.visa, data.visaTodayTotal, data["ÙÙŠØ²Ø§"])
+          cash: firstNumberValue(data.cashTotal, data.cash, data.cashTodayTotal, data.naqdTotal, data["Ã™â€ Ã™â€šÃ˜Â¯Ã™Å "]),
+          instapay: firstNumberValue(data.instapayTotal, data.instapay, data.instapayTodayTotal, data["Ã˜Â§Ã™â€ Ã˜Â³Ã˜ÂªÃ˜Â§ Ã˜Â¨Ã˜Â§Ã™Å "]),
+          vodafoneCash: firstNumberValue(data.vodafoneCashTotal, data.vodafoneCash, data.vodafoneTotal, data["Ã™ÂÃ™Ë†Ã˜Â¯Ã˜Â§Ã™ÂÃ™Ë†Ã™â€  Ã™Æ’Ã˜Â§Ã˜Â´"]),
+          visa: firstNumberValue(data.visaTotal, data.visa, data.visaTodayTotal, data["Ã™ÂÃ™Å Ã˜Â²Ã˜Â§"])
         });
       } catch (error) {
         console.error(error);
@@ -394,12 +394,12 @@
     }
 
     function getPremiumExtra() {
-      return getSelectedOfferType() === "Ø¨Ø±ÙŠÙ…ÙŠÙˆÙ…" ? premiumOfferExtra : 0;
+      return getSelectedOfferType() === "Ã˜Â¨Ã˜Â±Ã™Å Ã™â€¦Ã™Å Ã™Ë†Ã™â€¦" ? premiumOfferExtra : 0;
     }
 
     function getSelectedOfferType() {
       const selected = document.querySelector('input[name="offerType"]:checked');
-      return selected ? selected.value : "Ø¹Ø§Ø¯ÙŠ";
+      return selected ? selected.value : "Ã˜Â¹Ã˜Â§Ã˜Â¯Ã™Å ";
     }
 
     function getSubtotalBeforePremium() {
@@ -509,12 +509,12 @@
 
         if (!response.ok) {
           const errorText = await response.text();
-          throw new Error(errorText || `Ø®Ø·Ø£ ÙÙŠ ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ø¹Ù…Ù„Ø§Ø¡ (${response.status})`);
+          throw new Error(errorText || `Ã˜Â®Ã˜Â·Ã˜Â£ Ã™ÂÃ™Å  Ã˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€žÃ˜Â§Ã˜Â¡ (${response.status})`);
         }
 
         const data = await response.json();
         if (data.status !== "success") {
-          throw new Error(data.message || "ØªØ¹Ø°Ø± ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ø¹Ù…Ù„Ø§Ø¡");
+          throw new Error(data.message || "Ã˜ÂªÃ˜Â¹Ã˜Â°Ã˜Â± Ã˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€žÃ˜Â§Ã˜Â¡");
         }
 
         customerDirectory = Array.isArray(data.customers)
@@ -528,7 +528,7 @@
         customersLoaded = true;
       } catch (error) {
         console.error(error);
-        showCustomerSuggestionMessage(error.message || "ØªØ¹Ø°Ø± ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ø¹Ù…Ù„Ø§Ø¡");
+        showCustomerSuggestionMessage(error.message || "Ã˜ÂªÃ˜Â¹Ã˜Â°Ã˜Â± Ã˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€žÃ˜Â§Ã˜Â¡");
       } finally {
         customersLoading = false;
       }
@@ -536,7 +536,7 @@
 
     async function fetchTodaySales() {
       try {
-        todaySalesAmount.textContent = "Ø¬Ø§Ø±ÙŠ Ø§Ù„ØªØ­Ù…ÙŠÙ„...";
+        todaySalesAmount.textContent = "Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž...";
         const response = await fetch(API_URL, {
           method: "POST",
           body: JSON.stringify({
@@ -583,7 +583,7 @@
       customerSuggestions.innerHTML = "";
 
       if (!matches.length) {
-        showCustomerSuggestionMessage("Ù„Ø§ ØªÙˆØ¬Ø¯ Ù†ØªØ§Ø¦Ø¬ Ù…Ø´Ø§Ø¨Ù‡Ø©");
+        showCustomerSuggestionMessage("Ã™â€žÃ˜Â§ Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã™â€ Ã˜ÂªÃ˜Â§Ã˜Â¦Ã˜Â¬ Ã™â€¦Ã˜Â´Ã˜Â§Ã˜Â¨Ã™â€¡Ã˜Â©");
         return;
       }
 
@@ -622,7 +622,7 @@
       }
 
       if (!customersLoaded) {
-        showCustomerSuggestionMessage("Ø¬Ø§Ø±ÙŠ ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ø¹Ù…Ù„Ø§Ø¡...");
+        showCustomerSuggestionMessage("Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€žÃ˜Â§Ã˜Â¡...");
       }
 
       await loadCustomerDirectory();
@@ -704,7 +704,7 @@
 
     function openPriceEditor() {
       if (!RomeoAuth.hasPermission("edit_prices")) {
-        showStatus("Ù„ÙŠØ³ Ù„Ø¯ÙŠÙƒ ØµÙ„Ø§Ø­ÙŠØ© Ù„ØªØ¹Ø¯ÙŠÙ„ Ø§Ù„Ø£Ø³Ø¹Ø§Ø±.", "error");
+        showStatus("Ã™â€žÃ™Å Ã˜Â³ Ã™â€žÃ˜Â¯Ã™Å Ã™Æ’ Ã˜ÂµÃ™â€žÃ˜Â§Ã˜Â­Ã™Å Ã˜Â© Ã™â€žÃ˜ÂªÃ˜Â¹Ã˜Â¯Ã™Å Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â³Ã˜Â¹Ã˜Â§Ã˜Â±.", "error");
         return;
       }
 
@@ -723,7 +723,7 @@
             <div class="price-editor-row">
               <strong>${service.name}</strong>
               <input type="number" min="0" step="1" data-service-index="${index}" value="${service.price}">
-              <button class="danger-btn" type="button" onclick="deleteServiceFromMenu(${index})">Ø­Ø°Ù</button>
+              <button class="danger-btn" type="button" onclick="deleteServiceFromMenu(${index})">Ã˜Â­Ã˜Â°Ã™Â</button>
             </div>
           `
         )
@@ -766,12 +766,12 @@
       const price = Number(newServicePriceInput.value) || 0;
 
       if (!name) {
-        showStatus("Ø§ÙƒØªØ¨ Ø§Ø³Ù… Ø§Ù„Ø®Ø¯Ù…Ø© Ø§Ù„Ø¬Ø¯ÙŠØ¯Ø© Ø£ÙˆÙ„Ø§Ù‹.", "error");
+        showStatus("Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã˜Â§Ã˜Â³Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â¯Ã™â€¦Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â¬Ã˜Â¯Ã™Å Ã˜Â¯Ã˜Â© Ã˜Â£Ã™Ë†Ã™â€žÃ˜Â§Ã™â€¹.", "error");
         return;
       }
 
       if (availableServices.some(service => service.name === name)) {
-        showStatus("Ù‡Ø°Ù‡ Ø§Ù„Ø®Ø¯Ù…Ø© Ù…ÙˆØ¬ÙˆØ¯Ø© Ø¨Ø§Ù„ÙØ¹Ù„.", "error");
+        showStatus("Ã™â€¡Ã˜Â°Ã™â€¡ Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â¯Ã™â€¦Ã˜Â© Ã™â€¦Ã™Ë†Ã˜Â¬Ã™Ë†Ã˜Â¯Ã˜Â© Ã˜Â¨Ã˜Â§Ã™â€žÃ™ÂÃ˜Â¹Ã™â€ž.", "error");
         return;
       }
 
@@ -783,8 +783,8 @@
       newServicePriceInput.value = "";
       showStatus(
         savedToSheet
-          ? "ØªÙ… Ø­ÙØ¸ Ø§Ù„Ø®Ø¯Ù…Ø© Ø§Ù„Ø¬Ø¯ÙŠØ¯Ø© ÙÙŠ Ø§Ù„Ø´ÙŠØª."
-          : "ØªÙ… Ø­ÙØ¸ Ø§Ù„Ø®Ø¯Ù…Ø© Ø¹Ù„Ù‰ Ù‡Ø°Ø§ Ø§Ù„Ø¬Ù‡Ø§Ø² ÙÙ‚Ø·ØŒ ÙˆÙ„Ù… ÙŠØªÙ… Ø­ÙØ¸Ù‡Ø§ ÙÙŠ Ø§Ù„Ø´ÙŠØª.",
+          ? "Ã˜ÂªÃ™â€¦ Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â¯Ã™â€¦Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â¬Ã˜Â¯Ã™Å Ã˜Â¯Ã˜Â© Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ˜Â´Ã™Å Ã˜Âª."
+          : "Ã˜ÂªÃ™â€¦ Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â¯Ã™â€¦Ã˜Â© Ã˜Â¹Ã™â€žÃ™â€° Ã™â€¡Ã˜Â°Ã˜Â§ Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€¡Ã˜Â§Ã˜Â² Ã™ÂÃ™â€šÃ˜Â·Ã˜Å’ Ã™Ë†Ã™â€žÃ™â€¦ Ã™Å Ã˜ÂªÃ™â€¦ Ã˜Â­Ã™ÂÃ˜Â¸Ã™â€¡Ã˜Â§ Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ˜Â´Ã™Å Ã˜Âª.",
         savedToSheet ? "success" : "error"
       );
     }
@@ -805,8 +805,8 @@
       closePriceEditor();
       showStatus(
         savedToSheet
-          ? "ØªÙ… Ø­ÙØ¸ Ø§Ù„Ø£Ø³Ø¹Ø§Ø± Ø§Ù„Ø¬Ø¯ÙŠØ¯Ø© ÙÙŠ Ø§Ù„Ø´ÙŠØª."
-          : "ØªÙ… Ø­ÙØ¸ Ø§Ù„Ø£Ø³Ø¹Ø§Ø± Ø¹Ù„Ù‰ Ù‡Ø°Ø§ Ø§Ù„Ø¬Ù‡Ø§Ø² ÙÙ‚Ø·ØŒ ÙˆÙ„Ù… ÙŠØªÙ… Ø­ÙØ¸Ù‡Ø§ ÙÙŠ Ø§Ù„Ø´ÙŠØª.",
+          ? "Ã˜ÂªÃ™â€¦ Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â³Ã˜Â¹Ã˜Â§Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â¬Ã˜Â¯Ã™Å Ã˜Â¯Ã˜Â© Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ˜Â´Ã™Å Ã˜Âª."
+          : "Ã˜ÂªÃ™â€¦ Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â³Ã˜Â¹Ã˜Â§Ã˜Â± Ã˜Â¹Ã™â€žÃ™â€° Ã™â€¡Ã˜Â°Ã˜Â§ Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€¡Ã˜Â§Ã˜Â² Ã™ÂÃ™â€šÃ˜Â·Ã˜Å’ Ã™Ë†Ã™â€žÃ™â€¦ Ã™Å Ã˜ÂªÃ™â€¦ Ã˜Â­Ã™ÂÃ˜Â¸Ã™â€¡Ã˜Â§ Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ˜Â´Ã™Å Ã˜Âª.",
         savedToSheet ? "success" : "error"
       );
     }
@@ -820,8 +820,8 @@
       renderCart();
       showStatus(
         savedToSheet
-          ? "ØªÙ… Ø§Ø³ØªØ±Ø¬Ø§Ø¹ Ø§Ù„Ø£Ø³Ø¹Ø§Ø± Ø§Ù„Ø£ØµÙ„ÙŠØ© ÙˆØ­ÙØ¸Ù‡Ø§ ÙÙŠ Ø§Ù„Ø´ÙŠØª."
-          : "ØªÙ… Ø§Ø³ØªØ±Ø¬Ø§Ø¹ Ø§Ù„Ø£Ø³Ø¹Ø§Ø± Ø§Ù„Ø£ØµÙ„ÙŠØ© Ø¹Ù„Ù‰ Ù‡Ø°Ø§ Ø§Ù„Ø¬Ù‡Ø§Ø² ÙÙ‚Ø·ØŒ ÙˆÙ„Ù… ÙŠØªÙ… Ø­ÙØ¸Ù‡Ø§ ÙÙŠ Ø§Ù„Ø´ÙŠØª.",
+          ? "Ã˜ÂªÃ™â€¦ Ã˜Â§Ã˜Â³Ã˜ÂªÃ˜Â±Ã˜Â¬Ã˜Â§Ã˜Â¹ Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â³Ã˜Â¹Ã˜Â§Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â£Ã˜ÂµÃ™â€žÃ™Å Ã˜Â© Ã™Ë†Ã˜Â­Ã™ÂÃ˜Â¸Ã™â€¡Ã˜Â§ Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ˜Â´Ã™Å Ã˜Âª."
+          : "Ã˜ÂªÃ™â€¦ Ã˜Â§Ã˜Â³Ã˜ÂªÃ˜Â±Ã˜Â¬Ã˜Â§Ã˜Â¹ Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â³Ã˜Â¹Ã˜Â§Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â£Ã˜ÂµÃ™â€žÃ™Å Ã˜Â© Ã˜Â¹Ã™â€žÃ™â€° Ã™â€¡Ã˜Â°Ã˜Â§ Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€¡Ã˜Â§Ã˜Â² Ã™ÂÃ™â€šÃ˜Â·Ã˜Å’ Ã™Ë†Ã™â€žÃ™â€¦ Ã™Å Ã˜ÂªÃ™â€¦ Ã˜Â­Ã™ÂÃ˜Â¸Ã™â€¡Ã˜Â§ Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ˜Â´Ã™Å Ã˜Âª.",
         savedToSheet ? "success" : "error"
       );
     }
@@ -832,7 +832,7 @@
         return;
       }
 
-      if (!window.confirm(`Ù‡Ù„ ØªØ±ÙŠØ¯ Ø­Ø°Ù Ø®Ø¯Ù…Ø© ${service.name}ØŸ`)) {
+      if (!window.confirm(`Ã™â€¡Ã™â€ž Ã˜ÂªÃ˜Â±Ã™Å Ã˜Â¯ Ã˜Â­Ã˜Â°Ã™Â Ã˜Â®Ã˜Â¯Ã™â€¦Ã˜Â© ${service.name}Ã˜Å¸`)) {
         return;
       }
 
@@ -844,8 +844,8 @@
       renderCart();
       showStatus(
         savedToSheet
-          ? "ØªÙ… Ø­Ø°Ù Ø§Ù„Ø®Ø¯Ù…Ø© ÙˆØ­ÙØ¸ Ø§Ù„ØªØ¹Ø¯ÙŠÙ„ ÙÙŠ Ø§Ù„Ø´ÙŠØª."
-          : "ØªÙ… Ø­Ø°Ù Ø§Ù„Ø®Ø¯Ù…Ø© Ø¹Ù„Ù‰ Ù‡Ø°Ø§ Ø§Ù„Ø¬Ù‡Ø§Ø² ÙÙ‚Ø·ØŒ ÙˆÙ„Ù… ÙŠØªÙ… Ø­ÙØ¸ Ø§Ù„ØªØ¹Ø¯ÙŠÙ„ ÙÙŠ Ø§Ù„Ø´ÙŠØª.",
+          ? "Ã˜ÂªÃ™â€¦ Ã˜Â­Ã˜Â°Ã™Â Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â¯Ã™â€¦Ã˜Â© Ã™Ë†Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â¹Ã˜Â¯Ã™Å Ã™â€ž Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ˜Â´Ã™Å Ã˜Âª."
+          : "Ã˜ÂªÃ™â€¦ Ã˜Â­Ã˜Â°Ã™Â Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â¯Ã™â€¦Ã˜Â© Ã˜Â¹Ã™â€žÃ™â€° Ã™â€¡Ã˜Â°Ã˜Â§ Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€¡Ã˜Â§Ã˜Â² Ã™ÂÃ™â€šÃ˜Â·Ã˜Å’ Ã™Ë†Ã™â€žÃ™â€¦ Ã™Å Ã˜ÂªÃ™â€¦ Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â¹Ã˜Â¯Ã™Å Ã™â€ž Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ˜Â´Ã™Å Ã˜Âª.",
         savedToSheet ? "success" : "error"
       );
     };
@@ -854,10 +854,10 @@
       completeSaleBtn.disabled = isLoading;
       printBtn.disabled = isLoading;
       clearBtn.disabled = isLoading;
-      completeSaleBtn.textContent = isLoading ? "Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­ÙØ¸..." : "Ø¥ØªÙ…Ø§Ù… Ø§Ù„Ø­Ø³Ø§Ø¨";
+      completeSaleBtn.textContent = isLoading ? "Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜Â§Ã™â€žÃ˜Â­Ã™ÂÃ˜Â¸..." : "Ã˜Â¥Ã˜ÂªÃ™â€¦Ã˜Â§Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â³Ã˜Â§Ã˜Â¨";
 
       if (isLoading) {
-        showStatus("Loading... Ø¬Ø§Ø±ÙŠ Ø­ÙØ¸ Ø§Ù„ÙØ§ØªÙˆØ±Ø© ÙˆØ§Ù†ØªØ¸Ø§Ø± Ø§Ù„Ø±Ø¯ Ù…Ù† Google Sheets", "loading");
+        showStatus("Loading... Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â§Ã˜ÂªÃ™Ë†Ã˜Â±Ã˜Â© Ã™Ë†Ã˜Â§Ã™â€ Ã˜ÂªÃ˜Â¸Ã˜Â§Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â±Ã˜Â¯ Ã™â€¦Ã™â€  Google Sheets", "loading");
       }
     }
 
@@ -889,7 +889,7 @@
 
     function renderCart() {
       if (cart.length === 0) {
-        cartItems.innerHTML = `<div class="empty-state">${localizeText("Ù„Ù… ÙŠØªÙ… Ø§Ø®ØªÙŠØ§Ø± Ø£ÙŠ Ø®Ø¯Ù…Ø© Ø­ØªÙ‰ Ø§Ù„Ø¢Ù†.", "No service has been selected yet.")}</div>`;
+        cartItems.innerHTML = `<div class="empty-state">${localizeText("Ã™â€žÃ™â€¦ Ã™Å Ã˜ÂªÃ™â€¦ Ã˜Â§Ã˜Â®Ã˜ÂªÃ™Å Ã˜Â§Ã˜Â± Ã˜Â£Ã™Å  Ã˜Â®Ã˜Â¯Ã™â€¦Ã˜Â© Ã˜Â­Ã˜ÂªÃ™â€° Ã˜Â§Ã™â€žÃ˜Â¢Ã™â€ .", "No service has been selected yet.")}</div>`;
       } else {
         cartItems.innerHTML = cart
           .map(
@@ -898,7 +898,7 @@
                 <button class="remove-btn" type="button" onclick="removeService(${index})">X</button>
                 <div>
                   <strong>${item.name}</strong>
-                  <small>Ø§Ø³Ù… Ø§Ù„Ø¹Ù…ÙŠÙ„? Ø§Ø³Ù… Ø§Ù„Ø¹Ù…ÙŠÙ„</small>
+                  <small>Ã˜Â§Ã˜Â³Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™Å Ã™â€ž? Ã˜Â§Ã˜Â³Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™Å Ã™â€ž</small>
                 </div>
                 <span class="price">${formatCurrency(item.price)}</span>
                 <span>#${index + 1}</span>
@@ -916,23 +916,23 @@
       const { eligibleItems, excludedItems } = splitCartByHairOfferRules();
       if (offerType === "two-services") {
         offerBadge.textContent = excludedItems.length > 0
-          ? `تم تطبيق عرض الخدمتين على ${eligibleItems.length} خدمات مطابقة = 150 جنيه`
-          : "تم تطبيق عرض الخدمتين: شعر + خدمة ثانية = 150 جنيه";
+          ? `ØªÙ… ØªØ·Ø¨ÙŠÙ‚ Ø¹Ø±Ø¶ Ø§Ù„Ø®Ø¯Ù…ØªÙŠÙ† Ø¹Ù„Ù‰ ${eligibleItems.length} Ø®Ø¯Ù…Ø§Øª Ù…Ø·Ø§Ø¨Ù‚Ø© = 150 Ø¬Ù†ÙŠÙ‡`
+          : "ØªÙ… ØªØ·Ø¨ÙŠÙ‚ Ø¹Ø±Ø¶ Ø§Ù„Ø®Ø¯Ù…ØªÙŠÙ†: Ø´Ø¹Ø± + Ø®Ø¯Ù…Ø© Ø«Ø§Ù†ÙŠØ© = 150 Ø¬Ù†ÙŠÙ‡";
         offerBadge.className = "offer-badge active";
       } else if (offerType === "three-services") {
         offerBadge.textContent = excludedItems.length > 0
-          ? `تم تطبيق عرض 3 خدمات على ${eligibleItems.length} خدمات مطابقة = 170 جنيه`
-          : "تم تطبيق عرض الثلاث خدمات: شعر + خدمتين = 170 جنيه";
+          ? `ØªÙ… ØªØ·Ø¨ÙŠÙ‚ Ø¹Ø±Ø¶ 3 Ø®Ø¯Ù…Ø§Øª Ø¹Ù„Ù‰ ${eligibleItems.length} Ø®Ø¯Ù…Ø§Øª Ù…Ø·Ø§Ø¨Ù‚Ø© = 170 Ø¬Ù†ÙŠÙ‡`
+          : "ØªÙ… ØªØ·Ø¨ÙŠÙ‚ Ø¹Ø±Ø¶ Ø§Ù„Ø«Ù„Ø§Ø« Ø®Ø¯Ù…Ø§Øª: Ø´Ø¹Ø± + Ø®Ø¯Ù…ØªÙŠÙ† = 170 Ø¬Ù†ÙŠÙ‡";
         offerBadge.className = "offer-badge active";
       } else if (offerType === "four-services") {
         offerBadge.textContent = excludedItems.length > 0
-          ? `تم تطبيق عرض 4 خدمات على ${eligibleItems.length} خدمات مطابقة = 200 جنيه`
-          : "تم تطبيق عرض الأربع خدمات: شعر + 3 خدمات = 200 جنيه";
+          ? `ØªÙ… ØªØ·Ø¨ÙŠÙ‚ Ø¹Ø±Ø¶ 4 Ø®Ø¯Ù…Ø§Øª Ø¹Ù„Ù‰ ${eligibleItems.length} Ø®Ø¯Ù…Ø§Øª Ù…Ø·Ø§Ø¨Ù‚Ø© = 200 Ø¬Ù†ÙŠÙ‡`
+          : "ØªÙ… ØªØ·Ø¨ÙŠÙ‚ Ø¹Ø±Ø¶ Ø§Ù„Ø£Ø±Ø¨Ø¹ Ø®Ø¯Ù…Ø§Øª: Ø´Ø¹Ø± + 3 Ø®Ø¯Ù…Ø§Øª = 200 Ø¬Ù†ÙŠÙ‡";
         offerBadge.className = "offer-badge active";
       } else if (offerType === "five-or-more-services") {
         offerBadge.textContent = excludedItems.length > 0
-          ? `تم تطبيق عرض 5 خدمات أو أكثر على ${eligibleItems.length} خدمات مطابقة = 230 جنيه`
-          : "تم تطبيق عرض 5 خدمات أو أكثر: شعر + 4 خدمات أو أكثر = 230 جنيه";
+          ? `ØªÙ… ØªØ·Ø¨ÙŠÙ‚ Ø¹Ø±Ø¶ 5 Ø®Ø¯Ù…Ø§Øª Ø£Ùˆ Ø£ÙƒØ«Ø± Ø¹Ù„Ù‰ ${eligibleItems.length} Ø®Ø¯Ù…Ø§Øª Ù…Ø·Ø§Ø¨Ù‚Ø© = 230 Ø¬Ù†ÙŠÙ‡`
+          : "ØªÙ… ØªØ·Ø¨ÙŠÙ‚ Ø¹Ø±Ø¶ 5 Ø®Ø¯Ù…Ø§Øª Ø£Ùˆ Ø£ÙƒØ«Ø±: Ø´Ø¹Ø± + 4 Ø®Ø¯Ù…Ø§Øª Ø£Ùˆ Ø£ÙƒØ«Ø± = 230 Ø¬Ù†ÙŠÙ‡";
         offerBadge.className = "offer-badge active";
       } else {
         offerBadge.textContent = "";
@@ -992,7 +992,7 @@
       const result = await RomeoApi.request(payload);
 
       if (result.status !== "success") {
-        throw new Error(result.message || "تعذر حفظ الفاتورة.");
+        throw new Error(result.message || "ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„ÙØ§ØªÙˆØ±Ø©.");
       }
 
       return result;
@@ -1023,15 +1023,15 @@
       const invoiceWindow = invoiceFrame.contentWindow;
       if (!invoiceWindow) {
         invoiceFrame.remove();
-        alert("تعذر تجهيز الطباعة. حاول مرة أخرى.");
+        alert("ØªØ¹Ø°Ø± ØªØ¬Ù‡ÙŠØ² Ø§Ù„Ø·Ø¨Ø§Ø¹Ø©. Ø­Ø§ÙˆÙ„ Ù…Ø±Ø© Ø£Ø®Ø±Ù‰.");
         return;
       }
 
-      const customerName = invoice.customerName || "غير مسجل";
-      const customerPhone = invoice.customerPhone || "غير مسجل";
-      const barber = invoice.barber || "غير محدد";
-      const offerType = invoice.offerType || "عادي";
-      const paymentMethod = invoice.paymentMethod || "غير محدد";
+      const customerName = invoice.customerName || "ØºÙŠØ± Ù…Ø³Ø¬Ù„";
+      const customerPhone = invoice.customerPhone || "ØºÙŠØ± Ù…Ø³Ø¬Ù„";
+      const barber = invoice.barber || "ØºÙŠØ± Ù…Ø­Ø¯Ø¯";
+      const offerType = invoice.offerType || "Ø¹Ø§Ø¯ÙŠ";
+      const paymentMethod = invoice.paymentMethod || "ØºÙŠØ± Ù…Ø­Ø¯Ø¯";
       const printedAt = new Date().toLocaleString("ar-EG", {
         year: "numeric",
         month: "2-digit",
@@ -1051,7 +1051,7 @@
         <html lang="ar" dir="rtl">
         <head>
           <meta charset="UTF-8">
-          <title>فاتورة ROMEO</title>
+          <title>SALONIX Invoice</title>
           <style>
             * { box-sizing: border-box; }
             body {
@@ -1076,14 +1076,23 @@
               color: #fff;
               text-align: center;
             }
+            .print-logo {
+              width: 64px;
+              height: 64px;
+              margin: 0 auto 12px;
+              display: block;
+              filter: drop-shadow(0 10px 18px rgba(0,0,0,.22));
+            }
             .brand {
               margin: 0;
               font-size: 24px;
-              letter-spacing: .5px;
+              letter-spacing: 4px;
             }
             .subtitle {
               margin: 8px 0 0;
               font-size: 14px;
+              letter-spacing: 1.5px;
+              text-transform: uppercase;
               color: #ead9c1;
             }
             .content { padding: 18px; }
@@ -1163,34 +1172,51 @@
         <body>
           <main class="invoice">
             <section class="header">
-              <h1 class="brand">ROMEO BARBERSHOP</h1>
-              <p class="subtitle">فاتورة مبيعات</p>
+              <svg class="print-logo" viewBox="0 0 160 160" aria-hidden="true">
+                <defs>
+                  <linearGradient id="printSalonixGradient" x1="20" y1="20" x2="140" y2="140" gradientUnits="userSpaceOnUse">
+                    <stop offset="0" stop-color="#f2dfbd"></stop>
+                    <stop offset="0.48" stop-color="#b7863f"></stop>
+                    <stop offset="1" stop-color="#18794e"></stop>
+                  </linearGradient>
+                </defs>
+                <rect width="160" height="160" rx="36" fill="#2a1b0f"></rect>
+                <g fill="url(#printSalonixGradient)">
+                  <path d="M80 14c23 0 41 12 50 28 8 15 5 31-6 45 1-22-11-41-31-48-18-7-37-2-53 13C48 29 62 14 80 14Z"></path>
+                  <path d="M146 80c0 23-12 41-28 50-15 8-31 5-45-6 22 1 41-11 48-31 7-18 2-37-13-53 23 8 38 22 38 40Z"></path>
+                  <path d="M80 146c-23 0-41-12-50-28-8-15-5-31 6-45-1 22 11 41 31 48 18 7 37 2 53-13-8 23-22 38-40 38Z"></path>
+                  <path d="M14 80c0-23 12-41 28-50 15-8 31-5 45 6-22-1-41 11-48 31-7 18-2 37 13 53-23-8-38-22-38-40Z"></path>
+                </g>
+                <circle cx="80" cy="80" r="22" fill="#fffaf2"></circle>
+              </svg>
+              <h1 class="brand">SALONIX</h1>
+              <p class="subtitle">THE SMART WAY TO RUN YOUR SALON</p>
             </section>
 
             <section class="content">
               <div class="meta">
                 <div class="meta-box">
-                  <span class="label">اسم العميل</span>
+                  <span class="label">Ø§Ø³Ù… Ø§Ù„Ø¹Ù…ÙŠÙ„</span>
                   <span class="value">${escapePrintHtml(customerName)}</span>
                 </div>
                 <div class="meta-box">
-                  <span class="label">رقم العميل</span>
+                  <span class="label">Ø±Ù‚Ù… Ø§Ù„Ø¹Ù…ÙŠÙ„</span>
                   <span class="value">${escapePrintHtml(customerPhone)}</span>
                 </div>
                 <div class="meta-box">
-                  <span class="label">الحلاق</span>
+                  <span class="label">Ø§Ù„Ø­Ù„Ø§Ù‚</span>
                   <span class="value">${escapePrintHtml(barber)}</span>
                 </div>
                 <div class="meta-box">
-                  <span class="label">طريقة الدفع</span>
+                  <span class="label">Ø·Ø±ÙŠÙ‚Ø© Ø§Ù„Ø¯ÙØ¹</span>
                   <span class="value">${escapePrintHtml(paymentMethod)}</span>
                 </div>
                 <div class="meta-box">
-                  <span class="label">نوع العرض</span>
+                  <span class="label">Ù†ÙˆØ¹ Ø§Ù„Ø¹Ø±Ø¶</span>
                   <span class="value">${escapePrintHtml(offerType)}</span>
                 </div>
                 <div class="meta-box">
-                  <span class="label">التاريخ</span>
+                  <span class="label">Ø§Ù„ØªØ§Ø±ÙŠØ®</span>
                   <span class="value">${escapePrintHtml(printedAt)}</span>
                 </div>
               </div>
@@ -1199,8 +1225,8 @@
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>الخدمة</th>
-                    <th>السعر</th>
+                    <th>Ø§Ù„Ø®Ø¯Ù…Ø©</th>
+                    <th>Ø§Ù„Ø³Ø¹Ø±</th>
                   </tr>
                 </thead>
                 <tbody>${itemsRows}</tbody>
@@ -1208,21 +1234,21 @@
 
               <div class="summary">
                 <div class="summary-row">
-                  <span>المدفوع</span>
+                  <span>Ø§Ù„Ù…Ø¯ÙÙˆØ¹</span>
                   <strong>${escapePrintHtml(formatCurrency(invoice.paidAmount))}</strong>
                 </div>
                 <div class="summary-row">
-                  <span>الباقي</span>
+                  <span>Ø§Ù„Ø¨Ø§Ù‚ÙŠ</span>
                   <strong>${escapePrintHtml(formatCurrency(invoice.remainingAmount))}</strong>
                 </div>
                 <div class="summary-row total">
-                  <span>الإجمالي</span>
+                  <span>Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ</span>
                   <strong>${escapePrintHtml(formatCurrency(invoice.total))}</strong>
                 </div>
               </div>
             </section>
 
-            <footer class="footer">شكرا لزيارتكم</footer>
+            <footer class="footer">Ø´ÙƒØ±Ø§ Ù„Ø²ÙŠØ§Ø±ØªÙƒÙ…</footer>
           </main>
         </body>
         </html>
@@ -1239,15 +1265,15 @@
 
       const customerName = customerNameInput.value.trim();
       const customerPhone = customerPhoneInput.value.trim();
-      const barber = document.getElementById("barber").value || "غير محدد";
-      const paymentMethod = getSelectedPaymentMethod() || "غير محدد";
+      const barber = document.getElementById("barber").value || "ØºÙŠØ± Ù…Ø­Ø¯Ø¯";
+      const paymentMethod = getSelectedPaymentMethod() || "ØºÙŠØ± Ù…Ø­Ø¯Ø¯";
       const offerType = getSelectedOfferType();
       const total = getTotal();
       const paidAmount = Number(paidAmountInput.value) || 0;
       const remainingAmount = Math.max(0, total - paidAmount);
 
       if (cart.length === 0) {
-        showStatus("Ø§Ø®ØªØ± Ø®Ø¯Ù…Ø© ÙˆØ§Ø­Ø¯Ø© Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„ Ù‚Ø¨Ù„ Ø§Ù„Ø·Ø¨Ø§Ø¹Ø©.", "error");
+        showStatus("Ã˜Â§Ã˜Â®Ã˜ÂªÃ˜Â± Ã˜Â®Ã˜Â¯Ã™â€¦Ã˜Â© Ã™Ë†Ã˜Â§Ã˜Â­Ã˜Â¯Ã˜Â© Ã˜Â¹Ã™â€žÃ™â€° Ã˜Â§Ã™â€žÃ˜Â£Ã™â€šÃ™â€ž Ã™â€šÃ˜Â¨Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â·Ã˜Â¨Ã˜Â§Ã˜Â¹Ã˜Â©.", "error");
         return;
       }
 
@@ -1280,32 +1306,32 @@
       const invoiceNote = invoiceNoteInput.value.trim();
 
       if (cart.length === 0) {
-        showStatus("Ø§Ø®ØªØ± Ø®Ø¯Ù…Ø© ÙˆØ§Ø­Ø¯Ø© Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„ Ù‚Ø¨Ù„ Ø¥ØªÙ…Ø§Ù… Ø§Ù„Ø­Ø³Ø§Ø¨.", "error");
+        showStatus("Ã˜Â§Ã˜Â®Ã˜ÂªÃ˜Â± Ã˜Â®Ã˜Â¯Ã™â€¦Ã˜Â© Ã™Ë†Ã˜Â§Ã˜Â­Ã˜Â¯Ã˜Â© Ã˜Â¹Ã™â€žÃ™â€° Ã˜Â§Ã™â€žÃ˜Â£Ã™â€šÃ™â€ž Ã™â€šÃ˜Â¨Ã™â€ž Ã˜Â¥Ã˜ÂªÃ™â€¦Ã˜Â§Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â³Ã˜Â§Ã˜Â¨.", "error");
         return;
       }
 
       if (!customerName) {
-        showStatus("Ø§ÙƒØªØ¨ Ø§Ø³Ù… Ø§Ù„Ø¹Ù…ÙŠÙ„ Ø£ÙˆÙ„Ø§Ù‹.", "error");
+        showStatus("Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã˜Â§Ã˜Â³Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™Å Ã™â€ž Ã˜Â£Ã™Ë†Ã™â€žÃ˜Â§Ã™â€¹.", "error");
         return;
       }
 
       if (!customerPhone) {
-        showStatus("Ø§ÙƒØªØ¨ Ø±Ù‚Ù… Ø§Ù„Ø¹Ù…ÙŠÙ„ Ø£ÙˆÙ„Ø§Ù‹.", "error");
+        showStatus("Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã˜Â±Ã™â€šÃ™â€¦ Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™Å Ã™â€ž Ã˜Â£Ã™Ë†Ã™â€žÃ˜Â§Ã™â€¹.", "error");
         return;
       }
 
       if (!barber) {
-        showStatus("Ø§Ø®ØªØ± Ø§Ø³Ù… Ø§Ù„Ø­Ù„Ø§Ù‚ Ø§Ù„Ø°ÙŠ Ù‚Ø¯Ù… Ø§Ù„Ø®Ø¯Ù…Ø©.", "error");
+        showStatus("Ã˜Â§Ã˜Â®Ã˜ÂªÃ˜Â± Ã˜Â§Ã˜Â³Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â­Ã™â€žÃ˜Â§Ã™â€š Ã˜Â§Ã™â€žÃ˜Â°Ã™Å  Ã™â€šÃ˜Â¯Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â¯Ã™â€¦Ã˜Â©.", "error");
         return;
       }
 
       if (paidAmount <= 0) {
-        showStatus("Ø§ÙƒØªØ¨ Ù‚ÙŠÙ…Ø© Ø§Ù„Ù…Ø¯ÙÙˆØ¹ Ù‚Ø¨Ù„ Ø­ÙØ¸ Ø§Ù„ÙØ§ØªÙˆØ±Ø©.", "error");
+        showStatus("Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã™â€šÃ™Å Ã™â€¦Ã˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¯Ã™ÂÃ™Ë†Ã˜Â¹ Ã™â€šÃ˜Â¨Ã™â€ž Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â§Ã˜ÂªÃ™Ë†Ã˜Â±Ã˜Â©.", "error");
         return;
       }
 
       if (paidAmount < total) {
-        showStatus("Ù‚ÙŠÙ…Ø© Ø§Ù„Ù…Ø¯ÙÙˆØ¹ ÙŠØ¬Ø¨ Ø£Ù† ØªÙƒÙˆÙ† Ø£ÙƒØ¨Ø± Ù…Ù† Ø£Ùˆ ØªØ³Ø§ÙˆÙŠ Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ.", "error");
+        showStatus("Ã™â€šÃ™Å Ã™â€¦Ã˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¯Ã™ÂÃ™Ë†Ã˜Â¹ Ã™Å Ã˜Â¬Ã˜Â¨ Ã˜Â£Ã™â€  Ã˜ÂªÃ™Æ’Ã™Ë†Ã™â€  Ã˜Â£Ã™Æ’Ã˜Â¨Ã˜Â± Ã™â€¦Ã™â€  Ã˜Â£Ã™Ë† Ã˜ÂªÃ˜Â³Ã˜Â§Ã™Ë†Ã™Å  Ã˜Â§Ã™â€žÃ˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å .", "error");
         return;
       }
 
@@ -1330,7 +1356,7 @@
 
       try {
         setLoadingState(true);
-        const shouldPrint = window.confirm("هل تريد طباعة الفاتورة الآن؟");
+        const shouldPrint = window.confirm("Ù‡Ù„ ØªØ±ÙŠØ¯ Ø·Ø¨Ø§Ø¹Ø© Ø§Ù„ÙØ§ØªÙˆØ±Ø© Ø§Ù„Ø¢Ù†ØŸ");
 
         await saveInvoice(invoiceData);
 
@@ -1348,11 +1374,11 @@
           });
         }
 
-        showStatus("ØªÙ… Ø­ÙØ¸ Ø§Ù„ÙØ§ØªÙˆØ±Ø© Ø¨Ù†Ø¬Ø§Ø­.", "success");
+        showStatus("Ã˜ÂªÃ™â€¦ Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â§Ã˜ÂªÃ™Ë†Ã˜Â±Ã˜Â© Ã˜Â¨Ã™â€ Ã˜Â¬Ã˜Â§Ã˜Â­.", "success");
         resetForm();
         fetchTodaySales();
       } catch (error) {
-        showStatus(error.message || "Ø­Ø¯Ø« Ø®Ø·Ø£ Ø£Ø«Ù†Ø§Ø¡ Ø­ÙØ¸ Ø§Ù„ÙØ§ØªÙˆØ±Ø©.", "error");
+        showStatus(error.message || "Ã˜Â­Ã˜Â¯Ã˜Â« Ã˜Â®Ã˜Â·Ã˜Â£ Ã˜Â£Ã˜Â«Ã™â€ Ã˜Â§Ã˜Â¡ Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â§Ã˜ÂªÃ™Ë†Ã˜Â±Ã˜Â©.", "error");
       } finally {
         setLoadingState(false);
       }
@@ -1432,4 +1458,5 @@
     loadServicesFromSheet();
     fetchTodaySales();
     fixArabicInNode(document.body);
+
 

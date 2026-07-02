@@ -5,6 +5,7 @@ const RomeoLanguage = (() => {
   const DICTIONARY = {
     en: {
       "Menu": "Menu",
+      "Dashboard": "Dashboard",
       "cashier": "Cashier",
       "invoices": "Invoices",
       "income statement": "Income Statement",
@@ -159,6 +160,7 @@ const RomeoLanguage = (() => {
     },
     ar: {
       "Menu": "القائمة",
+      "Dashboard": "لوحة التحكم",
       "cashier": "الكاشير",
       "Cashier": "الكاشير",
       "invoices": "الفواتير",
@@ -529,4 +531,396 @@ const RomeoLanguage = (() => {
     getCurrentLanguage,
     saveLanguage
   };
+})();
+
+(function () {
+  if (!/data-analysis\.html$/i.test(window.location.pathname)) return;
+
+  function amount(value) {
+    if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+    let text = String(value || "").trim();
+    if (!text) return 0;
+    if (text.includes(",") && !text.includes(".")) {
+      text = /,\d{1,2}$/.test(text) ? text.replace(",", ".") : text.replace(/,/g, "");
+    } else {
+      text = text.replace(/,/g, "");
+    }
+    const parsed = parseFloat(text.replace(/[^\d.-]/g, ""));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function dateKey(value) {
+    const match = String(value || "").match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    return match ? `${match[1]}-${String(match[2]).padStart(2, "0")}-${String(match[3]).padStart(2, "0")}` : "";
+  }
+
+  function readStore(key) {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function money(value) {
+    return `${Math.round(Number(value) || 0).toLocaleString("en-US")} EGP`;
+  }
+
+  function percent(value) {
+    return `${Number(value || 0).toLocaleString("en-US", { maximumFractionDigits: 1 })}%`;
+  }
+
+  function number(value) {
+    return Number(value || 0).toLocaleString("en-US", { maximumFractionDigits: 1 });
+  }
+
+  function bounds() {
+    return {
+      from: document.getElementById("fromDate")?.value || "",
+      to: document.getElementById("toDate")?.value || "",
+      barber: document.getElementById("barberFilter")?.value || "",
+      payment: document.getElementById("paymentFilter")?.value || ""
+    };
+  }
+
+  function inRange(date, range) {
+    return Boolean(date) && (!range.from || date >= range.from) && (!range.to || date <= range.to);
+  }
+
+  function monthRow(map, month) {
+    if (!map.has(month)) {
+      map.set(month, {
+        month,
+        sales: 0,
+        expenses: 0,
+        withdrawals: 0,
+        inventoryCost: 0,
+        invoices: 0,
+        customers: new Set(),
+        barbers: new Set()
+      });
+    }
+    return map.get(month);
+  }
+
+  function injectMonthlyTab() {
+    if (document.getElementById("tab-monthly")) return;
+    const customersButton = document.querySelector('.tab-btn[data-tab="customers"]');
+    const app = document.querySelector(".app");
+    if (!customersButton || !app) return;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "tab-btn";
+    button.dataset.tab = "monthly";
+    button.textContent = "Monthly Analysis";
+    customersButton.insertAdjacentElement("afterend", button);
+
+    const section = document.createElement("section");
+    section.className = "tab-page";
+    section.id = "tab-monthly";
+    section.innerHTML = `
+      <div class="metrics">
+        <article class="metric success"><span>Average Revenue / Month</span><strong id="monthlyAvgRevenue">0 EGP</strong></article>
+        <article class="metric"><span>Average Growth / Year</span><strong id="monthlyAvgGrowth">0%</strong></article>
+        <article class="metric"><span>Expense % of Sales</span><strong id="monthlyExpensePercent">0%</strong></article>
+        <article class="metric success"><span>Profit Margin</span><strong id="monthlyProfitMargin">0%</strong></article>
+      </div>
+      <div class="metrics">
+        <article class="metric"><span>Customer Growth</span><strong id="monthlyCustomerGrowth">0%</strong></article>
+        <article class="metric"><span>Invoice Rate</span><strong id="monthlyInvoiceRate">0</strong></article>
+        <article class="metric"><span>Revenue / Barber</span><strong id="monthlyRevenuePerBarber">0 EGP</strong></article>
+        <article class="metric"><span>Inventory Cost %</span><strong id="monthlyInventoryCost">0%</strong></article>
+      </div>
+      <div class="monthly-analysis-grid">
+        <section class="panel">
+          <h2 class="section-title">Monthly Trend</h2>
+          <div class="monthly-chart" id="monthlySalesTrend"></div>
+        </section>
+        <section class="panel">
+          <h2 class="section-title">Profit Trend</h2>
+          <div class="monthly-chart" id="monthlyProfitTrend"></div>
+        </section>
+        <section class="panel">
+          <h2 class="section-title">Sales vs Expenses</h2>
+          <div class="monthly-chart" id="monthlySalesVsExpenses"></div>
+        </section>
+        <section class="panel">
+          <h2 class="section-title">Top Performing Month</h2>
+          <div class="insight-list" id="monthlyTopMonths"></div>
+        </section>
+        <section class="panel">
+          <h2 class="section-title">ROA & Indicators</h2>
+          <div class="indicator-list" id="monthlyIndicators"></div>
+        </section>
+        <section class="panel wide-panel">
+          <h2 class="section-title">Month by Month Comparison</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Month</th>
+                  <th class="amount">Sales</th>
+                  <th class="amount">Expenses</th>
+                  <th class="amount">Withdrawals</th>
+                  <th class="amount">Net Profit</th>
+                  <th>Customers</th>
+                  <th>Invoices</th>
+                  <th class="amount">Average Invoice</th>
+                  <th>Growth</th>
+                </tr>
+              </thead>
+              <tbody id="monthlyRows"><tr><td colspan="9" class="status-line">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    `;
+    app.appendChild(section);
+
+    button.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn").forEach(item => item.classList.remove("active"));
+      document.querySelectorAll(".tab-page").forEach(item => item.classList.remove("active"));
+      button.classList.add("active");
+      section.classList.add("active");
+      renderMonthly();
+    });
+
+    ["fromDate", "toDate", "barberFilter", "paymentFilter", "refreshBtn"].forEach(id => {
+      const element = document.getElementById(id);
+      if (element) element.addEventListener(id === "refreshBtn" ? "click" : "change", () => setTimeout(renderMonthly, 600));
+    });
+
+    renderMonthly();
+  }
+
+  async function loadInvoices(range) {
+    try {
+      if (!window.RomeoApi || typeof RomeoApi.request !== "function") return [];
+      const result = await RomeoApi.request({ action: "getInvoices" });
+      if (result.status !== "success" || !Array.isArray(result.invoices)) return [];
+      return result.invoices.filter(invoice => {
+        const invoiceDate = dateKey(invoice.dateKey || invoice.date);
+        const invoiceBarber = String(invoice.barber || "").trim();
+        const invoicePayment = String(invoice.paymentMethod || invoice.payment || "").trim();
+        return inRange(invoiceDate, range) &&
+          (!range.barber || invoiceBarber === range.barber) &&
+          (!range.payment || invoicePayment === range.payment);
+      });
+    } catch (error) {
+      console.warn("Monthly analysis could not load invoices.", error);
+      return [];
+    }
+  }
+
+  function inventoryCostByMonth(range) {
+    const items = readStore("romeo-pos-inventory");
+    const priceById = new Map(items.map(item => [String(item.id), amount(item.buyPrice)]));
+    const costs = new Map();
+
+    readStore("romeo-pos-inventory-log").forEach(entry => {
+      const movementDate = dateKey(entry.date);
+      if (!inRange(movementDate, range) || String(entry.type || "") !== "out") return;
+      const month = movementDate.slice(0, 7);
+      const unitCost = amount(entry.buyPrice || entry.cost || entry.unitCost) || priceById.get(String(entry.itemId)) || 0;
+      costs.set(month, (costs.get(month) || 0) + (amount(entry.quantity) * unitCost));
+    });
+
+    return costs;
+  }
+
+  function buildRows(invoices, range) {
+    const rows = new Map();
+
+    invoices.forEach(invoice => {
+      const invoiceDate = dateKey(invoice.dateKey || invoice.date);
+      if (!inRange(invoiceDate, range)) return;
+      const row = monthRow(rows, invoiceDate.slice(0, 7));
+      row.sales += amount(invoice.total);
+      row.invoices += 1;
+      const customer = String(invoice.customerPhone || invoice.customerName || "").trim();
+      const barber = String(invoice.barber || "").trim();
+      if (customer) row.customers.add(customer);
+      if (barber) row.barbers.add(barber);
+    });
+
+    readStore("romeo-pos-expenses").forEach(expense => {
+      const expenseDate = dateKey(expense.date);
+      if (inRange(expenseDate, range)) monthRow(rows, expenseDate.slice(0, 7)).expenses += amount(expense.amount);
+    });
+
+    readStore("romeo-pos-withdrawals").forEach(withdrawal => {
+      const withdrawalDate = dateKey(withdrawal.date);
+      if (inRange(withdrawalDate, range)) monthRow(rows, withdrawalDate.slice(0, 7)).withdrawals += amount(withdrawal.amount);
+    });
+
+    inventoryCostByMonth(range).forEach((cost, month) => {
+      monthRow(rows, month).inventoryCost += cost;
+    });
+
+    return Array.from(rows.values()).sort((a, b) => a.month.localeCompare(b.month)).map((row, index, list) => {
+      const previous = list[index - 1];
+      const netProfit = row.sales - row.expenses - row.withdrawals - row.inventoryCost;
+      const previousProfit = previous ? previous.sales - previous.expenses - previous.withdrawals - previous.inventoryCost : 0;
+      return {
+        ...row,
+        customerCount: row.customers.size,
+        barberCount: row.barbers.size,
+        averageInvoice: row.invoices ? row.sales / row.invoices : 0,
+        netProfit,
+        salesGrowth: previous && previous.sales ? ((row.sales - previous.sales) / previous.sales) * 100 : 0,
+        profitGrowth: previous && previousProfit ? ((netProfit - previousProfit) / previousProfit) * 100 : 0,
+        customerGrowth: previous && previous.customers.size ? ((row.customers.size - previous.customers.size) / previous.customers.size) * 100 : 0
+      };
+    });
+  }
+
+  function setText(id, value) {
+    const element = document.getElementById(id);
+    if (element) element.textContent = value;
+  }
+
+  function chart(id, rows, getter, formatter, className = "") {
+    const container = document.getElementById(id);
+    if (!container) return;
+    if (!rows.length) {
+      container.innerHTML = `<div class="empty-state">No monthly data yet.</div>`;
+      return;
+    }
+    const max = Math.max(...rows.map(row => Math.abs(getter(row))), 1);
+    container.innerHTML = rows.slice(-12).map(row => {
+      const width = Math.max(4, Math.round((Math.abs(getter(row)) / max) * 100));
+      return `
+        <div class="monthly-chart-row">
+          <div class="monthly-chart-label">${row.month}</div>
+          <div class="monthly-chart-track"><div class="monthly-chart-fill ${className}" style="width:${width}%"></div></div>
+          <div class="monthly-chart-value">${formatter(getter(row))}</div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function salesVsExpenses(rows) {
+    const container = document.getElementById("monthlySalesVsExpenses");
+    if (!container) return;
+    if (!rows.length) {
+      container.innerHTML = `<div class="empty-state">No monthly data yet.</div>`;
+      return;
+    }
+    const max = Math.max(...rows.flatMap(row => [row.sales, row.expenses + row.withdrawals + row.inventoryCost]), 1);
+    container.innerHTML = rows.slice(-8).map(row => {
+      const costs = row.expenses + row.withdrawals + row.inventoryCost;
+      return `
+        <div class="monthly-chart-row">
+          <div class="monthly-chart-label">${row.month} Sales</div>
+          <div class="monthly-chart-track"><div class="monthly-chart-fill" style="width:${Math.max(4, Math.round((row.sales / max) * 100))}%"></div></div>
+          <div class="monthly-chart-value">${money(row.sales)}</div>
+        </div>
+        <div class="monthly-chart-row">
+          <div class="monthly-chart-label">${row.month} Costs</div>
+          <div class="monthly-chart-track"><div class="monthly-chart-fill expense" style="width:${Math.max(4, Math.round((costs / max) * 100))}%"></div></div>
+          <div class="monthly-chart-value">${money(costs)}</div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function topMonths(rows) {
+    const container = document.getElementById("monthlyTopMonths");
+    if (!container) return;
+    if (!rows.length) {
+      container.innerHTML = `<div class="empty-state">No monthly data yet.</div>`;
+      return;
+    }
+    const topBy = getter => [...rows].sort((a, b) => getter(b) - getter(a))[0];
+    const items = [
+      ["Highest Sales", topBy(row => row.sales), row => money(row.sales)],
+      ["Highest Profit", topBy(row => row.netProfit), row => money(row.netProfit)],
+      ["Highest Customers", topBy(row => row.customerCount), row => number(row.customerCount)],
+      ["Highest Average Invoice", topBy(row => row.averageInvoice), row => money(row.averageInvoice)]
+    ];
+    container.innerHTML = items.map(([title, row, formatter]) => `
+      <div class="insight"><strong>${title}</strong><span>${row.month} - ${formatter(row)}</span></div>
+    `).join("");
+  }
+
+  function table(rows) {
+    const body = document.getElementById("monthlyRows");
+    if (!body) return;
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="9" class="empty-state">No monthly data yet.</td></tr>`;
+      return;
+    }
+    body.innerHTML = rows.map(row => `
+      <tr>
+        <td>${row.month}</td>
+        <td class="amount">${money(row.sales)}</td>
+        <td class="amount">${money(row.expenses)}</td>
+        <td class="amount">${money(row.withdrawals)}</td>
+        <td class="amount">${money(row.netProfit)}</td>
+        <td>${number(row.customerCount)}</td>
+        <td>${number(row.invoices)}</td>
+        <td class="amount">${money(row.averageInvoice)}</td>
+        <td>${percent(row.salesGrowth)}</td>
+      </tr>
+    `).join("");
+  }
+
+  async function renderMonthly() {
+    if (!document.getElementById("tab-monthly")) return;
+    const range = bounds();
+    const rows = buildRows(await loadInvoices(range), range);
+    const totals = rows.reduce((sum, row) => {
+      sum.sales += row.sales;
+      sum.expenses += row.expenses;
+      sum.withdrawals += row.withdrawals;
+      sum.inventoryCost += row.inventoryCost;
+      sum.profit += row.netProfit;
+      sum.invoices += row.invoices;
+      sum.barbers += row.barberCount;
+      return sum;
+    }, { sales: 0, expenses: 0, withdrawals: 0, inventoryCost: 0, profit: 0, invoices: 0, barbers: 0 });
+
+    const growthRows = rows.slice(1);
+    const avgSalesGrowth = growthRows.length ? growthRows.reduce((sum, row) => sum + row.salesGrowth, 0) / growthRows.length : 0;
+    const avgProfitGrowth = growthRows.length ? growthRows.reduce((sum, row) => sum + row.profitGrowth, 0) / growthRows.length : 0;
+    const avgCustomerGrowth = growthRows.length ? growthRows.reduce((sum, row) => sum + row.customerGrowth, 0) / growthRows.length : 0;
+    const avgRevenue = rows.length ? totals.sales / rows.length : 0;
+    const expensePercent = totals.sales ? ((totals.expenses + totals.withdrawals) / totals.sales) * 100 : 0;
+    const inventoryPercent = totals.sales ? (totals.inventoryCost / totals.sales) * 100 : 0;
+    const profitMargin = totals.sales ? (totals.profit / totals.sales) * 100 : 0;
+    const revenuePerBarber = totals.barbers ? totals.sales / totals.barbers : 0;
+    const invoiceRate = rows.length ? totals.invoices / rows.length : 0;
+    const assetBase = totals.inventoryCost || (totals.expenses + totals.withdrawals) || totals.sales;
+    const roa = assetBase ? (totals.profit / assetBase) * 100 : 0;
+
+    setText("monthlyAvgRevenue", money(avgRevenue));
+    setText("monthlyAvgGrowth", percent(avgSalesGrowth));
+    setText("monthlyExpensePercent", percent(expensePercent));
+    setText("monthlyProfitMargin", percent(profitMargin));
+    setText("monthlyCustomerGrowth", percent(avgCustomerGrowth));
+    setText("monthlyInvoiceRate", number(invoiceRate));
+    setText("monthlyRevenuePerBarber", money(revenuePerBarber));
+    setText("monthlyInventoryCost", percent(inventoryPercent));
+
+    chart("monthlySalesTrend", rows, row => row.sales, money);
+    chart("monthlyProfitTrend", rows, row => row.netProfit, money, "expense");
+    salesVsExpenses(rows);
+    topMonths(rows);
+    table(rows);
+
+    const indicators = document.getElementById("monthlyIndicators");
+    if (indicators) {
+      indicators.innerHTML = `
+        <div class="indicator"><span>ROA</span><strong>${percent(roa)}</strong></div>
+        <div class="indicator"><span>Sales Growth</span><strong>${percent(avgSalesGrowth)}</strong></div>
+        <div class="indicator"><span>Profit Growth</span><strong>${percent(avgProfitGrowth)}</strong></div>
+        <div class="indicator"><span>Profit Margin</span><strong>${percent(profitMargin)}</strong></div>
+      `;
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", injectMonthlyTab);
+  if (document.readyState !== "loading") injectMonthlyTab();
 })();

@@ -1,5 +1,7 @@
 (function () {
-  const hasMojibake = text => /[\u00d8\u00d9\u00c3\u00e2\u00db\u00cc]/.test(text || "");
+  const hasMojibake = text => /[\u00c2\u00c3\u00d8\u00d9\u00e2\u00db\u00cc]/.test(text || "");
+  const arabicChars = text => (String(text || "").match(/[\u0600-\u06ff]/g) || []).length;
+  const mojibakeChars = text => (String(text || "").match(/[\u00c2\u00c3\u00d8\u00d9\u00e2\u00db\u00cc\u0080-\u009f]/g) || []).length;
   const windows1252Reverse = {
     "\u20ac": 0x80,
     "\u201a": 0x82,
@@ -52,31 +54,68 @@
     return new TextDecoder("windows-1252").decode(bytesFromMojibake(text));
   }
 
+  function normalizeKnownArtifacts(text) {
+    return String(text || "")
+      .replaceAll("\u00e2\u2039\u00af", "\u22ef")
+      .replaceAll("\u00c3\u00a2\u00e2\u20ac\u00b9\u00c2\u00af", "\u22ef")
+      .replaceAll("\u00c2\u00a0", " ");
+  }
+
+  function decodeScore(text) {
+    const value = String(text || "");
+    const replacements = (value.match(/\ufffd/g) || []).length;
+    const questionRuns = (value.match(/\?{2,}/g) || []).length;
+
+    return (arabicChars(value) * 8) - (mojibakeChars(value) * 12) - (replacements * 40) - (questionRuns * 8);
+  }
+
   function decodeMojibake(text) {
     if (typeof text !== "string" || !text) return text;
 
-    let fixed = text.replaceAll("\u00e2\u2039\u00af", "\u22ef");
-    fixed = fixed.replaceAll("\u00c3\u00a2\u00e2\u20ac\u00b9\u00c2\u00af", "\u22ef");
+    let fixed = normalizeKnownArtifacts(text);
 
     if (!hasMojibake(fixed)) return fixed;
 
-    const attempts = [
-      () => decodeByUtf8Bytes(fixed),
-      () => decodeByWindows1252(fixed)
-    ];
+    let current = fixed;
+    let best = fixed;
+    let bestScore = decodeScore(fixed);
 
-    for (const attempt of attempts) {
-      try {
-        const decoded = attempt();
-        if (decoded && !decoded.includes("\ufffd") && !hasMojibake(decoded)) {
-          return decoded;
+    for (let index = 0; index < 4; index++) {
+      if (!hasMojibake(current)) break;
+
+      const attempts = [
+        decodeByUtf8Bytes(current),
+        decodeByWindows1252(current)
+      ];
+
+      let next = current;
+      let nextScore = decodeScore(current);
+
+      attempts.forEach(decodedValue => {
+        try {
+          const decoded = normalizeKnownArtifacts(decodedValue);
+          const score = decodeScore(decoded);
+
+          if (decoded && decoded !== current && score > nextScore) {
+            next = decoded;
+            nextScore = score;
+          }
+        } catch (error) {
+          // Try the next decoder.
         }
-      } catch (error) {
-        // Try the next decoder.
+      });
+
+      if (next === current) break;
+
+      current = next;
+
+      if (nextScore > bestScore) {
+        best = current;
+        bestScore = nextScore;
       }
     }
 
-    return fixed;
+    return best;
   }
 
   function fixNode(node) {
@@ -91,7 +130,7 @@
     if (node.nodeType !== Node.ELEMENT_NODE) return;
     if (node.closest("script, style")) return;
 
-    ["placeholder", "title", "aria-label", "value"].forEach(attr => {
+    ["placeholder", "title", "aria-label", "alt", "value"].forEach(attr => {
       if (!node.hasAttribute(attr)) return;
 
       const current = node.getAttribute(attr);
@@ -108,6 +147,10 @@
   }
 
   function fixDocument(root) {
+    if (document.title) {
+      document.title = decodeMojibake(document.title);
+    }
+
     fixNode(root || document.body);
   }
 
@@ -155,7 +198,7 @@
 
     observer.observe(document.body, {
       attributes: true,
-      attributeFilter: ["placeholder", "title", "aria-label", "value"],
+      attributeFilter: ["placeholder", "title", "aria-label", "alt", "value"],
       childList: true,
       subtree: true,
       characterData: true

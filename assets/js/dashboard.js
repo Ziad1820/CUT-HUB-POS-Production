@@ -1,5 +1,5 @@
 (function () {
-  const currentUser = window.RomeoAuth ? RomeoAuth.requireAuth() : null;
+  const currentUser = typeof RomeoAuth !== "undefined" ? RomeoAuth.requireAuth() : null;
   if (!currentUser) return;
 
   const root = document.getElementById("dashboardRoot");
@@ -53,12 +53,12 @@
       staffDiscount: "خصومات الموظفين",
       attendance: "الحضور",
       bookings: "الحجوزات",
-      language: "Language",
+      language: "اللغة",
       logout: "تسجيل الخروج"
     },
     en: {
       live: "Live dashboard",
-      subtitle: "A fast daily view of sales, clients, net profit, and staff performance.",
+      subtitle: "A fast daily view of sales, clients, net profit, and staff performance",
       today: "Today",
       hide: "Hide Numbers",
       show: "Show Numbers",
@@ -147,17 +147,127 @@
     return new Date(parts[0], parts[1] - 1, parts[2]);
   }
 
-  function getRelativeDateKey(offsetDays) {
-    return dateKeyFromDate(new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000));
+function getRelativeDateKey(offsetDays) {
+  return dateKeyFromDate(new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000));
+}
+
+function padDatePart(value) {
+  return String(value || "").padStart(2, "0");
+}
+
+function normalizeDigits(value) {
+  return String(value || "").replace(/[\u0660-\u0669\u06F0-\u06F9]/g, digit => {
+    const code = digit.charCodeAt(0);
+    if (code >= 0x06F0) return String(code - 0x06F0);
+    return String(code - 0x0660);
+  });
+}
+
+function parseDateKey(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return dateKeyFromDate(value);
   }
 
-  function getInvoiceDateKey(invoice) {
-    return String(invoice.dateKey || invoice.date || "").slice(0, 10);
+  const text = normalizeDigits(String(value || "").trim());
+  if (!text) return "";
+
+  const ymd = text.match(/(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
+  if (ymd) {
+    return `${ymd[1]}-${padDatePart(ymd[2])}-${padDatePart(ymd[3])}`;
   }
 
-  function getInvoicesForDate(invoices, dateKey) {
-    return invoices.filter(invoice => getInvoiceDateKey(invoice) === dateKey);
+  const slashDate = text.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
+  if (slashDate) {
+    const first = Number(slashDate[1]);
+    const second = Number(slashDate[2]);
+    const year = slashDate[3];
+    const isMonthFirst = first <= 12 && second > 12;
+    const day = isMonthFirst ? second : first;
+    const month = isMonthFirst ? first : second;
+
+    return `${year}-${padDatePart(month)}-${padDatePart(day)}`;
   }
+
+  const monthNames = {
+    jan: "01", january: "01",
+    feb: "02", february: "02",
+    mar: "03", march: "03",
+    apr: "04", april: "04",
+    may: "05",
+    jun: "06", june: "06",
+    jul: "07", july: "07",
+    aug: "08", august: "08",
+    sep: "09", sept: "09", september: "09",
+    oct: "10", october: "10",
+    nov: "11", november: "11",
+    dec: "12", december: "12"
+  };
+
+  const dmyText = text.match(/(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})/);
+  if (dmyText) {
+    const month = monthNames[dmyText[2].toLowerCase()];
+    if (month) return `${dmyText[3]}-${month}-${padDatePart(dmyText[1])}`;
+  }
+
+  const mydText = text.match(/([A-Za-z]{3,9})\s+(\d{1,4})\s+(\d{1,4})/);
+  if (mydText) {
+    const month = monthNames[mydText[1].toLowerCase()];
+    const firstNumber = Number(mydText[2]);
+    const secondNumber = Number(mydText[3]);
+    const year = firstNumber > 31 ? mydText[2] : mydText[3];
+    const day = firstNumber > 31 ? mydText[3] : mydText[2];
+    if (month && secondNumber) return `${year}-${month}-${padDatePart(day)}`;
+  }
+
+  const parsed = new Date(text.replace(" ", "T"));
+  return Number.isNaN(parsed.getTime()) ? "" : dateKeyFromDate(parsed);
+}
+
+function getInvoiceDateCandidates(invoice) {
+  if (!invoice) return "";
+
+  return [
+    invoice.dateKey,
+    invoice.date,
+    invoice.createdAt,
+    invoice.invoiceDate,
+    invoice.timestamp,
+    invoice.createdOn,
+    invoice.datetime,
+    invoice.dateTime,
+    invoice.rowDate,
+    invoice.dateValue
+  ].filter(value => value !== undefined && value !== null && value !== "");
+}
+
+function getInvoiceDateKey(invoice) {
+  const candidates = getInvoiceDateCandidates(invoice);
+
+  for (const value of candidates) {
+    const key = parseDateKey(value);
+    if (key) return key;
+  }
+
+  return "";
+}
+
+function invoiceMatchesDate(invoice, dateKey) {
+  if (!invoice || !dateKey) return false;
+
+  return getInvoiceDateCandidates(invoice).some(value => {
+    const parsed = parseDateKey(value);
+    return parsed === dateKey || String(value).trim().slice(0, 10) === dateKey;
+  });
+}
+
+function getLegacyInvoiceDateKey(invoice) {
+  if (!invoice) return "";
+  return parseDateKey(invoice.dateKey || invoice.date || invoice.createdAt || invoice.invoiceDate || invoice.timestamp);
+}
+
+function getInvoicesForDate(invoices, dateKey) {
+  return invoices.filter(invoice => invoiceMatchesDate(invoice, dateKey));
+}
 
   function getPreviousDateKey(dateKey) {
     const parts = String(dateKey || "").split("-").map(Number);
@@ -207,6 +317,17 @@
   function getPreviewValue(preview, key, fallback) {
     const value = preview && preview[key];
     return value === undefined || value === null || value === "" ? fallback : toAmount(value);
+  }
+
+  function getPreviewValueAny(preview, keys, fallback) {
+    for (const key of keys) {
+      const value = preview && preview[key];
+      if (value !== undefined && value !== null && value !== "") {
+        return toAmount(value);
+      }
+    }
+
+    return fallback;
   }
 
   async function fetchPreview(dateKey) {
@@ -269,7 +390,7 @@
 
   function renderLabels() {
     document.documentElement.lang = getLanguage();
-    document.documentElement.dir = getLanguage() === "en" ? "ltr" : "rtl";
+    document.documentElement.dir = "rtl";
     document.querySelectorAll("[data-label]").forEach(element => {
       element.textContent = t(element.dataset.label);
     });
@@ -374,69 +495,178 @@
     renderStaffTable(staffRows);
   }
 
-  async function loadDashboard() {
-    if (statusLine) statusLine.textContent = t("loading");
-
-    try {
-      const [invoiceResponse, todayStatsResponse] = await Promise.allSettled([
-        RomeoApi.request({ action: "getInvoices" }),
-        fetchDashboardTodayStats()
-      ]);
-
-      const invoiceResult = invoiceResponse.status === "fulfilled" ? invoiceResponse.value : {};
-      const todayStats = todayStatsResponse.status === "fulfilled" ? todayStatsResponse.value : {};
-      const todayKey = String(todayStats.dateKey || getRelativeDateKey(0)).slice(0, 10);
-      const yesterdayKey = getPreviousDateKey(todayKey);
-      activeDateKey = todayKey;
-
-      const [todayPreviewResponse, yesterdayPreviewResponse] = await Promise.allSettled([
-        fetchPreview(todayKey),
-        fetchPreview(yesterdayKey)
-      ]);
-
-      const todayPreview = todayPreviewResponse.status === "fulfilled" ? todayPreviewResponse.value : {};
-      const yesterdayPreview = yesterdayPreviewResponse.status === "fulfilled" ? yesterdayPreviewResponse.value : {};
-      const invoices = Array.isArray(invoiceResult.invoices) ? invoiceResult.invoices : [];
-      const todayInvoices = getInvoicesForDate(invoices, todayKey);
-      const yesterdayInvoices = getInvoicesForDate(invoices, yesterdayKey);
-
-      const todaySalesFallback = todayInvoices.reduce((sum, invoice) => sum + toAmount(invoice.total), 0);
-      const yesterdaySalesFallback = yesterdayInvoices.reduce((sum, invoice) => sum + toAmount(invoice.total), 0);
-
-      const todaySalesTotal = getPreviewValue(todayPreview, "salesTotal", todaySalesFallback);
-      const todayExpensesTotal = getPreviewValue(todayPreview, "expensesTotal", 0);
-      const todayWithdrawalsTotal = getPreviewValue(todayPreview, "withdrawalsTotal", 0);
-
-      lastState = {
-        today: {
-          invoiceCount: getPreviewValue(todayStats, "todayInvoices", todayInvoices.length),
-          customers: getPreviewValue(todayStats, "todayCustomers", getUniqueCustomerCount(todayInvoices)),
-          salesTotal: getPreviewValue(todayStats, "todaySales", todaySalesTotal),
-          expensesTotal: todayExpensesTotal,
-          withdrawalsTotal: todayWithdrawalsTotal,
-          netTotal: getPreviewValue(todayPreview, "netTotal", todaySalesTotal - todayExpensesTotal - todayWithdrawalsTotal)
-        },
-        yesterday: {
-          invoiceCount: yesterdayInvoices.length,
-          customers: getUniqueCustomerCount(yesterdayInvoices),
-          salesTotal: getPreviewValue(yesterdayPreview, "salesTotal", yesterdaySalesFallback)
-        },
-        staffRows: buildStaffRows(todayInvoices)
-      };
-
-      renderState();
-      const hasDashboardNumbers =
-        lastState.today.invoiceCount ||
-        lastState.today.salesTotal ||
-        lastState.today.expensesTotal ||
-        lastState.today.withdrawalsTotal;
-      if (statusLine) statusLine.textContent = hasDashboardNumbers ? "" : `${t("noData")} (${todayKey})`;
-    } catch (error) {
-      console.error(error);
-      if (statusLine) statusLine.textContent = t("error");
-    }
+  function closeLanguageMenu() {
+    const menu = document.getElementById("dashboardLanguageMenu");
+    if (menu) menu.classList.remove("active");
   }
 
+  function setDashboardLanguage(language) {
+    localStorage.setItem("romeo-pos-language", language);
+    if (lastState) {
+      renderState();
+    } else {
+      renderLabels();
+    }
+    renderLanguageMenu();
+    closeLanguageMenu();
+  }
+
+  function renderLanguageMenu() {
+    if (!languageToggle) return;
+
+    let block = document.getElementById("dashboardLanguageBlock");
+    if (!block) {
+      block = document.createElement("div");
+      block.id = "dashboardLanguageBlock";
+      block.className = "dashboard-language-block";
+    }
+
+    const logoutButton = document.getElementById("logoutBtn");
+    if (logoutButton && block.parentElement !== logoutButton.parentElement) {
+      logoutButton.insertAdjacentElement("beforebegin", block);
+    } else if (logoutButton && block.nextElementSibling !== logoutButton) {
+      logoutButton.insertAdjacentElement("beforebegin", block);
+    } else if (!block.parentElement) {
+      languageToggle.insertAdjacentElement("beforebegin", block);
+    }
+
+    if (languageToggle.parentElement !== block) {
+      block.insertBefore(languageToggle, block.firstChild);
+    }
+
+    let menu = document.getElementById("dashboardLanguageMenu");
+    if (!menu) {
+      menu = document.createElement("div");
+      menu.id = "dashboardLanguageMenu";
+      menu.className = "dashboard-language-menu";
+      menu.innerHTML = `
+        <div class="language-menu-options">
+          <button type="button" data-language-choice="ar">عربي</button>
+          <button type="button" data-language-choice="en">English</button>
+        </div>
+      `;
+      block.appendChild(menu);
+      menu.addEventListener("click", event => {
+        const choice = event.target.closest("[data-language-choice]");
+        if (!choice) return;
+        event.preventDefault();
+        setDashboardLanguage(choice.dataset.languageChoice);
+      });
+    }
+
+    const currentLanguage = getLanguage();
+    menu.querySelectorAll("[data-language-choice]").forEach(button => {
+      button.classList.toggle("active", button.dataset.languageChoice === currentLanguage);
+    });
+  }
+
+async function loadDashboard() {
+  console.log("loadDashboard started");
+
+  if (statusLine) statusLine.textContent = t("loading");
+
+  try {
+    const requestedTodayKey = getRelativeDateKey(0);
+
+    const [invoiceResponse, todayStatsResponse, todayPreviewResponse, yesterdayPreviewResponse] =
+      await Promise.allSettled([
+        RomeoApi.request({ action: "getInvoices" }),
+        fetchDashboardTodayStats(requestedTodayKey),
+        fetchPreview(requestedTodayKey),
+        fetchPreview(getPreviousDateKey(requestedTodayKey))
+      ]);
+
+    const invoiceResult = invoiceResponse.status === "fulfilled" ? invoiceResponse.value : {};
+    const todayStats = todayStatsResponse.status === "fulfilled" ? todayStatsResponse.value : {};
+    const todayKey = todayStats.dateKey || requestedTodayKey;
+    const yesterdayKey = getPreviousDateKey(todayKey);
+    activeDateKey = todayKey;
+
+    const todayPreview = todayPreviewResponse.status === "fulfilled" ? todayPreviewResponse.value : {};
+    const yesterdayPreview = yesterdayPreviewResponse.status === "fulfilled" ? yesterdayPreviewResponse.value : {};
+
+    console.log("invoiceResponse", invoiceResponse);
+    console.log("todayStatsResponse", todayStatsResponse);
+    console.log("invoiceResult", invoiceResult);
+    console.log("todayStats", todayStats);
+    console.log("todayPreview", todayPreview);
+
+    const invoices = Array.isArray(invoiceResult.invoices)
+      ? invoiceResult.invoices
+      : (Array.isArray(todayStats.invoices) ? todayStats.invoices : []);
+
+    const todayInvoices = getInvoicesForDate(invoices, todayKey);
+    const yesterdayInvoices = getInvoicesForDate(invoices, yesterdayKey);
+
+    const todaySalesFallback = todayInvoices.reduce((sum, invoice) => sum + toAmount(invoice.total), 0);
+    const yesterdaySalesFallback = yesterdayInvoices.reduce((sum, invoice) => sum + toAmount(invoice.total), 0);
+
+    const todaySalesTotal = getPreviewValue(todayPreview, "salesTotal", todaySalesFallback);
+    const todayExpensesTotal = getPreviewValue(todayPreview, "expensesTotal", 0);
+    const todayWithdrawalsTotal = getPreviewValue(todayPreview, "withdrawalsTotal", 0);
+
+    const statsInvoiceCount = getPreviewValueAny(
+      todayStats,
+      ["todayInvoices", "todayInvoiceCount", "invoiceCount", "invoicesCount", "totalInvoices"],
+      0
+    );
+
+    const statsCustomerCount = getPreviewValueAny(
+      todayStats,
+      ["todayCustomers", "todayCustomerCount", "customerCount", "customersCount", "totalCustomers"],
+      0
+    );
+
+    const statsSalesTotal = getPreviewValueAny(
+      todayStats,
+      ["todaySales", "todaySalesTotal", "salesTotal", "totalSales"],
+      todaySalesTotal
+    );
+
+    const todayInvoiceCount = statsInvoiceCount || todayInvoices.length;
+    const todayCustomerCount = statsCustomerCount || getUniqueCustomerCount(todayInvoices);
+    const finalTodaySalesTotal = statsSalesTotal || todaySalesFallback || todaySalesTotal;
+
+    lastState = {
+      today: {
+        invoiceCount: todayInvoiceCount,
+        customers: todayCustomerCount,
+        salesTotal: finalTodaySalesTotal,
+        expensesTotal: todayExpensesTotal,
+        withdrawalsTotal: todayWithdrawalsTotal,
+        netTotal: getPreviewValue(
+          todayPreview,
+          "netTotal",
+          finalTodaySalesTotal - todayExpensesTotal - todayWithdrawalsTotal
+        )
+      },
+      yesterday: {
+        invoiceCount: yesterdayInvoices.length,
+        customers: getUniqueCustomerCount(yesterdayInvoices),
+        salesTotal: getPreviewValue(yesterdayPreview, "salesTotal", yesterdaySalesFallback)
+      },
+      staffRows: buildStaffRows(todayInvoices)
+    };
+
+    renderState();
+
+    console.log("renderState executed");
+    console.log("lastState", lastState);
+
+    const hasDashboardNumbers =
+      lastState.today.invoiceCount ||
+      lastState.today.salesTotal ||
+      lastState.today.expensesTotal ||
+      lastState.today.withdrawalsTotal;
+
+    if (statusLine) {
+      statusLine.textContent = hasDashboardNumbers ? "" : `${t("noData")} (${todayKey})`;
+    }
+  } catch (error) {
+    console.error(error);
+    if (statusLine) statusLine.textContent = t("error");
+  }
+}
   if (privacyToggle) {
     privacyToggle.addEventListener("click", () => {
       isPrivate = !isPrivate;
@@ -448,12 +678,23 @@
   if (languageToggle) {
     languageToggle.addEventListener("click", event => {
       event.preventDefault();
-      const nextLanguage = getLanguage() === "en" ? "ar" : "en";
-      localStorage.setItem("romeo-pos-language", nextLanguage);
-      renderState();
+      renderLanguageMenu();
+      document.getElementById("dashboardLanguageMenu")?.classList.toggle("active");
     });
   }
 
+  document.addEventListener("click", event => {
+    if (
+      event.target.closest("#languageToggle") ||
+      event.target.closest("#dashboardLanguageMenu")
+    ) {
+      return;
+    }
+
+    closeLanguageMenu();
+  });
+
   renderLabels();
+  renderLanguageMenu();
   loadDashboard();
 })();

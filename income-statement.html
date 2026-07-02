@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="shared.css">
-<title>Income Statement - ROMEO BARBERSHOP</title>
+    <link rel="stylesheet" href="assets/css/shared.css">
+<title>Income Statement - SALONIX</title>
   <style>
     :root {
       --ink: #2a2118;
@@ -186,6 +186,123 @@
       font-size: 14px;
     }
 
+    .filter-panel {
+      background: rgba(255,250,242,0.92);
+      border: 1px solid rgba(229,213,190,.8);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: 22px;
+      margin-bottom: 24px;
+    }
+
+    .filters {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) repeat(4, auto);
+      gap: 14px;
+      align-items: end;
+      direction: ltr;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .field input {
+      min-height: 52px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #fffaf2;
+      color: var(--ink);
+      padding: 0 16px;
+      font-size: 17px;
+      font-weight: 700;
+    }
+
+    .filter-panel button,
+    .section-title button {
+      min-height: 52px;
+      border: none;
+      border-radius: 16px;
+      padding: 0 18px;
+      background: #ead9bd;
+      color: var(--ink);
+      font-size: 16px;
+      font-weight: 900;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .filter-panel button.primary {
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: #fff;
+    }
+
+    .filter-panel button.success {
+      background: var(--success);
+      color: #fff;
+    }
+
+    .status {
+      min-height: 22px;
+      margin-top: 14px;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .status.error {
+      color: var(--danger);
+    }
+
+    .status.success {
+      color: var(--success);
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      color: var(--ink);
+      font-size: 24px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+    }
+
+    table {
+      width: 100%;
+      min-width: 980px;
+      border-collapse: collapse;
+      background: #fffaf2;
+      direction: ltr;
+      text-align: left;
+    }
+
+    th,
+    td {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+      white-space: nowrap;
+    }
+
+    th {
+      background: #f1e4cf;
+      color: var(--muted);
+      font-weight: 900;
+    }
+
     @media (max-width: 960px) {
       .header-menu {
         position: static;
@@ -201,6 +318,10 @@
       .app {
         padding: 14px;
       }
+
+      .filters {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -211,42 +332,98 @@
         <button type="button" class="menu-toggle" id="menuToggle">...</button>
       </div>
 
-      <h1>ROMEO BARBERSHOP</h1>
+      <div class="brand-lockup">
+        <img class="brand-logo" src="salonix-logo.svg" alt="SALONIX logo">
+        <h1 class="brand-name">SALONIX</h1>
+        <p class="brand-slogan">THE SMART WAY TO RUN YOUR SALON</p>
+      </div>
     </div>
+
+    <section class="filter-panel">
+      <div class="filters">
+        <label class="field">
+          <span>From Date</span>
+          <input type="date" id="fromDate">
+        </label>
+        <label class="field">
+          <span>To Date</span>
+          <input type="date" id="toDate">
+        </label>
+        <button type="button" class="primary" id="applyFilterBtn">Apply Filter</button>
+        <button type="button" id="thisMonthBtn">This Month</button>
+        <button type="button" class="success" id="monthLockBtn">Month Lock</button>
+        <button type="button" id="refreshClosingsBtn">Refresh Closings</button>
+      </div>
+      <div class="status" id="statementStatus"></div>
+    </section>
 
     <section class="grid">
       <div class="card">
-        <h2>Total Clients</h2>
-        <div class="metric-value" id="totalClients">Loading...</div>
-      </div>
-
-      <div class="card">
-        <h2>Total staff sales</h2>
-        <div class="metric-value" id="totalStaffSales">Loading...</div>
-      </div>
-
-      <div class="card">
-        <h2>Withdraw</h2>
-        <div class="metric-value" id="withdrawAmount">0 EGP</div>
+        <h2>Total income</h2>
+        <div class="metric-value" id="totalIncome">0 EGP</div>
       </div>
 
       <div class="card">
         <h2>Expenses</h2>
         <div class="metric-value" id="expensesAmount">0 EGP</div>
       </div>
+
+      <div class="card">
+        <h2>Withdrawals</h2>
+        <div class="metric-value" id="withdrawAmount">0 EGP</div>
+      </div>
+
+      <div class="card net-profit">
+        <h2>Net profit</h2>
+        <div class="metric-value" id="netProfit">0 EGP</div>
+      </div>
+
+      <div class="card">
+        <h2>Total Clients</h2>
+        <div class="metric-value" id="totalClients">0</div>
+      </div>
+
+      <div class="card">
+        <h2>Invoices</h2>
+        <div class="metric-value" id="invoiceCount">0</div>
+      </div>
+
+      <div class="card">
+        <h2>Total staff sales</h2>
+        <div class="metric-value" id="totalStaffSales">0 EGP</div>
+      </div>
+
+      <div class="card">
+        <h2>Average Invoice</h2>
+        <div class="metric-value" id="averageInvoice">0 EGP</div>
+      </div>
     </section>
 
-    <section class="summary-grid">
-      <div class="summary-card total-income">
-        <h2>Total income</h2>
-        <div class="metric-value" id="totalIncome">Loading...</div>
-        <p>Total income before deducting withdrawals and expenses.</p>
+    <section class="summary-card">
+      <div class="section-title">
+        <h2>Previous Monthly Closings</h2>
       </div>
-      
-      <div class="summary-card net-profit">
-        <h2>Net profit</h2>
-        <div class="metric-value" id="netProfit">55 EGP</div>
-        <p>Net profit after deducting withdrawals and expenses.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>From</th>
+              <th>To</th>
+              <th>Total Income</th>
+              <th>Expenses</th>
+              <th>Withdrawals</th>
+              <th>Net Profit</th>
+              <th>Closed By</th>
+              <th>Closed At</th>
+            </tr>
+          </thead>
+          <tbody id="monthlyClosingsBody">
+            <tr>
+              <td colspan="9">No monthly closings loaded yet.</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </section>
   </div>
@@ -271,13 +448,15 @@
     <button type="button" id="logoutBtn">Logout</button>
   </aside>
 
-  <script src="./text-fix.js"></script>
-  <script src="./api.js"></script>
-  <script src="./auth.js"></script>
-  <script src="./layout.js"></script>
+  <script src="assets/js/text-fix.js"></script>
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/auth.js"></script>
+  <script src="assets/js/layout.js"></script>
   <script>
-    const API_URL = RomeoApi.API_URL;
-    RomeoAuth.requireAuth("view_income_statement");
+    const currentUser = RomeoAuth.requireAuth("view_income_statement");
+    const isOwner =
+      String(currentUser?.username || "").trim().toLowerCase() === "owner" ||
+      (Array.isArray(currentUser?.permissions) && currentUser.permissions.includes("manage_users"));
     const menuToggle = document.getElementById("menuToggle");
     const sidebar = document.getElementById("sidebar");
     const sidebarOverlay = document.getElementById("sidebarOverlay");
@@ -287,14 +466,26 @@
     const totalStaffSalesEl = document.getElementById("totalStaffSales");
     const withdrawAmountEl = document.getElementById("withdrawAmount");
     const expensesAmountEl = document.getElementById("expensesAmount");
+    const invoiceCountEl = document.getElementById("invoiceCount");
+    const averageInvoiceEl = document.getElementById("averageInvoice");
+    const fromDateInput = document.getElementById("fromDate");
+    const toDateInput = document.getElementById("toDate");
+    const applyFilterBtn = document.getElementById("applyFilterBtn");
+    const thisMonthBtn = document.getElementById("thisMonthBtn");
+    const monthLockBtn = document.getElementById("monthLockBtn");
+    const refreshClosingsBtn = document.getElementById("refreshClosingsBtn");
+    const statementStatus = document.getElementById("statementStatus");
+    const monthlyClosingsBody = document.getElementById("monthlyClosingsBody");
 
-    const WITHDRAWALS_KEY = "romeo-pos-withdrawals";
-    const EXPENSES_KEY = "romeo-pos-expenses";
-
-    const totals = {
-      income: 0,
-      withdrawals: 0,
-      expenses: 0
+    let currentSummary = {
+      totalIncome: 0,
+      totalExpenses: 0,
+      totalWithdrawals: 0,
+      netProfit: 0,
+      totalClients: 0,
+      invoiceCount: 0,
+      totalStaffSales: 0,
+      averageInvoice: 0
     };
 
     function openSidebar() {
@@ -324,110 +515,212 @@
     document.getElementById("logoutBtn").addEventListener("click", () => RomeoAuth.logout());
 
     function formatCurrency(value) {
+      return `${Number(value || 0).toLocaleString("en-US")} EGP`;
+    }
+
+    function formatNumber(value) {
       return Number(value || 0).toLocaleString("en-US");
     }
 
-    function readStore(key, fallback = []) {
+    function toAmount(value) {
+      const number = Number(value || 0);
+      return Number.isFinite(number) ? number : 0;
+    }
+
+    function setStatus(message, type = "") {
+      statementStatus.textContent = message || "";
+      statementStatus.className = `status ${type}`.trim();
+    }
+
+    function getCairoTodayParts() {
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Africa/Cairo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      }).formatToParts(new Date());
+
+      const byType = Object.fromEntries(parts.map(part => [part.type, part.value]));
+      return {
+        year: Number(byType.year),
+        month: Number(byType.month),
+        day: Number(byType.day)
+      };
+    }
+
+    function setCurrentMonthRange() {
+      const today = getCairoTodayParts();
+      const start = `${today.year}-${String(today.month).padStart(2, "0")}-01`;
+      const lastDay = new Date(today.year, today.month, 0).getDate();
+      const end = `${today.year}-${String(today.month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+      fromDateInput.value = start;
+      toDateInput.value = end;
+    }
+
+    function normalizeSummary(payload) {
+      const source = payload.statement || payload.summary || payload.data || payload;
+      const totalIncome = toAmount(source.totalIncome ?? source.income ?? source.salesTotal);
+      const totalExpenses = toAmount(source.totalExpenses ?? source.expenses ?? source.expenseTotal);
+      const totalWithdrawals = toAmount(source.totalWithdrawals ?? source.withdrawals ?? source.withdrawalsTotal);
+      const invoiceCount = toAmount(source.invoiceCount ?? source.totalInvoices ?? source.invoicesCount);
+
+      return {
+        totalIncome,
+        totalExpenses,
+        totalWithdrawals,
+        netProfit: toAmount(source.netProfit ?? (totalIncome - totalExpenses - totalWithdrawals)),
+        totalClients: toAmount(source.totalClients ?? source.clients ?? source.customerCount),
+        invoiceCount,
+        totalStaffSales: toAmount(source.totalStaffSales ?? source.staffSales ?? totalIncome),
+        averageInvoice: toAmount(source.averageInvoice ?? (invoiceCount ? totalIncome / invoiceCount : 0))
+      };
+    }
+
+    function renderSummary(summary) {
+      currentSummary = normalizeSummary(summary);
+      totalIncomeEl.textContent = formatCurrency(currentSummary.totalIncome);
+      expensesAmountEl.textContent = formatCurrency(currentSummary.totalExpenses);
+      withdrawAmountEl.textContent = formatCurrency(currentSummary.totalWithdrawals);
+      netProfitEl.textContent = formatCurrency(currentSummary.netProfit);
+      totalClientsEl.textContent = formatNumber(currentSummary.totalClients);
+      invoiceCountEl.textContent = formatNumber(currentSummary.invoiceCount);
+      totalStaffSalesEl.textContent = formatCurrency(currentSummary.totalStaffSales);
+      averageInvoiceEl.textContent = formatCurrency(Math.round(currentSummary.averageInvoice));
+    }
+
+    async function loadStatement() {
+      const fromDate = fromDateInput.value;
+      const toDate = toDateInput.value;
+
+      if (!fromDate || !toDate) {
+        setStatus("Choose from date and to date.", "error");
+        return;
+      }
+
+      if (fromDate > toDate) {
+        setStatus("From date must be before to date.", "error");
+        return;
+      }
+
       try {
-        const parsed = JSON.parse(localStorage.getItem(key) || "null");
-        return Array.isArray(parsed) ? parsed : fallback;
+        setStatus("Loading income statement...");
+        const result = await RomeoApi.request({
+          action: "getIncomeStatementRange",
+          fromDate,
+          toDate
+        });
+
+        if (result.status !== "success") {
+          throw new Error(result.message || "Could not load income statement.");
+        }
+
+        renderSummary(result);
+        setStatus(`Showing numbers from ${fromDate} to ${toDate}.`, "success");
       } catch (error) {
-        return fallback;
+        console.error(error);
+        renderSummary({});
+        setStatus(error instanceof Error ? error.message : "Could not load income statement.", "error");
       }
     }
 
-    function refreshLocalTotals() {
-      const withdrawals = readStore(WITHDRAWALS_KEY, []);
-      const withdrawTotal = withdrawals.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-      totals.withdrawals = withdrawTotal;
-      withdrawAmountEl.textContent = `${formatCurrency(withdrawTotal)} EGP`;
-
-      const expenses = readStore(EXPENSES_KEY, []);
-      const expenseTotal = expenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-      totals.expenses = expenseTotal;
-      expensesAmountEl.textContent = `${formatCurrency(expenseTotal)} EGP`;
-
-      updateNetProfit();
+    function getMonthKey() {
+      return (fromDateInput.value || "").slice(0, 7);
     }
 
-    function updateNetProfit() {
-      const net = totals.income - totals.withdrawals - totals.expenses;
-      netProfitEl.textContent = `${formatCurrency(net)} EGP`;
+    function renderClosings(closings) {
+      if (!Array.isArray(closings) || closings.length === 0) {
+        monthlyClosingsBody.innerHTML = `<tr><td colspan="9">No monthly closings yet.</td></tr>`;
+        return;
+      }
+
+      monthlyClosingsBody.innerHTML = closings.map(closing => `
+        <tr>
+          <td>${closing.month || closing.monthKey || "-"}</td>
+          <td>${closing.fromDate || "-"}</td>
+          <td>${closing.toDate || "-"}</td>
+          <td>${formatCurrency(closing.totalIncome)}</td>
+          <td>${formatCurrency(closing.totalExpenses)}</td>
+          <td>${formatCurrency(closing.totalWithdrawals)}</td>
+          <td>${formatCurrency(closing.netProfit)}</td>
+          <td>${closing.closedBy || closing.actorDisplayName || "-"}</td>
+          <td>${closing.closedAt || "-"}</td>
+        </tr>
+      `).join("");
     }
 
-    async function fetchTotalClients() {
+    async function loadClosings() {
       try {
-        totalClientsEl.textContent = "Loading...";
-        const res = await fetch(API_URL, {
-          method: "POST",
-          body: JSON.stringify({ action: "totalClients" })
-        });
-        if (!res.ok) throw new Error("Connection error");
-        const data = await res.json();
-        if (data.status !== "success") {
-          throw new Error(data.message || "Failed to load total clients");
+        const result = await RomeoApi.request({ action: "getMonthlyClosings" });
+        if (result.status !== "success") {
+          throw new Error(result.message || "Could not load monthly closings.");
         }
-        const value = Number(data.totalClients || 0);
-        totalClientsEl.textContent = formatCurrency(value);
-      } catch (err) {
-        console.error(err);
-        totalClientsEl.textContent = err instanceof Error ? err.message : "Could not load";
+
+        renderClosings(result.closings || result.monthlyClosings || []);
+      } catch (error) {
+        console.error(error);
+        monthlyClosingsBody.innerHTML = `<tr><td colspan="9">${error instanceof Error ? error.message : "Could not load monthly closings."}</td></tr>`;
       }
     }
 
-    async function fetchTotalIncome() {
+    async function lockMonth() {
+      if (!isOwner) return;
+
+      const fromDate = fromDateInput.value;
+      const toDate = toDateInput.value;
+      const monthKey = getMonthKey();
+
+      if (!monthKey || !fromDate || !toDate) {
+        setStatus("Choose the month range before locking.", "error");
+        return;
+      }
+
+      const confirmed = confirm(`Lock month ${monthKey}? This should prevent edits before the closing date.`);
+      if (!confirmed) return;
+
       try {
-        totalIncomeEl.textContent = "Loading...";
-        const res = await fetch(API_URL, {
-          method: "POST",
-          body: JSON.stringify({ action: "totalIncome" })
+        setStatus("Locking month...");
+        const result = await RomeoApi.request({
+          action: "monthLock",
+          month: monthKey,
+          monthKey,
+          fromDate,
+          toDate,
+          summary: currentSummary
         });
-        if (!res.ok) throw new Error("Connection error");
-        const data = await res.json();
-        if (data.status !== "success") {
-          throw new Error(data.message || "Failed to load total income");
+
+        if (result.status !== "success") {
+          throw new Error(result.message || "Could not lock month.");
         }
-        const value = Number(data.totalIncome || 0);
-        totals.income = value;
-        totalIncomeEl.textContent = `${formatCurrency(value)} EGP`;
-        updateNetProfit();
-      } catch (err) {
-        console.error(err);
-        totalIncomeEl.textContent = err instanceof Error ? err.message : "Could not load";
+
+        setStatus(`Month ${monthKey} locked successfully.`, "success");
+        await loadClosings();
+      } catch (error) {
+        console.error(error);
+        setStatus(error instanceof Error ? error.message : "Could not lock month.", "error");
       }
     }
 
-    async function fetchTotalStaffSales() {
-      try {
-        totalStaffSalesEl.textContent = "Loading...";
-        const res = await fetch(API_URL, {
-          method: "POST",
-          body: JSON.stringify({ action: "totalStaffSales" })
-        });
-        if (!res.ok) throw new Error("Connection error");
-        const data = await res.json();
-        if (data.status !== "success") {
-          throw new Error(data.message || "Failed to load total staff sales");
-        }
-        const value = Number(data.totalStaffSales || 0);
-        totalStaffSalesEl.textContent = `${formatCurrency(value)} EGP`;
-      } catch (err) {
-        console.error(err);
-        totalStaffSalesEl.textContent = err instanceof Error ? err.message : "Could not load";
-      }
+    if (!isOwner) {
+      monthLockBtn.style.display = "none";
     }
-    refreshLocalTotals();
-    fetchTotalClients();
-    fetchTotalIncome();
-    fetchTotalStaffSales();
 
-    window.addEventListener("storage", event => {
-      if ([WITHDRAWALS_KEY, EXPENSES_KEY].includes(event.key)) {
-        refreshLocalTotals();
-      }
+    applyFilterBtn.addEventListener("click", loadStatement);
+    thisMonthBtn.addEventListener("click", () => {
+      setCurrentMonthRange();
+      loadStatement();
     });
-  </script>
-  <script src="keyboard-navigation.js"></script>
-  <script src="language.js"></script>
+    refreshClosingsBtn.addEventListener("click", loadClosings);
+    monthLockBtn.addEventListener("click", lockMonth);
+
+    setCurrentMonthRange();
+    renderSummary(currentSummary);
+    loadStatement();
+    loadClosings();
+</script>
+  <script src="assets/js/keyboard-navigation.js"></script>
+  <script src="assets/js/language.js"></script>
 </body>
 </html>
+
+
