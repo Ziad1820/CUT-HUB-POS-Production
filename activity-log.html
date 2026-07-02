@@ -380,6 +380,7 @@
     </section>
   </div>
 
+  <script src="assets/js/text-fix.js"></script>
   <script src="assets/js/api.js"></script>
   <script src="assets/js/auth.js"></script>
   <script src="assets/js/layout.js"></script>
@@ -408,22 +409,24 @@
     };
 
     const ACTION_LABELS = {
-      delete: { en: "Delete", ar: "Ã˜Â­Ã˜Â°Ã™Â" },
-      update: { en: "Update", ar: "Ã˜ÂªÃ˜Â¹Ã˜Â¯Ã™Å Ã™â€ž" },
-      create: { en: "Create", ar: "Ã˜Â¥Ã˜Â¶Ã˜Â§Ã™ÂÃ˜Â©" },
-      login: { en: "Login", ar: "Ã˜ÂªÃ˜Â³Ã˜Â¬Ã™Å Ã™â€ž Ã˜Â¯Ã˜Â®Ã™Ë†Ã™â€ž" },
-      logout: { en: "Logout", ar: "Ã˜ÂªÃ˜Â³Ã˜Â¬Ã™Å Ã™â€ž Ã˜Â®Ã˜Â±Ã™Ë†Ã˜Â¬" },
-      close_day: { en: "Day Closing", ar: "Ã˜ÂªÃ™â€šÃ™ÂÃ™Å Ã™â€žÃ˜Â© Ã™Å Ã™Ë†Ã™â€¦" },
-      system: { en: "System", ar: "Ã˜Â§Ã™â€žÃ™â€ Ã˜Â¸Ã˜Â§Ã™â€¦" }
+      delete: { en: "Delete", ar: "حذف" },
+      update: { en: "Update", ar: "تعديل" },
+      create: { en: "Create", ar: "إضافة" },
+      login: { en: "Login", ar: "تسجيل دخول" },
+      logout: { en: "Logout", ar: "تسجيل خروج" },
+      close_day: { en: "Day Closing", ar: "تقفيلة يوم" },
+      system: { en: "System", ar: "النظام" }
     };
 
     const ENTITY_LABELS = {
-      invoice: { en: "Invoice", ar: "Ã™ÂÃ˜Â§Ã˜ÂªÃ™Ë†Ã˜Â±Ã˜Â©" },
-      expense: { en: "Expense", ar: "Ã™â€¦Ã˜ÂµÃ˜Â±Ã™Ë†Ã™Â" },
-      withdrawal: { en: "Withdrawal", ar: "Ã˜Â³Ã˜Â­Ã˜Â¨" },
-      services: { en: "Services", ar: "Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â¯Ã™â€¦Ã˜Â§Ã˜Âª" },
-      user: { en: "User", ar: "Ã™â€¦Ã˜Â³Ã˜ÂªÃ˜Â®Ã˜Â¯Ã™â€¦" },
-      system: { en: "System", ar: "Ã˜Â§Ã™â€žÃ™â€ Ã˜Â¸Ã˜Â§Ã™â€¦" }
+      invoice: { en: "Invoice", ar: "فاتورة" },
+      expense: { en: "Expense", ar: "مصروف" },
+      withdrawal: { en: "Withdrawal", ar: "سحب" },
+      services: { en: "Services", ar: "الخدمات" },
+      user: { en: "User", ar: "مستخدم" },
+      system: { en: "System", ar: "النظام" },
+      monthly_closing: { en: "Monthly Closing", ar: "تقفيلة شهرية" },
+      daily_closing: { en: "Daily Closing", ar: "تقفيلة يومية" }
     };
 
     function currentLanguage() {
@@ -435,23 +438,53 @@
       return map[key] ? map[key][language] : (key || "-");
     }
 
+    function decodeText(value) {
+      const text = String(value || "").trim();
+      return window.__decodeText ? window.__decodeText(text) : text;
+    }
+
     function normalizeText(value) {
-      return String(value || "").trim().toLowerCase();
+      return decodeText(value).toLowerCase();
+    }
+
+    function normalizeAction(value) {
+      const text = normalizeText(value).replace(/[\s-]+/g, "_");
+      if (text.includes("delete") || text.includes("حذف")) return "delete";
+      if (text.includes("update") || text.includes("تعديل")) return "update";
+      if (text.includes("create") || text.includes("add") || text.includes("إضافة") || text.includes("اضافة")) return "create";
+      if (text.includes("logout") || text.includes("خروج")) return "logout";
+      if (text.includes("login") || text.includes("دخول")) return "login";
+      if (text.includes("close_day") || text.includes("day_closing") || text.includes("تقفيلة_يوم")) return "close_day";
+      if (text.includes("system") || text.includes("النظام")) return "system";
+      return text;
+    }
+
+    function normalizeEntityType(value) {
+      const text = normalizeText(value).replace(/[\s-]+/g, "_");
+      if (text.includes("invoice") || text.includes("فاتورة")) return "invoice";
+      if (text.includes("expense") || text.includes("مصروف")) return "expense";
+      if (text.includes("withdrawal") || text.includes("سحب")) return "withdrawal";
+      if (text.includes("service") || text.includes("الخدمات")) return "services";
+      if (text.includes("user") || text.includes("مستخدم")) return "user";
+      if (text.includes("monthly") || text.includes("month_lock") || text.includes("تقفيلة_شهر")) return "monthly_closing";
+      if (text.includes("daily") || text.includes("close_day") || text.includes("تقفيلة_يوم")) return "daily_closing";
+      if (text.includes("system") || text.includes("النظام")) return "system";
+      return text;
     }
 
     function normalizeLog(log, index) {
-      const action = normalizeText(log.action || log.type || log.actionType);
-      const entityType = normalizeText(log.entityType || log.entity || log.targetType);
+      const action = normalizeAction(log.action || log.type || log.actionType);
+      const entityType = normalizeEntityType(log.entityType || log.entity || log.targetType);
 
       return {
-        logId: String(log.logId || log.id || `LOG-${index + 1}`),
+        logId: decodeText(log.logId || log.id || `LOG-${index + 1}`),
         action,
         entityType,
-        entityId: String(log.entityId || log.targetId || ""),
-        userName: String(log.userName || log.username || log.user || "").trim(),
-        displayName: String(log.displayName || log.name || "").trim(),
-        details: String(log.details || log.description || log.message || "").trim(),
-        createdAt: String(log.createdAt || log.dateTime || log.timestamp || log.date || "").trim()
+        entityId: decodeText(log.entityId || log.targetId || ""),
+        userName: decodeText(log.userName || log.username || log.user || ""),
+        displayName: decodeText(log.displayName || log.name || ""),
+        details: decodeText(log.details || log.description || log.message || ""),
+        createdAt: decodeText(log.createdAt || log.dateTime || log.timestamp || log.date || "")
       };
     }
 
@@ -491,7 +524,7 @@
       renderMetrics();
 
       if (!state.filtered.length) {
-        setEmpty(currentLanguage() === "ar" ? "Ã™â€žÃ˜Â§ Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã˜Â¹Ã™â€¦Ã™â€žÃ™Å Ã˜Â§Ã˜Âª Ã™â€¦Ã˜Â·Ã˜Â§Ã˜Â¨Ã™â€šÃ˜Â© Ã™â€žÃ™â€žÃ™ÂÃ™â€žÃ˜Â§Ã˜ÂªÃ˜Â± Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â§Ã™â€žÃ™Å Ã˜Â©." : "No activity matches the current filters.");
+        setEmpty(currentLanguage() === "ar" ? "لا توجد عمليات مطابقة للفلاتر الحالية." : "No activity matches the current filters.");
         return;
       }
 
@@ -544,7 +577,7 @@
     }
 
     async function loadLogs() {
-      setEmpty(currentLanguage() === "ar" ? "Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž Ã˜Â³Ã˜Â¬Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€žÃ™Å Ã˜Â§Ã˜Âª..." : "Loading activity log...");
+      setEmpty(currentLanguage() === "ar" ? "جاري تحميل سجل العمليات..." : "Loading activity log...");
 
       try {
         const response = await RomeoApi.request({ action: "getActivityLogs" });
@@ -561,7 +594,7 @@
         renderMetrics();
         setEmpty(
           currentLanguage() === "ar"
-            ? "Ã˜ÂµÃ™ÂÃ˜Â­Ã˜Â© Ã˜Â³Ã˜Â¬Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€žÃ™Å Ã˜Â§Ã˜Âª Ã˜Â¬Ã˜Â§Ã™â€¡Ã˜Â²Ã˜Â©. Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â·Ã™Ë†Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â¬Ã˜Â§Ã™Å Ã˜Â© Ã™â€ Ã˜Â¶Ã™Å Ã™Â action Ã˜Â¨Ã˜Â§Ã˜Â³Ã™â€¦ getActivityLogs Ã™ÂÃ™Å  App Script Ã™Ë†Ã™â€ Ã™â€ Ã˜Â´Ã˜Â¦ Ã˜Â´Ã™Å Ã˜Âª ACTIVITY_LOG."
+            ? "صفحة سجل العمليات جاهزة. الخطوة الجاية نضيف action باسم getActivityLogs في App Script وننشئ شيت ACTIVITY_LOG."
             : "Activity Log page is ready. Next, add a getActivityLogs action in App Script and create an ACTIVITY_LOG sheet."
         );
       }

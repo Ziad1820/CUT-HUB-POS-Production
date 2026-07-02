@@ -73,7 +73,7 @@
   }
 
   function getDashboardLabel() {
-    return getLanguage() === "en" ? "Dashboard" : "Ù„ÙˆØ­Ø© Ø§Ù„ØªØ­ÙƒÙ…";
+    return getLanguage() === "en" ? "Dashboard" : "لوحة التحكم";
   }
 
   function ensureDashboardLink() {
