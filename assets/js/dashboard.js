@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   const currentUser = typeof RomeoAuth !== "undefined" ? RomeoAuth.requireAuth() : null;
   if (!currentUser) return;
 
@@ -13,48 +13,48 @@
 
   const LABELS = {
     ar: {
-      live: "لوحة متابعة مباشرة",
-      subtitle: "نظرة سريعة على مبيعات اليوم والعملاء والصافي وأداء الصنايعية.",
-      today: "اليوم",
-      hide: "إخفاء الأرقام",
-      show: "إظهار الأرقام",
-      todayInvoices: "عدد فواتير اليوم",
-      todayCustomers: "عدد عملاء اليوم",
-      todaySales: "إجمالي مبيعات اليوم",
-      averageInvoice: "متوسط الفاتورة",
-      staffToday: "أداء الصنايعية اليوم",
-      bestBarber: "أفضل صنايعي اليوم",
-      barber: "الصنايعي",
-      customers: "العملاء",
-      sales: "المبيعات",
-      yesterdayCompare: "مقارنة بالأمس",
-      yesterday: "أمس",
-      invoices: "الفواتير",
-      cashFlow: "المصروفات والسحوبات",
-      expensesToday: "مصروفات اليوم",
-      withdrawalsToday: "سحوبات اليوم",
-      netToday: "صافي اليوم",
-      noData: "لا توجد بيانات لليوم حتى الآن.",
-      loading: "جاري تحميل أرقام الداشبورد...",
-      error: "تعذر تحميل بيانات الداشبورد.",
-      menu: "القائمة",
-      dashboard: "لوحة التحكم",
-      cashier: "الكاشير",
-      invoicesPage: "الفواتير",
-      income: "قائمة الدخل",
-      analysis: "تحليل البيانات",
-      closing: "تقفيلة اليوم",
-      activity: "سجل العمليات",
-      staffAccounting: "حسابات الموظفين",
-      access: "صلاحيات النظام",
-      withdrawals: "السحوبات",
-      expenses: "المصروفات",
-      inventory: "المخزون",
-      staffDiscount: "خصومات الموظفين",
-      attendance: "الحضور",
-      bookings: "الحجوزات",
-      language: "اللغة",
-      logout: "تسجيل الخروج"
+      live: "Ù„ÙˆØ­Ø© Ù…ØªØ§Ø¨Ø¹Ø© Ù…Ø¨Ø§Ø´Ø±Ø©",
+      subtitle: "Ù†Ø¸Ø±Ø© Ø³Ø±ÙŠØ¹Ø© Ø¹Ù„Ù‰ Ù…Ø¨ÙŠØ¹Ø§Øª Ø§Ù„ÙŠÙˆÙ… ÙˆØ§Ù„Ø¹Ù…Ù„Ø§Ø¡ ÙˆØ§Ù„ØµØ§ÙÙŠ ÙˆØ£Ø¯Ø§Ø¡ Ø§Ù„ØµÙ†Ø§ÙŠØ¹ÙŠØ©.",
+      today: "Ø§Ù„ÙŠÙˆÙ…",
+      hide: "Ø¥Ø®ÙØ§Ø¡ Ø§Ù„Ø£Ø±Ù‚Ø§Ù…",
+      show: "Ø¥Ø¸Ù‡Ø§Ø± Ø§Ù„Ø£Ø±Ù‚Ø§Ù…",
+      todayInvoices: "Ø¹Ø¯Ø¯ ÙÙˆØ§ØªÙŠØ± Ø§Ù„ÙŠÙˆÙ…",
+      todayCustomers: "Ø¹Ø¯Ø¯ Ø¹Ù…Ù„Ø§Ø¡ Ø§Ù„ÙŠÙˆÙ…",
+      todaySales: "Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ù…Ø¨ÙŠØ¹Ø§Øª Ø§Ù„ÙŠÙˆÙ…",
+      averageInvoice: "Ù…ØªÙˆØ³Ø· Ø§Ù„ÙØ§ØªÙˆØ±Ø©",
+      staffToday: "Ø£Ø¯Ø§Ø¡ Ø§Ù„ØµÙ†Ø§ÙŠØ¹ÙŠØ© Ø§Ù„ÙŠÙˆÙ…",
+      bestBarber: "Ø£ÙØ¶Ù„ ØµÙ†Ø§ÙŠØ¹ÙŠ Ø§Ù„ÙŠÙˆÙ…",
+      barber: "Ø§Ù„ØµÙ†Ø§ÙŠØ¹ÙŠ",
+      customers: "Ø§Ù„Ø¹Ù…Ù„Ø§Ø¡",
+      sales: "Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª",
+      yesterdayCompare: "Ù…Ù‚Ø§Ø±Ù†Ø© Ø¨Ø§Ù„Ø£Ù…Ø³",
+      yesterday: "Ø£Ù…Ø³",
+      invoices: "Ø§Ù„ÙÙˆØ§ØªÙŠØ±",
+      cashFlow: "Ø§Ù„Ù…ØµØ±ÙˆÙØ§Øª ÙˆØ§Ù„Ø³Ø­ÙˆØ¨Ø§Øª",
+      expensesToday: "Ù…ØµØ±ÙˆÙØ§Øª Ø§Ù„ÙŠÙˆÙ…",
+      withdrawalsToday: "Ø³Ø­ÙˆØ¨Ø§Øª Ø§Ù„ÙŠÙˆÙ…",
+      netToday: "ØµØ§ÙÙŠ Ø§Ù„ÙŠÙˆÙ…",
+      noData: "Ù„Ø§ ØªÙˆØ¬Ø¯ Ø¨ÙŠØ§Ù†Ø§Øª Ù„Ù„ÙŠÙˆÙ… Ø­ØªÙ‰ Ø§Ù„Ø¢Ù†.",
+      loading: "Ø¬Ø§Ø±ÙŠ ØªØ­Ù…ÙŠÙ„ Ø£Ø±Ù‚Ø§Ù… Ø§Ù„Ø¯Ø§Ø´Ø¨ÙˆØ±Ø¯...",
+      error: "ØªØ¹Ø°Ø± ØªØ­Ù…ÙŠÙ„ Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ø¯Ø§Ø´Ø¨ÙˆØ±Ø¯.",
+      menu: "Ø§Ù„Ù‚Ø§Ø¦Ù…Ø©",
+      dashboard: "Ù„ÙˆØ­Ø© Ø§Ù„ØªØ­ÙƒÙ…",
+      cashier: "Ø§Ù„ÙƒØ§Ø´ÙŠØ±",
+      invoicesPage: "Ø§Ù„ÙÙˆØ§ØªÙŠØ±",
+      income: "Ù‚Ø§Ø¦Ù…Ø© Ø§Ù„Ø¯Ø®Ù„",
+      analysis: "ØªØ­Ù„ÙŠÙ„ Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª",
+      closing: "ØªÙ‚ÙÙŠÙ„Ø© Ø§Ù„ÙŠÙˆÙ…",
+      activity: "Ø³Ø¬Ù„ Ø§Ù„Ø¹Ù…Ù„ÙŠØ§Øª",
+      staffAccounting: "Ø­Ø³Ø§Ø¨Ø§Øª Ø§Ù„Ù…ÙˆØ¸ÙÙŠÙ†",
+      access: "ØµÙ„Ø§Ø­ÙŠØ§Øª Ø§Ù„Ù†Ø¸Ø§Ù…",
+      withdrawals: "Ø§Ù„Ø³Ø­ÙˆØ¨Ø§Øª",
+      expenses: "Ø§Ù„Ù…ØµØ±ÙˆÙØ§Øª",
+      inventory: "Ø§Ù„Ù…Ø®Ø²ÙˆÙ†",
+      staffDiscount: "Ø®ØµÙˆÙ…Ø§Øª Ø§Ù„Ù…ÙˆØ¸ÙÙŠÙ†",
+      attendance: "Ø§Ù„Ø­Ø¶ÙˆØ±",
+      bookings: "Ø§Ù„Ø­Ø¬ÙˆØ²Ø§Øª",
+      language: "Ø§Ù„Ù„ØºØ©",
+      logout: "ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø®Ø±ÙˆØ¬"
     },
     en: {
       live: "Live dashboard",
@@ -405,7 +405,7 @@ function getInvoicesForDate(invoices, dateKey) {
     if (sidebar) {
       const sidebarLabels = [
         ["dashboard.html", t("dashboard")],
-        ["index.html", t("cashier")],
+        ["cashier.html", t("cashier")],
         ["invoices.html", t("invoicesPage")],
         ["income-statement.html", t("income")],
         ["data-analysis.html", t("analysis")],
@@ -541,7 +541,7 @@ function getInvoicesForDate(invoices, dateKey) {
       menu.className = "dashboard-language-menu";
       menu.innerHTML = `
         <div class="language-menu-options">
-          <button type="button" data-language-choice="ar">عربي</button>
+          <button type="button" data-language-choice="ar">Ø¹Ø±Ø¨ÙŠ</button>
           <button type="button" data-language-choice="en">English</button>
         </div>
       `;
@@ -698,3 +698,4 @@ async function loadDashboard() {
   renderLanguageMenu();
   loadDashboard();
 })();
+

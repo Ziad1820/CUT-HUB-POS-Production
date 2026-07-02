@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
@@ -464,7 +464,7 @@
   <div class="app">
     <div class="header">
       <div class="header-menu">
-        <button type="button" class="menu-toggle" id="menuToggle">â‹¯</button>
+        <button type="button" class="menu-toggle" id="menuToggle">Ã¢â€¹Â¯</button>
       </div>
       <div class="brand-lockup">
         <img class="brand-logo" src="salonix-logo.svg" alt="SALONIX logo">
@@ -493,7 +493,7 @@
         <section class="panel hero">
           <div>
             <h2 id="employeeTitle">Select Staff</h2>
-            <p id="employeeSubtitle">Ù„Ù…Ø§ ØªØ®ØªØ§Ø± Ù…ÙˆØ¸ÙØŒ Ù‡ØªØ¸Ù‡Ø± Ù‡Ù†Ø§ ØªÙØ§ØµÙŠÙ„ Ø­Ø³Ø§Ø¨Ù‡ ÙƒØ§Ù…Ù„Ø© ÙˆØµØ§ÙÙŠ Ù…Ø³ØªØ­Ù‚Ø§ØªÙ‡.</p>
+            <p id="employeeSubtitle">Ã™â€žÃ™â€¦Ã˜Â§ Ã˜ÂªÃ˜Â®Ã˜ÂªÃ˜Â§Ã˜Â± Ã™â€¦Ã™Ë†Ã˜Â¸Ã™ÂÃ˜Å’ Ã™â€¡Ã˜ÂªÃ˜Â¸Ã™â€¡Ã˜Â± Ã™â€¡Ã™â€ Ã˜Â§ Ã˜ÂªÃ™ÂÃ˜Â§Ã˜ÂµÃ™Å Ã™â€ž Ã˜Â­Ã˜Â³Ã˜Â§Ã˜Â¨Ã™â€¡ Ã™Æ’Ã˜Â§Ã™â€¦Ã™â€žÃ˜Â© Ã™Ë†Ã˜ÂµÃ˜Â§Ã™ÂÃ™Å  Ã™â€¦Ã˜Â³Ã˜ÂªÃ˜Â­Ã™â€šÃ˜Â§Ã˜ÂªÃ™â€¡.</p>
           </div>
           <div class="hero-badge" id="employeeCode">--</div>
         </section>
@@ -589,7 +589,7 @@
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
   <aside class="sidebar" id="sidebar">
     <h3>Menu</h3>
-    <button class="sidebar-link" type="button" data-href="index.html" data-permission="access_cashier">cashier</button>
+    <button class="sidebar-link" type="button" data-href="cashier.html" data-permission="access_cashier">cashier</button>
     <button class="sidebar-link" type="button" data-href="invoices.html">invoices</button>
     <button class="sidebar-link" type="button" data-href="income-statement.html" data-permission="view_income_statement">income statement</button>
     <button class="sidebar-link" type="button" data-href="daily-closing.html" data-permission="view_income_statement">daily closing</button>
@@ -764,7 +764,7 @@
         }
       } catch (error) {
         console.warn("Staff sheet save is not available yet.", error);
-        alert(`تعذر حفظ الموظفين في الشيت: ${error.message}`);
+        alert(`ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„Ù…ÙˆØ¸ÙÙŠÙ† ÙÙŠ Ø§Ù„Ø´ÙŠØª: ${error.message}`);
       }
     }
 
@@ -859,12 +859,12 @@
 
         if (!response.ok) {
           const errorText = await response.text();
-          throw new Error(errorText || `Ø®Ø·Ø£ ÙÙŠ ØªØ­Ù…ÙŠÙ„ Ø¹Ø¯Ø¯ Ø§Ù„Ø¹Ù…Ù„Ø§Ø¡ (${response.status})`);
+          throw new Error(errorText || `Ã˜Â®Ã˜Â·Ã˜Â£ Ã™ÂÃ™Å  Ã˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž Ã˜Â¹Ã˜Â¯Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€žÃ˜Â§Ã˜Â¡ (${response.status})`);
         }
 
         const data = await response.json();
         if (data.status !== "success") {
-          throw new Error(data.message || "ØªØ¹Ø°Ø± ØªØ­Ù…ÙŠÙ„ Ø¹Ø¯Ø¯ Ø§Ù„Ø¹Ù…Ù„Ø§Ø¡");
+          throw new Error(data.message || "Ã˜ÂªÃ˜Â¹Ã˜Â°Ã˜Â± Ã˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž Ã˜Â¹Ã˜Â¯Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€žÃ˜Â§Ã˜Â¡");
         }
 
         if (requestId === staffClientRequestId && selectedId === staff.id) {
@@ -954,7 +954,7 @@
 
       if (!staff) {
         elements.employeeTitle.textContent = "No Staff Selected";
-        elements.employeeSubtitle.textContent = "Ø£Ø¶Ù Ù…ÙˆØ¸Ù Ø¬Ø¯ÙŠØ¯ Ø¹Ø´Ø§Ù† ØªØ¨Ø¯Ø£.";
+        elements.employeeSubtitle.textContent = "Ã˜Â£Ã˜Â¶Ã™Â Ã™â€¦Ã™Ë†Ã˜Â¸Ã™Â Ã˜Â¬Ã˜Â¯Ã™Å Ã˜Â¯ Ã˜Â¹Ã˜Â´Ã˜Â§Ã™â€  Ã˜ÂªÃ˜Â¨Ã˜Â¯Ã˜Â£.";
         elements.employeeCode.textContent = "--";
         Object.entries(elements.fields).forEach(([key, input]) => {
           if (key === "isBarber") {
@@ -977,7 +977,7 @@
 
       deleteBtn.disabled = false;
       elements.employeeTitle.textContent = staff.name;
-      elements.employeeSubtitle.textContent = `ØªÙØ§ØµÙŠÙ„ Ø­Ø³Ø§Ø¨ ${staff.name} Ø§Ù„Ø­Ø§Ù„ÙŠØ©.`;
+      elements.employeeSubtitle.textContent = `Ã˜ÂªÃ™ÂÃ˜Â§Ã˜ÂµÃ™Å Ã™â€ž Ã˜Â­Ã˜Â³Ã˜Â§Ã˜Â¨ ${staff.name} Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â§Ã™â€žÃ™Å Ã˜Â©.`;
       elements.employeeCode.textContent = staff.code;
       elements.fields.name.value = staff.name;
       elements.fields.code.value = staff.code;
@@ -1025,10 +1025,10 @@
     }
 
     async function addStaff() {
-      const name = prompt("Ø§ÙƒØªØ¨ Ø§Ø³Ù… Ø§Ù„Ù…ÙˆØ¸Ù");
+      const name = prompt("Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã˜Â§Ã˜Â³Ã™â€¦ Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â¸Ã™Â");
       if (!name) return;
 
-      const code = prompt("Ø§ÙƒØªØ¨ ÙƒÙˆØ¯ Ø§Ù„Ù…ÙˆØ¸Ù", `R${String(staffList.length + 1).padStart(2, "0")}`);
+      const code = prompt("Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã™Æ’Ã™Ë†Ã˜Â¯ Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â¸Ã™Â", `R${String(staffList.length + 1).padStart(2, "0")}`);
       if (!code) return;
 
       const newStaff = {
@@ -1053,7 +1053,7 @@
     }
 
     async function resetData() {
-      if (!confirm("ØªØ±Ø¬Ø¹ ØµÙØ­Ø© Ø§Ù„Ù…ÙˆØ¸ÙÙŠÙ† Ù„Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ø¨Ø¯Ø§ÙŠØ©ØŸ")) {
+      if (!confirm("Ã˜ÂªÃ˜Â±Ã˜Â¬Ã˜Â¹ Ã˜ÂµÃ™ÂÃ˜Â­Ã˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â¸Ã™ÂÃ™Å Ã™â€  Ã™â€žÃ˜Â¨Ã™Å Ã˜Â§Ã™â€ Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â¨Ã˜Â¯Ã˜Â§Ã™Å Ã˜Â©Ã˜Å¸")) {
         return;
       }
 
@@ -1069,7 +1069,7 @@
         return;
       }
 
-      if (!confirm(`ØªØ­Ø°Ù Ø§Ù„Ù…ÙˆØ¸Ù ${staff.name}ØŸ`)) {
+      if (!confirm(`Ã˜ÂªÃ˜Â­Ã˜Â°Ã™Â Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â¸Ã™Â ${staff.name}Ã˜Å¸`)) {
         return;
       }
 
@@ -1117,6 +1117,7 @@
   <script src="assets/js/language.js"></script>
 </body>
 </html>
+
 
 
 

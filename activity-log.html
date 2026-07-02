@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
@@ -294,7 +294,7 @@
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
     <aside class="sidebar" id="sidebar">
       <h3>Menu</h3>
-      <button class="sidebar-link" type="button" data-href="index.html" data-permission="access_cashier">Cashier</button>
+      <button class="sidebar-link" type="button" data-href="cashier.html" data-permission="access_cashier">Cashier</button>
       <button class="sidebar-link" type="button" data-href="invoices.html">Invoices</button>
       <button class="sidebar-link" type="button" data-href="income-statement.html" data-permission="view_income_statement">Income Statement</button>
       <button class="sidebar-link" type="button" data-href="daily-closing.html" data-permission="view_income_statement">daily closing</button>
@@ -408,22 +408,22 @@
     };
 
     const ACTION_LABELS = {
-      delete: { en: "Delete", ar: "Ø­Ø°Ù" },
-      update: { en: "Update", ar: "ØªØ¹Ø¯ÙŠÙ„" },
-      create: { en: "Create", ar: "Ø¥Ø¶Ø§ÙØ©" },
-      login: { en: "Login", ar: "ØªØ³Ø¬ÙŠÙ„ Ø¯Ø®ÙˆÙ„" },
-      logout: { en: "Logout", ar: "ØªØ³Ø¬ÙŠÙ„ Ø®Ø±ÙˆØ¬" },
-      close_day: { en: "Day Closing", ar: "ØªÙ‚ÙÙŠÙ„Ø© ÙŠÙˆÙ…" },
-      system: { en: "System", ar: "Ø§Ù„Ù†Ø¸Ø§Ù…" }
+      delete: { en: "Delete", ar: "Ã˜Â­Ã˜Â°Ã™Â" },
+      update: { en: "Update", ar: "Ã˜ÂªÃ˜Â¹Ã˜Â¯Ã™Å Ã™â€ž" },
+      create: { en: "Create", ar: "Ã˜Â¥Ã˜Â¶Ã˜Â§Ã™ÂÃ˜Â©" },
+      login: { en: "Login", ar: "Ã˜ÂªÃ˜Â³Ã˜Â¬Ã™Å Ã™â€ž Ã˜Â¯Ã˜Â®Ã™Ë†Ã™â€ž" },
+      logout: { en: "Logout", ar: "Ã˜ÂªÃ˜Â³Ã˜Â¬Ã™Å Ã™â€ž Ã˜Â®Ã˜Â±Ã™Ë†Ã˜Â¬" },
+      close_day: { en: "Day Closing", ar: "Ã˜ÂªÃ™â€šÃ™ÂÃ™Å Ã™â€žÃ˜Â© Ã™Å Ã™Ë†Ã™â€¦" },
+      system: { en: "System", ar: "Ã˜Â§Ã™â€žÃ™â€ Ã˜Â¸Ã˜Â§Ã™â€¦" }
     };
 
     const ENTITY_LABELS = {
-      invoice: { en: "Invoice", ar: "ÙØ§ØªÙˆØ±Ø©" },
-      expense: { en: "Expense", ar: "Ù…ØµØ±ÙˆÙ" },
-      withdrawal: { en: "Withdrawal", ar: "Ø³Ø­Ø¨" },
-      services: { en: "Services", ar: "Ø§Ù„Ø®Ø¯Ù…Ø§Øª" },
-      user: { en: "User", ar: "Ù…Ø³ØªØ®Ø¯Ù…" },
-      system: { en: "System", ar: "Ø§Ù„Ù†Ø¸Ø§Ù…" }
+      invoice: { en: "Invoice", ar: "Ã™ÂÃ˜Â§Ã˜ÂªÃ™Ë†Ã˜Â±Ã˜Â©" },
+      expense: { en: "Expense", ar: "Ã™â€¦Ã˜ÂµÃ˜Â±Ã™Ë†Ã™Â" },
+      withdrawal: { en: "Withdrawal", ar: "Ã˜Â³Ã˜Â­Ã˜Â¨" },
+      services: { en: "Services", ar: "Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â¯Ã™â€¦Ã˜Â§Ã˜Âª" },
+      user: { en: "User", ar: "Ã™â€¦Ã˜Â³Ã˜ÂªÃ˜Â®Ã˜Â¯Ã™â€¦" },
+      system: { en: "System", ar: "Ã˜Â§Ã™â€žÃ™â€ Ã˜Â¸Ã˜Â§Ã™â€¦" }
     };
 
     function currentLanguage() {
@@ -491,7 +491,7 @@
       renderMetrics();
 
       if (!state.filtered.length) {
-        setEmpty(currentLanguage() === "ar" ? "Ù„Ø§ ØªÙˆØ¬Ø¯ Ø¹Ù…Ù„ÙŠØ§Øª Ù…Ø·Ø§Ø¨Ù‚Ø© Ù„Ù„ÙÙ„Ø§ØªØ± Ø§Ù„Ø­Ø§Ù„ÙŠØ©." : "No activity matches the current filters.");
+        setEmpty(currentLanguage() === "ar" ? "Ã™â€žÃ˜Â§ Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã˜Â¹Ã™â€¦Ã™â€žÃ™Å Ã˜Â§Ã˜Âª Ã™â€¦Ã˜Â·Ã˜Â§Ã˜Â¨Ã™â€šÃ˜Â© Ã™â€žÃ™â€žÃ™ÂÃ™â€žÃ˜Â§Ã˜ÂªÃ˜Â± Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â§Ã™â€žÃ™Å Ã˜Â©." : "No activity matches the current filters.");
         return;
       }
 
@@ -544,7 +544,7 @@
     }
 
     async function loadLogs() {
-      setEmpty(currentLanguage() === "ar" ? "Ø¬Ø§Ø±ÙŠ ØªØ­Ù…ÙŠÙ„ Ø³Ø¬Ù„ Ø§Ù„Ø¹Ù…Ù„ÙŠØ§Øª..." : "Loading activity log...");
+      setEmpty(currentLanguage() === "ar" ? "Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž Ã˜Â³Ã˜Â¬Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€žÃ™Å Ã˜Â§Ã˜Âª..." : "Loading activity log...");
 
       try {
         const response = await RomeoApi.request({ action: "getActivityLogs" });
@@ -561,7 +561,7 @@
         renderMetrics();
         setEmpty(
           currentLanguage() === "ar"
-            ? "ØµÙØ­Ø© Ø³Ø¬Ù„ Ø§Ù„Ø¹Ù…Ù„ÙŠØ§Øª Ø¬Ø§Ù‡Ø²Ø©. Ø§Ù„Ø®Ø·ÙˆØ© Ø§Ù„Ø¬Ø§ÙŠØ© Ù†Ø¶ÙŠÙ action Ø¨Ø§Ø³Ù… getActivityLogs ÙÙŠ App Script ÙˆÙ†Ù†Ø´Ø¦ Ø´ÙŠØª ACTIVITY_LOG."
+            ? "Ã˜ÂµÃ™ÂÃ˜Â­Ã˜Â© Ã˜Â³Ã˜Â¬Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€žÃ™Å Ã˜Â§Ã˜Âª Ã˜Â¬Ã˜Â§Ã™â€¡Ã˜Â²Ã˜Â©. Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â·Ã™Ë†Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â¬Ã˜Â§Ã™Å Ã˜Â© Ã™â€ Ã˜Â¶Ã™Å Ã™Â action Ã˜Â¨Ã˜Â§Ã˜Â³Ã™â€¦ getActivityLogs Ã™ÂÃ™Å  App Script Ã™Ë†Ã™â€ Ã™â€ Ã˜Â´Ã˜Â¦ Ã˜Â´Ã™Å Ã˜Âª ACTIVITY_LOG."
             : "Activity Log page is ready. Next, add a getActivityLogs action in App Script and create an ACTIVITY_LOG sheet."
         );
       }
@@ -578,5 +578,6 @@
   </script>
 </body>
 </html>
+
 
 

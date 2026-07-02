@@ -1,7 +1,7 @@
-(function () {
+﻿(function () {
   const SIDEBAR_ORDER = [
     "dashboard.html",
-    "index.html",
+    "cashier.html",
     "invoices.html",
     "income-statement.html",
     "data-analysis.html",
@@ -21,7 +21,7 @@
 
   const SIDEBAR_PERMISSIONS = {
     "dashboard.html": "access_cashier",
-    "index.html": "access_cashier",
+    "cashier.html": "access_cashier",
     "invoices.html": "view_invoices",
     "income-statement.html": "view_income_statement",
     "daily-closing.html": "view_daily_closing",
@@ -42,28 +42,28 @@
     if (href) return href;
 
     if (item.classList.contains("active")) {
-      const currentPage = window.location.pathname.split("/").pop() || "index.html";
+      const currentPage = window.location.pathname.split("/").pop() || "dashboard.html";
       return currentPage;
     }
 
     const text = String(item.textContent || "").trim().toLowerCase();
-    if (text.includes("dashboard") || text.includes("لوحة التحكم")) return "dashboard.html";
-    if (text.includes("cashier") || text.includes("الكاشير")) return "index.html";
-    if (text.includes("invoice") || text.includes("الفواتير")) return "invoices.html";
-    if (text.includes("income statement") || text.includes("قائمة الدخل")) return "income-statement.html";
-    if (text.includes("data analysis") || text.includes("تحليل البيانات")) return "data-analysis.html";
-    if (text.includes("daily closing") || text.includes("تقفيلة اليوم")) return "daily-closing.html";
-    if (text.includes("activity log") || text.includes("سجل العمليات")) return "activity-log.html";
-    if (text.includes("staff accounting") || text.includes("حسابات الموظفين")) return "staff-accounting.html";
-    if (text.includes("system access") || text.includes("صلاحيات النظام")) return "system-access.html";
-    if (text.includes("withdrawal") || text.includes("السحوبات")) return "withdrawals.html";
-    if (text.includes("expense") || text.includes("المصروفات")) return "expenses.html";
-    if (text.includes("inventory") || text.includes("enventory") || text.includes("المخزون")) return "enventory.html";
-    if (text.includes("staff discount") || text.includes("خصومات الموظفين")) return "staff-discount.html";
-    if (text.includes("attendance") || text.includes("الحضور")) return "attendance.html";
-    if (text.includes("booking") || text.includes("الحجوزات")) return "bookings.html";
-    if (text.includes("logout") || text.includes("تسجيل الخروج")) return "logout";
-    if (text.includes("language") || text.includes("اللغة")) return "language";
+    if (text.includes("dashboard") || text.includes("Ù„ÙˆØ­Ø© Ø§Ù„ØªØ­ÙƒÙ…")) return "dashboard.html";
+    if (text.includes("cashier") || text.includes("Ø§Ù„ÙƒØ§Ø´ÙŠØ±")) return "cashier.html";
+    if (text.includes("invoice") || text.includes("Ø§Ù„ÙÙˆØ§ØªÙŠØ±")) return "invoices.html";
+    if (text.includes("income statement") || text.includes("Ù‚Ø§Ø¦Ù…Ø© Ø§Ù„Ø¯Ø®Ù„")) return "income-statement.html";
+    if (text.includes("data analysis") || text.includes("ØªØ­Ù„ÙŠÙ„ Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª")) return "data-analysis.html";
+    if (text.includes("daily closing") || text.includes("ØªÙ‚ÙÙŠÙ„Ø© Ø§Ù„ÙŠÙˆÙ…")) return "daily-closing.html";
+    if (text.includes("activity log") || text.includes("Ø³Ø¬Ù„ Ø§Ù„Ø¹Ù…Ù„ÙŠØ§Øª")) return "activity-log.html";
+    if (text.includes("staff accounting") || text.includes("Ø­Ø³Ø§Ø¨Ø§Øª Ø§Ù„Ù…ÙˆØ¸ÙÙŠÙ†")) return "staff-accounting.html";
+    if (text.includes("system access") || text.includes("ØµÙ„Ø§Ø­ÙŠØ§Øª Ø§Ù„Ù†Ø¸Ø§Ù…")) return "system-access.html";
+    if (text.includes("withdrawal") || text.includes("Ø§Ù„Ø³Ø­ÙˆØ¨Ø§Øª")) return "withdrawals.html";
+    if (text.includes("expense") || text.includes("Ø§Ù„Ù…ØµØ±ÙˆÙØ§Øª")) return "expenses.html";
+    if (text.includes("inventory") || text.includes("enventory") || text.includes("Ø§Ù„Ù…Ø®Ø²ÙˆÙ†")) return "enventory.html";
+    if (text.includes("staff discount") || text.includes("Ø®ØµÙˆÙ…Ø§Øª Ø§Ù„Ù…ÙˆØ¸ÙÙŠÙ†")) return "staff-discount.html";
+    if (text.includes("attendance") || text.includes("Ø§Ù„Ø­Ø¶ÙˆØ±")) return "attendance.html";
+    if (text.includes("booking") || text.includes("Ø§Ù„Ø­Ø¬ÙˆØ²Ø§Øª")) return "bookings.html";
+    if (text.includes("logout") || text.includes("ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø®Ø±ÙˆØ¬")) return "logout";
+    if (text.includes("language") || text.includes("Ø§Ù„Ù„ØºØ©")) return "language";
 
     return text;
   }
@@ -73,7 +73,7 @@
   }
 
   function getDashboardLabel() {
-    return getLanguage() === "en" ? "Dashboard" : "لوحة التحكم";
+    return getLanguage() === "en" ? "Dashboard" : "Ù„ÙˆØ­Ø© Ø§Ù„ØªØ­ÙƒÙ…";
   }
 
   function ensureDashboardLink() {
@@ -132,7 +132,7 @@
   function protectCurrentPage() {
     if (!window.RomeoAuth || typeof RomeoAuth.requireAuth !== "function") return;
 
-    const currentPage = window.location.pathname.split("/").pop() || "index.html";
+    const currentPage = window.location.pathname.split("/").pop() || "dashboard.html";
     const permission = SIDEBAR_PERMISSIONS[currentPage];
 
     if (permission) {
@@ -208,3 +208,4 @@
     normalizeSidebarOrder
   };
 })();
+
