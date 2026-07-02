@@ -102,6 +102,7 @@
     const normalizeServiceName = value => decodeArabicMojibake(String(value || ""))
       .replace(/\s+/g, " ")
       .trim();
+    const normalizedMainHairServiceName = normalizeServiceName(mainHairServiceName);
     availableServices = availableServices.map(service => ({
       ...service,
       name: normalizeServiceName(service.name)
@@ -394,7 +395,7 @@
     }
 
     function getPremiumExtra() {
-      return getSelectedOfferType() === "Ã˜Â¨Ã˜Â±Ã™Å Ã™â€¦Ã™Å Ã™Ë†Ã™â€¦" ? premiumOfferExtra : 0;
+      return document.getElementById("premiumOffer")?.checked ? premiumOfferExtra : 0;
     }
 
     function getSelectedOfferType() {
@@ -438,7 +439,7 @@
 
     function getHairOfferType() {
       const { eligibleItems } = splitCartByHairOfferRules();
-      const hasMainHairService = eligibleItems.some(item => normalizeServiceName(item.name) === mainHairServiceName);
+      const hasMainHairService = eligibleItems.some(item => normalizeServiceName(item.name) === normalizedMainHairServiceName);
       const eligibleCount = eligibleItems.length;
 
       if (!hasMainHairService) {

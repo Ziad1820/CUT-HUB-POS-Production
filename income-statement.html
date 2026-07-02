@@ -274,6 +274,35 @@
       font-size: 24px;
     }
 
+    .closing-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .danger {
+      background: #ba3a2c !important;
+      color: #fff !important;
+    }
+
+    .mini-btn {
+      border: none;
+      border-radius: 12px;
+      padding: 9px 12px;
+      background: #ead9bd;
+      color: var(--ink);
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .closing-check {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent-dark);
+      cursor: pointer;
+    }
+
     .table-wrap {
       overflow-x: auto;
       border: 1px solid var(--border);
@@ -402,11 +431,15 @@
     <section class="summary-card">
       <div class="section-title">
         <h2>Previous Monthly Closings</h2>
+        <div class="closing-actions">
+          <button type="button" class="danger" id="deleteSelectedClosingsBtn">Delete Selected</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
+              <th><input class="closing-check" type="checkbox" id="selectAllClosings" aria-label="Select all monthly closings"></th>
               <th>Month</th>
               <th>From</th>
               <th>To</th>
@@ -416,11 +449,12 @@
               <th>Net Profit</th>
               <th>Closed By</th>
               <th>Closed At</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody id="monthlyClosingsBody">
             <tr>
-              <td colspan="9">No monthly closings loaded yet.</td>
+              <td colspan="11">No monthly closings loaded yet.</td>
             </tr>
           </tbody>
         </table>
@@ -474,8 +508,11 @@
     const thisMonthBtn = document.getElementById("thisMonthBtn");
     const monthLockBtn = document.getElementById("monthLockBtn");
     const refreshClosingsBtn = document.getElementById("refreshClosingsBtn");
+    const deleteSelectedClosingsBtn = document.getElementById("deleteSelectedClosingsBtn");
+    const selectAllClosings = document.getElementById("selectAllClosings");
     const statementStatus = document.getElementById("statementStatus");
     const monthlyClosingsBody = document.getElementById("monthlyClosingsBody");
+    let monthlyClosings = [];
 
     let currentSummary = {
       totalIncome: 0,
@@ -628,14 +665,37 @@
       return (fromDateInput.value || "").slice(0, 7);
     }
 
+    function getClosingKey(closing, index = 0) {
+      return String(
+        closing.closingId ||
+        closing.id ||
+        closing.monthLockId ||
+        closing.rowNumber ||
+        closing.month ||
+        closing.monthKey ||
+        `${closing.fromDate || ""}-${closing.toDate || ""}-${index}`
+      );
+    }
+
+    function getSelectedClosingKeys() {
+      return Array.from(monthlyClosingsBody.querySelectorAll("[data-closing-select]:checked"))
+        .map(input => input.value);
+    }
+
     function renderClosings(closings) {
+      monthlyClosings = Array.isArray(closings) ? closings : [];
+      selectAllClosings.checked = false;
+
       if (!Array.isArray(closings) || closings.length === 0) {
-        monthlyClosingsBody.innerHTML = `<tr><td colspan="9">No monthly closings yet.</td></tr>`;
+        monthlyClosingsBody.innerHTML = `<tr><td colspan="11">No monthly closings yet.</td></tr>`;
         return;
       }
 
-      monthlyClosingsBody.innerHTML = closings.map(closing => `
+      monthlyClosingsBody.innerHTML = closings.map((closing, index) => {
+        const closingKey = getClosingKey(closing, index);
+        return `
         <tr>
+          <td><input class="closing-check" type="checkbox" data-closing-select value="${closingKey}" aria-label="Select monthly closing ${closing.month || closing.monthKey || ""}"></td>
           <td>${closing.month || closing.monthKey || "-"}</td>
           <td>${closing.fromDate || "-"}</td>
           <td>${closing.toDate || "-"}</td>
@@ -645,8 +705,10 @@
           <td>${formatCurrency(closing.netProfit)}</td>
           <td>${closing.closedBy || closing.actorDisplayName || "-"}</td>
           <td>${closing.closedAt || "-"}</td>
+          <td><button type="button" class="mini-btn danger" data-delete-monthly-closing="${closingKey}">Delete</button></td>
         </tr>
-      `).join("");
+      `;
+      }).join("");
     }
 
     async function loadClosings() {
@@ -659,7 +721,83 @@
         renderClosings(result.closings || result.monthlyClosings || []);
       } catch (error) {
         console.error(error);
-        monthlyClosingsBody.innerHTML = `<tr><td colspan="9">${error instanceof Error ? error.message : "Could not load monthly closings."}</td></tr>`;
+        monthlyClosings = [];
+        monthlyClosingsBody.innerHTML = `<tr><td colspan="11">${error instanceof Error ? error.message : "Could not load monthly closings."}</td></tr>`;
+      }
+    }
+
+    async function deleteMonthlyClosing(closing) {
+      const monthKey = closing.month || closing.monthKey || "";
+      const confirmed = confirm(`Delete monthly closing ${monthKey || "selected month"}? This action cannot be undone.`);
+      if (!confirmed) return false;
+
+      try {
+        setStatus("Deleting monthly closing...");
+        const result = await RomeoApi.request({
+          action: "deleteMonthlyClosing",
+          closingId: closing.closingId || closing.id || closing.monthLockId || "",
+          rowNumber: closing.rowNumber || "",
+          month: monthKey,
+          monthKey,
+          fromDate: closing.fromDate || "",
+          toDate: closing.toDate || ""
+        });
+
+        if (result.status !== "success") {
+          throw new Error(result.message || "Could not delete monthly closing.");
+        }
+
+        setStatus(`Monthly closing ${monthKey || ""} deleted.`, "success");
+        return true;
+      } catch (error) {
+        console.error(error);
+        setStatus(error instanceof Error ? error.message : "Could not delete monthly closing.", "error");
+        return false;
+      }
+    }
+
+    async function deleteSelectedClosings() {
+      const selectedKeys = getSelectedClosingKeys();
+      if (!selectedKeys.length) {
+        setStatus("Select at least one monthly closing to delete.", "error");
+        return;
+      }
+
+      const selectedClosings = monthlyClosings.filter((closing, index) =>
+        selectedKeys.includes(getClosingKey(closing, index))
+      );
+
+      const confirmed = confirm(`Delete ${selectedClosings.length} selected monthly closing(s)? This action cannot be undone.`);
+      if (!confirmed) return;
+
+      let deletedCount = 0;
+      for (const closing of selectedClosings) {
+        try {
+          const result = await RomeoApi.request({
+            action: "deleteMonthlyClosing",
+            closingId: closing.closingId || closing.id || closing.monthLockId || "",
+            rowNumber: closing.rowNumber || "",
+            month: closing.month || closing.monthKey || "",
+            monthKey: closing.month || closing.monthKey || "",
+            fromDate: closing.fromDate || "",
+            toDate: closing.toDate || ""
+          });
+
+          if (result.status !== "success") {
+            throw new Error(result.message || "Could not delete monthly closing.");
+          }
+
+          deletedCount += 1;
+        } catch (error) {
+          console.error(error);
+          setStatus(error instanceof Error ? error.message : "Could not delete selected closings.", "error");
+          break;
+        }
+      }
+
+      if (deletedCount > 0) {
+        setStatus(`${deletedCount} monthly closing(s) deleted.`, "success");
+        await loadClosings();
       }
     }
 
@@ -712,6 +850,24 @@
     });
     refreshClosingsBtn.addEventListener("click", loadClosings);
     monthLockBtn.addEventListener("click", lockMonth);
+    deleteSelectedClosingsBtn.addEventListener("click", deleteSelectedClosings);
+    selectAllClosings.addEventListener("change", () => {
+      monthlyClosingsBody.querySelectorAll("[data-closing-select]").forEach(input => {
+        input.checked = selectAllClosings.checked;
+      });
+    });
+    monthlyClosingsBody.addEventListener("click", event => {
+      const button = event.target.closest("[data-delete-monthly-closing]");
+      if (!button) return;
+
+      const key = button.dataset.deleteMonthlyClosing;
+      const closing = monthlyClosings.find((item, index) => getClosingKey(item, index) === key);
+      if (closing) {
+        deleteMonthlyClosing(closing).then(deleted => {
+          if (deleted) loadClosings();
+        });
+      }
+    });
 
     setCurrentMonthRange();
     renderSummary(currentSummary);
