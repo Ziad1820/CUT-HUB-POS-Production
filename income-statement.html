@@ -135,7 +135,7 @@
 
     .grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 18px;
       margin-bottom: 24px;
     }
@@ -164,6 +164,16 @@
       color: #2a2118;
       direction: ltr;
       text-align: left;
+    }
+
+    .card.net-profit {
+      background: linear-gradient(135deg, #123f2b, #18794e);
+      border-color: rgba(24,121,78,.3);
+    }
+
+    .card.net-profit h2,
+    .card.net-profit .metric-value {
+      color: #fffaf2;
     }
 
     .summary-grid {
@@ -388,33 +398,8 @@
 
     <section class="grid">
       <div class="card">
-        <h2>Total income</h2>
-        <div class="metric-value" id="totalIncome">0 EGP</div>
-      </div>
-
-      <div class="card">
-        <h2>Total Tips</h2>
-        <div class="metric-value" id="totalTips">0 EGP</div>
-      </div>
-
-      <div class="card">
-        <h2>Expenses</h2>
-        <div class="metric-value" id="expensesAmount">0 EGP</div>
-      </div>
-
-      <div class="card">
-        <h2>Withdrawals</h2>
-        <div class="metric-value" id="withdrawAmount">0 EGP</div>
-      </div>
-
-      <div class="card net-profit">
-        <h2>Net profit</h2>
-        <div class="metric-value" id="netProfit">0 EGP</div>
-      </div>
-
-      <div class="card">
-        <h2>Total Clients</h2>
-        <div class="metric-value" id="totalClients">0</div>
+        <h2>Total Sales</h2>
+        <div class="metric-value" id="totalStaffSales">0 EGP</div>
       </div>
 
       <div class="card">
@@ -423,13 +408,38 @@
       </div>
 
       <div class="card">
-        <h2>Total staff sales</h2>
-        <div class="metric-value" id="totalStaffSales">0 EGP</div>
+        <h2>Expenses</h2>
+        <div class="metric-value" id="expensesAmount">0 EGP</div>
+      </div>
+
+      <div class="card">
+        <h2>Total Tips</h2>
+        <div class="metric-value" id="totalTips">0 EGP</div>
+      </div>
+
+      <div class="card">
+        <h2>Total Clients</h2>
+        <div class="metric-value" id="totalClients">0</div>
+      </div>
+
+      <div class="card">
+        <h2>Withdrawals</h2>
+        <div class="metric-value" id="withdrawAmount">0 EGP</div>
+      </div>
+
+      <div class="card">
+        <h2>Total Income</h2>
+        <div class="metric-value" id="totalIncome">0 EGP</div>
       </div>
 
       <div class="card">
         <h2>Average Invoice</h2>
         <div class="metric-value" id="averageInvoice">0 EGP</div>
+      </div>
+
+      <div class="card net-profit">
+        <h2>Net profit</h2>
+        <div class="metric-value" id="netProfit">0 EGP</div>
       </div>
     </section>
 
@@ -522,6 +532,7 @@
 
     let currentSummary = {
       totalIncome: 0,
+      totalSales: 0,
       totalTips: 0,
       totalExpenses: 0,
       totalWithdrawals: 0,
@@ -604,22 +615,24 @@
 
     function normalizeSummary(payload) {
       const source = payload.statement || payload.summary || payload.data || payload;
-      const totalIncome = toAmount(source.totalIncome ?? source.income ?? source.salesTotal);
+      const totalSales = toAmount(source.totalSales ?? source.salesTotal ?? source.totalStaffSales ?? source.staffSales);
       const totalTips = toAmount(source.totalTips ?? source.tipTotal ?? source.tipsTotal);
+      const totalIncome = toAmount(source.totalIncome ?? source.income ?? (totalSales + totalTips));
       const totalExpenses = toAmount(source.totalExpenses ?? source.expenses ?? source.expenseTotal);
       const totalWithdrawals = toAmount(source.totalWithdrawals ?? source.withdrawals ?? source.withdrawalsTotal);
       const invoiceCount = toAmount(source.invoiceCount ?? source.totalInvoices ?? source.invoicesCount);
 
       return {
         totalIncome,
+        totalSales,
         totalTips,
         totalExpenses,
         totalWithdrawals,
         netProfit: toAmount(source.netProfit ?? (totalIncome - totalExpenses - totalWithdrawals)),
         totalClients: toAmount(source.totalClients ?? source.clients ?? source.customerCount),
         invoiceCount,
-        totalStaffSales: toAmount(source.totalStaffSales ?? source.staffSales ?? totalIncome),
-        averageInvoice: toAmount(source.averageInvoice ?? (invoiceCount ? totalIncome / invoiceCount : 0))
+        totalStaffSales: totalSales,
+        averageInvoice: toAmount(source.averageInvoice ?? (invoiceCount ? totalSales / invoiceCount : 0))
       };
     }
 

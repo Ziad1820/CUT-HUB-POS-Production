@@ -1080,7 +1080,7 @@ function calculateIncomeStatementRange(fromDateValue, toDateValue) {
   const expenseRows = expensesSheet ? getSheetRangeFromRow2(expensesSheet, 1, 6) : [];
   const withdrawalRows = withdrawalsSheet ? getSheetRangeFromRow2(withdrawalsSheet, 1, 5) : [];
 
-  let totalIncome = 0;
+  let totalSales = 0;
   let totalTips = 0;
   let invoiceCount = 0;
   const customers = {};
@@ -1093,7 +1093,7 @@ function calculateIncomeStatementRange(fromDateValue, toDateValue) {
     if (!hasData) return;
 
     invoiceCount += 1;
-    totalIncome += parseSheetAmount(row[5]);
+    totalSales += parseSheetAmount(row[5]);
     totalTips += parseSheetAmount(row[7]);
 
     const customerKey = String(row[2] || row[1] || "").trim();
@@ -1114,11 +1114,13 @@ function calculateIncomeStatementRange(fromDateValue, toDateValue) {
       : sum;
   }, 0);
 
+  const totalIncome = totalSales + totalTips;
   const netProfit = totalIncome - totalExpenses - totalWithdrawals;
 
   return {
     fromDate,
     toDate,
+    totalSales,
     totalIncome,
     totalTips,
     totalExpenses,
@@ -1126,8 +1128,8 @@ function calculateIncomeStatementRange(fromDateValue, toDateValue) {
     netProfit,
     totalClients: Object.keys(customers).length,
     invoiceCount,
-    totalStaffSales: totalIncome,
-    averageInvoice: invoiceCount ? totalIncome / invoiceCount : 0
+    totalStaffSales: totalSales,
+    averageInvoice: invoiceCount ? totalSales / invoiceCount : 0
   };
 }
 
