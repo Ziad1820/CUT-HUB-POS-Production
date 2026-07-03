@@ -67,6 +67,12 @@ function getCairoDateTime() {
   return Utilities.formatDate(new Date(), TIME_ZONE, "yyyy-MM-dd HH:mm:ss");
 }
 
+function getInvoiceDateTime(data) {
+  const selectedDate = getDateKey(data.reportDate || data.date || data.dateKey || "", TIME_ZONE);
+  const currentTime = Utilities.formatDate(new Date(), TIME_ZONE, "HH:mm:ss");
+  return selectedDate ? `${selectedDate} ${currentTime}` : getCairoDateTime();
+}
+
 function getCairoDateKey() {
   return Utilities.formatDate(new Date(), TIME_ZONE, "yyyy-MM-dd");
 }
@@ -1288,7 +1294,7 @@ function getLockedDateError(value, entityLabel) {
 
 function createInvoice(data) {
   const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
-  const invoiceDateTime = getCairoDateTime();
+  const invoiceDateTime = getInvoiceDateTime(data);
   const lockedError = getLockedDateError(invoiceDateTime, "Invoice");
 
   if (lockedError) {
@@ -1627,7 +1633,7 @@ function createInvoicePdf(data) {
   const customerPhone = escapeHtml(data.customerPhone || "-");
   const paymentMethod = escapeHtml(data.payment || data.paymentMethod || "-");
   const barber = escapeHtml(data.barber || "-");
-  const invoiceDate = escapeHtml(getCairoDateTime());
+  const invoiceDate = escapeHtml(getInvoiceDateTime(data));
   const total = formatInvoiceMoney(data.total || 0);
 
   const servicesText = String(data.services || "").trim();

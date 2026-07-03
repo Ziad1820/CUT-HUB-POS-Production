@@ -1298,6 +1298,7 @@
       const customerPhone = customerPhoneInput.value.trim();
       const barber = document.getElementById("barber").value;
       const paymentMethod = getSelectedPaymentMethod();
+      const reportDate = getReportDateKey();
       const offerType = getSelectedOfferType();
       const total = getTotal();
       const subtotalBeforePremium = getSubtotalBeforePremium();
@@ -1338,6 +1339,9 @@
 
       const invoiceData = {
         action: "invoice",
+        reportDate,
+        date: reportDate,
+        dateKey: reportDate,
         customer: customerName,
         customerName,
         customerPhone,
