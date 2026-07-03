@@ -20,7 +20,7 @@
   ];
 
   const SIDEBAR_PERMISSIONS = {
-    "dashboard.html": "access_cashier",
+    "dashboard.html": "access_dashboard",
     "cashier.html": "access_cashier",
     "invoices.html": "view_invoices",
     "income-statement.html": "view_income_statement",

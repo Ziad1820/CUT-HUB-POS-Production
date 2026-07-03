@@ -2,6 +2,7 @@ const RomeoAuth = (() => {
   const API_URL = window.RomeoApi ? RomeoApi.API_URL : "https://script.google.com/macros/s/AKfycbyChUh1oKaAPsQSmwyK5bK1xJ_dmxnSH7K8g151d82LHmNJVsPcM3RHpJS_OoOh1PRl/exec";
   const SESSION_KEY = "romeo-pos-session";
   const ALL_PERMISSIONS = [
+    "access_dashboard",
     "access_cashier",
     "edit_prices",
     "view_invoices",
@@ -141,6 +142,28 @@ const RomeoAuth = (() => {
     return !!user && user.permissions.includes(permission);
   }
 
+  function getFirstAllowedPage(user) {
+    const permissionPages = [
+      ["access_dashboard", "dashboard.html"],
+      ["access_cashier", "cashier.html"],
+      ["view_invoices", "invoices.html"],
+      ["view_income_statement", "income-statement.html"],
+      ["view_daily_closing", "daily-closing.html"],
+      ["view_activity_log", "activity-log.html"],
+      ["view_staff_accounting", "staff-accounting.html"],
+      ["manage_users", "system-access.html"],
+      ["view_withdrawals", "withdrawals.html"],
+      ["view_expenses", "expenses.html"],
+      ["view_inventory", "enventory.html"],
+      ["view_staff_discount", "staff-discount.html"],
+      ["view_attendance", "attendance.html"],
+      ["view_bookings", "bookings.html"]
+    ];
+
+    const match = permissionPages.find(([permission]) => user.permissions.includes(permission));
+    return match ? match[1] : "login.html";
+  }
+
   function requireAuth(permission) {
     const user = getCurrentUser();
     if (!user) {
@@ -151,7 +174,7 @@ const RomeoAuth = (() => {
 
     if (permission && !user.permissions.includes(permission)) {
       alert("ليس لديك صلاحية لفتح هذه الصفحة.");
-      window.location.href = "dashboard.html";
+      window.location.href = getFirstAllowedPage(user);
       return null;
     }
 
