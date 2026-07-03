@@ -102,6 +102,24 @@
     }
   };
 
+  const HERO_MONTHS = {
+    ar: [
+      "يناير",
+      "فبراير",
+      "مارس",
+      "أبريل",
+      "مايو",
+      "يونيو",
+      "يوليو",
+      "أغسطس",
+      "سبتمبر",
+      "أكتوبر",
+      "نوفمبر",
+      "ديسمبر"
+    ],
+    en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+  };
+
   function getLanguage() {
     return localStorage.getItem("romeo-pos-language") || "ar";
   }
@@ -145,6 +163,16 @@
     }
 
     return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+
+  function formatHeroDate(date) {
+    const language = getLanguage();
+    const months = HERO_MONTHS[language] || HERO_MONTHS.en;
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = months[date.getMonth()] || "";
+    const year = date.getFullYear();
+
+    return language === "en" ? `${month} ${day}, ${year}` : `${day} ${month} ${year}`;
   }
 
 function getRelativeDateKey(offsetDays) {
@@ -398,7 +426,7 @@ function getInvoicesForDate(invoices, dateKey) {
     setText("heroKicker", t("live"));
     setText("heroSubtitle", t("subtitle"));
     const labelDate = activeDateKey ? dateFromDateKey(activeDateKey) : new Date();
-    setText("todayLabel", `${t("today")} ${labelDate.toLocaleDateString(getLocale(), { day: "2-digit", month: "short", year: "numeric" })}`);
+    setText("todayLabel", `${t("today")} ${formatHeroDate(labelDate)}`);
     if (privacyToggle) privacyToggle.textContent = isPrivate ? t("show") : t("hide");
 
     const sidebar = document.getElementById("sidebar");
