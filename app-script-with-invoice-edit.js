@@ -727,6 +727,7 @@ function calculateSalesAndPaymentTotals(dateKey) {
   const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
   const totals = {
     salesTotal: 0,
+    tipTotal: 0,
     cashTotal: 0,
     visaTotal: 0,
     instapayTotal: 0,
@@ -735,21 +736,24 @@ function calculateSalesAndPaymentTotals(dateKey) {
 
   if (!sheet) return totals;
 
-  const rows = getSheetRangeFromRow2(sheet, 1, 7);
+  const rows = getSheetRangeFromRow2(sheet, 1, 9);
 
   rows.forEach(row => {
     const rowDateKey = getDateKey(row[0], TIME_ZONE);
     if (rowDateKey !== dateKey) return;
 
     const amount = parseSheetAmount(row[5]);
-    const payment = normalizePaymentMethod(row[6]);
+    const paidAmount = parseSheetAmount(row[6]) || amount;
+    const tipAmount = parseSheetAmount(row[7]);
+    const payment = normalizePaymentMethod(row[8]);
 
     totals.salesTotal += amount;
+    totals.tipTotal += tipAmount;
 
-    if (payment === "cash") totals.cashTotal += amount;
-    if (payment === "visa") totals.visaTotal += amount;
-    if (payment === "instapay") totals.instapayTotal += amount;
-    if (payment === "vodafone_cash") totals.vodafoneCashTotal += amount;
+    if (payment === "cash") totals.cashTotal += paidAmount;
+    if (payment === "visa") totals.visaTotal += paidAmount;
+    if (payment === "instapay") totals.instapayTotal += paidAmount;
+    if (payment === "vodafone_cash") totals.vodafoneCashTotal += paidAmount;
   });
 
   return totals;
@@ -796,6 +800,7 @@ function buildDailyClosingPreview(dateKey) {
   return {
     date: dateKey,
     salesTotal: paymentTotals.salesTotal,
+    tipTotal: paymentTotals.tipTotal,
     cashTotal: paymentTotals.cashTotal,
     visaTotal: paymentTotals.visaTotal,
     instapayTotal: paymentTotals.instapayTotal,
@@ -822,6 +827,7 @@ function dashboardTodayStats(data) {
     const customers = {};
     let todayInvoices = 0;
     let todaySales = 0;
+    let todayTips = 0;
 
     rows.forEach(row => {
       const dateKey = getDateKey(row[0], TIME_ZONE);
@@ -829,6 +835,7 @@ function dashboardTodayStats(data) {
 
       todayInvoices += 1;
       todaySales += parseSheetAmount(row[5]);
+      todayTips += parseSheetAmount(row[7]);
 
       const customerName = String(row[1] || "").trim().toLowerCase();
       const customerPhone = String(row[2] || "").replace(/\D/g, "");
@@ -842,6 +849,7 @@ function dashboardTodayStats(data) {
       todayInvoices,
       todayCustomers: Object.keys(customers).length,
       todaySales,
+      todayTips,
       averageInvoice: todayInvoices ? todaySales / todayInvoices : 0
     });
   } catch (error) {
@@ -1069,11 +1077,12 @@ function calculateIncomeStatementRange(fromDateValue, toDateValue) {
   const expensesSheet = spreadsheet.getSheetByName("EXPENSES");
   const withdrawalsSheet = spreadsheet.getSheetByName("WITHDRAWLS");
 
-  const invoiceRows = getSheetRangeFromRow2(dataSheet, 1, 9);
+  const invoiceRows = getSheetRangeFromRow2(dataSheet, 1, 11);
   const expenseRows = expensesSheet ? getSheetRangeFromRow2(expensesSheet, 1, 6) : [];
   const withdrawalRows = withdrawalsSheet ? getSheetRangeFromRow2(withdrawalsSheet, 1, 5) : [];
 
   let totalIncome = 0;
+  let totalTips = 0;
   let invoiceCount = 0;
   const customers = {};
 
@@ -1086,6 +1095,7 @@ function calculateIncomeStatementRange(fromDateValue, toDateValue) {
 
     invoiceCount += 1;
     totalIncome += parseSheetAmount(row[5]);
+    totalTips += parseSheetAmount(row[7]);
 
     const customerKey = String(row[2] || row[1] || "").trim();
     if (customerKey) customers[customerKey] = true;
@@ -1111,6 +1121,7 @@ function calculateIncomeStatementRange(fromDateValue, toDateValue) {
     fromDate,
     toDate,
     totalIncome,
+    totalTips,
     totalExpenses,
     totalWithdrawals,
     netProfit,
@@ -1293,8 +1304,31 @@ function getLockedDateError(value, entityLabel) {
   return `${entityLabel} is inside locked month ${monthLabel}. Delete the monthly closing first.`;
 }
 
+function ensureDataInvoiceColumns(sheet) {
+  const requiredColumns = 11;
+  const currentColumns = sheet.getMaxColumns();
+  if (currentColumns < requiredColumns) {
+    sheet.insertColumnsAfter(currentColumns, requiredColumns - currentColumns);
+  }
+
+  sheet.getRange(1, 6, 1, 6).setValues([["TOTAL", "paid amount", "tip amount", "PAYMENT", "BARBER", "Notes"]]);
+}
+
+function getInvoicePaymentDetails(data) {
+  const total = parseSheetAmount(data.total);
+  const paidAmount = parseSheetAmount(data.paidAmount || data.paid || total);
+  const tipAmount = parseSheetAmount(data.tipAmount || data.tip || 0);
+  const finalPaidAmount = paidAmount > 0 ? paidAmount : total;
+
+  return {
+    paidAmount: finalPaidAmount,
+    tipAmount: Math.max(0, tipAmount)
+  };
+}
+
 function createInvoice(data) {
   const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
+  ensureDataInvoiceColumns(sheet);
   const invoiceDateTime = getInvoiceDateTime(data);
   const lockedError = getLockedDateError(invoiceDateTime, "Invoice");
 
@@ -1303,6 +1337,7 @@ function createInvoice(data) {
   }
 
   const pdfUrl = createInvoicePdf(data);
+  const paymentDetails = getInvoicePaymentDetails(data);
 
   sheet.appendRow([
     invoiceDateTime,
@@ -1311,6 +1346,8 @@ function createInvoice(data) {
     data.services || "",
     pdfUrl,
     data.total || 0,
+    paymentDetails.paidAmount,
+    paymentDetails.tipAmount,
     data.payment || data.paymentMethod || "",
     data.barber || "",
     data.note || data.invoiceNote || ""
@@ -1351,7 +1388,8 @@ function updateInvoice(data) {
       return jsonOutput({ status: "error", message: "Invoice not found" });
     }
 
-    const currentRow = sheet.getRange(targetRowNumber, 1, 1, 9).getValues()[0];
+    ensureDataInvoiceColumns(sheet);
+    const currentRow = sheet.getRange(targetRowNumber, 1, 1, 11).getValues()[0];
     const currentDate = currentRow[0];
     const nextDate = getDateKey(data.date || data.dateKey || currentDate, TIME_ZONE) || currentDate;
 
@@ -1372,19 +1410,21 @@ function updateInvoice(data) {
       data.services || "",
       data.pdfUrl || currentRow[4] || "",
       data.total || 0,
+      data.paidAmount || currentRow[6] || data.total || 0,
+      data.tipAmount || currentRow[7] || 0,
       data.payment || data.paymentMethod || "",
       data.barber || "",
       data.note || data.invoiceNote || ""
     ];
 
-    sheet.getRange(targetRowNumber, 1, 1, 9).setValues([updatedRow]);
+    sheet.getRange(targetRowNumber, 1, 1, 11).setValues([updatedRow]);
 
     logActivity(
       data,
       "update",
       "invoice",
       targetInvoiceId || `DATA-${targetRowNumber}`,
-      `Updated invoice | Customer: ${updatedRow[1] || "-"} | Phone: ${updatedRow[2] || "-"} | Total: ${updatedRow[5] || 0} | Barber: ${updatedRow[7] || "-"}`
+      `Updated invoice | Customer: ${updatedRow[1] || "-"} | Phone: ${updatedRow[2] || "-"} | Total: ${updatedRow[5] || 0} | Barber: ${updatedRow[9] || "-"}`
     );
 
     return jsonOutput({
@@ -1399,9 +1439,11 @@ function updateInvoice(data) {
         services: String(updatedRow[3] || "").trim(),
         pdfUrl: String(updatedRow[4] || "").trim(),
         total: parseSheetAmount(updatedRow[5]),
-        paymentMethod: String(updatedRow[6] || "").trim(),
-        barber: String(updatedRow[7] || "").trim(),
-        note: String(updatedRow[8] || "").trim()
+        paidAmount: parseSheetAmount(updatedRow[6]),
+        tipAmount: parseSheetAmount(updatedRow[7]),
+        paymentMethod: String(updatedRow[8] || "").trim(),
+        barber: String(updatedRow[9] || "").trim(),
+        note: String(updatedRow[10] || "").trim()
       }
     });
   } catch (error) {
@@ -1420,7 +1462,7 @@ function getInvoices(data) {
     return jsonOutput({ status: "success", invoices: [] });
   }
 
-  const rows = sheet.getRange(2, 1, lastRow - 1, 9).getValues();
+  const rows = sheet.getRange(2, 1, lastRow - 1, Math.min(sheet.getLastColumn(), 11)).getValues();
 
   const invoices = rows
     .map((row, index) => {
@@ -1436,9 +1478,11 @@ function getInvoices(data) {
         services: String(row[3] || "").trim(),
         pdfUrl: String(row[4] || "").trim(),
         total: parseSheetAmount(row[5]),
-        paymentMethod: String(row[6] || "").trim(),
-        barber: String(row[7] || "").trim(),
-        note: String(row[8] || "").trim()
+        paidAmount: parseSheetAmount(row[6]),
+        tipAmount: parseSheetAmount(row[7]),
+        paymentMethod: String(row[8] || "").trim(),
+        barber: String(row[9] || "").trim(),
+        note: String(row[10] || "").trim()
       };
     })
     .filter(invoice =>
@@ -1483,7 +1527,7 @@ function deleteInvoice(data) {
     targetRowNumber <= lastRow &&
     (!targetInvoiceId || targetInvoiceId === `DATA-${targetRowNumber}`)
   ) {
-    const row = sheet.getRange(targetRowNumber, 1, 1, 9).getValues()[0];
+    const row = sheet.getRange(targetRowNumber, 1, 1, 11).getValues()[0];
     const lockedError = getLockedDateError(row[0], "Invoice");
     if (lockedError) {
       return jsonOutput({ status: "error", message: lockedError, locked: true });
@@ -1496,13 +1540,13 @@ function deleteInvoice(data) {
       "delete",
       "invoice",
       targetInvoiceId || `DATA-${targetRowNumber}`,
-      `Deleted invoice | Customer: ${row[1] || "-"} | Phone: ${row[2] || "-"} | Total: ${row[5] || 0} | Barber: ${row[7] || "-"}`
+      `Deleted invoice | Customer: ${row[1] || "-"} | Phone: ${row[2] || "-"} | Total: ${row[5] || 0} | Barber: ${row[9] || "-"}`
     );
 
     return jsonOutput({ status: "success" });
   }
 
-  const rows = sheet.getRange(2, 1, lastRow - 1, 9).getValues();
+  const rows = sheet.getRange(2, 1, lastRow - 1, 11).getValues();
   const targetName = String(data.customerName || "").trim();
   const targetPhone = String(data.customerPhone || "").trim();
   const targetTotal = parseSheetAmount(data.total);
@@ -1531,7 +1575,7 @@ function deleteInvoice(data) {
         "delete",
         "invoice",
         `DATA-${i + 2}`,
-        `Deleted invoice | Customer: ${row[1] || "-"} | Phone: ${row[2] || "-"} | Total: ${row[5] || 0} | Barber: ${row[7] || "-"}`
+        `Deleted invoice | Customer: ${row[1] || "-"} | Phone: ${row[2] || "-"} | Total: ${row[5] || 0} | Barber: ${row[9] || "-"}`
       );
 
       return jsonOutput({ status: "success" });
@@ -1913,11 +1957,11 @@ function getCustomerLookup() {
 function getStaffClientCount(data) {
   const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
   const barber = normalizeBarberName(data.barber);
-  const rows = getSheetRangeFromRow2(sheet, 1, 8, true);
+  const rows = getSheetRangeFromRow2(sheet, 1, 10, true);
 
   const count = rows.filter(row => {
     const hasData = row.some(cell => String(cell || "").trim() !== "");
-    const rowBarber = normalizeBarberName(row[7]);
+    const rowBarber = normalizeBarberName(row[9]);
     return hasData && rowBarber === barber;
   }).length;
 
@@ -1941,11 +1985,11 @@ function getStaffTotalSales(data) {
   }
 
   const barber = normalizeBarberName(data.barber);
-  const rows = getSheetRangeFromRow2(sheet, 1, 8);
+  const rows = getSheetRangeFromRow2(sheet, 1, 10);
 
   const totalSales = rows.reduce((sum, row) => {
     const hasData = row.some(cell => cell !== "" && cell !== null);
-    const rowBarber = normalizeBarberName(row[7]);
+    const rowBarber = normalizeBarberName(row[9]);
 
     if (!hasData || rowBarber !== barber) return sum;
 
@@ -1962,15 +2006,17 @@ function getTodaySales(data) {
   }
 
   const targetDateKey = getRequestedDateKey(data, TIME_ZONE);
-  const rows = getSheetRangeFromRow2(sheet, 1, 6);
+  const rows = getSheetRangeFromRow2(sheet, 1, 8);
 
-  const todaySales = rows.reduce((sum, row) => {
+  const totals = rows.reduce((summary, row) => {
     const dateKey = getDateKey(row[0], TIME_ZONE);
-    if (dateKey !== targetDateKey) return sum;
-    return sum + parseSheetAmount(row[5]);
-  }, 0);
+    if (dateKey !== targetDateKey) return summary;
+    summary.todaySales += parseSheetAmount(row[5]);
+    summary.todayTips += parseSheetAmount(row[7]);
+    return summary;
+  }, { todaySales: 0, todayTips: 0 });
 
-  return jsonOutput({ status: "success", todaySales });
+  return jsonOutput({ status: "success", todaySales: totals.todaySales, todayTips: totals.todayTips });
 }
 
 function getTodayPaymentTotals(data) {

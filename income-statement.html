@@ -393,6 +393,11 @@
       </div>
 
       <div class="card">
+        <h2>Total Tips</h2>
+        <div class="metric-value" id="totalTips">0 EGP</div>
+      </div>
+
+      <div class="card">
         <h2>Expenses</h2>
         <div class="metric-value" id="expensesAmount">0 EGP</div>
       </div>
@@ -512,10 +517,12 @@
     const selectAllClosings = document.getElementById("selectAllClosings");
     const statementStatus = document.getElementById("statementStatus");
     const monthlyClosingsBody = document.getElementById("monthlyClosingsBody");
+    const totalTipsEl = document.getElementById("totalTips");
     let monthlyClosings = [];
 
     let currentSummary = {
       totalIncome: 0,
+      totalTips: 0,
       totalExpenses: 0,
       totalWithdrawals: 0,
       netProfit: 0,
@@ -598,12 +605,14 @@
     function normalizeSummary(payload) {
       const source = payload.statement || payload.summary || payload.data || payload;
       const totalIncome = toAmount(source.totalIncome ?? source.income ?? source.salesTotal);
+      const totalTips = toAmount(source.totalTips ?? source.tipTotal ?? source.tipsTotal);
       const totalExpenses = toAmount(source.totalExpenses ?? source.expenses ?? source.expenseTotal);
       const totalWithdrawals = toAmount(source.totalWithdrawals ?? source.withdrawals ?? source.withdrawalsTotal);
       const invoiceCount = toAmount(source.invoiceCount ?? source.totalInvoices ?? source.invoicesCount);
 
       return {
         totalIncome,
+        totalTips,
         totalExpenses,
         totalWithdrawals,
         netProfit: toAmount(source.netProfit ?? (totalIncome - totalExpenses - totalWithdrawals)),
@@ -617,6 +626,7 @@
     function renderSummary(summary) {
       currentSummary = normalizeSummary(summary);
       totalIncomeEl.textContent = formatCurrency(currentSummary.totalIncome);
+      totalTipsEl.textContent = formatCurrency(currentSummary.totalTips);
       expensesAmountEl.textContent = formatCurrency(currentSummary.totalExpenses);
       withdrawAmountEl.textContent = formatCurrency(currentSummary.totalWithdrawals);
       netProfitEl.textContent = formatCurrency(currentSummary.netProfit);

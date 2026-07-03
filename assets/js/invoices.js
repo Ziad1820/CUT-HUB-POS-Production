@@ -148,7 +148,7 @@
     async function loadInvoices() {
       elements.reloadBtn.disabled = true;
       elements.reloadBtn.textContent = localizeText("Ø¬Ø§Ø±ÙŠ Ø§Ù„ØªØ­Ø¯ÙŠØ«...", "Refreshing...");
-      elements.invoiceRows.innerHTML = `<tr><td colspan="10" class="status-line">${localizeText("Ø¬Ø§Ø±ÙŠ ØªØ­Ù…ÙŠÙ„ Ø§Ù„ÙÙˆØ§ØªÙŠØ±...", "Loading invoices...")}</td></tr>`;
+      elements.invoiceRows.innerHTML = `<tr><td colspan="12" class="status-line">${localizeText("Ø¬Ø§Ø±ÙŠ ØªØ­Ù…ÙŠÙ„ Ø§Ù„ÙÙˆØ§ØªÙŠØ±...", "Loading invoices...")}</td></tr>`;
 
       try {
         const result = await postToApi({ action: "getInvoices" });
@@ -158,7 +158,7 @@
         applyFilters();
       } catch (error) {
         console.error(error);
-        elements.invoiceRows.innerHTML = `<tr><td colspan="10" class="empty-state">${escapeHtml(error.message || localizeText("ØªØ¹Ø°Ø± ØªØ­Ù…ÙŠÙ„ Ø§Ù„ÙÙˆØ§ØªÙŠØ± Ù…Ù† Ø§Ù„Ø´ÙŠØª.", "Could not load invoices from the sheet."))}</td></tr>`;
+        elements.invoiceRows.innerHTML = `<tr><td colspan="12" class="empty-state">${escapeHtml(error.message || localizeText("ØªØ¹Ø°Ø± ØªØ­Ù…ÙŠÙ„ Ø§Ù„ÙÙˆØ§ØªÙŠØ± Ù…Ù† Ø§Ù„Ø´ÙŠØª.", "Could not load invoices from the sheet."))}</td></tr>`;
         renderSummary([]);
       } finally {
         elements.reloadBtn.disabled = false;
@@ -282,7 +282,7 @@
       elements.invoiceRows.innerHTML = "";
 
       if (!filteredInvoices.length) {
-        elements.invoiceRows.innerHTML = `<tr><td colspan="10" class="empty-state">${localizeText("Ù„Ø§ ØªÙˆØ¬Ø¯ ÙÙˆØ§ØªÙŠØ± Ù…Ø·Ø§Ø¨Ù‚Ø© Ù„Ù„ÙÙ„Ø§ØªØ± Ø§Ù„Ø­Ø§Ù„ÙŠØ©.", "No invoices match the current filters.")}</td></tr>`;
+        elements.invoiceRows.innerHTML = `<tr><td colspan="12" class="empty-state">${localizeText("Ù„Ø§ ØªÙˆØ¬Ø¯ ÙÙˆØ§ØªÙŠØ± Ù…Ø·Ø§Ø¨Ù‚Ø© Ù„Ù„ÙÙ„Ø§ØªØ± Ø§Ù„Ø­Ø§Ù„ÙŠØ©.", "No invoices match the current filters.")}</td></tr>`;
         updateSelectionUi();
         return;
       }
@@ -299,6 +299,8 @@
           <td>${escapeHtml(invoice.barber || "-")}</td>
           <td>${escapeHtml(translateDataValue(invoice.paymentMethod || invoice.payment || "-", PAYMENT_TRANSLATIONS))}</td>
           <td class="amount">${formatMoney(invoice.total)}</td>
+          <td class="amount">${formatMoney(invoice.paidAmount || invoice.total || 0)}</td>
+          <td class="amount">${formatMoney(invoice.tipAmount || 0)}</td>
           <td>${escapeHtml(formatServices(invoice.services || "-"))}</td>
           <td class="note-cell">${escapeHtml(invoice.note || invoice.invoiceNote || "-")}</td>
           <td>
@@ -349,6 +351,8 @@
       const phoneLabel = localizeText("رقم الهاتف", "Phone");
       const barberLabel = localizeText("الحلاق", "Barber");
       const paymentLabel = localizeText("طريقة الدفع", "Payment Method");
+      const paidLabel = "Paid Amount";
+      const tipLabel = "Tip Amount";
       const servicesLabel = localizeText("الخدمات", "Services");
       const noteLabel = localizeText("الملاحظة", "Note");
 
@@ -359,6 +363,8 @@
         <div class="detail-item"><span>${phoneLabel}</span><input class="detail-input" id="editCustomerPhone" type="tel" value="${escapeHtml(invoice.customerPhone || "")}"></div>
         <div class="detail-item"><span>${barberLabel}</span><input class="detail-input" id="editInvoiceBarber" type="text" value="${escapeHtml(invoice.barber || "")}"></div>
         <div class="detail-item"><span>${paymentLabel}</span><select class="detail-input" id="editPaymentMethod">${getPaymentOptions(invoice.paymentMethod || invoice.payment || "")}</select></div>
+        <div class="detail-item"><span>${paidLabel}</span><input class="detail-input" id="editPaidAmount" type="number" min="0" step="1" value="${escapeHtml(parseAmount(invoice.paidAmount || invoice.total))}"></div>
+        <div class="detail-item"><span>${tipLabel}</span><input class="detail-input" id="editTipAmount" type="number" min="0" step="1" value="${escapeHtml(parseAmount(invoice.tipAmount))}"></div>
         <div class="detail-item full"><span>${servicesLabel}</span><textarea class="detail-input" id="editInvoiceServices">${escapeHtml(formatServices(invoice.services || ""))}</textarea></div>
         <div class="detail-item full"><span>${noteLabel}</span><textarea class="detail-input" id="editInvoiceNote">${escapeHtml(invoice.note || invoice.invoiceNote || "")}</textarea></div>
         <div class="detail-item full"><span>PDF</span><strong>${invoice.pdfUrl ? `<a href="${escapeHtml(invoice.pdfUrl)}" target="_blank" rel="noopener">${localizeText("فتح الفاتورة", "Open Invoice")}</a>` : "-"}</strong></div>
@@ -374,6 +380,8 @@
         <div class="detail-item"><span>${phoneLabel}</span><strong>${escapeHtml(invoice.customerPhone || "-")}</strong></div>
         <div class="detail-item"><span>${barberLabel}</span><strong>${escapeHtml(invoice.barber || "-")}</strong></div>
         <div class="detail-item"><span>${paymentLabel}</span><strong>${escapeHtml(payment)}</strong></div>
+        <div class="detail-item"><span>${paidLabel}</span><strong>${formatMoney(invoice.paidAmount || invoice.total || 0)}</strong></div>
+        <div class="detail-item"><span>${tipLabel}</span><strong>${formatMoney(invoice.tipAmount || 0)}</strong></div>
         <div class="detail-item full"><span>${servicesLabel}</span><strong>${escapeHtml(formatServices(invoice.services || "-"))}</strong></div>
         <div class="detail-item full"><span>${noteLabel}</span><strong>${escapeHtml(invoice.note || invoice.invoiceNote || "-")}</strong></div>
         <div class="detail-item full"><span>PDF</span><strong>${invoice.pdfUrl ? `<a href="${escapeHtml(invoice.pdfUrl)}" target="_blank" rel="noopener">${localizeText("فتح الفاتورة", "Open Invoice")}</a>` : "-"}</strong></div>
@@ -409,6 +417,8 @@
         customerPhone: getDetailValue("editCustomerPhone"),
         services: getDetailValue("editInvoiceServices"),
         total: parseAmount(getDetailValue("editInvoiceTotal")),
+        paidAmount: parseAmount(getDetailValue("editPaidAmount")),
+        tipAmount: parseAmount(getDetailValue("editTipAmount")),
         payment: getDetailValue("editPaymentMethod"),
         paymentMethod: getDetailValue("editPaymentMethod"),
         barber: getDetailValue("editInvoiceBarber"),

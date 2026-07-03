@@ -134,6 +134,7 @@
     const customerPhoneInput = document.getElementById("customerPhone");
     const customerSuggestions = document.getElementById("customerSuggestions");
     const paidAmountInput = document.getElementById("paidAmount");
+    const tipAmountInput = document.getElementById("tipAmount");
     const remainingAmountInput = document.getElementById("remainingAmount");
     const invoiceNoteInput = document.getElementById("invoiceNote");
     const statusBox = document.getElementById("statusBox");
@@ -166,6 +167,7 @@
     let customersLoaded = false;
     let customersLoading = false;
     let latestTodaySales = 0;
+    let latestTodayTips = 0;
     let latestPaymentTotals = {};
     const STAFF_STORAGE_KEY = "romeo-pos-staff-accounting-v2";
     const WITHDRAWALS_STORAGE_KEY = "romeo-pos-withdrawals";
@@ -320,17 +322,18 @@
         .reduce((sum, item) => sum + numberValue(item.amount), 0);
     }
 
-    function updateDailyNet(todaySales) {
+    function updateDailyNet(todaySales, todayTips = latestTodayTips) {
       const dateKey = getReportDateKey();
       const withdrawalsTotal = getStoredTotalForDate(WITHDRAWALS_STORAGE_KEY, dateKey);
       const expensesTotal = getStoredTotalForDate(EXPENSES_STORAGE_KEY, dateKey);
       const netTotal = numberValue(todaySales) - withdrawalsTotal - expensesTotal;
+      const tipsTotal = numberValue(todayTips);
 
       dailyNetAmount.textContent = formatSignedCurrency(netTotal);
       dailyNetCard.classList.toggle("is-negative", netTotal < 0);
       dailyNetBreakdown.textContent = getCurrentPageLanguage() === "en"
-        ? `Sales ${formatCurrency(todaySales)} - Withdrawals ${formatCurrency(withdrawalsTotal)} - Expenses ${formatCurrency(expensesTotal)}`
-        : `المبيعات ${formatCurrency(todaySales)} - السحوبات ${formatCurrency(withdrawalsTotal)} - المصروفات ${formatCurrency(expensesTotal)}`;
+        ? `Sales ${formatCurrency(todaySales)} - Withdrawals ${formatCurrency(withdrawalsTotal)} - Expenses ${formatCurrency(expensesTotal)} | Tips ${formatCurrency(tipsTotal)}`
+        : `المبيعات ${formatCurrency(todaySales)} - السحوبات ${formatCurrency(withdrawalsTotal)} - المصروفات ${formatCurrency(expensesTotal)} | التيب ${formatCurrency(tipsTotal)}`;
     }
 
     function updatePaymentMethodTotals(totals = {}) {
@@ -557,14 +560,16 @@
         }
 
         latestTodaySales = numberValue(data.todaySales);
+        latestTodayTips = numberValue(data.todayTips);
         todaySalesAmount.textContent = formatCurrency(latestTodaySales);
-        updateDailyNet(latestTodaySales);
+        updateDailyNet(latestTodaySales, latestTodayTips);
         fetchTodayPaymentTotals();
       } catch (error) {
         console.error(error);
         latestTodaySales = 0;
+        latestTodayTips = 0;
         todaySalesAmount.textContent = formatCurrency(0);
-        updateDailyNet(latestTodaySales);
+        updateDailyNet(latestTodaySales, latestTodayTips);
         updatePaymentMethodTotals();
       }
     }
@@ -957,7 +962,8 @@
     function updateRemaining() {
       const total = getTotal();
       const paid = Number(paidAmountInput.value) || 0;
-      const change = paid - total;
+      const tip = Number(tipAmountInput.value) || 0;
+      const change = paid - total - tip;
       remainingAmountInput.value = change > 0 ? formatCurrency(change) : formatCurrency(0);
     }
 
@@ -972,6 +978,7 @@
       customerPhoneInput.value = "";
       document.getElementById("barber").value = "";
       paidAmountInput.value = "";
+      tipAmountInput.value = "";
       invoiceNoteInput.value = "";
       document.getElementById("regularOffer").checked = true;
       document.getElementById("cash").checked = true;
@@ -1239,6 +1246,10 @@
                   <strong>${escapePrintHtml(formatCurrency(invoice.paidAmount))}</strong>
                 </div>
                 <div class="summary-row">
+                  <span>Tip</span>
+                  <strong>${escapePrintHtml(formatCurrency(invoice.tipAmount || 0))}</strong>
+                </div>
+                <div class="summary-row">
                   <span>Ø§Ù„Ø¨Ø§Ù‚ÙŠ</span>
                   <strong>${escapePrintHtml(formatCurrency(invoice.remainingAmount))}</strong>
                 </div>
@@ -1271,7 +1282,8 @@
       const offerType = getSelectedOfferType();
       const total = getTotal();
       const paidAmount = Number(paidAmountInput.value) || 0;
-      const remainingAmount = Math.max(0, total - paidAmount);
+      const tipAmount = Number(tipAmountInput.value) || 0;
+      const remainingAmount = Math.max(0, paidAmount - total - tipAmount);
 
       if (cart.length === 0) {
         showStatus("Ã˜Â§Ã˜Â®Ã˜ÂªÃ˜Â± Ã˜Â®Ã˜Â¯Ã™â€¦Ã˜Â© Ã™Ë†Ã˜Â§Ã˜Â­Ã˜Â¯Ã˜Â© Ã˜Â¹Ã™â€žÃ™â€° Ã˜Â§Ã™â€žÃ˜Â£Ã™â€šÃ™â€ž Ã™â€šÃ˜Â¨Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â·Ã˜Â¨Ã˜Â§Ã˜Â¹Ã˜Â©.", "error");
@@ -1286,6 +1298,7 @@
         offerType,
         total,
         paidAmount,
+        tipAmount,
         remainingAmount,
         items: [...cart]
       });
@@ -1304,7 +1317,8 @@
       const subtotalBeforePremium = getSubtotalBeforePremium();
       const premiumExtra = getPremiumExtra();
       const paidAmount = Number(paidAmountInput.value) || 0;
-      const remainingAmount = Math.max(0, paidAmount - total);
+      const tipAmount = Number(tipAmountInput.value) || 0;
+      const remainingAmount = Math.max(0, paidAmount - total - tipAmount);
       const invoiceNote = invoiceNoteInput.value.trim();
 
       if (cart.length === 0) {
@@ -1354,6 +1368,7 @@
         premiumExtra,
         barber,
         paidAmount,
+        tipAmount,
         remainingAmount,
         note: invoiceNote,
         invoiceNote
@@ -1374,6 +1389,7 @@
             offerType,
             total,
             paidAmount,
+            tipAmount,
             remainingAmount,
             items: [...cart]
           });
@@ -1390,6 +1406,7 @@
     }
 
     paidAmountInput.addEventListener("input", updateRemaining);
+    tipAmountInput.addEventListener("input", updateRemaining);
     customerPhoneInput.addEventListener("input", handleCustomerPhoneInput);
     customerPhoneInput.addEventListener("focus", handleCustomerPhoneInput);
     customerPhoneInput.addEventListener("keydown", event => {
@@ -1409,14 +1426,14 @@
       }
 
       if (event.key === WITHDRAWALS_STORAGE_KEY || event.key === EXPENSES_STORAGE_KEY) {
-        updateDailyNet(latestTodaySales);
+        updateDailyNet(latestTodaySales, latestTodayTips);
       }
     });
     window.addEventListener("romeo-language-change", () => {
       renderServices();
       renderCart();
       todaySalesAmount.textContent = formatCurrency(latestTodaySales);
-      updateDailyNet(latestTodaySales);
+      updateDailyNet(latestTodaySales, latestTodayTips);
       updatePaymentMethodTotals(latestPaymentTotals);
     });
     window.addEventListener("pageshow", () => {
