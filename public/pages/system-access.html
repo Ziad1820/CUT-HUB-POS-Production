@@ -306,13 +306,7 @@
           <input id="password" type="text" placeholder="Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã˜Â§Ã™â€žÃ˜Â¨Ã˜Â§Ã˜Â³Ã™Ë†Ã˜Â±Ã˜Â¯">
         </div>
 
-        <div class="permissions">
-          <label class="permission-item"><input type="checkbox" value="access_cashier" checked> Ã™Å Ã™ÂÃ˜ÂªÃ˜Â­ Ã˜Â´Ã˜Â§Ã˜Â´Ã˜Â© Ã˜Â§Ã™â€žÃ™Æ’Ã˜Â§Ã˜Â´Ã™Å Ã˜Â±</label>
-          <label class="permission-item"><input type="checkbox" value="edit_prices"> Ã™Å Ã˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â³Ã˜Â¹Ã˜Â§Ã˜Â±</label>
-          <label class="permission-item"><input type="checkbox" value="view_income_statement"> Ã™Å Ã™ÂÃ˜ÂªÃ˜Â­ income statement</label>
-          <label class="permission-item"><input type="checkbox" value="view_staff_accounting"> Ã™Å Ã™ÂÃ˜ÂªÃ˜Â­ staff accounting</label>
-          <label class="permission-item"><input type="checkbox" value="manage_users"> Ã™Å Ã˜Â¯Ã™Å Ã˜Â± Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â³Ã˜ÂªÃ˜Â®Ã˜Â¯Ã™â€¦Ã™Å Ã™â€  Ã™Ë†Ã˜Â§Ã™â€žÃ˜ÂµÃ™â€žÃ˜Â§Ã˜Â­Ã™Å Ã˜Â§Ã˜Âª</label>
-        </div>
+        <div class="permissions"></div>
 
         <div class="actions">
           <button class="primary-btn" type="button" id="saveUserBtn">Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â³Ã˜ÂªÃ˜Â®Ã˜Â¯Ã™â€¦</button>
@@ -355,7 +349,10 @@
   <script src="../assets/js/core/auth.js"></script>
   <script src="../assets/js/utils/layout.js"></script>
   <script>
-    RomeoAuth.requireAuth("manage_users");
+    const currentUser = RomeoAuth.requireOwner();
+    if (!currentUser) {
+      throw new Error("System owner access is required.");
+    }
 
     const permissionLabels = {
       access_dashboard: "لوحة التحكم",
@@ -385,8 +382,7 @@
       ["view_inventory", "ÙØªØ­ Ø§Ù„Ù…Ø®Ø²ÙˆÙ†"],
       ["view_staff_discount", "ÙØªØ­ Ø®ØµÙˆÙ…Ø§Øª Ø§Ù„Ù…ÙˆØ¸ÙÙŠÙ†"],
       ["view_attendance", "ÙØªØ­ Ø§Ù„Ø­Ø¶ÙˆØ±"],
-      ["view_bookings", "ÙØªØ­ Ø§Ù„Ø­Ø¬ÙˆØ²Ø§Øª"],
-      ["manage_users", "ÙŠØ¯ÙŠØ± Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù…ÙŠÙ† ÙˆØ§Ù„ØµÙ„Ø§Ø­ÙŠØ§Øª"]
+      ["view_bookings", "ÙØªØ­ Ø§Ù„Ø­Ø¬ÙˆØ²Ø§Øª"]
     ];
 
     Object.assign(permissionLabels, Object.fromEntries(systemPermissions));
@@ -412,6 +408,7 @@
       document.getElementById("username").value = "";
       document.getElementById("password").value = "";
       document.querySelectorAll('.permissions input[type="checkbox"]').forEach((input, index) => {
+        input.disabled = false;
         input.checked = index === 0;
       });
     }
@@ -420,18 +417,31 @@
       return Array.from(document.querySelectorAll('.permissions input[type="checkbox"]:checked')).map(input => input.value);
     }
 
+    function isOwner(user) {
+      return window.RomeoAuth && typeof RomeoAuth.isOwnerUser === "function"
+        ? RomeoAuth.isOwnerUser(user)
+        : String(user && user.username || "").trim().toLowerCase() === "owner";
+    }
+
     function renderUsers() {
-      usersList.innerHTML = usersCache.map(user => `
+      usersList.innerHTML = usersCache.map(user => {
+        const owner = isOwner(user);
+        const permissionsText = owner
+          ? "مالك النظام الأساسي - كل الصلاحيات"
+          : user.permissions.map(permission => permissionLabels[permission] || permission).join(" - ");
+
+        return `
         <div class="user-card">
           <strong>${user.displayName}</strong>
           <small>@${user.username}</small>
-          <p>${user.permissions.map(permission => permissionLabels[permission] || permission).join(" - ")}</p>
+          <p>${permissionsText}</p>
           <div class="user-actions">
             <button class="secondary-btn" type="button" onclick="editUser('${user.username}')">Ã˜ÂªÃ˜Â¹Ã˜Â¯Ã™Å Ã™â€ž</button>
-            <button class="danger-btn" type="button" onclick="removeUser('${user.username}')">Ã˜Â­Ã˜Â°Ã™Â</button>
+            ${owner ? "" : `<button class="danger-btn" type="button" onclick="removeUser('${user.username}')">Ã˜Â­Ã˜Â°Ã™Â</button>`}
           </div>
         </div>
-      `).join("");
+      `;
+      }).join("");
     }
 
     async function loadUsers() {
@@ -449,8 +459,13 @@
       const displayName = document.getElementById("displayName").value.trim();
       const username = document.getElementById("username").value.trim();
       const password = document.getElementById("password").value;
-      const permissions = selectedPermissions();
+      const permissions = selectedPermissions().filter(permission => permission !== "manage_users");
       const existing = usersCache.find(user => user.username === username);
+
+      if (username.toLowerCase() === "owner" && !existing) {
+        showStatus("لا يمكن إنشاء مالك نظام ثاني. استخدم اسم مستخدم مختلف.", "error");
+        return;
+      }
 
       showStatus("Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â³Ã˜ÂªÃ˜Â®Ã˜Â¯Ã™â€¦...", "success");
 
@@ -487,7 +502,8 @@
       document.getElementById("username").value = user.username;
       document.getElementById("password").value = "";
       document.querySelectorAll('.permissions input[type="checkbox"]').forEach(input => {
-        input.checked = user.permissions.includes(input.value);
+        input.checked = isOwner(user) || user.permissions.includes(input.value);
+        input.disabled = isOwner(user);
       });
       showStatus(`Ã˜Â£Ã™â€ Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â¢Ã™â€  Ã˜ÂªÃ˜Â¹Ã˜Â¯Ã™â€ž Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â³Ã˜ÂªÃ˜Â®Ã˜Â¯Ã™â€¦ ${user.username}. Ã˜Â§Ã˜ÂªÃ˜Â±Ã™Æ’ Ã™Æ’Ã™â€žÃ™â€¦Ã˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â±Ã™Ë†Ã˜Â± Ã™ÂÃ˜Â§Ã˜Â±Ã˜ÂºÃ˜Â© Ã˜Â¥Ã˜Â°Ã˜Â§ Ã™â€žÃ˜Â§ Ã˜ÂªÃ˜Â±Ã™Å Ã˜Â¯ Ã˜ÂªÃ˜ÂºÃ™Å Ã™Å Ã˜Â±Ã™â€¡Ã˜Â§.`, "success");
     };

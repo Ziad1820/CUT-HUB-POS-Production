@@ -12,7 +12,7 @@ function doPost(e) {
 
   if (data.action === "loginUser") return loginUser(data);
   if (data.action === "logoutUser" || data.action === "logout") return logoutUser(data);
-  if (data.action === "getUsers") return getUsersFromSheet();
+  if (data.action === "getUsers") return getUsersFromSheet(data);
   if (data.action === "createUser") return createUserInSheet(data);
   if (data.action === "updateUser") return updateUserInSheet(data);
   if (data.action === "deleteUser") return deleteUserFromSheet(data);
@@ -56,10 +56,21 @@ function jsonOutput(payload) {
 const TIME_ZONE = "Africa/Cairo";
 
 const ALL_PERMISSIONS = [
+  "access_dashboard",
   "access_cashier",
   "edit_prices",
+  "view_invoices",
   "view_income_statement",
+  "view_daily_closing",
+  "view_data_analysis",
+  "view_activity_log",
   "view_staff_accounting",
+  "view_withdrawals",
+  "view_expenses",
+  "view_inventory",
+  "view_staff_discount",
+  "view_attendance",
+  "view_bookings",
   "manage_users"
 ];
 
@@ -120,8 +131,7 @@ function getActorPermissions(data) {
 
 function actorCanManageUsers(data) {
   const actor = getActor(data || {});
-  const permissions = getActorPermissions(data || {});
-  return actor.userName === "owner" || permissions.includes("manage_users");
+  return String(actor.userName || "").trim().toLowerCase() === "owner";
 }
 
 function getActivityLogSheet() {
@@ -216,11 +226,21 @@ function stringifyPermissions(permissions) {
     .join(",");
 }
 
+function normalizeManagedPermissions(username, permissions) {
+  if (String(username || "").trim().toLowerCase() === "owner") {
+    return ALL_PERMISSIONS;
+  }
+
+  return (Array.isArray(permissions) ? permissions : [])
+    .map(permission => String(permission || "").trim())
+    .filter(permission => permission && permission !== "manage_users");
+}
+
 function sanitizeUser(user) {
   return {
     username: user.username,
     displayName: user.displayName,
-    permissions: user.permissions
+    permissions: normalizeManagedPermissions(user.username, user.permissions)
   };
 }
 
@@ -244,8 +264,15 @@ function readUsersFromSheet() {
     .filter(user => user.username);
 }
 
-function getUsersFromSheet() {
+function getUsersFromSheet(data) {
   try {
+    if (!actorCanManageUsers(data || {})) {
+      return jsonOutput({
+        status: "error",
+        message: "Only the system owner can view users."
+      });
+    }
+
     const users = readUsersFromSheet().map(sanitizeUser);
     return jsonOutput({ status: "success", users });
   } catch (error) {
@@ -314,6 +341,13 @@ function logoutUser(data) {
 
 function createUserInSheet(data) {
   try {
+    if (!actorCanManageUsers(data || {})) {
+      return jsonOutput({
+        status: "error",
+        message: "Only the system owner can create users."
+      });
+    }
+
     const sheet = getUsersSheet();
     const username = String(data.username || "").trim();
     const password = String(data.password || "");
@@ -335,7 +369,7 @@ function createUserInSheet(data) {
       });
     }
 
-    const finalPermissions = username === "owner" ? ALL_PERMISSIONS : permissions;
+    const finalPermissions = normalizeManagedPermissions(username, permissions);
 
     sheet.appendRow([
       username,
@@ -368,6 +402,13 @@ function createUserInSheet(data) {
 
 function updateUserInSheet(data) {
   try {
+    if (!actorCanManageUsers(data || {})) {
+      return jsonOutput({
+        status: "error",
+        message: "Only the system owner can update users."
+      });
+    }
+
     const sheet = getUsersSheet();
     const username = String(data.username || "").trim();
 
@@ -385,9 +426,10 @@ function updateUserInSheet(data) {
     const oldDisplayName = user.displayName;
     const displayName = String(data.displayName || user.displayName).trim() || username;
     const password = String(data.password || user.password);
-    const permissions = username === "owner"
-      ? ALL_PERMISSIONS
-      : (Array.isArray(data.permissions) ? data.permissions : user.permissions);
+    const permissions = normalizeManagedPermissions(
+      username,
+      Array.isArray(data.permissions) ? data.permissions : user.permissions
+    );
 
     sheet.getRange(user.rowNumber, 2, 1, 3).setValues([[
       password,
@@ -418,6 +460,13 @@ function updateUserInSheet(data) {
 
 function deleteUserFromSheet(data) {
   try {
+    if (!actorCanManageUsers(data || {})) {
+      return jsonOutput({
+        status: "error",
+        message: "Only the system owner can delete users."
+      });
+    }
+
     const sheet = getUsersSheet();
     const username = String(data.username || "").trim();
 

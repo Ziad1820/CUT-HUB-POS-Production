@@ -1,6 +1,7 @@
 const RomeoAuth = (() => {
-  const API_URL = window.RomeoApi ? RomeoApi.API_URL : "https://script.google.com/macros/s/AKfycbyChUh1oKaAPsQSmwyK5bK1xJ_dmxnSH7K8g151d82LHmNJVsPcM3RHpJS_OoOh1PRl/exec";
+  const API_URL = window.RomeoApi ? RomeoApi.API_URL : "https://script.google.com/macros/s/AKfycbwUo0TM1wuzv_D5lybuu05231Nkmz2DcZrTxSEpAVNmof2gCZ6YGOXHlWLMnudhPWIy/exec";
   const SESSION_KEY = "romeo-pos-session";
+  const OWNER_USERNAME = "owner";
   const ALL_PERMISSIONS = [
     "access_dashboard",
     "access_cashier",
@@ -46,6 +47,10 @@ const RomeoAuth = (() => {
     return response.json();
   }
 
+  function isOwnerUser(user) {
+    return String(user && user.username || "").trim().toLowerCase() === OWNER_USERNAME;
+  }
+
   function normalizeUser(user) {
     const normalized = {
       username: String(user.username || "").trim(),
@@ -53,27 +58,31 @@ const RomeoAuth = (() => {
       permissions: Array.isArray(user.permissions) ? user.permissions : []
     };
 
-    if (normalized.username === "owner") {
+    if (isOwnerUser(normalized)) {
       normalized.permissions = [...ALL_PERMISSIONS];
+    } else {
+      normalized.permissions = normalized.permissions.filter(permission => permission !== "manage_users");
     }
 
     return normalized;
   }
 
   function getCurrentSession() {
-    const stored = localStorage.getItem(SESSION_KEY);
+    localStorage.removeItem(SESSION_KEY);
+    const stored = sessionStorage.getItem(SESSION_KEY);
     if (!stored) return null;
 
     try {
       return JSON.parse(stored);
     } catch (error) {
-      localStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(SESSION_KEY);
       return null;
     }
   }
 
   function saveSession(user) {
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ user: normalizeUser(user) }));
+    localStorage.removeItem(SESSION_KEY);
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ user: normalizeUser(user) }));
   }
 
   function getCurrentUser() {
@@ -105,7 +114,7 @@ const RomeoAuth = (() => {
 
   function finishLogout() {
     localStorage.removeItem(SESSION_KEY);
-    sessionStorage.clear();
+    sessionStorage.removeItem(SESSION_KEY);
     window.location.href = "login.html";
   }
 
@@ -140,6 +149,19 @@ const RomeoAuth = (() => {
   function hasPermission(permission) {
     const user = getCurrentUser();
     return !!user && user.permissions.includes(permission);
+  }
+
+  function requireOwner() {
+    const user = requireAuth();
+    if (!user) return null;
+
+    if (!isOwnerUser(user)) {
+      alert("هذه الصفحة متاحة لمالك النظام الأساسي فقط.");
+      window.location.href = getFirstAllowedPage(user);
+      return null;
+    }
+
+    return user;
   }
 
   function getFirstAllowedPage(user) {
@@ -191,7 +213,10 @@ const RomeoAuth = (() => {
       return usersCache;
     }
 
-    const result = await apiRequest({ action: "getUsers" });
+    const result = await apiRequest({
+      action: "getUsers",
+      currentUser: getCurrentUser()
+    });
     if (result.status !== "success") {
       throw new Error(result.message || "تعذر تحميل المستخدمين.");
     }
@@ -202,12 +227,20 @@ const RomeoAuth = (() => {
 
   async function createUser(userInput) {
     try {
+      const currentUser = getCurrentUser();
+      if (!isOwnerUser(currentUser)) {
+        return { success: false, message: "Only the system owner can manage users." };
+      }
+
       const result = await apiRequest({
         action: "createUser",
+        currentUser,
         displayName: String(userInput.displayName || "").trim(),
         username: String(userInput.username || "").trim(),
         password: String(userInput.password || ""),
-        permissions: Array.isArray(userInput.permissions) ? userInput.permissions : []
+        permissions: Array.isArray(userInput.permissions)
+          ? userInput.permissions.filter(permission => permission !== "manage_users")
+          : []
       });
 
       if (result.status !== "success") {
@@ -223,12 +256,20 @@ const RomeoAuth = (() => {
 
   async function updateUser(username, updates) {
     try {
+      const currentUser = getCurrentUser();
+      if (!isOwnerUser(currentUser)) {
+        return { success: false, message: "Only the system owner can manage users." };
+      }
+
       const result = await apiRequest({
         action: "updateUser",
+        currentUser,
         username: String(username || "").trim(),
         displayName: String(updates.displayName || "").trim(),
         password: String(updates.password || ""),
-        permissions: Array.isArray(updates.permissions) ? updates.permissions : []
+        permissions: Array.isArray(updates.permissions)
+          ? updates.permissions.filter(permission => permission !== "manage_users")
+          : []
       });
 
       if (result.status !== "success") {
@@ -237,7 +278,6 @@ const RomeoAuth = (() => {
 
       usersCache = null;
 
-      const currentUser = getCurrentUser();
       if (currentUser && currentUser.username === username) {
         saveSession(result.user);
       }
@@ -250,6 +290,10 @@ const RomeoAuth = (() => {
 
   async function deleteUser(username) {
     const currentUser = getCurrentUser();
+    if (!isOwnerUser(currentUser)) {
+      return { success: false, message: "Only the system owner can manage users." };
+    }
+
     if (currentUser && currentUser.username === username) {
       return { success: false, message: "لا يمكنك حذف المستخدم الحالي." };
     }
@@ -257,6 +301,7 @@ const RomeoAuth = (() => {
     try {
       const result = await apiRequest({
         action: "deleteUser",
+        currentUser,
         username: String(username || "").trim()
       });
 
@@ -280,9 +325,11 @@ const RomeoAuth = (() => {
     getReturnTo,
     getUsers,
     hasPermission,
+    isOwnerUser,
     login,
     logout,
     requireAuth,
+    requireOwner,
     updateUser
   };
 })();

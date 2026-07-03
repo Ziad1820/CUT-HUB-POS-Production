@@ -1,10 +1,10 @@
 (function () {
-  const API_URL = "https://script.google.com/macros/s/AKfycbyChUh1oKaAPsQSmwyK5bK1xJ_dmxnSH7K8g151d82LHmNJVsPcM3RHpJS_OoOh1PRl/exec";
+  const API_URL = "https://script.google.com/macros/s/AKfycbwUo0TM1wuzv_D5lybuu05231Nkmz2DcZrTxSEpAVNmof2gCZ6YGOXHlWLMnudhPWIy/exec";
   const SESSION_KEY = "romeo-pos-session";
 
   function getCurrentUserFromSession() {
     try {
-      const stored = localStorage.getItem(SESSION_KEY);
+      const stored = sessionStorage.getItem(SESSION_KEY);
       if (!stored) return null;
 
       const session = JSON.parse(stored);
