@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="assets/css/shared.css">
-<title>Bookings - SALONIX</title>
+    <link rel="stylesheet" href="../assets/css/shared.css">
+<title>Customer Data - SALONIX</title>
   <style>
     :root{--ink:#2a2118;--muted:#77695c;--accent-dark:#8c642e;--shadow:0 18px 40px rgba(76,54,28,.14)}*{box-sizing:border-box}
     body{margin:0;font-family:"Segoe UI",Tahoma,sans-serif;background:radial-gradient(circle at top right, rgba(183,134,63,.18), transparent 28%), linear-gradient(135deg, #f8f2e8 0%, #f0e4d0 100%);color:var(--ink)}
@@ -28,14 +28,14 @@
     <div class="header">
       <div class="header-menu"><button type="button" class="menu-toggle" id="menuToggle">Ã¢â€¹Â¯</button></div>
       <div class="brand-lockup">
-        <img class="brand-logo" src="salonix-logo.svg" alt="SALONIX logo">
+        <img class="brand-logo" src="../assets/images/salonix-logo.svg" alt="SALONIX logo">
         <h1 class="brand-name">SALONIX</h1>
         <p class="brand-slogan">THE SMART WAY TO RUN YOUR SALON</p>
       </div>
     </div>
     <section class="panel">
-      <h2>Bookings</h2>
-      <p>Ã˜Â§Ã™â€žÃ˜ÂµÃ™ÂÃ˜Â­Ã˜Â© Ã˜Â¬Ã˜Â§Ã™â€¡Ã˜Â²Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â¢Ã™â€ Ã˜Å’ Ã™Ë†Ã™â€ Ã™â€šÃ˜Â¯Ã˜Â± Ã™â€žÃ˜Â§Ã˜Â­Ã™â€šÃ™â€¹Ã˜Â§ Ã™â€ Ã˜Â¶Ã™Å Ã™Â Ã™ÂÃ™Å Ã™â€¡Ã˜Â§ Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¬Ã™Ë†Ã˜Â²Ã˜Â§Ã˜Âª.</p>
+      <h2>Customer Data</h2>
+      <p>Ã˜Â§Ã™â€žÃ˜ÂµÃ™ÂÃ˜Â­Ã˜Â© Ã˜Â¬Ã˜Â§Ã™â€¡Ã˜Â²Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â¢Ã™â€ Ã˜Å’ Ã™Ë†Ã™â€ Ã™â€šÃ˜Â¯Ã˜Â± Ã™â€žÃ˜Â§Ã˜Â­Ã™â€šÃ™â€¹Ã˜Â§ Ã™â€ Ã˜Â¶Ã™Å Ã™Â Ã™ÂÃ™Å Ã™â€¡Ã˜Â§ Ã˜Â¨Ã™Å Ã˜Â§Ã™â€ Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€žÃ˜Â§Ã˜Â¡.</p>
     </section>
   </div>
 
@@ -55,16 +55,16 @@
     <button class="sidebar-link" type="button" data-href="enventory.html">Enventory</button>
     <button class="sidebar-link" type="button" data-href="staff-discount.html">staff Discount</button>
     <button class="sidebar-link" type="button" data-href="attendance.html">Attendance</button>
-    <button class="sidebar-link active" type="button">Bookings</button>
+    <button class="sidebar-link" type="button" data-href="bookings.html">Bookings</button>
     <button type="button" id="logoutBtn">Logout</button>
   </aside>
 
-  <script src="assets/js/text-fix.js"></script>
-  <script src="assets/js/api.js"></script>
-  <script src="assets/js/auth.js"></script>
-  <script src="assets/js/layout.js"></script>
+  <script src="../assets/js/utils/text-fix.js"></script>
+  <script src="../assets/js/core/api.js"></script>
+  <script src="../assets/js/core/auth.js"></script>
+  <script src="../assets/js/utils/layout.js"></script>
   <script>
-    RomeoAuth.requireAuth("view_bookings");
+    RomeoAuth.requireAuth();
     const menuToggle=document.getElementById("menuToggle");
     const sidebar=document.getElementById("sidebar");
     const sidebarOverlay=document.getElementById("sidebarOverlay");
@@ -73,8 +73,8 @@
     document.querySelectorAll(".sidebar-link[data-href]").forEach(link=>link.addEventListener("click",()=>{window.location.href=link.dataset.href}));
     document.getElementById("logoutBtn").addEventListener("click",()=>RomeoAuth.logout());
   </script>
-  <script src="assets/js/keyboard-navigation.js"></script>
-  <script src="assets/js/language.js"></script>
+  <script src="../assets/js/utils/keyboard-navigation.js"></script>
+  <script src="../assets/js/utils/language.js"></script>
 </body>
 </html>
 

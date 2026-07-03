@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="assets/css/shared.css">
-<title>Expenses - SALONIX</title>
+    <link rel="stylesheet" href="../assets/css/shared.css">
+<title>Withdrawals - SALONIX</title>
   <style>
     :root {
       --ink: #2a2118;
@@ -16,7 +16,6 @@
       --shadow: 0 18px 40px rgba(76,54,28,.14);
       --danger: #ba3a2c;
       --success: #18794e;
-      --warning: #b7863f;
     }
 
     * { box-sizing: border-box; }
@@ -65,7 +64,7 @@
 
     .menu-toggle:hover,
     .action-btn:hover,
-    .category-card:hover,
+    .employee-card:hover,
     .history-item:hover,
     .summary-card:hover {
       transform: translateY(-3px);
@@ -97,8 +96,7 @@
 
     .search-box,
     .field input,
-    .field textarea,
-    .field select {
+    .field textarea {
       width: 100%;
       border: 1px solid var(--line);
       border-radius: 16px;
@@ -116,14 +114,13 @@
 
     .search-box:focus,
     .field input:focus,
-    .field textarea:focus,
-    .field select:focus {
+    .field textarea:focus {
       outline: none;
       border-color: #2a2118;
       box-shadow: 0 0 0 3px rgba(183,134,63,.16);
     }
 
-    .category-list {
+    .employee-list {
       display: grid;
       gap: 10px;
       max-height: 66vh;
@@ -131,7 +128,7 @@
       padding-left: 6px;
     }
 
-    .category-card {
+    .employee-card {
       border: 1px solid transparent;
       background: #fffaf2;
       border-radius: 18px;
@@ -141,18 +138,18 @@
       text-align: right;
     }
 
-    .category-card.active {
+    .employee-card.active {
       border-color: rgba(183,134,63,0.44);
       background: linear-gradient(135deg, rgba(183,134,63,0.16), rgba(255,255,255,.94));
     }
 
-    .category-card strong {
+    .employee-card strong {
       display: block;
       font-size: 17px;
       margin-bottom: 4px;
     }
 
-    .category-meta {
+    .employee-meta {
       color: var(--muted);
       font-size: 13px;
       display: flex;
@@ -191,7 +188,7 @@
       padding: 16px 20px;
       border-radius: 20px;
       font-weight: 900;
-      font-size: 22px;
+      font-size: 26px;
     }
 
     .summary-grid {
@@ -218,7 +215,6 @@
 
     .summary-card.total strong { color: #2a2118; }
     .summary-card.count strong { color: #2a2118; }
-    .summary-card.average strong { color: #2a2118; }
 
     .editor-grid {
       display: grid;
@@ -414,7 +410,7 @@
         <button type="button" class="menu-toggle" id="menuToggle">Ã¢â€¹Â¯</button>
       </div>
       <div class="brand-lockup">
-        <img class="brand-logo" src="salonix-logo.svg" alt="SALONIX logo">
+        <img class="brand-logo" src="../assets/images/salonix-logo.svg" alt="SALONIX logo">
         <h1 class="brand-name">SALONIX</h1>
         <p class="brand-slogan">THE SMART WAY TO RUN YOUR SALON</p>
       </div>
@@ -423,68 +419,60 @@
     <div class="page-grid">
       <aside class="left-panel">
         <section class="panel">
-          <input class="search-box" id="searchInput" type="text" placeholder="Search category">
+          <input class="search-box" id="searchInput" type="text" placeholder="Search employee">
         </section>
 
-        <section class="category-list" id="categoryList"></section>
+        <section class="employee-list" id="employeeList"></section>
       </aside>
 
       <main class="main-panel">
         <section class="panel hero">
           <div>
-            <h2 id="categoryTitle">Select Category</h2>
-            <p id="categorySubtitle">Ã˜Â§Ã˜Â®Ã˜ÂªÃ˜Â§Ã˜Â± Ã™â€ Ã™Ë†Ã˜Â¹ Ã˜Â§Ã™â€žÃ™â€¦Ã˜ÂµÃ˜Â±Ã™Ë†Ã™ÂÃ˜Å’ Ã˜Â«Ã™â€¦ Ã˜Â³Ã˜Â¬Ã™â€ž Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¨Ã™â€žÃ˜Âº Ã™Ë†Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â® Ã™Ë†Ã˜Â§Ã™â€žÃ™â€¦Ã™â€žÃ˜Â§Ã˜Â­Ã˜Â¸Ã˜Â©. Ã™Æ’Ã™â€ž Ã˜Â§Ã™â€žÃ™â€¦Ã˜ÂµÃ˜Â±Ã™Ë†Ã™ÂÃ˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â§Ã˜ÂµÃ˜Â© Ã˜Â¨Ã˜Â§Ã™â€žÃ˜ÂªÃ˜ÂµÃ™â€ Ã™Å Ã™Â Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â®Ã˜ÂªÃ˜Â§Ã˜Â± Ã˜Â³Ã˜ÂªÃ˜Â¸Ã™â€¡Ã˜Â± Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ˜Â³Ã˜Â¬Ã™â€ž Ã˜ÂªÃ˜Â­Ã˜Âª.</p>
+            <h2 id="employeeTitle">Select Employee</h2>
+            <p id="employeeSubtitle">Ã˜Â§Ã˜Â®Ã˜ÂªÃ˜Â§Ã˜Â± Ã™â€¦Ã™Ë†Ã˜Â¸Ã™Â Ã™Ë†Ã˜Â³Ã˜Â¬Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â³Ã˜Â­Ã˜Â¨ Ã˜Â¨Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¨Ã™â€žÃ˜Âº Ã™Ë†Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â® Ã™Ë†Ã˜Â§Ã™â€žÃ™â€¦Ã™â€žÃ˜Â§Ã˜Â­Ã˜Â¸Ã˜Â©Ã˜Å’ Ã™Ë†Ã™Æ’Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€žÃ™Å Ã˜Â§Ã˜Âª Ã™â€¡Ã˜ÂªÃ˜Â¸Ã™â€¡Ã˜Â± Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ˜Â³Ã˜Â¬Ã™â€ž Ã˜ÂªÃ˜Â­Ã˜Âª.</p>
           </div>
-          <div class="hero-badge" id="categoryCode">EXP</div>
+          <div class="hero-badge" id="employeeCode">--</div>
         </section>
 
         <section class="summary-grid">
           <article class="summary-card total">
-            <span>Category Expenses</span>
-            <strong id="categoryExpenses">0</strong>
+            <span>Employee Withdrawals</span>
+            <strong id="employeeWithdrawals">0</strong>
           </article>
           <article class="summary-card count">
-            <span>Category Records</span>
-            <strong id="categoryRecords">0</strong>
+            <span>Employee Records</span>
+            <strong id="employeeRecords">0</strong>
           </article>
           <article class="summary-card total">
-            <span>Total Expenses</span>
-            <strong id="allExpenses">0</strong>
+            <span>Total Withdrawals</span>
+            <strong id="allWithdrawals">0</strong>
           </article>
-          <article class="summary-card average">
-            <span>Average Expense</span>
-            <strong id="averageExpense">0</strong>
+          <article class="summary-card count">
+            <span>Total Records</span>
+            <strong id="allRecords">0</strong>
           </article>
         </section>
 
         <section class="panel">
           <div class="editor-grid">
             <div class="field">
-              <label for="expenseAmount">Amount</label>
-              <input id="expenseAmount" type="number" min="0" step="0.01" placeholder="0">
+              <label for="withdrawAmount">Amount</label>
+              <input id="withdrawAmount" type="number" min="0" step="0.01" placeholder="0">
             </div>
             <div class="field">
-              <label for="expenseDate">Date</label>
-              <input id="expenseDate" type="date">
-            </div>
-            <div class="field">
-              <label for="expenseCategory">Category</label>
-              <select id="expenseCategory"></select>
-            </div>
-            <div class="field">
-              <label for="expenseTitle">Title</label>
-              <input id="expenseTitle" type="text" placeholder="Electricity / Rent / Supplies">
+              <label for="withdrawDate">Date</label>
+              <input id="withdrawDate" type="date">
             </div>
             <div class="field full">
-              <label for="expenseNote">Note</label>
-              <textarea id="expenseNote" placeholder="Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã˜ÂªÃ™ÂÃ˜Â§Ã˜ÂµÃ™Å Ã™â€ž Ã˜Â§Ã™â€žÃ™â€¦Ã˜ÂµÃ˜Â±Ã™Ë†Ã™Â Ã˜Â£Ã™Ë† Ã˜Â£Ã™Å  Ã™â€¦Ã™â€žÃ˜Â§Ã˜Â­Ã˜Â¸Ã˜Â© Ã˜Â¥Ã˜Â¶Ã˜Â§Ã™ÂÃ™Å Ã˜Â©"></textarea>
+              <label for="withdrawNote">Note</label>
+              <textarea id="withdrawNote" placeholder="Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã˜Â³Ã˜Â¨Ã˜Â¨ Ã˜Â§Ã™â€žÃ˜Â³Ã˜Â­Ã˜Â¨ Ã˜Â£Ã™Ë† Ã™â€¦Ã™â€žÃ˜Â§Ã˜Â­Ã˜Â¸Ã˜Â§Ã˜Âª Ã˜Â¥Ã˜Â¶Ã˜Â§Ã™ÂÃ™Å Ã˜Â©"></textarea>
             </div>
           </div>
         </section>
 
         <section class="panel">
           <div class="action-row">
-            <button type="button" class="action-btn primary" id="saveBtn">Add Expense</button>
+            <button type="button" class="action-btn primary" id="saveBtn">Add Withdrawal</button>
             <button type="button" class="action-btn soft" id="clearBtn">Clear Form</button>
           </div>
         </section>
@@ -507,8 +495,8 @@
       <button class="sidebar-link" type="button" data-href="activity-log.html" data-permission="manage_users">Activity Log</button>
     <button class="sidebar-link" type="button" data-href="staff-accounting.html" data-permission="view_staff_accounting">staff accounting</button>
     <button class="sidebar-link" type="button" data-href="system-access.html" data-permission="manage_users">system access</button>
-    <button class="sidebar-link" type="button" data-href="withdrawals.html">Withdrawals</button>
-    <button class="sidebar-link active" type="button">Expenses</button>
+    <button class="sidebar-link active" type="button">Withdrawals</button>
+    <button class="sidebar-link" type="button" data-href="expenses.html">Expenses</button>
     <button class="sidebar-link" type="button" data-href="enventory.html">Enventory</button>
     <button class="sidebar-link" type="button" data-href="staff-discount.html">staff Discount</button>
     <button class="sidebar-link" type="button" data-href="attendance.html">Attendance</button>
@@ -516,15 +504,15 @@
     <button type="button" id="logoutBtn">Logout</button>
   </aside>
 
-  <script src="assets/js/text-fix.js"></script>
+  <script src="../assets/js/utils/text-fix.js"></script>
 
-  <script src="assets/js/api.js"></script>
-  <script src="assets/js/auth.js"></script>
-  <script src="assets/js/layout.js"></script>
-  <script src="assets/js/expenses.js"></script>
+  <script src="../assets/js/core/api.js"></script>
+  <script src="../assets/js/core/auth.js"></script>
+  <script src="../assets/js/utils/layout.js"></script>
+  <script src="../assets/js/pages/withdrawals.js"></script>
 
-  <script src="assets/js/keyboard-navigation.js"></script>
-  <script src="assets/js/language.js"></script>
+  <script src="../assets/js/utils/keyboard-navigation.js"></script>
+  <script src="../assets/js/utils/language.js"></script>
 </body>
 </html>
 
