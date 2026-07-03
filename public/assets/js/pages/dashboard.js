@@ -102,24 +102,6 @@
     }
   };
 
-  const HERO_MONTHS = {
-    ar: [
-      "يناير",
-      "فبراير",
-      "مارس",
-      "أبريل",
-      "مايو",
-      "يونيو",
-      "يوليو",
-      "أغسطس",
-      "سبتمبر",
-      "أكتوبر",
-      "نوفمبر",
-      "ديسمبر"
-    ],
-    en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-  };
-
   function getLanguage() {
     return localStorage.getItem("romeo-pos-language") || "ar";
   }
@@ -166,13 +148,11 @@
   }
 
   function formatHeroDate(date) {
-    const language = getLanguage();
-    const months = HERO_MONTHS[language] || HERO_MONTHS.en;
     const day = String(date.getDate()).padStart(2, "0");
-    const month = months[date.getMonth()] || "";
+    const month = String(date.getMonth() + 1).padStart(2, "0");
     const year = date.getFullYear();
 
-    return language === "en" ? `${month} ${day}, ${year}` : `${day} ${month} ${year}`;
+    return `${day}/${month}/${year}`;
   }
 
 function getRelativeDateKey(offsetDays) {
