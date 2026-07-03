@@ -138,7 +138,7 @@
 
     .toolbar {
       display: grid;
-      grid-template-columns: minmax(220px, 1.5fr) minmax(170px, .8fr) minmax(170px, .8fr) auto auto;
+      grid-template-columns: minmax(220px, 1.4fr) repeat(3, minmax(150px, .8fr)) auto auto;
       gap: 12px;
       align-items: end;
       margin-bottom: 18px;
@@ -418,6 +418,42 @@
       line-height: 1.7;
     }
 
+    .modal-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+
+    .detail-input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fffaf2;
+      color: var(--ink);
+      padding: 10px 12px;
+      font: inherit;
+      font-weight: 800;
+      outline: none;
+    }
+
+    textarea.detail-input {
+      min-height: 86px;
+      resize: vertical;
+      line-height: 1.6;
+    }
+
+    .modal-status {
+      grid-column: 1 / -1;
+      color: var(--muted);
+      font-weight: 800;
+      min-height: 22px;
+    }
+
+    .modal-status.error { color: var(--danger); }
+    .modal-status.success { color: var(--success); }
+
     @media (max-width: 980px) {
       .toolbar { grid-template-columns: 1fr 1fr; }
       .summary-grid { grid-template-columns: 1fr; }
@@ -488,6 +524,12 @@
           <label for="barberFilter">Ã™ÂÃ™â€žÃ˜ÂªÃ˜Â±Ã˜Â© Ã˜Â¨Ã˜Â§Ã™â€žÃ˜Â­Ã™â€žÃ˜Â§Ã™â€š</label>
           <select id="barberFilter">
             <option value="">Ã™Æ’Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â­Ã™â€žÃ˜Â§Ã™â€šÃ™Å Ã™â€ </option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="paymentFilter">طريقة الدفع</label>
+          <select id="paymentFilter">
+            <option value="">كل طرق الدفع</option>
           </select>
         </div>
         <button type="button" class="action-btn" id="clearFiltersBtn">Ã™â€¦Ã˜Â³Ã˜Â­ Ã˜Â§Ã™â€žÃ™ÂÃ™â€žÃ˜Â§Ã˜ÂªÃ˜Â±</button>

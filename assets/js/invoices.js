@@ -5,6 +5,7 @@
       searchInput: document.getElementById("searchInput"),
       dateFilter: document.getElementById("dateFilter"),
       barberFilter: document.getElementById("barberFilter"),
+      paymentFilter: document.getElementById("paymentFilter"),
       clearFiltersBtn: document.getElementById("clearFiltersBtn"),
       reloadBtn: document.getElementById("reloadBtn"),
       invoiceRows: document.getElementById("invoiceRows"),
@@ -25,6 +26,8 @@
 
     let invoices = [];
     let filteredInvoices = [];
+    let activeInvoice = null;
+    let detailsEditMode = false;
     const selectedInvoiceIds = new Set();
 
     function parseAmount(value) {
@@ -111,6 +114,12 @@
       return text || "-";
     }
 
+    function getDateInputValue(invoice) {
+      const value = invoice.dateKey || invoice.date || "";
+      const match = String(value).match(/(\d{4})-(\d{2})-(\d{2})/);
+      return match ? match[0] : "";
+    }
+
     function normalizeText(value) {
       return String(value || "").trim().toLowerCase();
     }
@@ -145,6 +154,7 @@
         const result = await postToApi({ action: "getInvoices" });
         invoices = Array.isArray(result.invoices) ? result.invoices : [];
         renderBarberOptions();
+        renderPaymentOptions();
         applyFilters();
       } catch (error) {
         console.error(error);
@@ -173,10 +183,32 @@
       }
     }
 
+    function getInvoicePayment(invoice) {
+      return String(invoice.paymentMethod || invoice.payment || "").trim();
+    }
+
+    function renderPaymentOptions() {
+      const currentValue = elements.paymentFilter.value;
+      const paymentMethods = [...new Set(invoices.map(getInvoicePayment).filter(Boolean))].sort();
+
+      elements.paymentFilter.innerHTML = `<option value="">${localizeText("كل طرق الدفع", "All payment methods")}</option>`;
+      paymentMethods.forEach(paymentMethod => {
+        const option = document.createElement("option");
+        option.value = paymentMethod;
+        option.textContent = translateDataValue(paymentMethod, PAYMENT_TRANSLATIONS);
+        elements.paymentFilter.appendChild(option);
+      });
+
+      if (paymentMethods.includes(currentValue)) {
+        elements.paymentFilter.value = currentValue;
+      }
+    }
+
     function applyFilters() {
       const search = normalizeText(elements.searchInput.value);
       const targetDate = elements.dateFilter.value;
       const targetBarber = elements.barberFilter.value;
+      const targetPayment = elements.paymentFilter.value;
 
       filteredInvoices = invoices.filter(invoice => {
         const matchesSearch = !search ||
@@ -184,7 +216,8 @@
           normalizeText(invoice.customerPhone).includes(search);
         const matchesDate = !targetDate || getInvoiceDate(invoice) === targetDate;
         const matchesBarber = !targetBarber || String(invoice.barber || "").trim() === targetBarber;
-        return matchesSearch && matchesDate && matchesBarber;
+        const matchesPayment = !targetPayment || getInvoicePayment(invoice) === targetPayment;
+        return matchesSearch && matchesDate && matchesBarber && matchesPayment;
       });
 
       pruneSelectedInvoices();
@@ -286,20 +319,131 @@
       return invoices.find(item => String(item.invoiceId) === String(invoiceId));
     }
 
-    function openDetails(invoice) {
+    function getPaymentOptions(selectedValue) {
+      const payments = [
+        ["نقدي", "نقدي"],
+        ["انستا باي", "انستا باي"],
+        ["فودافون كاش", "فودافون كاش"],
+        ["فيزا", "فيزا"]
+      ];
+
+      const current = String(selectedValue || "").trim();
+      if (current && !payments.some(([value]) => value === current)) {
+        payments.unshift([current, current]);
+      }
+
+      return payments.map(([value, label]) =>
+        `<option value="${escapeHtml(value)}" ${value === current ? "selected" : ""}>${escapeHtml(label)}</option>`
+      ).join("");
+    }
+
+    function getDetailValue(id) {
+      return document.getElementById(id)?.value?.trim() || "";
+    }
+
+    function renderDetails(invoice, editMode = false) {
       const payment = translateDataValue(invoice.paymentMethod || invoice.payment || "-", PAYMENT_TRANSLATIONS);
-      elements.invoiceDetails.innerHTML = `
-        <div class="detail-item"><span>${localizeText("Ø§Ù„ØªØ§Ø±ÙŠØ®", "Date")}</span><strong>${escapeHtml(invoice.date || invoice.dateKey || "-")}</strong></div>
-        <div class="detail-item"><span>${localizeText("Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ", "Total")}</span><strong>${formatMoney(invoice.total)}</strong></div>
-        <div class="detail-item"><span>${localizeText("Ø§Ø³Ù… Ø§Ù„Ø¹Ù…ÙŠÙ„", "Customer Name")}</span><strong>${escapeHtml(invoice.customerName || "-")}</strong></div>
-        <div class="detail-item"><span>${localizeText("Ø±Ù‚Ù… Ø§Ù„Ù‡Ø§ØªÙ", "Phone")}</span><strong>${escapeHtml(invoice.customerPhone || "-")}</strong></div>
-        <div class="detail-item"><span>${localizeText("Ø§Ù„Ø­Ù„Ø§Ù‚", "Barber")}</span><strong>${escapeHtml(invoice.barber || "-")}</strong></div>
-        <div class="detail-item"><span>${localizeText("Ø·Ø±ÙŠÙ‚Ø© Ø§Ù„Ø¯ÙØ¹", "Payment Method")}</span><strong>${escapeHtml(payment)}</strong></div>
-        <div class="detail-item full"><span>${localizeText("Ø§Ù„Ø®Ø¯Ù…Ø§Øª", "Services")}</span><strong>${escapeHtml(formatServices(invoice.services || "-"))}</strong></div>
-        <div class="detail-item full"><span>${localizeText("Ø§Ù„Ù…Ù„Ø§Ø­Ø¸Ø©", "Note")}</span><strong>${escapeHtml(invoice.note || invoice.invoiceNote || "-")}</strong></div>
-        <div class="detail-item full"><span>PDF</span><strong>${invoice.pdfUrl ? `<a href="${escapeHtml(invoice.pdfUrl)}" target="_blank" rel="noopener">${localizeText("ÙØªØ­ Ø§Ù„ÙØ§ØªÙˆØ±Ø©", "Open Invoice")}</a>` : "-"}</strong></div>
+      const dateLabel = localizeText("التاريخ", "Date");
+      const totalLabel = localizeText("الإجمالي", "Total");
+      const customerLabel = localizeText("اسم العميل", "Customer Name");
+      const phoneLabel = localizeText("رقم الهاتف", "Phone");
+      const barberLabel = localizeText("الحلاق", "Barber");
+      const paymentLabel = localizeText("طريقة الدفع", "Payment Method");
+      const servicesLabel = localizeText("الخدمات", "Services");
+      const noteLabel = localizeText("الملاحظة", "Note");
+
+      elements.invoiceDetails.innerHTML = editMode ? `
+        <div class="detail-item"><span>${dateLabel}</span><input class="detail-input" id="editInvoiceDate" type="date" value="${escapeHtml(getDateInputValue(invoice))}"></div>
+        <div class="detail-item"><span>${totalLabel}</span><input class="detail-input" id="editInvoiceTotal" type="number" min="0" step="1" value="${escapeHtml(parseAmount(invoice.total))}"></div>
+        <div class="detail-item"><span>${customerLabel}</span><input class="detail-input" id="editCustomerName" type="text" value="${escapeHtml(invoice.customerName || "")}"></div>
+        <div class="detail-item"><span>${phoneLabel}</span><input class="detail-input" id="editCustomerPhone" type="tel" value="${escapeHtml(invoice.customerPhone || "")}"></div>
+        <div class="detail-item"><span>${barberLabel}</span><input class="detail-input" id="editInvoiceBarber" type="text" value="${escapeHtml(invoice.barber || "")}"></div>
+        <div class="detail-item"><span>${paymentLabel}</span><select class="detail-input" id="editPaymentMethod">${getPaymentOptions(invoice.paymentMethod || invoice.payment || "")}</select></div>
+        <div class="detail-item full"><span>${servicesLabel}</span><textarea class="detail-input" id="editInvoiceServices">${escapeHtml(formatServices(invoice.services || ""))}</textarea></div>
+        <div class="detail-item full"><span>${noteLabel}</span><textarea class="detail-input" id="editInvoiceNote">${escapeHtml(invoice.note || invoice.invoiceNote || "")}</textarea></div>
+        <div class="detail-item full"><span>PDF</span><strong>${invoice.pdfUrl ? `<a href="${escapeHtml(invoice.pdfUrl)}" target="_blank" rel="noopener">${localizeText("فتح الفاتورة", "Open Invoice")}</a>` : "-"}</strong></div>
+        <div class="modal-status" id="invoiceModalStatus"></div>
+        <div class="modal-actions full">
+          <button type="button" class="mini-btn" id="cancelEditInvoiceBtn">${localizeText("إلغاء", "Cancel")}</button>
+          <button type="button" class="mini-btn dark" id="saveInvoiceEditBtn">${localizeText("حفظ", "Save")}</button>
+        </div>
+      ` : `
+        <div class="detail-item"><span>${dateLabel}</span><strong>${escapeHtml(invoice.date || invoice.dateKey || "-")}</strong></div>
+        <div class="detail-item"><span>${totalLabel}</span><strong>${formatMoney(invoice.total)}</strong></div>
+        <div class="detail-item"><span>${customerLabel}</span><strong>${escapeHtml(invoice.customerName || "-")}</strong></div>
+        <div class="detail-item"><span>${phoneLabel}</span><strong>${escapeHtml(invoice.customerPhone || "-")}</strong></div>
+        <div class="detail-item"><span>${barberLabel}</span><strong>${escapeHtml(invoice.barber || "-")}</strong></div>
+        <div class="detail-item"><span>${paymentLabel}</span><strong>${escapeHtml(payment)}</strong></div>
+        <div class="detail-item full"><span>${servicesLabel}</span><strong>${escapeHtml(formatServices(invoice.services || "-"))}</strong></div>
+        <div class="detail-item full"><span>${noteLabel}</span><strong>${escapeHtml(invoice.note || invoice.invoiceNote || "-")}</strong></div>
+        <div class="detail-item full"><span>PDF</span><strong>${invoice.pdfUrl ? `<a href="${escapeHtml(invoice.pdfUrl)}" target="_blank" rel="noopener">${localizeText("فتح الفاتورة", "Open Invoice")}</a>` : "-"}</strong></div>
+        <div class="modal-actions full">
+          <button type="button" class="mini-btn dark" id="editInvoiceBtn">${localizeText("تعديل", "Edit")}</button>
+        </div>
       `;
+    }
+
+    function openDetails(invoice) {
+      activeInvoice = invoice;
+      detailsEditMode = false;
+      renderDetails(invoice, false);
       elements.invoiceModal.classList.add("active");
+    }
+
+    function setModalStatus(message, type = "") {
+      const status = document.getElementById("invoiceModalStatus");
+      if (!status) return;
+      status.textContent = message || "";
+      status.className = `modal-status ${type}`.trim();
+    }
+
+    function getUpdateInvoicePayload(invoice) {
+      const invoiceDate = getDetailValue("editInvoiceDate");
+      return {
+        action: "updateInvoice",
+        invoiceId: invoice.invoiceId,
+        rowNumber: invoice.rowNumber,
+        date: invoiceDate,
+        dateKey: invoiceDate,
+        customerName: getDetailValue("editCustomerName"),
+        customerPhone: getDetailValue("editCustomerPhone"),
+        services: getDetailValue("editInvoiceServices"),
+        total: parseAmount(getDetailValue("editInvoiceTotal")),
+        payment: getDetailValue("editPaymentMethod"),
+        paymentMethod: getDetailValue("editPaymentMethod"),
+        barber: getDetailValue("editInvoiceBarber"),
+        note: getDetailValue("editInvoiceNote"),
+        invoiceNote: getDetailValue("editInvoiceNote"),
+        pdfUrl: invoice.pdfUrl || ""
+      };
+    }
+
+    async function saveInvoiceEdit(button) {
+      if (!activeInvoice) return;
+
+      const payload = getUpdateInvoicePayload(activeInvoice);
+      if (!payload.date) {
+        setModalStatus(localizeText("اختار تاريخ الفاتورة.", "Choose invoice date."), "error");
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = localizeText("جاري الحفظ...", "Saving...");
+      setModalStatus(localizeText("جاري حفظ التعديل...", "Saving invoice changes..."));
+
+      try {
+        await postToApi(payload);
+        await loadInvoices();
+        const updatedInvoice = findInvoice(activeInvoice.invoiceId) || { ...activeInvoice, ...payload };
+        activeInvoice = updatedInvoice;
+        detailsEditMode = false;
+        renderDetails(updatedInvoice, false);
+      } catch (error) {
+        console.error(error);
+        setModalStatus(error.message || localizeText("تعذر حفظ تعديل الفاتورة.", "Could not save invoice changes."), "error");
+        button.disabled = false;
+        button.textContent = localizeText("حفظ", "Save");
+      }
     }
 
     function getDeleteInvoicePayload(invoice) {
@@ -393,10 +537,12 @@
     elements.searchInput.addEventListener("input", applyFilters);
     elements.dateFilter.addEventListener("change", applyFilters);
     elements.barberFilter.addEventListener("change", applyFilters);
+    elements.paymentFilter.addEventListener("change", applyFilters);
     elements.clearFiltersBtn.addEventListener("click", () => {
       elements.searchInput.value = "";
       elements.dateFilter.value = "";
       elements.barberFilter.value = "";
+      elements.paymentFilter.value = "";
       applyFilters();
     });
     elements.reloadBtn.addEventListener("click", loadInvoices);
@@ -406,6 +552,7 @@
     elements.deleteSelectedBtn.addEventListener("click", deleteSelectedInvoices);
     window.addEventListener("romeo-language-change", () => {
       renderBarberOptions();
+      renderPaymentOptions();
       renderSummary(filteredInvoices);
       renderRows();
     });
@@ -445,6 +592,26 @@
     elements.invoiceModal.addEventListener("click", event => {
       if (event.target === elements.invoiceModal) {
         elements.invoiceModal.classList.remove("active");
+      }
+    });
+    elements.invoiceDetails.addEventListener("click", event => {
+      const editButton = event.target.closest("#editInvoiceBtn");
+      if (editButton && activeInvoice) {
+        detailsEditMode = true;
+        renderDetails(activeInvoice, true);
+        return;
+      }
+
+      const cancelButton = event.target.closest("#cancelEditInvoiceBtn");
+      if (cancelButton && activeInvoice) {
+        detailsEditMode = false;
+        renderDetails(activeInvoice, false);
+        return;
+      }
+
+      const saveButton = event.target.closest("#saveInvoiceEditBtn");
+      if (saveButton) {
+        saveInvoiceEdit(saveButton);
       }
     });
     menuToggle.addEventListener("click", openSidebar);
