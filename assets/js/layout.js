@@ -115,6 +115,11 @@
 
     document.querySelectorAll(".sidebar-link").forEach(link => {
       const key = getSidebarItemKey(link);
+      if (key === "data-analysis.html") {
+        link.style.display = "none";
+        return;
+      }
+
       const permission = link.dataset.permission || SIDEBAR_PERMISSIONS[key] || "";
 
       if (permission) {
@@ -172,7 +177,9 @@
 
     document.querySelectorAll(".sidebar-link[data-href]").forEach(link => {
       link.addEventListener("click", () => {
-        window.location.href = link.dataset.href;
+        window.location.href = link.dataset.href === "data-analysis.html"
+          ? "dashboard.html#dashboardAnalytics"
+          : link.dataset.href;
       });
     });
 

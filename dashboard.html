@@ -338,6 +338,291 @@
       user-select: none;
     }
 
+    .dashboard-analytics {
+      background: rgba(255,250,242,.96);
+      border: 1px solid rgba(229,213,190,.8);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: 24px;
+      margin-top: 26px;
+    }
+
+    .dashboard-analytics.hidden {
+      display: none;
+    }
+
+    .analytics-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 20px;
+    }
+
+    .analytics-header h2 {
+      margin: 0;
+      color: var(--ink);
+      font-size: 32px;
+    }
+
+    .analytics-header p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .analytics-filters {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 14px;
+      align-items: end;
+      margin-bottom: 20px;
+    }
+
+    .analytics-field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .analytics-field label {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .analytics-field input,
+    .analytics-field select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 13px 15px;
+      background: #fffaf2;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 800;
+      outline: none;
+    }
+
+    .analytics-refresh,
+    .analytics-tab {
+      border: none;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 900;
+    }
+
+    .analytics-refresh {
+      min-height: 52px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: #fff;
+      padding: 14px 18px;
+    }
+
+    .analytics-tabs {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .analytics-tab {
+      border-radius: 999px;
+      background: #ead9bd;
+      color: var(--ink);
+      padding: 12px 18px;
+    }
+
+    .analytics-tab.active {
+      background: linear-gradient(135deg, #24180d, #5f4524);
+      color: #fff;
+    }
+
+    .analytics-page {
+      display: none;
+    }
+
+    .analytics-page.active {
+      display: block;
+    }
+
+    .analytics-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+
+    .analytics-metric {
+      background: rgba(255,250,242,.96);
+      border: 1px solid rgba(229,213,190,.9);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      padding: 20px;
+      min-height: 132px;
+      display: grid;
+      align-content: space-between;
+    }
+
+    .analytics-metric span {
+      color: var(--muted);
+      font-weight: 900;
+      font-size: 14px;
+    }
+
+    .analytics-metric strong {
+      display: block;
+      margin-top: 12px;
+      color: var(--ink);
+      font-size: 32px;
+      line-height: 1.2;
+      direction: ltr;
+      text-align: left;
+    }
+
+    .analytics-metric.success strong {
+      color: var(--dash-green);
+    }
+
+    .analytics-grid,
+    .monthly-analysis-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .analytics-subpanel {
+      border: 1px solid rgba(229,213,190,.9);
+      border-radius: 20px;
+      background: #fffaf2;
+      padding: 20px;
+      min-width: 0;
+    }
+
+    .analytics-subpanel.wide-panel {
+      grid-column: 1 / -1;
+    }
+
+    .analytics-title {
+      margin: 0 0 14px;
+      color: var(--ink);
+      font-size: 22px;
+    }
+
+    .analytics-bar-list,
+    .monthly-chart,
+    .analytics-insight-list,
+    .indicator-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .analytics-bar-row,
+    .monthly-chart-row {
+      display: grid;
+      grid-template-columns: minmax(130px, 1fr) minmax(120px, auto);
+      gap: 12px;
+      align-items: center;
+    }
+
+    .analytics-bar-label,
+    .monthly-chart-label {
+      font-weight: 900;
+      overflow-wrap: anywhere;
+    }
+
+    .analytics-bar-value,
+    .monthly-chart-value {
+      color: var(--muted);
+      font-weight: 900;
+      direction: ltr;
+      text-align: left;
+    }
+
+    .analytics-bar-track,
+    .monthly-chart-track {
+      grid-column: 1 / -1;
+      height: 12px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(229,213,190,.65);
+    }
+
+    .analytics-bar-fill,
+    .monthly-chart-fill {
+      height: 100%;
+      width: 0;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #18794e, #b7863f);
+      transition: width .2s ease;
+    }
+
+    .monthly-chart-fill.expense {
+      background: linear-gradient(90deg, #ba3a2c, #b7863f);
+    }
+
+    .analytics-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: #fffaf2;
+    }
+
+    .analytics-table-wrap table {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+    }
+
+    .analytics-table-wrap th,
+    .analytics-table-wrap td {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(229,213,190,.75);
+      text-align: start;
+      vertical-align: middle;
+    }
+
+    .analytics-table-wrap th {
+      color: var(--muted);
+      background: rgba(234,217,189,.45);
+      font-weight: 900;
+    }
+
+    .analytics-table-wrap .amount {
+      direction: ltr;
+      text-align: left;
+      font-weight: 900;
+    }
+
+    .analytics-empty,
+    .analytics-status {
+      padding: 24px;
+      color: var(--muted);
+      text-align: center;
+      font-weight: 900;
+    }
+
+    .analytics-insight,
+    .indicator {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: #fffaf2;
+      padding: 16px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .analytics-insight strong,
+    .indicator strong {
+      font-size: 18px;
+    }
+
+    .analytics-insight span,
+    .indicator span {
+      color: var(--muted);
+      font-weight: 800;
+    }
+
     @keyframes heroSpin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
@@ -365,7 +650,11 @@
 
     @media (max-width: 1100px) {
       .kpi-grid,
-      .section-grid {
+      .section-grid,
+      .analytics-filters,
+      .analytics-metrics,
+      .analytics-grid,
+      .monthly-analysis-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
@@ -396,8 +685,31 @@
 
       .kpi-grid,
       .compare-grid,
-      .cashflow-grid {
+      .cashflow-grid,
+      .analytics-filters,
+      .analytics-metrics,
+      .analytics-grid,
+      .monthly-analysis-grid {
         grid-template-columns: 1fr;
+      }
+
+      .analytics-header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .dashboard-analytics {
+        padding: 18px;
+      }
+
+      .analytics-bar-row,
+      .monthly-chart-row {
+        grid-template-columns: 1fr;
+      }
+
+      .analytics-bar-value,
+      .monthly-chart-value {
+        text-align: start;
       }
 
       .metric-card {
@@ -418,7 +730,6 @@
     <button class="sidebar-link" type="button" data-href="cashier.html" data-permission="access_cashier">Cashier</button>
     <button class="sidebar-link" type="button" data-href="invoices.html" data-permission="view_invoices">Invoices</button>
     <button class="sidebar-link" type="button" data-href="income-statement.html" data-permission="view_income_statement">Income Statement</button>
-    <button class="sidebar-link" type="button" data-href="data-analysis.html" data-permission="view_data_analysis">Data Analysis</button>
     <button class="sidebar-link" type="button" data-href="daily-closing.html" data-permission="view_daily_closing">Daily Closing</button>
     <button class="sidebar-link" type="button" data-href="activity-log.html" data-permission="view_activity_log">Activity Log</button>
     <button class="sidebar-link" type="button" data-href="staff-accounting.html" data-permission="view_staff_accounting">Staff Accounting</button>
@@ -533,6 +844,190 @@
       </article>
     </section>
 
+    <section class="dashboard-analytics" id="dashboardAnalytics">
+      <div class="analytics-header">
+        <div>
+          <h2>Data Analysis</h2>
+          <p>Full sales, staff, customers, and monthly performance analysis.</p>
+        </div>
+        <div class="analytics-status" id="analysisStatus"></div>
+      </div>
+
+      <div class="analytics-filters">
+        <div class="analytics-field">
+          <label for="analysisFromDate">From Date</label>
+          <input id="analysisFromDate" type="date">
+        </div>
+        <div class="analytics-field">
+          <label for="analysisToDate">To Date</label>
+          <input id="analysisToDate" type="date">
+        </div>
+        <div class="analytics-field">
+          <label for="analysisBarberFilter">Barber</label>
+          <select id="analysisBarberFilter">
+            <option value="">All barbers</option>
+          </select>
+        </div>
+        <div class="analytics-field">
+          <label for="analysisPaymentFilter">Payment Method</label>
+          <select id="analysisPaymentFilter">
+            <option value="">All methods</option>
+          </select>
+        </div>
+        <button type="button" class="analytics-refresh" id="analysisRefreshBtn">Refresh</button>
+      </div>
+
+      <div class="analytics-tabs" aria-label="Dashboard analysis sections">
+        <button type="button" class="analytics-tab active" data-analysis-tab="overview">Overview</button>
+        <button type="button" class="analytics-tab" data-analysis-tab="sales">Sales</button>
+        <button type="button" class="analytics-tab" data-analysis-tab="staff">Staff</button>
+        <button type="button" class="analytics-tab" data-analysis-tab="customers">Customers</button>
+        <button type="button" class="analytics-tab" data-analysis-tab="monthly">Monthly Analysis</button>
+      </div>
+
+      <section class="analytics-page active" id="analysisTabOverview">
+        <div class="analytics-metrics">
+          <article class="analytics-metric success"><span>Total Sales</span><strong id="analysisTotalSales">0 EGP</strong></article>
+          <article class="analytics-metric"><span>Invoices</span><strong id="analysisInvoiceCount">0</strong></article>
+          <article class="analytics-metric"><span>Average Invoice</span><strong id="analysisAverageInvoice">0 EGP</strong></article>
+          <article class="analytics-metric"><span>Unique Customers</span><strong id="analysisUniqueCustomers">0</strong></article>
+        </div>
+        <div class="analytics-metrics">
+          <article class="analytics-metric"><span>Expected Monthly Customers</span><strong id="analysisExpectedMonthlyCustomers">0</strong></article>
+          <article class="analytics-metric success"><span>Expected Monthly Sales</span><strong id="analysisExpectedMonthlySales">0 EGP</strong></article>
+          <article class="analytics-metric"><span>Expected Daily Customers</span><strong id="analysisExpectedDailyCustomers">0</strong></article>
+        </div>
+        <div class="analytics-grid">
+          <section class="analytics-subpanel">
+            <h3 class="analytics-title">Payment Mix</h3>
+            <div class="analytics-bar-list" id="analysisPaymentBars"></div>
+          </section>
+          <section class="analytics-subpanel">
+            <h3 class="analytics-title">Smart Insights</h3>
+            <div class="analytics-insight-list" id="analysisInsightsList"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="analytics-page" id="analysisTabSales">
+        <div class="analytics-grid">
+          <section class="analytics-subpanel">
+            <h3 class="analytics-title">Top Services</h3>
+            <div class="analytics-bar-list" id="analysisServiceBars"></div>
+          </section>
+          <section class="analytics-subpanel">
+            <h3 class="analytics-title">Daily Sales Trend</h3>
+            <div class="analytics-bar-list" id="analysisDailyBars"></div>
+          </section>
+          <section class="analytics-subpanel wide-panel">
+            <h3 class="analytics-title">Top Invoice Packages</h3>
+            <div class="analytics-bar-list" id="analysisPackageBars"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="analytics-page" id="analysisTabStaff">
+        <section class="analytics-subpanel">
+          <h3 class="analytics-title">Barber Performance</h3>
+          <div class="analytics-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Barber</th>
+                  <th class="amount">Sales</th>
+                  <th>Invoices</th>
+                  <th class="amount">Average</th>
+                  <th>Share</th>
+                  <th>Expected Monthly Invoices</th>
+                  <th>Expected Daily Invoices</th>
+                  <th class="amount">Expected Monthly Sales</th>
+                  <th class="amount">Expected Daily Sales</th>
+                  <th>Rating</th>
+                </tr>
+              </thead>
+              <tbody id="analysisBarberRows">
+                <tr><td colspan="10" class="analytics-status">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section class="analytics-page" id="analysisTabCustomers">
+        <div class="analytics-grid">
+          <section class="analytics-subpanel">
+            <h3 class="analytics-title">Customer Snapshot</h3>
+            <div class="analytics-metrics">
+              <article class="analytics-metric"><span>Known Customers</span><strong id="analysisKnownCustomers">0</strong></article>
+              <article class="analytics-metric"><span>Walk-in Invoices</span><strong id="analysisWalkInInvoices">0</strong></article>
+            </div>
+          </section>
+          <section class="analytics-subpanel">
+            <h3 class="analytics-title">Top Customers</h3>
+            <div class="analytics-bar-list" id="analysisCustomerBars"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="analytics-page" id="analysisTabMonthly">
+        <div class="analytics-metrics">
+          <article class="analytics-metric success"><span>Average Revenue / Month</span><strong id="monthlyAvgRevenue">0 EGP</strong></article>
+          <article class="analytics-metric"><span>Average Growth / Year</span><strong id="monthlyAvgGrowth">0%</strong></article>
+          <article class="analytics-metric"><span>Expense % of Sales</span><strong id="monthlyExpensePercent">0%</strong></article>
+          <article class="analytics-metric success"><span>Profit Margin</span><strong id="monthlyProfitMargin">0%</strong></article>
+        </div>
+        <div class="analytics-metrics">
+          <article class="analytics-metric"><span>Customer Growth</span><strong id="monthlyCustomerGrowth">0%</strong></article>
+          <article class="analytics-metric"><span>Invoice Rate</span><strong id="monthlyInvoiceRate">0</strong></article>
+          <article class="analytics-metric"><span>Revenue / Barber</span><strong id="monthlyRevenuePerBarber">0 EGP</strong></article>
+          <article class="analytics-metric"><span>Inventory Cost %</span><strong id="monthlyInventoryCost">0%</strong></article>
+        </div>
+        <div class="monthly-analysis-grid">
+          <section class="analytics-subpanel">
+            <h3 class="analytics-title">Monthly Trend</h3>
+            <div class="monthly-chart" id="monthlySalesTrend"></div>
+          </section>
+          <section class="analytics-subpanel">
+            <h3 class="analytics-title">Profit Trend</h3>
+            <div class="monthly-chart" id="monthlyProfitTrend"></div>
+          </section>
+          <section class="analytics-subpanel">
+            <h3 class="analytics-title">Sales vs Expenses</h3>
+            <div class="monthly-chart" id="monthlySalesVsExpenses"></div>
+          </section>
+          <section class="analytics-subpanel">
+            <h3 class="analytics-title">Top Performing Month</h3>
+            <div class="analytics-insight-list" id="monthlyTopMonths"></div>
+          </section>
+          <section class="analytics-subpanel">
+            <h3 class="analytics-title">ROA & Indicators</h3>
+            <div class="indicator-list" id="monthlyIndicators"></div>
+          </section>
+          <section class="analytics-subpanel wide-panel">
+            <h3 class="analytics-title">Month by Month Comparison</h3>
+            <div class="analytics-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Month</th>
+                    <th class="amount">Sales</th>
+                    <th class="amount">Expenses</th>
+                    <th class="amount">Withdrawals</th>
+                    <th class="amount">Net Profit</th>
+                    <th>Customers</th>
+                    <th>Invoices</th>
+                    <th class="amount">Average Invoice</th>
+                    <th>Growth</th>
+                  </tr>
+                </thead>
+                <tbody id="monthlyRows"><tr><td colspan="9" class="analytics-status">Loading...</td></tr></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+    </section>
+
     <div class="status-line" id="dashboardStatus"></div>
   </main>
 
@@ -541,6 +1036,7 @@
   <script src="assets/js/auth.js?v=20260618-1"></script>
   <script src="assets/js/layout.js?v=20260618-1"></script>
   <script src="assets/js/dashboard.js?v=20260630-2"></script>
+  <script src="assets/js/dashboard-analysis.js?v=20260703-1"></script>
 </body>
 </html>
 
