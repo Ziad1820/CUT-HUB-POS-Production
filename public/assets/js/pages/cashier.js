@@ -192,7 +192,17 @@
     fixArabicInNode(document.body);
 
     function getCurrentPageLanguage() {
-      return window.RomeoLanguage?.getCurrentLanguage?.() || "ar";
+      const storedLanguage = localStorage.getItem("romeo-pos-language");
+      if (storedLanguage === "en" || storedLanguage === "ar") return storedLanguage;
+
+      const romeoLanguage = window.RomeoLanguage?.getCurrentLanguage?.();
+      if (romeoLanguage) return romeoLanguage;
+
+      if (document.documentElement.lang === "en" || document.documentElement.dir === "ltr" || document.body.dir === "ltr") {
+        return "en";
+      }
+
+      return "ar";
     }
 
     function localizeText(arText, enText) {
@@ -293,11 +303,20 @@
       return BARBER_NAMES_BY_CODE[code] || fallback;
     }
 
+    function getBarberPlaceholder() {
+      return getCurrentPageLanguage() === "en" ? "Choose barber" : "اختر الحلاق";
+    }
+
     function renderBarberOptions() {
       const currentValue = barberSelect.value;
       const staffList = getStoredStaffForBarbers();
 
-      barberSelect.innerHTML = '<option value="">Ã˜Â§Ã˜Â®Ã˜ÂªÃ˜Â± Ã˜Â§Ã™â€žÃ˜Â­Ã™â€žÃ˜Â§Ã™â€š</option>';
+      barberSelect.innerHTML = "";
+      const placeholderOption = document.createElement("option");
+      placeholderOption.value = "";
+      placeholderOption.textContent = getBarberPlaceholder();
+      barberSelect.appendChild(placeholderOption);
+
       staffList.forEach(staff => {
         const option = document.createElement("option");
         option.value = getBarberSheetName(staff);
@@ -895,7 +914,7 @@
 
     function renderCart() {
       if (cart.length === 0) {
-        cartItems.innerHTML = `<div class="empty-state">${localizeText("Ã™â€žÃ™â€¦ Ã™Å Ã˜ÂªÃ™â€¦ Ã˜Â§Ã˜Â®Ã˜ÂªÃ™Å Ã˜Â§Ã˜Â± Ã˜Â£Ã™Å  Ã˜Â®Ã˜Â¯Ã™â€¦Ã˜Â© Ã˜Â­Ã˜ÂªÃ™â€° Ã˜Â§Ã™â€žÃ˜Â¢Ã™â€ .", "No service has been selected yet.")}</div>`;
+        cartItems.innerHTML = `<div class="empty-state" data-no-translate="true">${localizeText("لم يتم اختيار أي خدمة حتى الآن.", "No service has been selected yet.")}</div>`;
       } else {
         cartItems.innerHTML = cart
           .map(
@@ -1430,9 +1449,11 @@
       }
     });
     window.addEventListener("romeo-language-change", () => {
+      renderBarberOptions();
       renderServices();
       renderCart();
       todaySalesAmount.textContent = formatCurrency(latestTodaySales);
+      updateRemaining();
       updateDailyNet(latestTodaySales, latestTodayTips);
       updatePaymentMethodTotals(latestPaymentTotals);
     });

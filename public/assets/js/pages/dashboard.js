@@ -397,8 +397,12 @@ function getInvoicesForDate(invoices, dateKey) {
   }
 
   function renderLabels() {
-    document.documentElement.lang = getLanguage();
-    document.documentElement.dir = "rtl";
+    const language = getLanguage();
+    const direction = language === "en" ? "ltr" : "rtl";
+    document.documentElement.lang = language;
+    document.documentElement.dir = direction;
+    document.body.dir = direction;
+    document.body.dataset.language = language;
     document.querySelectorAll("[data-label]").forEach(element => {
       element.textContent = t(element.dataset.label);
     });
@@ -499,7 +503,7 @@ function getInvoicesForDate(invoices, dateKey) {
 
     const best = staffRows[0];
     setText("bestBarberName", best ? best.barber : "-");
-    setText("bestBarberMeta", best ? `${formatNumber(best.customers)} ${t("customers")} | ${formatMoney(best.sales)}` : "-");
+    setText("bestBarberMeta", best ? `\u200E${formatNumber(best.customers)} customers | ${formatMoney(best.sales)}` : "-");
     renderStaffTable(staffRows);
   }
 
@@ -510,6 +514,9 @@ function getInvoicesForDate(invoices, dateKey) {
 
   function setDashboardLanguage(language) {
     localStorage.setItem("romeo-pos-language", language);
+    if (window.RomeoLanguage && typeof RomeoLanguage.applyLanguage === "function") {
+      RomeoLanguage.applyLanguage(language);
+    }
     if (lastState) {
       renderState();
     } else {

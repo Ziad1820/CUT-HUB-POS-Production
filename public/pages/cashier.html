@@ -203,6 +203,21 @@
       appearance: none !important;
     }
 
+    html[dir="ltr"] .header .report-date-row input {
+      direction: rtl;
+      text-align: center;
+    }
+
+    html[dir="ltr"] .header .report-date-row input::-webkit-calendar-picker-indicator {
+      margin-left: 0;
+      margin-right: auto;
+    }
+
+    html[dir="rtl"] .header .report-date-row input {
+      direction: ltr;
+      text-align: center;
+    }
+
     .field input::placeholder {
       color: rgba(255,255,255,0.55);
     }
@@ -368,10 +383,21 @@
       padding: 18px;
       background: linear-gradient(135deg, #fffaf2 0%, #f8f2e8 100%);
       color: var(--ink);
-      text-align: right;
+      text-align: start;
+      direction: inherit;
       cursor: pointer;
       box-shadow: inset 0 0 0 1px rgba(76,54,28,0.15);
       transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    html[dir="ltr"] .service-btn {
+      text-align: left;
+      direction: ltr;
+    }
+
+    html[dir="rtl"] .service-btn {
+      text-align: right;
+      direction: rtl;
     }
 
     .service-btn:hover {
@@ -1043,7 +1069,7 @@
           </div>
           <div class="field">
             <label for="remainingAmount">Ø§Ù„Ø¨Ø§Ù‚ÙŠ</label>
-            <input id="remainingAmount" type="text" readonly value="0 جنيه">
+            <input id="remainingAmount" type="text" readonly value="0 EGP">
           </div>
         </div>
 
@@ -1064,9 +1090,9 @@
           <section class="daily-sales-card daily-net-card" id="dailyNetCard" aria-live="polite">
             <div>
               <span>ØµØ§ÙÙŠ Ø§Ù„ÙŠÙˆÙ…</span>
-            <p id="dailyNetBreakdown">المبيعات - السحوبات - المصروفات</p>
+            <p id="dailyNetBreakdown">Sales - Withdrawals - Expenses</p>
             </div>
-            <strong id="dailyNetAmount">0 جنيه</strong>
+            <strong id="dailyNetAmount">0 EGP</strong>
           </section>
 
           <section class="daily-sales-card" aria-live="polite">

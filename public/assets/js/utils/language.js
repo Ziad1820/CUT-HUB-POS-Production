@@ -409,7 +409,10 @@ const RomeoLanguage = (() => {
   }
 
   function translateStaticText(language = getCurrentLanguage()) {
+    const direction = language === "en" ? "ltr" : "rtl";
     document.documentElement.lang = language;
+    document.documentElement.dir = direction;
+    document.body.dir = direction;
     document.body.dataset.language = language;
 
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
