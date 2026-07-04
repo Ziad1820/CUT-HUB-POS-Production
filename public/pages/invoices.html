@@ -261,6 +261,16 @@
 
     tr:last-child td { border-bottom: none; }
 
+    .load-more-wrap {
+      display: flex;
+      justify-content: center;
+      padding-top: 16px;
+    }
+
+    .load-more-wrap .action-btn {
+      min-width: 180px;
+    }
+
     .bulk-actions {
       display: flex;
       align-items: center;
@@ -507,23 +517,23 @@
         <h1 class="brand-name">SALONIX</h1>
         <p class="brand-slogan">THE SMART WAY TO RUN YOUR SALON</p>
       </div>
-      <p>Ã™Æ’Ã™â€ž Ã˜Â§Ã™â€žÃ™ÂÃ™Ë†Ã˜Â§Ã˜ÂªÃ™Å Ã˜Â± Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â³Ã˜Â¬Ã™â€žÃ˜Â© Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ˜Â´Ã™Å Ã˜Âª Ã™â€¦Ã˜Â¹ Ã˜Â§Ã™â€žÃ˜Â¨Ã˜Â­Ã˜Â« Ã™Ë†Ã˜Â§Ã™â€žÃ™ÂÃ™â€žÃ˜ÂªÃ˜Â±Ã˜Â© Ã™Ë†Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â°Ã™Â</p>
+      <p>كل الفواتير المسجلة في الشيت مع البحث والفلترة والحذف</p>
     </header>
 
     <section class="panel">
       <div class="toolbar">
         <div class="field">
-          <label for="searchInput">Ã˜Â¨Ã˜Â­Ã˜Â« Ã˜Â¨Ã˜Â§Ã˜Â³Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™Å Ã™â€ž Ã˜Â£Ã™Ë† Ã˜Â±Ã™â€šÃ™â€¦ Ã˜Â§Ã™â€žÃ™â€¡Ã˜Â§Ã˜ÂªÃ™Â</label>
-          <input id="searchInput" type="search" placeholder="Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã˜Â§Ã˜Â³Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™Å Ã™â€ž Ã˜Â£Ã™Ë† Ã˜Â±Ã™â€šÃ™â€¦ Ã˜Â§Ã™â€žÃ™â€¡Ã˜Â§Ã˜ÂªÃ™Â">
+          <label for="searchInput">بحث باسم العميل أو رقم الهاتف</label>
+          <input id="searchInput" type="search" placeholder="اكتب اسم العميل أو رقم الهاتف">
         </div>
         <div class="field">
-          <label for="dateFilter">Ã™ÂÃ™â€žÃ˜ÂªÃ˜Â±Ã˜Â© Ã˜Â¨Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â®</label>
+          <label for="dateFilter">فلترة بالتاريخ</label>
           <input id="dateFilter" type="date">
         </div>
         <div class="field">
-          <label for="barberFilter">Ã™ÂÃ™â€žÃ˜ÂªÃ˜Â±Ã˜Â© Ã˜Â¨Ã˜Â§Ã™â€žÃ˜Â­Ã™â€žÃ˜Â§Ã™â€š</label>
+          <label for="barberFilter">فلترة بالحلاق</label>
           <select id="barberFilter">
-            <option value="">Ã™Æ’Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â­Ã™â€žÃ˜Â§Ã™â€šÃ™Å Ã™â€ </option>
+            <option value="">كل الحلاقين</option>
           </select>
         </div>
         <div class="field">
@@ -532,22 +542,22 @@
             <option value="">كل طرق الدفع</option>
           </select>
         </div>
-        <button type="button" class="action-btn" id="clearFiltersBtn">Ã™â€¦Ã˜Â³Ã˜Â­ Ã˜Â§Ã™â€žÃ™ÂÃ™â€žÃ˜Â§Ã˜ÂªÃ˜Â±</button>
-        <button type="button" class="action-btn primary" id="reloadBtn">Ã˜ÂªÃ˜Â­Ã˜Â¯Ã™Å Ã˜Â«</button>
+        <button type="button" class="action-btn" id="clearFiltersBtn">مسح الفلاتر</button>
+        <button type="button" class="action-btn primary" id="reloadBtn">تحديث</button>
       </div>
 
       <div class="summary-grid">
         <div class="summary-card">
-          <span>Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¨Ã™Å Ã˜Â¹Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â±Ã™Ë†Ã˜Â¶Ã˜Â©</span>
-          <strong id="visibleTotal">0 Ø¬Ù†ÙŠÙ‡</strong>
+          <span>إجمالي المبيعات المعروضة</span>
+          <strong id="visibleTotal">0 جنيه</strong>
         </div>
         <div class="summary-card">
-          <span>Ã˜Â¹Ã˜Â¯Ã˜Â¯ Ã˜Â§Ã™â€žÃ™ÂÃ™Ë†Ã˜Â§Ã˜ÂªÃ™Å Ã˜Â± Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¹Ã˜Â±Ã™Ë†Ã˜Â¶Ã˜Â©</span>
+          <span>عدد الفواتير المعروضة</span>
           <strong id="visibleCount">0</strong>
         </div>
         <div class="summary-card">
-          <span>Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã™Æ’Ã™â€ž Ã˜Â§Ã™â€žÃ™ÂÃ™Ë†Ã˜Â§Ã˜ÂªÃ™Å Ã˜Â±</span>
-          <strong id="allTotal">0 Ø¬Ù†ÙŠÙ‡</strong>
+          <span>إجمالي كل الفواتير</span>
+          <strong id="allTotal">0 جنيه</strong>
         </div>
       </div>
 
@@ -563,23 +573,26 @@
               <th class="select-cell">
                 <input type="checkbox" id="selectAllInvoices" aria-label="Select all invoices">
               </th>
-              <th>Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â§Ã˜Â±Ã™Å Ã˜Â®</th>
-              <th>Ã˜Â§Ã˜Â³Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™Å Ã™â€ž</th>
-              <th>Ã˜Â±Ã™â€šÃ™â€¦ Ã˜Â§Ã™â€žÃ™â€¡Ã˜Â§Ã˜ÂªÃ™Â</th>
-              <th>Ã˜Â§Ã™â€žÃ˜Â­Ã™â€žÃ˜Â§Ã™â€š</th>
-              <th>Ã˜Â·Ã˜Â±Ã™Å Ã™â€šÃ˜Â© Ã˜Â§Ã™â€žÃ˜Â¯Ã™ÂÃ˜Â¹</th>
-              <th>Ã˜Â§Ã™â€žÃ˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å </th>
+              <th>التاريخ</th>
+              <th>اسم العميل</th>
+              <th>رقم الهاتف</th>
+              <th>الحلاق</th>
+              <th>طريقة الدفع</th>
+              <th>الإجمالي</th>
               <th>Paid Amount</th>
               <th>Tip Amount</th>
-              <th>Ã˜Â§Ã™â€žÃ˜Â®Ã˜Â¯Ã™â€¦Ã˜Â§Ã˜Âª</th>
-              <th>Ã˜Â§Ã™â€žÃ™â€¦Ã™â€žÃ˜Â§Ã˜Â­Ã˜Â¸Ã˜Â©</th>
-              <th>Ã˜Â¥Ã˜Â¬Ã˜Â±Ã˜Â§Ã˜Â¡Ã˜Â§Ã˜Âª</th>
+              <th>الخدمات</th>
+              <th>الملاحظة</th>
+              <th>إجراءات</th>
             </tr>
           </thead>
           <tbody id="invoiceRows">
-            <tr><td colspan="12" class="status-line">Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž Ã˜Â§Ã™â€žÃ™ÂÃ™Ë†Ã˜Â§Ã˜ÂªÃ™Å Ã˜Â±...</td></tr>
+            <tr><td colspan="12" class="status-line">جاري تحميل الفواتير...</td></tr>
           </tbody>
         </table>
+      </div>
+      <div class="load-more-wrap">
+        <button type="button" class="action-btn" id="loadMoreBtn" hidden>Load More</button>
       </div>
     </section>
   </main>
@@ -587,7 +600,7 @@
   <div class="modal-overlay" id="invoiceModal">
     <article class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="modal-head">
-        <h2 id="modalTitle">Ã˜ÂªÃ™ÂÃ˜Â§Ã˜ÂµÃ™Å Ã™â€ž Ã˜Â§Ã™â€žÃ™ÂÃ˜Â§Ã˜ÂªÃ™Ë†Ã˜Â±Ã˜Â©</h2>
+        <h2 id="modalTitle">تفاصيل الفاتورة</h2>
         <button type="button" class="close-btn" id="closeModalBtn">x</button>
       </div>
       <div class="details-grid" id="invoiceDetails"></div>

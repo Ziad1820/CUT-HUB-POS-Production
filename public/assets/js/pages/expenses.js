@@ -57,6 +57,17 @@
       });
     }
 
+    function currentLanguage() {
+      return window.RomeoLanguage?.getCurrentLanguage?.()
+        || localStorage.getItem("romeo-pos-language")
+        || document.body?.dataset.language
+        || "ar";
+    }
+
+    function localizeText(arText, enText) {
+      return currentLanguage() === "en" ? enText : arText;
+    }
+
     function getExpenses() {
       try {
         const parsed = JSON.parse(localStorage.getItem(EXPENSES_KEY) || "[]");
@@ -179,13 +190,16 @@
       const category = getSelectedCategory();
       if (!category) {
         elements.categoryTitle.textContent = "No Category Selected";
-        elements.categorySubtitle.textContent = "Ø§Ø®ØªØ± ØªØµÙ†ÙŠÙ Ù…Ù† Ø§Ù„Ù‚Ø§Ø¦Ù…Ø© Ø¹Ù„Ù‰ Ø§Ù„Ø´Ù…Ø§Ù„ Ù„ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ù…ØµØ±ÙˆÙØ§Øª.";
+        elements.categorySubtitle.textContent = localizeText("اختر تصنيف من القائمة لتسجيل المصروفات.", "Choose a category from the list to record expenses.");
         elements.categoryCode.textContent = "--";
         return;
       }
 
       elements.categoryTitle.textContent = category.name;
-      elements.categorySubtitle.textContent = `ÙƒÙ„ Ø§Ù„Ù…ØµØ±ÙˆÙØ§Øª Ø§Ù„Ø®Ø§ØµØ© Ø¨ØªØµÙ†ÙŠÙ ${category.name} Ø³ØªØ¸Ù‡Ø± Ù‡Ù†Ø§ Ù…Ø¹ Ù…Ù„Ø®Øµ ØªÙ„Ù‚Ø§Ø¦ÙŠ ÙˆØ³Ø¬Ù„ ÙƒØ§Ù…Ù„.`;
+      elements.categorySubtitle.textContent = localizeText(
+        `كل المصروفات الخاصة بتصنيف ${category.name} ستظهر هنا مع ملخص تلقائي وسجل كامل.`,
+        `All expenses for ${category.name} will appear here with an automatic summary and full history.`
+      );
       elements.categoryCode.textContent = category.code;
     }
 
@@ -209,12 +223,12 @@
       elements.historyList.innerHTML = "";
 
       if (!category) {
-        elements.historyList.innerHTML = `<div class="history-empty">Ù„Ø§ ÙŠÙˆØ¬Ø¯ ØªØµÙ†ÙŠÙ Ù…Ø®ØªØ§Ø± Ø§Ù„Ø¢Ù†.</div>`;
+        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("لا يوجد تصنيف مختار الآن.", "No category is selected right now.")}</div>`;
         return;
       }
 
       if (!sorted.length) {
-        elements.historyList.innerHTML = `<div class="history-empty">Ù„Ø§ ØªÙˆØ¬Ø¯ Ù…ØµØ±ÙˆÙØ§Øª Ù…Ø³Ø¬Ù„Ø© Ù„Ù‡Ø°Ø§ Ø§Ù„ØªØµÙ†ÙŠÙ Ø­ØªÙ‰ Ø§Ù„Ø¢Ù†.</div>`;
+        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("لا توجد مصروفات مسجلة لهذا التصنيف حتى الآن.", "No expenses have been recorded for this category yet.")}</div>`;
         return;
       }
 
@@ -237,14 +251,49 @@
       });
     }
 
+    function renderLocalizedHero() {
+      const category = getSelectedCategory();
+      if (!category) {
+        elements.categoryTitle.textContent = localizeText("لم يتم اختيار تصنيف", "No Category Selected");
+        elements.categorySubtitle.textContent = localizeText(
+          "اختر تصنيف من القائمة لتسجيل المصروفات.",
+          "Choose a category from the list to record expenses."
+        );
+        elements.categoryCode.textContent = "--";
+        return;
+      }
+
+      elements.categoryTitle.textContent = category.name;
+      elements.categorySubtitle.textContent = localizeText(
+        `كل المصروفات الخاصة بتصنيف ${category.name} ستظهر هنا مع ملخص تلقائي وسجل كامل.`,
+        `All expenses for ${category.name} will appear here with an automatic summary and full history.`
+      );
+      elements.categoryCode.textContent = category.code;
+    }
+
+    function localizeHistoryEmptyState() {
+      const category = getSelectedCategory();
+      const items = category ? getCategoryExpenses(category.id) : [];
+
+      if (!category) {
+        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("لا يوجد تصنيف مختار الآن.", "No category is selected right now.")}</div>`;
+        return;
+      }
+
+      if (!items.length) {
+        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("لا توجد مصروفات مسجلة لهذا التصنيف حتى الآن.", "No expenses have been recorded for this category yet.")}</div>`;
+      }
+    }
+
     function renderAll() {
       if (!EXPENSE_CATEGORIES.find(category => category.id === selectedCategoryId)) {
         selectedCategoryId = EXPENSE_CATEGORIES[0]?.id || null;
       }
       renderCategoryList();
-      renderHero();
+      renderLocalizedHero();
       renderSummary();
       renderHistory();
+      localizeHistoryEmptyState();
     }
 
     function clearForm() {
@@ -261,12 +310,12 @@
       const category = EXPENSE_CATEGORIES.find(item => item.id === categoryId);
 
       if (!category) {
-        alert("Ø§Ø®ØªØ§Ø± ØªØµÙ†ÙŠÙ ØµØ­ÙŠØ­.");
+        alert(localizeText("اختار تصنيف صحيح.", "Choose a valid category."));
         return;
       }
 
       if (!Number.isFinite(amount) || amount <= 0) {
-        alert("Ø§ÙƒØªØ¨ Ù…Ø¨Ù„Øº Ù…ØµØ±ÙˆÙ ØµØ­ÙŠØ­.");
+        alert(localizeText("اكتب مبلغ مصروف صحيح.", "Enter a valid expense amount."));
         return;
       }
 
@@ -291,7 +340,7 @@
         renderAll();
       } catch (error) {
         console.error(error);
-        alert(error.message || "ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„Ù…ØµØ±ÙˆÙ ÙÙŠ Ø§Ù„Ø´ÙŠØª.");
+        alert(error.message || localizeText("تعذر حفظ المصروف في الشيت.", "Could not save the expense to the sheet."));
       } finally {
         saveBtn.disabled = false;
         saveBtn.textContent = "Add Expense";
@@ -311,7 +360,65 @@
         renderAll();
       } catch (error) {
         console.error(error);
-        alert(error.message || "ØªØ¹Ø°Ø± Ø­Ø°Ù Ø§Ù„Ù…ØµØ±ÙˆÙ Ù…Ù† Ø§Ù„Ø´ÙŠØª.");
+        alert(error.message || localizeText("تعذر حذف المصروف من الشيت.", "Could not delete the expense from the sheet."));
+      }
+    }
+
+    async function addExpenseLocalized() {
+      const amount = normalizeAmount(elements.expenseAmount.value);
+      const categoryId = elements.expenseCategory.value;
+      const category = EXPENSE_CATEGORIES.find(item => item.id === categoryId);
+
+      if (!category) {
+        alert(localizeText("اختار تصنيف صحيح.", "Choose a valid category."));
+        return;
+      }
+
+      if (!Number.isFinite(amount) || amount <= 0) {
+        alert(localizeText("اكتب مبلغ مصروف صحيح.", "Enter a valid expense amount."));
+        return;
+      }
+
+      const expense = {
+        id: Date.now(),
+        categoryId,
+        amount,
+        date: elements.expenseDate.value || new Date().toISOString().slice(0, 10),
+        title: elements.expenseTitle.value.trim(),
+        note: elements.expenseNote.value.trim()
+      };
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = localizeText("جاري الحفظ...", "Saving...");
+
+      try {
+        await saveExpenseToSheet(expense);
+        expenseList.unshift(expense);
+        selectedCategoryId = categoryId;
+        saveExpenses();
+        clearForm();
+        renderAll();
+      } catch (error) {
+        console.error(error);
+        alert(error.message || localizeText("تعذر حفظ المصروف في الشيت.", "Could not save the expense to the sheet."));
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = localizeText("إضافة مصروف", "Add Expense");
+      }
+    }
+
+    async function deleteExpenseLocalized(id) {
+      const expense = expenseList.find(item => item.id === id);
+      if (!expense) return;
+
+      try {
+        await deleteExpenseFromSheet(expense);
+        expenseList = expenseList.filter(item => item.id !== id);
+        saveExpenses();
+        renderAll();
+      } catch (error) {
+        console.error(error);
+        alert(error.message || localizeText("تعذر حذف المصروف من الشيت.", "Could not delete the expense from the sheet."));
       }
     }
 
@@ -346,19 +453,29 @@
       selectedCategoryId = event.target.value;
       renderAll();
     });
-    saveBtn.addEventListener("click", addExpense);
+    saveBtn.addEventListener("click", addExpenseLocalized);
     clearBtn.addEventListener("click", clearForm);
     elements.historyList.addEventListener("click", async event => {
       const btn = event.target.closest("[data-delete-id]");
       if (!btn) return;
-      if (!confirm("ØªØ­Ø°Ù Ø§Ù„Ù…ØµØ±ÙˆÙ Ø¯Ù‡ØŸ")) return;
+      event.stopImmediatePropagation();
+      if (!confirm(localizeText("تحذف المصروف ده؟", "Delete this expense?"))) return;
       btn.disabled = true;
-      btn.textContent = "Deleting...";
-      await deleteExpense(Number(btn.dataset.deleteId));
+      btn.textContent = localizeText("جاري الحذف...", "Deleting...");
+      await deleteExpenseLocalized(Number(btn.dataset.deleteId));
+    }, true);
+    elements.historyList.addEventListener("click", async event => {
+      const btn = event.target.closest("[data-delete-id]");
+      if (!btn) return;
+      if (!confirm(localizeText("تحذف المصروف ده؟", "Delete this expense?"))) return;
+      btn.disabled = true;
+      btn.textContent = localizeText("جاري الحذف...", "Deleting...");
+      await deleteExpenseLocalized(Number(btn.dataset.deleteId));
     });
     menuToggle.addEventListener("click", openSidebar);
     sidebarOverlay.addEventListener("click", closeSidebar);
     document.getElementById("logoutBtn").addEventListener("click", () => RomeoAuth.logout());
+    window.addEventListener("romeo-language-change", renderAll);
 
     clearForm();
     renderAll();

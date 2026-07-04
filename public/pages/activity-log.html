@@ -430,12 +430,32 @@
     };
 
     function currentLanguage() {
-      return window.RomeoLanguage ? RomeoLanguage.getCurrentLanguage() : "ar";
+      return window.RomeoLanguage?.getCurrentLanguage?.()
+        || localStorage.getItem("romeo-pos-language")
+        || document.body?.dataset.language
+        || "ar";
     }
 
     function labelFrom(map, key) {
       const language = currentLanguage();
       return map[key] ? map[key][language] : (key || "-");
+    }
+
+    function localizeText(arText, enText) {
+      return currentLanguage() === "en" ? enText : arText;
+    }
+
+    function localizeUserName(value) {
+      const text = decodeText(value || "").trim();
+      if (!text) return "-";
+      if (currentLanguage() !== "en") return text;
+
+      const normalized = text.replace(/\s+/g, " ");
+      const names = {
+        "مالك النظام": "System Owner",
+        "النظام": "System"
+      };
+      return names[normalized] || text;
     }
 
     function decodeText(value) {
@@ -524,12 +544,12 @@
       renderMetrics();
 
       if (!state.filtered.length) {
-        setEmpty(currentLanguage() === "ar" ? "لا توجد عمليات مطابقة للفلاتر الحالية." : "No activity matches the current filters.");
+        setEmpty(localizeText("لا توجد عمليات مطابقة للفلاتر الحالية.", "No activity matches the current filters."));
         return;
       }
 
       els.body.innerHTML = state.filtered.map(log => {
-        const user = log.displayName || log.userName || "-";
+        const user = localizeUserName(log.displayName || log.userName || "-");
         const actionClass = ACTION_LABELS[log.action] ? log.action : "";
         const entityLabel = labelFrom(ENTITY_LABELS, log.entityType);
         const entityId = log.entityId ? ` <span class="muted">#${escapeHtml(log.entityId)}</span>` : "";
@@ -577,7 +597,7 @@
     }
 
     async function loadLogs() {
-      setEmpty(currentLanguage() === "ar" ? "جاري تحميل سجل العمليات..." : "Loading activity log...");
+      setEmpty(localizeText("جاري تحميل سجل العمليات...", "Loading activity log..."));
 
       try {
         const response = await RomeoApi.request({ action: "getActivityLogs" });
@@ -593,9 +613,10 @@
         state.filtered = [];
         renderMetrics();
         setEmpty(
-          currentLanguage() === "ar"
-            ? "صفحة سجل العمليات جاهزة. الخطوة الجاية نضيف action باسم getActivityLogs في App Script وننشئ شيت ACTIVITY_LOG."
-            : "Activity Log page is ready. Next, add a getActivityLogs action in App Script and create an ACTIVITY_LOG sheet."
+          localizeText(
+            "صفحة سجل العمليات جاهزة. الخطوة الجاية نضيف action باسم getActivityLogs في App Script وننشئ شيت ACTIVITY_LOG.",
+            "Activity Log page is ready. Next, add a getActivityLogs action in App Script and create an ACTIVITY_LOG sheet."
+          )
         );
       }
     }

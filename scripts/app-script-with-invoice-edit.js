@@ -1,4 +1,4 @@
-function doPost(e) {
+﻿function doPost(e) {
   const data = JSON.parse(e.postData.contents || "{}");
 
   if (data.action === "invoice") return createInvoice(data);
@@ -1510,33 +1510,42 @@ function getInvoices(data) {
 
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) {
-    return jsonOutput({ status: "success", invoices: [] });
+    return jsonOutput({ status: "success", invoices: [], hasMore: false, nextOffset: 0, totalMatches: 0 });
   }
 
+  const filters = data.filters || {};
+  const search = String(filters.search || data.search || "").trim().toLowerCase();
+  const targetDate = String(filters.date || data.date || data.dateKey || "").trim();
+  const targetBarber = String(filters.barber || data.barber || "").trim();
+  const targetPayment = String(filters.payment || data.payment || data.paymentMethod || "").trim();
+  const limit = Math.min(Math.max(Number(data.limit) || 100, 1), 500);
+  const offset = Math.max(Number(data.offset) || 0, 0);
   const rows = sheet.getRange(2, 1, lastRow - 1, Math.min(sheet.getLastColumn(), 11)).getValues();
+  const matches = [];
+  const barberOptions = {};
+  const paymentOptions = {};
 
-  const invoices = rows
-    .map((row, index) => {
-      const rowNumber = index + 2;
+  for (let index = rows.length - 1; index >= 0; index--) {
+    const row = rows[index];
+    const rowNumber = index + 2;
+    const invoice = {
+      invoiceId: `DATA-${rowNumber}`,
+      rowNumber,
+      date: getDisplayDateTime(row[0]),
+      dateKey: getDateKey(row[0], TIME_ZONE),
+      customerName: String(row[1] || "").trim(),
+      customerPhone: String(row[2] || "").trim(),
+      services: String(row[3] || "").trim(),
+      pdfUrl: String(row[4] || "").trim(),
+      total: parseSheetAmount(row[5]),
+      paidAmount: parseSheetAmount(row[6]),
+      tipAmount: parseSheetAmount(row[7]),
+      paymentMethod: String(row[8] || "").trim(),
+      barber: String(row[9] || "").trim(),
+      note: String(row[10] || "").trim()
+    };
 
-      return {
-        invoiceId: `DATA-${rowNumber}`,
-        rowNumber,
-        date: getDisplayDateTime(row[0]),
-        dateKey: getDateKey(row[0], TIME_ZONE),
-        customerName: String(row[1] || "").trim(),
-        customerPhone: String(row[2] || "").trim(),
-        services: String(row[3] || "").trim(),
-        pdfUrl: String(row[4] || "").trim(),
-        total: parseSheetAmount(row[5]),
-        paidAmount: parseSheetAmount(row[6]),
-        tipAmount: parseSheetAmount(row[7]),
-        paymentMethod: String(row[8] || "").trim(),
-        barber: String(row[9] || "").trim(),
-        note: String(row[10] || "").trim()
-      };
-    })
-    .filter(invoice =>
+    const hasData =
       invoice.date ||
       invoice.customerName ||
       invoice.customerPhone ||
@@ -1545,10 +1554,36 @@ function getInvoices(data) {
       invoice.total ||
       invoice.paymentMethod ||
       invoice.barber ||
-      invoice.note
-    );
+      invoice.note;
 
-  return jsonOutput({ status: "success", invoices });
+    if (!hasData) continue;
+    if (invoice.barber) barberOptions[invoice.barber] = true;
+    if (invoice.paymentMethod) paymentOptions[invoice.paymentMethod] = true;
+    if (targetDate && invoice.dateKey !== targetDate) continue;
+    if (targetBarber && invoice.barber !== targetBarber) continue;
+    if (targetPayment && invoice.paymentMethod !== targetPayment) continue;
+    if (search) {
+      const searchText = `${invoice.customerName} ${invoice.customerPhone} ${invoice.services} ${invoice.note}`.toLowerCase();
+      if (searchText.indexOf(search) === -1) continue;
+    }
+
+    matches.push(invoice);
+  }
+
+  const invoices = matches.slice(offset, offset + limit);
+  const nextOffset = offset + invoices.length;
+
+  return jsonOutput({
+    status: "success",
+    invoices,
+    hasMore: nextOffset < matches.length,
+    nextOffset,
+    totalMatches: matches.length,
+    filterOptions: {
+      barbers: Object.keys(barberOptions).sort(),
+      paymentMethods: Object.keys(paymentOptions).sort()
+    }
+  });
 }
 
 function getDisplayDateTime(value) {

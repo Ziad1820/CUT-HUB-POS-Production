@@ -355,22 +355,22 @@
     }
 
     const permissionLabels = {
-      access_dashboard: "لوحة التحكم",
-      access_cashier: "الكاشير",
-      edit_prices: "تعديل الأسعار",
-      view_invoices: "الفواتير",
-      view_income_statement: "قائمة الدخل",
-      view_daily_closing: "تقفيلة اليوم",
-      view_data_analysis: "تحليل البيانات",
-      view_activity_log: "سجل العمليات",
-      view_staff_accounting: "حسابات الموظفين",
-      view_withdrawals: "السحوبات",
-      view_expenses: "المصروفات",
-      view_inventory: "المخزون",
-      view_staff_discount: "خصومات الموظفين",
-      view_attendance: "الحضور",
-      view_bookings: "الحجوزات",
-      manage_users: "إدارة المستخدمين"
+      access_dashboard: { ar: "لوحة التحكم", en: "Dashboard" },
+      access_cashier: { ar: "الكاشير", en: "Cashier" },
+      edit_prices: { ar: "تعديل الأسعار", en: "Edit Prices" },
+      view_invoices: { ar: "الفواتير", en: "Invoices" },
+      view_income_statement: { ar: "قائمة الدخل", en: "Income Statement" },
+      view_daily_closing: { ar: "تقفيلة اليوم", en: "Daily Closing" },
+      view_data_analysis: { ar: "تحليل البيانات", en: "Data Analysis" },
+      view_activity_log: { ar: "سجل العمليات", en: "Activity Log" },
+      view_staff_accounting: { ar: "حسابات الموظفين", en: "Staff Accounting" },
+      view_withdrawals: { ar: "السحوبات", en: "Withdrawals" },
+      view_expenses: { ar: "المصروفات", en: "Expenses" },
+      view_inventory: { ar: "المخزون", en: "Inventory" },
+      view_staff_discount: { ar: "خصومات الموظفين", en: "Staff Discount" },
+      view_attendance: { ar: "الحضور", en: "Attendance" },
+      view_bookings: { ar: "الحجوزات", en: "Bookings" },
+      manage_users: { ar: "إدارة المستخدمين", en: "Manage Users" }
     };
 
     const usersList = document.getElementById("usersList");
@@ -378,32 +378,98 @@
     let usersCache = [];
 
     const systemPermissions = [
-      ["access_dashboard", "فتح لوحة التحكم"],
-      ["access_cashier", "فتح الكاشير"],
-      ["edit_prices", "تعديل الأسعار"],
-      ["view_invoices", "فتح الفواتير"],
-      ["view_income_statement", "فتح قائمة الدخل"],
-      ["view_daily_closing", "فتح تقفيلة اليوم"],
-      ["view_data_analysis", "فتح تحليل البيانات"],
-      ["view_activity_log", "فتح سجل العمليات"],
-      ["view_staff_accounting", "فتح حسابات الموظفين"],
-      ["view_withdrawals", "فتح السحوبات"],
-      ["view_expenses", "فتح المصروفات"],
-      ["view_inventory", "فتح المخزون"],
-      ["view_staff_discount", "فتح خصومات الموظفين"],
-      ["view_attendance", "فتح الحضور"],
-      ["view_bookings", "فتح الحجوزات"]
+      "access_dashboard",
+      "access_cashier",
+      "edit_prices",
+      "view_invoices",
+      "view_income_statement",
+      "view_daily_closing",
+      "view_data_analysis",
+      "view_activity_log",
+      "view_staff_accounting",
+      "view_withdrawals",
+      "view_expenses",
+      "view_inventory",
+      "view_staff_discount",
+      "view_attendance",
+      "view_bookings"
     ];
 
-    Object.assign(permissionLabels, Object.fromEntries(systemPermissions));
+    const staticTexts = [
+      [".layout .panel:first-child h2", "إضافة أو تعديل مستخدم", "Add or Edit User"],
+      [".layout .panel:first-child > p", "أضف اسم المستخدم وكلمة المرور واسم صاحب الحساب، ثم اختر الصلاحيات المناسبة له.", "Add the username, password, and account owner name, then choose the right permissions."],
+      ["label[for='displayName']", "اسم صاحب الحساب", "Display Name"],
+      ["label[for='username']", "اسم المستخدم", "Username"],
+      ["label[for='password']", "كلمة المرور", "Password"],
+      ["#saveUserBtn", "حفظ المستخدم", "Save User"],
+      ["#resetFormBtn", "تفريغ الحقول", "Clear Fields"],
+      [".layout .panel:nth-child(2) h2", "المستخدمون الحاليون", "Current Users"],
+      [".layout .panel:nth-child(2) > p", "يمكنك تعديل أو حذف أي مستخدم غير مالك النظام.", "You can edit or delete any user except the system owner."],
+      [".sidebar h3", "القائمة", "Menu"],
+      [".sidebar-link[data-href='cashier.html']", "الكاشير", "Cashier"],
+      [".sidebar-link[data-href='invoices.html']", "الفواتير", "Invoices"],
+      [".sidebar-link[data-href='income-statement.html']", "قائمة الدخل", "Income Statement"],
+      [".sidebar-link[data-href='daily-closing.html']", "تقفيلة اليوم", "Daily Closing"],
+      [".sidebar-link[data-href='data-analysis.html']", "تحليل البيانات", "Data Analysis"],
+      [".sidebar-link[data-href='activity-log.html']", "سجل العمليات", "Activity Log"],
+      [".sidebar-link[data-href='staff-accounting.html']", "حسابات الموظفين", "Staff Accounting"],
+      [".sidebar-link.active", "صلاحيات النظام", "System Access"],
+      [".sidebar-link[data-href='withdrawals.html']", "السحوبات", "Withdrawals"],
+      [".sidebar-link[data-href='expenses.html']", "المصروفات", "Expenses"],
+      [".sidebar-link[data-href='enventory.html']", "المخزون", "Inventory"],
+      [".sidebar-link[data-href='staff-discount.html']", "خصومات الموظفين", "Staff Discount"],
+      [".sidebar-link[data-href='attendance.html']", "الحضور", "Attendance"],
+      [".sidebar-link[data-href='bookings.html']", "الحجوزات", "Bookings"],
+      ["#logoutBtn", "تسجيل الخروج", "Logout"]
+    ];
+
+    function currentLanguage() {
+      return window.RomeoLanguage?.getCurrentLanguage?.()
+        || localStorage.getItem("romeo-pos-language")
+        || document.body?.dataset.language
+        || "ar";
+    }
+
+    function localizeText(arText, enText) {
+      return currentLanguage() === "en" ? enText : arText;
+    }
+
+    function permissionLabel(permission, withOpen = false) {
+      const label = permissionLabels[permission];
+      if (!label) return permission;
+      const text = label[currentLanguage()] || label.ar;
+      if (!withOpen || permission === "edit_prices" || permission === "manage_users") {
+        return text;
+      }
+      return localizeText(`فتح ${label.ar}`, `Open ${label.en}`);
+    }
+
+    function localizeDisplayName(user) {
+      const name = String(user?.displayName || "").trim();
+      if (currentLanguage() === "en" && (isOwner(user) || name === "مالك النظام")) {
+        return "System Owner";
+      }
+      return name || "-";
+    }
+
+    function applySystemAccessLanguage() {
+      staticTexts.forEach(([selector, arText, enText]) => {
+        const element = document.querySelector(selector);
+        if (element) element.textContent = localizeText(arText, enText);
+      });
+
+      document.getElementById("displayName").placeholder = localizeText("مثال: أحمد", "Example: Ahmed");
+      document.getElementById("username").placeholder = localizeText("مثال: ahmed", "Example: ahmed");
+      document.getElementById("password").placeholder = localizeText("اكتب كلمة المرور", "Enter password");
+    }
 
     function renderPermissionOptions() {
       const permissionsBox = document.querySelector(".permissions");
       if (!permissionsBox) return;
 
-      permissionsBox.innerHTML = systemPermissions.map(([value, label], index) => `
+      permissionsBox.innerHTML = systemPermissions.map((value, index) => `
         <label class="permission-item">
-          <input type="checkbox" value="${value}" ${index === 0 ? "checked" : ""}> ${label}
+          <input type="checkbox" value="${value}" ${index === 0 ? "checked" : ""}> ${permissionLabel(value, true)}
         </label>
       `).join("");
     }
@@ -437,17 +503,17 @@
       usersList.innerHTML = usersCache.map(user => {
         const owner = isOwner(user);
         const permissionsText = owner
-          ? "مالك النظام الأساسي - كل الصلاحيات"
-          : user.permissions.map(permission => permissionLabels[permission] || permission).join(" - ");
+          ? localizeText("مالك النظام الأساسي - كل الصلاحيات", "Main system owner - all permissions")
+          : user.permissions.map(permission => permissionLabel(permission, true)).join(" - ");
 
         return `
         <div class="user-card">
-          <strong>${user.displayName}</strong>
+          <strong>${localizeDisplayName(user)}</strong>
           <small>@${user.username}</small>
           <p>${permissionsText}</p>
           <div class="user-actions">
-            <button class="secondary-btn" type="button" onclick="editUser('${user.username}')">تعديل</button>
-            ${owner ? "" : `<button class="danger-btn" type="button" onclick="removeUser('${user.username}')">حذف</button>`}
+            <button class="secondary-btn" type="button" onclick="editUser('${user.username}')">${localizeText("تعديل", "Edit")}</button>
+            ${owner ? "" : `<button class="danger-btn" type="button" onclick="removeUser('${user.username}')">${localizeText("حذف", "Delete")}</button>`}
           </div>
         </div>
       `;
@@ -456,12 +522,12 @@
 
     async function loadUsers() {
       try {
-        usersList.innerHTML = "<p>جاري تحميل المستخدمين...</p>";
+        usersList.innerHTML = `<p>${localizeText("جاري تحميل المستخدمين...", "Loading users...")}</p>`;
         usersCache = await RomeoAuth.getUsers({ forceRefresh: true });
         renderUsers();
       } catch (error) {
         usersList.innerHTML = "";
-        showStatus(error.message || "تعذر تحميل المستخدمين.", "error");
+        showStatus(error.message || localizeText("تعذر تحميل المستخدمين.", "Could not load users."), "error");
       }
     }
 
@@ -473,11 +539,11 @@
       const existing = usersCache.find(user => user.username === username);
 
       if (username.toLowerCase() === "owner" && !existing) {
-        showStatus("لا يمكن إنشاء مالك نظام ثاني. استخدم اسم مستخدم مختلف.", "error");
+        showStatus(localizeText("لا يمكن إنشاء مالك نظام ثاني. استخدم اسم مستخدم مختلف.", "You cannot create a second system owner. Use a different username."), "error");
         return;
       }
 
-      showStatus("جاري حفظ المستخدم...", "success");
+      showStatus(localizeText("جاري حفظ المستخدم...", "Saving user..."), "success");
 
       const result = existing
         ? await RomeoAuth.updateUser(username, {
@@ -497,7 +563,12 @@
         return;
       }
 
-      showStatus(existing ? "تم تعديل المستخدم بنجاح." : "تم إضافة المستخدم بنجاح.", "success");
+      showStatus(
+        existing
+          ? localizeText("تم تعديل المستخدم بنجاح.", "User updated successfully.")
+          : localizeText("تم إضافة المستخدم بنجاح.", "User added successfully."),
+        "success"
+      );
       resetForm();
       await loadUsers();
     }
@@ -515,22 +586,28 @@
         input.checked = isOwner(user) || user.permissions.includes(input.value);
         input.disabled = isOwner(user);
       });
-      showStatus(`أنت الآن تعدل المستخدم ${user.username}. اترك كلمة المرور فارغة إذا لا تريد تغييرها.`, "success");
+      showStatus(
+        localizeText(
+          `أنت الآن تعدل المستخدم ${user.username}. اترك كلمة المرور فارغة إذا لا تريد تغييرها.`,
+          `You are now editing ${user.username}. Leave the password empty if you do not want to change it.`
+        ),
+        "success"
+      );
     };
 
     window.removeUser = async username => {
-      if (!window.confirm(`هل تريد حذف المستخدم ${username}؟`)) {
+      if (!window.confirm(localizeText(`هل تريد حذف المستخدم ${username}؟`, `Delete user ${username}?`))) {
         return;
       }
 
-      showStatus("جاري حذف المستخدم...", "success");
+      showStatus(localizeText("جاري حذف المستخدم...", "Deleting user..."), "success");
       const result = await RomeoAuth.deleteUser(username);
       if (!result.success) {
         showStatus(result.message, "error");
         return;
       }
 
-      showStatus("تم حذف المستخدم بنجاح.", "success");
+      showStatus(localizeText("تم حذف المستخدم بنجاح.", "User deleted successfully."), "success");
       await loadUsers();
     };
 
@@ -565,7 +642,13 @@
     document.getElementById("logoutBtn").addEventListener("click", () => RomeoAuth.logout());
     menuToggle.addEventListener("click", openSidebar);
     sidebarOverlay.addEventListener("click", closeSidebar);
+    window.addEventListener("romeo-language-change", () => {
+      applySystemAccessLanguage();
+      renderPermissionOptions();
+      renderUsers();
+    });
 
+    applySystemAccessLanguage();
     renderPermissionOptions();
     resetForm();
     loadUsers();

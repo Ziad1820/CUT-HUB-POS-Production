@@ -1,4 +1,4 @@
-    RomeoAuth.requireAuth("view_invoices");
+﻿    RomeoAuth.requireAuth("view_invoices");
     const API_URL = RomeoApi.API_URL;
 
     const elements = {
@@ -17,7 +17,8 @@
       deleteSelectedBtn: document.getElementById("deleteSelectedBtn"),
       invoiceModal: document.getElementById("invoiceModal"),
       closeModalBtn: document.getElementById("closeModalBtn"),
-      invoiceDetails: document.getElementById("invoiceDetails")
+      invoiceDetails: document.getElementById("invoiceDetails"),
+      loadMoreBtn: document.getElementById("loadMoreBtn")
     };
 
     const menuToggle = document.getElementById("menuToggle");
@@ -28,6 +29,12 @@
     let filteredInvoices = [];
     let activeInvoice = null;
     let detailsEditMode = false;
+    let nextOffset = 0;
+    let hasMoreInvoices = false;
+    let totalMatches = 0;
+    let filterTimer = null;
+    let filterOptions = { barbers: [], paymentMethods: [] };
+    const PAGE_SIZE = 100;
     const selectedInvoiceIds = new Set();
 
     function parseAmount(value) {
@@ -62,44 +69,54 @@
     }
 
     function getCurrentPageLanguage() {
-      return window.RomeoLanguage?.getCurrentLanguage?.() || "ar";
+      return window.RomeoLanguage?.getCurrentLanguage?.()
+        || localStorage.getItem("romeo-pos-language")
+        || document.body?.dataset.language
+        || "ar";
     }
 
     function localizeText(arText, enText) {
       return getCurrentPageLanguage() === "en" ? enText : arText;
     }
 
+    function updateFixedUiText() {
+      if (!elements.reloadBtn.disabled) {
+        elements.reloadBtn.textContent = localizeText("تحديث", "Update");
+      }
+      elements.clearFiltersBtn.textContent = localizeText("مسح الفلاتر", "Clear Filters");
+    }
+
     const PAYMENT_TRANSLATIONS = {
-      "Ù†Ù‚Ø¯ÙŠ": "Cash",
-      "Ø§Ù†Ø³ØªØ§ Ø¨Ø§ÙŠ": "Instapay",
-      "ÙÙˆØ¯Ø§ÙÙˆÙ† ÙƒØ§Ø´": "Vodafone Cash",
-      "ÙÙŠØ²Ø§": "Visa"
+      "نقدي": "Cash",
+      "انستا باي": "Instapay",
+      "فودافون كاش": "Vodafone Cash",
+      "فيزا": "Visa"
     };
 
     const SERVICE_TRANSLATIONS = {
-      "Ø´Ø¹Ø±": "Haircut",
-      "Ø¯Ù‚Ù†": "Beard",
-      "Ø¯Ù‚Ù† Ø¬ÙŠÙ„ÙŠØª": "Razor Shave",
-      "Ø´Ø¹Ø± Ø·ÙÙ„": "Kids Haircut",
-      "Ø³Ø´ÙˆØ§Ø±": "Blow Dry",
-      "ØªÙ†Ø¹ÙŠÙ…": "Smoothing",
-      "Ø´Ù…Ø¹": "Wax",
-      "ÙØªÙ„Ø©": "Threading",
-      "Ù…Ø§Ø³Ùƒ": "Mask",
-      "ØµØ¨ØºØ© Ø¯Ù‚Ù†": "Beard Dye",
-      "ØµØ¨ØºØ© Ø´Ø¹Ø±": "Hair Dye",
-      "Ø­Ù…Ø§Ù… ÙƒØ±ÙŠÙ… Ø¹Ø§Ø¯ÙŠ": "Regular Hair Cream Bath",
-      "ØµØ¨ØºØ© Ø³Ø¨Ù„ÙØ±": "Silver Dye",
-      "Ø­Ù…Ø§Ù… Ø²ÙŠØª": "Oil Bath",
-      "Ø­Ù…Ø§Ù… ÙƒØ±ÙŠÙ… Ø¨Ø±Ùˆ": "Pro Hair Cream Bath",
-      "Ø¬Ù„Ø³Ø© Ù‚Ø´Ø±Ø©": "Dandruff Session",
-      "Ù…Ø¹Ø§Ù„Ø¬ TCB": "TCB Treatment",
-      "Ø¬Ù„Ø³Ø© Ø¨Ø´Ø±Ø© Ø¹Ø§Ø¯ÙŠØ©": "Regular Facial",
-      "Ø¬Ù„Ø³Ø© Ø¨Ø´Ø±Ø© Ù„ÙŠØ²Ø±": "Laser Facial",
-      "Ø¨Ø±ÙˆØªÙŠÙ† Ø¨Ø±Ø§Ø²ÙŠÙ„ÙŠ": "Brazilian Protein",
-      "Ø¨Ø±ÙˆØªÙŠÙ† CHI": "CHI Protein",
-      "Ø¨Ø§ÙƒÙŠØªØ¬ Ø¹Ø±ÙŠØ³ Ø¯Ø§Ø®Ù„ Ø§Ù„ÙØ±Ø¹": "Groom Package In Branch",
-      "Ø¨Ø§ÙƒÙŠØ¯Ø¬ Ø¹Ø±ÙŠØ³ Ø®Ø§Ø±Ø¬ Ø§Ù„ÙØ±Ø¹": "Groom Package Out Branch"
+      "شعر": "Haircut",
+      "دقن": "Beard",
+      "دقن جيليت": "Razor Shave",
+      "شعر طفل": "Kids Haircut",
+      "سشوار": "Blow Dry",
+      "تنعيم": "Smoothing",
+      "شمع": "Wax",
+      "فتلة": "Threading",
+      "ماسك": "Mask",
+      "صبغة دقن": "Beard Dye",
+      "صبغة شعر": "Hair Dye",
+      "حمام كريم عادي": "Regular Hair Cream Bath",
+      "صبغة سيلفر": "Silver Dye",
+      "حمام زيت": "Oil Bath",
+      "حمام كريم برو": "Pro Hair Cream Bath",
+      "جلسة قشرة": "Dandruff Session",
+      "معالج TCB": "TCB Treatment",
+      "جلسة بشرة عادية": "Regular Facial",
+      "جلسة بشرة ليزر": "Laser Facial",
+      "بروتين برازيلي": "Brazilian Protein",
+      "بروتين CHI": "CHI Protein",
+      "باكيتج عريس داخل الفرع": "Groom Package In Branch",
+      "باكيدج عريس خارج الفرع": "Groom Package Out Branch"
     };
 
     function translateDataValue(value, dictionary) {
@@ -137,40 +154,104 @@
       return invoice.dateKey || String(invoice.date || "").slice(0, 10);
     }
 
+    function getServerFilters() {
+      return {
+        search: elements.searchInput.value.trim(),
+        date: elements.dateFilter.value,
+        barber: elements.barberFilter.value,
+        payment: elements.paymentFilter.value
+      };
+    }
+
+    function updateLoadMoreUi() {
+      if (!elements.loadMoreBtn) return;
+
+      elements.loadMoreBtn.hidden = !hasMoreInvoices;
+      elements.loadMoreBtn.textContent = localizeText("تحميل المزيد", "Load More");
+    }
+
+    function scheduleFilterReload() {
+      window.clearTimeout(filterTimer);
+      filterTimer = window.setTimeout(() => loadInvoices(), 350);
+    }
+
     async function postToApi(payload) {
       const result = await RomeoApi.request(payload);
       if (result.status !== "success") {
-        throw new Error(result.message || "ØªØ¹Ø°Ø± ØªÙ†ÙÙŠØ° Ø§Ù„Ø·Ù„Ø¨.");
+        throw new Error(result.message || "تعذر تنفيذ الطلب.");
       }
       return result;
     }
 
-    async function loadInvoices() {
+    async function loadInvoices(options = {}) {
+      const append = Boolean(options.append);
+      const offset = append ? nextOffset : 0;
+
       elements.reloadBtn.disabled = true;
-      elements.reloadBtn.textContent = localizeText("Ø¬Ø§Ø±ÙŠ Ø§Ù„ØªØ­Ø¯ÙŠØ«...", "Refreshing...");
-      elements.invoiceRows.innerHTML = `<tr><td colspan="12" class="status-line">${localizeText("Ø¬Ø§Ø±ÙŠ ØªØ­Ù…ÙŠÙ„ Ø§Ù„ÙÙˆØ§ØªÙŠØ±...", "Loading invoices...")}</td></tr>`;
+      if (elements.loadMoreBtn) elements.loadMoreBtn.disabled = true;
+      elements.reloadBtn.textContent = localizeText("جاري التحديث...", "Updating...");
+
+      if (!append) {
+        invoices = [];
+        filteredInvoices = [];
+        nextOffset = 0;
+        hasMoreInvoices = false;
+        totalMatches = 0;
+        selectedInvoiceIds.clear();
+        updateLoadMoreUi();
+        elements.invoiceRows.innerHTML = `<tr><td colspan="12" class="status-line">${localizeText("جاري تحميل الفواتير...", "Loading invoices...")}</td></tr>`;
+      }
 
       try {
-        const result = await postToApi({ action: "getInvoices" });
-        invoices = Array.isArray(result.invoices) ? result.invoices : [];
+        const result = await postToApi({
+          action: "getInvoices",
+          limit: PAGE_SIZE,
+          offset,
+          filters: getServerFilters()
+        });
+
+        const nextInvoices = Array.isArray(result.invoices) ? result.invoices : [];
+        invoices = append ? invoices.concat(nextInvoices) : nextInvoices;
+        filteredInvoices = invoices;
+        nextOffset = Number(result.nextOffset || invoices.length || 0);
+        hasMoreInvoices = Boolean(result.hasMore);
+        totalMatches = Number(result.totalMatches || invoices.length || 0);
+        filterOptions = {
+          barbers: Array.isArray(result.filterOptions?.barbers) ? result.filterOptions.barbers : [],
+          paymentMethods: Array.isArray(result.filterOptions?.paymentMethods) ? result.filterOptions.paymentMethods : []
+        };
         renderBarberOptions();
         renderPaymentOptions();
-        applyFilters();
+        pruneSelectedInvoices();
+        renderSummary(filteredInvoices);
+        renderRows();
+        updateLoadMoreUi();
       } catch (error) {
         console.error(error);
-        elements.invoiceRows.innerHTML = `<tr><td colspan="12" class="empty-state">${escapeHtml(error.message || localizeText("ØªØ¹Ø°Ø± ØªØ­Ù…ÙŠÙ„ Ø§Ù„ÙÙˆØ§ØªÙŠØ± Ù…Ù† Ø§Ù„Ø´ÙŠØª.", "Could not load invoices from the sheet."))}</td></tr>`;
+        elements.invoiceRows.innerHTML = `<tr><td colspan="12" class="empty-state">${escapeHtml(error.message || localizeText("تعذر تحميل الفواتير من الشيت.", "Could not load invoices from the sheet."))}</td></tr>`;
         renderSummary([]);
+        hasMoreInvoices = false;
+        updateLoadMoreUi();
       } finally {
         elements.reloadBtn.disabled = false;
-        elements.reloadBtn.textContent = localizeText("ØªØ­Ø¯ÙŠØ«", "Refresh");
+        if (elements.loadMoreBtn) elements.loadMoreBtn.disabled = false;
+        elements.reloadBtn.textContent = localizeText("تحديث", "Update");
       }
     }
-
     function renderBarberOptions() {
       const currentValue = elements.barberFilter.value;
-      const barbers = [...new Set(invoices.map(item => String(item.barber || "").trim()).filter(Boolean))].sort();
+      const sourceBarbers = filterOptions.barbers.length
+        ? filterOptions.barbers
+        : invoices.map(item => String(item.barber || "").trim()).filter(Boolean);
+      const barbers = [...new Set(sourceBarbers)].sort();
 
-      elements.barberFilter.innerHTML = `<option value="">${localizeText("ÙƒÙ„ Ø§Ù„Ø­Ù„Ø§Ù‚ÙŠÙ†", "All barbers")}</option>`;
+      elements.barberFilter.innerHTML = `<option value="">${localizeText("كل الحلاقين", "all barbers")}</option>`;
+      if (currentValue && !barbers.includes(currentValue)) {
+        const option = document.createElement("option");
+        option.value = currentValue;
+        option.textContent = currentValue;
+        elements.barberFilter.appendChild(option);
+      }
       barbers.forEach(barber => {
         const option = document.createElement("option");
         option.value = barber;
@@ -178,7 +259,7 @@
         elements.barberFilter.appendChild(option);
       });
 
-      if (barbers.includes(currentValue)) {
+      if (currentValue) {
         elements.barberFilter.value = currentValue;
       }
     }
@@ -189,9 +270,18 @@
 
     function renderPaymentOptions() {
       const currentValue = elements.paymentFilter.value;
-      const paymentMethods = [...new Set(invoices.map(getInvoicePayment).filter(Boolean))].sort();
+      const sourcePaymentMethods = filterOptions.paymentMethods.length
+        ? filterOptions.paymentMethods
+        : invoices.map(getInvoicePayment).filter(Boolean);
+      const paymentMethods = [...new Set(sourcePaymentMethods)].sort();
 
-      elements.paymentFilter.innerHTML = `<option value="">${localizeText("كل طرق الدفع", "All payment methods")}</option>`;
+      elements.paymentFilter.innerHTML = `<option value="">${localizeText("كل طرق الدفع", "All Payment Methods")}</option>`;
+      if (currentValue && !paymentMethods.includes(currentValue)) {
+        const option = document.createElement("option");
+        option.value = currentValue;
+        option.textContent = translateDataValue(currentValue, PAYMENT_TRANSLATIONS);
+        elements.paymentFilter.appendChild(option);
+      }
       paymentMethods.forEach(paymentMethod => {
         const option = document.createElement("option");
         option.value = paymentMethod;
@@ -199,30 +289,13 @@
         elements.paymentFilter.appendChild(option);
       });
 
-      if (paymentMethods.includes(currentValue)) {
+      if (currentValue) {
         elements.paymentFilter.value = currentValue;
       }
     }
 
     function applyFilters() {
-      const search = normalizeText(elements.searchInput.value);
-      const targetDate = elements.dateFilter.value;
-      const targetBarber = elements.barberFilter.value;
-      const targetPayment = elements.paymentFilter.value;
-
-      filteredInvoices = invoices.filter(invoice => {
-        const matchesSearch = !search ||
-          normalizeText(invoice.customerName).includes(search) ||
-          normalizeText(invoice.customerPhone).includes(search);
-        const matchesDate = !targetDate || getInvoiceDate(invoice) === targetDate;
-        const matchesBarber = !targetBarber || String(invoice.barber || "").trim() === targetBarber;
-        const matchesPayment = !targetPayment || getInvoicePayment(invoice) === targetPayment;
-        return matchesSearch && matchesDate && matchesBarber && matchesPayment;
-      });
-
-      pruneSelectedInvoices();
-      renderSummary(filteredInvoices);
-      renderRows();
+      loadInvoices();
     }
 
     function renderSummary(items) {
@@ -230,7 +303,7 @@
       const allTotal = invoices.reduce((sum, item) => sum + parseAmount(item.total), 0);
 
       elements.visibleTotal.textContent = formatMoney(visibleTotal);
-      elements.visibleCount.textContent = items.length.toLocaleString(getCurrentPageLanguage() === "en" ? "en-US" : "ar-EG");
+      elements.visibleCount.textContent = totalMatches.toLocaleString(getCurrentPageLanguage() === "en" ? "en-US" : "ar-EG");
       elements.allTotal.textContent = formatMoney(allTotal);
     }
 
@@ -249,11 +322,11 @@
       const totalSelected = selectedInvoiceIds.size;
 
       elements.selectedCount.textContent = localizeText(
-        `${totalSelected} ÙØ§ØªÙˆØ±Ø© Ù…Ø­Ø¯Ø¯Ø©`,
+        `${totalSelected} فاتورة محددة`,
         `${totalSelected} selected`
       );
       elements.deleteSelectedBtn.disabled = totalSelected === 0;
-      elements.deleteSelectedBtn.textContent = localizeText("Ø­Ø°Ù Ø§Ù„Ù…Ø­Ø¯Ø¯", "Delete Selected");
+      elements.deleteSelectedBtn.textContent = localizeText("حذف المحدد", "Delete Selected");
 
       if (elements.selectAllInvoices) {
         elements.selectAllInvoices.checked = visibleIds.length > 0 && selectedVisibleCount === visibleIds.length;
@@ -282,7 +355,7 @@
       elements.invoiceRows.innerHTML = "";
 
       if (!filteredInvoices.length) {
-        elements.invoiceRows.innerHTML = `<tr><td colspan="12" class="empty-state">${localizeText("Ù„Ø§ ØªÙˆØ¬Ø¯ ÙÙˆØ§ØªÙŠØ± Ù…Ø·Ø§Ø¨Ù‚Ø© Ù„Ù„ÙÙ„Ø§ØªØ± Ø§Ù„Ø­Ø§Ù„ÙŠØ©.", "No invoices match the current filters.")}</td></tr>`;
+        elements.invoiceRows.innerHTML = `<tr><td colspan="12" class="empty-state">${localizeText("لا توجد فواتير مطابقة للفلاتر الحالية.", "No invoices match the current filters.")}</td></tr>`;
         updateSelectionUi();
         return;
       }
@@ -305,7 +378,7 @@
           <td class="note-cell">${escapeHtml(invoice.note || invoice.invoiceNote || "-")}</td>
           <td>
             <div class="invoice-actions">
-              <button type="button" class="mini-btn dark" data-action="view" data-id="${escapeHtml(invoice.invoiceId)}">${localizeText("Ø¹Ø±Ø¶", "View")}</button>
+              <button type="button" class="mini-btn dark" data-action="view" data-id="${escapeHtml(invoice.invoiceId)}">${localizeText("عرض", "View")}</button>
               <button type="button" class="mini-btn" data-action="pdf" data-id="${escapeHtml(invoice.invoiceId)}" ${invoice.pdfUrl ? "" : "disabled"}>PDF</button>
               <button type="button" class="mini-btn danger" data-action="delete" data-id="${escapeHtml(invoice.invoiceId)}">Delete</button>
             </div>
@@ -470,7 +543,7 @@
     }
 
     async function deleteInvoice(invoice, button) {
-      if (!confirm("Ù‡Ù„ ØªØ±ÙŠØ¯ Ø­Ø°Ù Ø§Ù„ÙØ§ØªÙˆØ±Ø© Ù…Ù† Ø§Ù„Ø³ÙŠØ³ØªÙ… ÙˆØ§Ù„Ø´ÙŠØªØŸ")) {
+      if (!confirm(localizeText("هل تريد حذف الفاتورة من السيستم والشيت؟", "Delete this invoice from the system and sheet?"))) {
         return;
       }
 
@@ -483,7 +556,7 @@
         await loadInvoices();
       } catch (error) {
         console.error(error);
-        alert(error.message || "ØªØ¹Ø°Ø± Ø­Ø°Ù Ø§Ù„ÙØ§ØªÙˆØ±Ø© Ù…Ù† Ø§Ù„Ø´ÙŠØª.");
+        alert(error.message || localizeText("تعذر حذف الفاتورة من الشيت.", "Could not delete the invoice from the sheet."));
         button.disabled = false;
         button.textContent = "Delete";
       }
@@ -497,14 +570,14 @@
       if (!selectedInvoices.length) return;
 
       const message = localizeText(
-        `Ù‡Ù„ ØªØ±ÙŠØ¯ Ø­Ø°Ù ${selectedInvoices.length} ÙØ§ØªÙˆØ±Ø© Ù…Ù† Ø§Ù„Ø³ÙŠØ³ØªÙ… ÙˆØ§Ù„Ø´ÙŠØªØŸ`,
+        `هل تريد حذف ${selectedInvoices.length} فاتورة من السيستم والشيت؟`,
         `Delete ${selectedInvoices.length} selected invoice(s) from the system and sheet?`
       );
 
       if (!confirm(message)) return;
 
       elements.deleteSelectedBtn.disabled = true;
-      elements.deleteSelectedBtn.textContent = localizeText("Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­Ø°Ù...", "Deleting...");
+      elements.deleteSelectedBtn.textContent = localizeText("جاري الحذف...", "Deleting...");
 
       try {
         for (const invoice of selectedInvoices) {
@@ -515,10 +588,10 @@
         await loadInvoices();
       } catch (error) {
         console.error(error);
-        alert(error.message || localizeText("ØªØ¹Ø°Ø± Ø­Ø°Ù Ø§Ù„ÙÙˆØ§ØªÙŠØ± Ø§Ù„Ù…Ø­Ø¯Ø¯Ø© Ù…Ù† Ø§Ù„Ø´ÙŠØª.", "Could not delete selected invoices from the sheet."));
+        alert(error.message || localizeText("تعذر حذف الفواتير المحددة من الشيت.", "Could not delete selected invoices from the sheet."));
         updateSelectionUi();
       } finally {
-        elements.deleteSelectedBtn.textContent = localizeText("Ø­Ø°Ù Ø§Ù„Ù…Ø­Ø¯Ø¯", "Delete Selected");
+        elements.deleteSelectedBtn.textContent = localizeText("حذف المحدد", "Delete Selected");
       }
     }
 
@@ -544,7 +617,7 @@
       });
     });
 
-    elements.searchInput.addEventListener("input", applyFilters);
+    elements.searchInput.addEventListener("input", scheduleFilterReload);
     elements.dateFilter.addEventListener("change", applyFilters);
     elements.barberFilter.addEventListener("change", applyFilters);
     elements.paymentFilter.addEventListener("change", applyFilters);
@@ -553,14 +626,18 @@
       elements.dateFilter.value = "";
       elements.barberFilter.value = "";
       elements.paymentFilter.value = "";
-      applyFilters();
+      loadInvoices();
     });
-    elements.reloadBtn.addEventListener("click", loadInvoices);
+    elements.reloadBtn.addEventListener("click", () => loadInvoices());
+    if (elements.loadMoreBtn) {
+      elements.loadMoreBtn.addEventListener("click", () => loadInvoices({ append: true }));
+    }
     elements.selectAllInvoices.addEventListener("change", event => {
       setVisibleInvoicesSelected(event.target.checked);
     });
     elements.deleteSelectedBtn.addEventListener("click", deleteSelectedInvoices);
     window.addEventListener("romeo-language-change", () => {
+      updateFixedUiText();
       renderBarberOptions();
       renderPaymentOptions();
       renderSummary(filteredInvoices);
@@ -628,5 +705,6 @@
     sidebarOverlay.addEventListener("click", closeSidebar);
     document.getElementById("logoutBtn").addEventListener("click", () => RomeoAuth.logout());
 
+    updateFixedUiText();
     loadInvoices();
 

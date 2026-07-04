@@ -667,6 +667,17 @@
     const saveBtn = document.getElementById("saveBtn");
     const deleteBtn = document.getElementById("deleteBtn");
 
+    function currentLanguage() {
+      return window.RomeoLanguage?.getCurrentLanguage?.()
+        || localStorage.getItem("romeo-pos-language")
+        || document.body?.dataset.language
+        || "ar";
+    }
+
+    function localizeText(arText, enText) {
+      return currentLanguage() === "en" ? enText : arText;
+    }
+
     function cloneDefaults() {
       return DEFAULT_STAFF.map(item => ({ ...item }));
     }
@@ -953,8 +964,8 @@
       const staff = getSelectedStaff();
 
       if (!staff) {
-        elements.employeeTitle.textContent = "No Staff Selected";
-        elements.employeeSubtitle.textContent = "Ã˜Â£Ã˜Â¶Ã™Â Ã™â€¦Ã™Ë†Ã˜Â¸Ã™Â Ã˜Â¬Ã˜Â¯Ã™Å Ã˜Â¯ Ã˜Â¹Ã˜Â´Ã˜Â§Ã™â€  Ã˜ÂªÃ˜Â¨Ã˜Â¯Ã˜Â£.";
+        elements.employeeTitle.textContent = localizeText("لم يتم اختيار موظف", "No Staff Selected");
+        elements.employeeSubtitle.textContent = localizeText("أضف موظف جديد عشان تبدأ.", "Add a new staff member to get started.");
         elements.employeeCode.textContent = "--";
         Object.entries(elements.fields).forEach(([key, input]) => {
           if (key === "isBarber") {
@@ -977,7 +988,10 @@
 
       deleteBtn.disabled = false;
       elements.employeeTitle.textContent = staff.name;
-      elements.employeeSubtitle.textContent = `Ã˜ÂªÃ™ÂÃ˜Â§Ã˜ÂµÃ™Å Ã™â€ž Ã˜Â­Ã˜Â³Ã˜Â§Ã˜Â¨ ${staff.name} Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â§Ã™â€žÃ™Å Ã˜Â©.`;
+      elements.employeeSubtitle.textContent = localizeText(
+        `تفاصيل حساب ${staff.name} الحالية.`,
+        `Current account details for ${staff.name}.`
+      );
       elements.employeeCode.textContent = staff.code;
       elements.fields.name.value = staff.name;
       elements.fields.code.value = staff.code;
@@ -1069,7 +1083,7 @@
         return;
       }
 
-      if (!confirm(`Ã˜ÂªÃ˜Â­Ã˜Â°Ã™Â Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â¸Ã™Â ${staff.name}Ã˜Å¸`)) {
+      if (!confirm(localizeText(`تحذف الموظف ${staff.name}؟`, `Delete staff member ${staff.name}?`))) {
         return;
       }
 
@@ -1109,6 +1123,7 @@
     menuToggle.addEventListener("click", openSidebar);
     sidebarOverlay.addEventListener("click", closeSidebar);
     document.getElementById("logoutBtn").addEventListener("click", () => RomeoAuth.logout());
+    window.addEventListener("romeo-language-change", renderAll);
 
     renderAll();
     loadStaffFromSheet();

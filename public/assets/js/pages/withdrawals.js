@@ -38,6 +38,17 @@
       return Number(value || 0).toLocaleString("en-US");
     }
 
+    function currentLanguage() {
+      return window.RomeoLanguage?.getCurrentLanguage?.()
+        || localStorage.getItem("romeo-pos-language")
+        || document.body?.dataset.language
+        || "ar";
+    }
+
+    function localizeText(arText, enText) {
+      return currentLanguage() === "en" ? enText : arText;
+    }
+
     function normalizeStaff(staff, index = 0) {
       return {
         id: staff.id || staff.staffId || `staff-${index}`,
@@ -209,6 +220,26 @@
       elements.employeeCode.textContent = staff.code;
     }
 
+    function renderLocalizedHero() {
+      const staff = getSelectedStaff();
+      if (!staff) {
+        elements.employeeTitle.textContent = localizeText("لم يتم اختيار موظف", "No Employee Selected");
+        elements.employeeSubtitle.textContent = localizeText(
+          "افتح صفحة الموظفين أولا أو أضف موظفا هناك، ثم ارجع هنا لتسجيل السحوبات.",
+          "Open the staff page first or add a staff member there, then come back here to record withdrawals."
+        );
+        elements.employeeCode.textContent = "--";
+        return;
+      }
+
+      elements.employeeTitle.textContent = staff.name;
+      elements.employeeSubtitle.textContent = localizeText(
+        `سجل كل السحوبات الخاصة بـ ${staff.name} من هنا، مع التاريخ والملاحظة.`,
+        `Record all withdrawals for ${staff.name} here, with date and note.`
+      );
+      elements.employeeCode.textContent = staff.code;
+    }
+
     function renderSummary() {
       const staff = getSelectedStaff();
       const employeeItems = staff ? getEmployeeWithdrawals(staff.id) : [];
@@ -257,14 +288,29 @@
       });
     }
 
+    function localizeHistoryEmptyState() {
+      const staff = getSelectedStaff();
+      const items = staff ? getEmployeeWithdrawals(staff.id) : [];
+
+      if (!staff) {
+        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("لا يوجد موظف مختار الآن.", "No employee is selected right now.")}</div>`;
+        return;
+      }
+
+      if (!items.length) {
+        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("لا توجد سحوبات مسجلة لهذا الموظف حتى الآن.", "No withdrawals have been recorded for this employee yet.")}</div>`;
+      }
+    }
+
     function renderAll() {
       if (!staffList.find(staff => staff.id === selectedId)) {
         selectedId = staffList[0]?.id || null;
       }
       renderEmployeeList();
-      renderHero();
+      renderLocalizedHero();
       renderSummary();
       renderHistory();
+      localizeHistoryEmptyState();
     }
 
     function clearForm() {
@@ -374,6 +420,7 @@
         renderAll();
       }
     });
+    window.addEventListener("romeo-language-change", renderAll);
     window.addEventListener("pageshow", () => {
       staffList = getStaff();
       renderAll();

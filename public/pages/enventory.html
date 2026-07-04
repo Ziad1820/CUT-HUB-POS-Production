@@ -389,6 +389,36 @@
       color: white;
     }
 
+    body[data-language="en"] .header-menu {
+      left: auto;
+      right: 24px;
+    }
+
+    body[data-language="en"] .sidebar {
+      left: auto;
+      right: -320px;
+      border-right: none;
+      border-left: 1px solid rgba(229,213,190,.8);
+      transition: right .2s ease;
+    }
+
+    body[data-language="en"] .sidebar.active {
+      right: 0;
+    }
+
+    body[data-language="en"] .item-card,
+    body[data-language="en"] .field,
+    body[data-language="en"] .hero,
+    body[data-language="en"] .history-item,
+    body[data-language="en"] .summary-card {
+      text-align: left;
+    }
+
+    body[data-language="en"] .item-list {
+      padding-left: 0;
+      padding-right: 6px;
+    }
+
     @media (max-width: 1180px) {
       .page-grid,
       .summary-grid {
@@ -423,7 +453,7 @@
   <div class="app">
     <div class="header">
       <div class="header-menu">
-        <button type="button" class="menu-toggle" id="menuToggle">Ã¢â€¹Â¯</button>
+        <button type="button" class="menu-toggle" id="menuToggle">...</button>
       </div>
       <div class="brand-lockup">
         <img class="brand-logo" src="../assets/images/salonix-logo.svg" alt="SALONIX logo">
@@ -535,7 +565,7 @@
             </div>
             <div class="field full">
               <label for="movementNote">Note</label>
-              <textarea id="movementNote" placeholder="Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã™â€¦Ã™â€žÃ˜Â§Ã˜Â­Ã˜Â¸Ã˜Â§Ã˜Âª Ã˜Â¹Ã™â€  Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â±Ã™Æ’Ã˜Â©"></textarea>
+              <textarea id="movementNote" placeholder="اكتب ملاحظات عن الحركة"></textarea>
             </div>
           </div>
         </section>
@@ -672,6 +702,21 @@
       return Number(value || 0).toLocaleString("en-US");
     }
 
+    function currentLanguage() {
+      return window.RomeoLanguage?.getCurrentLanguage?.()
+        || localStorage.getItem("romeo-pos-language")
+        || document.body?.dataset.language
+        || "ar";
+    }
+
+    function localizeText(arText, enText) {
+      return currentLanguage() === "en" ? enText : arText;
+    }
+
+    function applyInventoryLanguage() {
+      elements.movementNote.placeholder = localizeText("اكتب ملاحظات عن الحركة", "Write notes about the movement");
+    }
+
     function numberValue(value) {
       const parsed = Number(value);
       return Number.isFinite(parsed) ? parsed : 0;
@@ -733,7 +778,10 @@
       }
 
       elements.itemTitle.textContent = item.name;
-      elements.itemSubtitle.textContent = `Ã˜Â§Ã™â€žÃ˜ÂµÃ™â€ Ã™Â Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â§Ã™â€žÃ™Å  Ã™ÂÃ™Å  Ã™â€šÃ˜Â³Ã™â€¦ ${item.category || "General"}Ã˜Å’ Ã™Ë†Ã™Å Ã™â€¦Ã™Æ’Ã™â€ Ã™Æ’ Ã˜ÂªÃ˜Â¹Ã˜Â¯Ã™Å Ã™â€ž Ã˜Â¨Ã™Å Ã˜Â§Ã™â€ Ã˜Â§Ã˜ÂªÃ™â€¡ Ã˜Â£Ã™Ë† Ã˜ÂªÃ˜Â³Ã˜Â¬Ã™Å Ã™â€ž Ã˜Â­Ã˜Â±Ã™Æ’Ã˜Â© Ã˜Â¯Ã˜Â®Ã™Ë†Ã™â€ž Ã™Ë†Ã˜Â®Ã˜Â±Ã™Ë†Ã˜Â¬ Ã™â€žÃ™â€žÃ™â€¦Ã˜Â®Ã˜Â²Ã™Ë†Ã™â€ .`;
+      elements.itemSubtitle.textContent = localizeText(
+        `الصنف الحالي في قسم ${item.category || "عام"}، ويمكنك تعديل بياناته أو تسجيل حركة دخول وخروج للمخزون.`,
+        `The current item is in the ${item.category || "General"} category. You can edit its details or record stock in and out movements.`
+      );
       elements.itemCode.textContent = item.code;
     }
 
@@ -774,12 +822,12 @@
       elements.historyList.innerHTML = "";
 
       if (!item) {
-        elements.historyList.innerHTML = `<div class="history-empty">Ã™â€žÃ˜Â§ Ã™Å Ã™Ë†Ã˜Â¬Ã˜Â¯ Ã˜ÂµÃ™â€ Ã™Â Ã™â€¦Ã˜Â®Ã˜ÂªÃ˜Â§Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â¢Ã™â€ .</div>`;
+        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("لا يوجد صنف مختار الآن.", "No item is selected right now.")}</div>`;
         return;
       }
 
       if (!sorted.length) {
-        elements.historyList.innerHTML = `<div class="history-empty">Ã™â€žÃ˜Â§ Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã˜Â­Ã˜Â±Ã™Æ’Ã˜Â§Ã˜Âª Ã™â€¦Ã˜Â®Ã˜Â²Ã™Ë†Ã™â€  Ã™â€žÃ™â€¡Ã˜Â°Ã˜Â§ Ã˜Â§Ã™â€žÃ˜ÂµÃ™â€ Ã™Â Ã˜Â­Ã˜ÂªÃ™â€° Ã˜Â§Ã™â€žÃ˜Â¢Ã™â€ .</div>`;
+        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("لا توجد حركات مخزون لهذا الصنف حتى الآن.", "No stock movements have been recorded for this item yet.")}</div>`;
         return;
       }
 
@@ -806,6 +854,7 @@
         selectedId = items[0]?.id || null;
       }
       renderItemList();
+      applyInventoryLanguage();
       renderHero();
       fillItemForm();
       renderSummary();
@@ -973,12 +1022,13 @@
     menuToggle.addEventListener("click", openSidebar);
     sidebarOverlay.addEventListener("click", closeSidebar);
     document.getElementById("logoutBtn").addEventListener("click", () => RomeoAuth.logout());
+    window.addEventListener("romeo-language-change", renderAll);
 
     clearMovement();
     renderAll();
   </script>
-  <script src="assets/js/keyboard-navigation.js"></script>
-  <script src="assets/js/language.js"></script>
+  <script src="../assets/js/utils/keyboard-navigation.js"></script>
+  <script src="../assets/js/utils/language.js"></script>
 </body>
 </html>
 
