@@ -423,7 +423,7 @@
     <div class="page-grid">
       <aside class="left-panel">
         <section class="panel">
-          <input class="search-box" id="searchInput" type="text" placeholder="Search category">
+          <input class="search-box" id="searchInput" type="text" placeholder="ابحث عن تصنيف" data-i18n-placeholder-ar="ابحث عن تصنيف" data-i18n-placeholder-en="Search category">
         </section>
 
         <section class="category-list" id="categoryList"></section>
@@ -432,7 +432,7 @@
       <main class="main-panel">
         <section class="panel hero">
           <div>
-            <h2 id="categoryTitle">Select Category</h2>
+            <h2 id="categoryTitle">اختر تصنيف</h2>
             <p id="categorySubtitle">اختار نوع المصروف، ثم سجل المبلغ والتاريخ والملاحظة. كل المصروفات الخاصة بالتصنيف المختار ستظهر في السجل تحت.</p>
           </div>
           <div class="hero-badge" id="categoryCode">EXP</div>
@@ -440,19 +440,19 @@
 
         <section class="summary-grid">
           <article class="summary-card total">
-            <span>Category Expenses</span>
+            <span data-i18n-ar="مصروفات التصنيف" data-i18n-en="Category Expenses">مصروفات التصنيف</span>
             <strong id="categoryExpenses">0</strong>
           </article>
           <article class="summary-card count">
-            <span>Category Records</span>
+            <span data-i18n-ar="عمليات التصنيف" data-i18n-en="Category Records">عمليات التصنيف</span>
             <strong id="categoryRecords">0</strong>
           </article>
           <article class="summary-card total">
-            <span>Total Expenses</span>
+            <span data-i18n-ar="إجمالي المصروفات" data-i18n-en="Total Expenses">إجمالي المصروفات</span>
             <strong id="allExpenses">0</strong>
           </article>
           <article class="summary-card average">
-            <span>Average Expense</span>
+            <span data-i18n-ar="متوسط المصروف" data-i18n-en="Average Expense">متوسط المصروف</span>
             <strong id="averageExpense">0</strong>
           </article>
         </section>
@@ -460,32 +460,32 @@
         <section class="panel">
           <div class="editor-grid">
             <div class="field">
-              <label for="expenseAmount">Amount</label>
+              <label for="expenseAmount" data-i18n-ar="المبلغ" data-i18n-en="Amount">المبلغ</label>
               <input id="expenseAmount" type="number" min="0" step="0.01" placeholder="0">
             </div>
             <div class="field">
-              <label for="expenseDate">Date</label>
+              <label for="expenseDate" data-i18n-ar="التاريخ" data-i18n-en="Date">التاريخ</label>
               <input id="expenseDate" type="date">
             </div>
             <div class="field">
-              <label for="expenseCategory">Category</label>
+              <label for="expenseCategory" data-i18n-ar="التصنيف" data-i18n-en="Category">التصنيف</label>
               <select id="expenseCategory"></select>
             </div>
             <div class="field">
-              <label for="expenseTitle">Title</label>
-              <input id="expenseTitle" type="text" placeholder="Electricity / Rent / Supplies">
+              <label for="expenseTitle" data-i18n-ar="العنوان" data-i18n-en="Title">العنوان</label>
+              <input id="expenseTitle" type="text" placeholder="كهرباء / إيجار / مستلزمات" data-i18n-placeholder-ar="كهرباء / إيجار / مستلزمات" data-i18n-placeholder-en="Electricity / Rent / Supplies">
             </div>
             <div class="field full">
-              <label for="expenseNote">Note</label>
-              <textarea id="expenseNote" placeholder="اكتب تفاصيل المصروف أو أي ملاحظة إضافية"></textarea>
+              <label for="expenseNote" data-i18n-ar="الملاحظة" data-i18n-en="Note">الملاحظة</label>
+              <textarea id="expenseNote" placeholder="اكتب تفاصيل المصروف أو أي ملاحظة إضافية" data-i18n-placeholder-ar="اكتب تفاصيل المصروف أو أي ملاحظة إضافية" data-i18n-placeholder-en="Write expense details or any extra note"></textarea>
             </div>
           </div>
         </section>
 
         <section class="panel">
           <div class="action-row">
-            <button type="button" class="action-btn primary" id="saveBtn">Add Expense</button>
-            <button type="button" class="action-btn soft" id="clearBtn">Clear Form</button>
+            <button type="button" class="action-btn primary" id="saveBtn" data-i18n-ar="إضافة مصروف" data-i18n-en="Add Expense">إضافة مصروف</button>
+            <button type="button" class="action-btn soft" id="clearBtn" data-i18n-ar="مسح النموذج" data-i18n-en="Clear Form">مسح النموذج</button>
           </div>
         </section>
 

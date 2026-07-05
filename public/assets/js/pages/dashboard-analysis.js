@@ -21,6 +21,7 @@
     expectedMonthlyCustomers: document.getElementById("analysisExpectedMonthlyCustomers"),
     expectedMonthlySales: document.getElementById("analysisExpectedMonthlySales"),
     expectedDailyCustomers: document.getElementById("analysisExpectedDailyCustomers"),
+    averageDailySales: document.getElementById("analysisAverageDailySales"),
     knownCustomers: document.getElementById("analysisKnownCustomers"),
     walkInInvoices: document.getElementById("analysisWalkInInvoices"),
     paymentBars: document.getElementById("analysisPaymentBars"),
@@ -48,6 +49,79 @@
 
   function localize(ar, en) {
     return getLanguage() === "en" ? en : ar;
+  }
+
+  function setStaticText(selector, arText, enText) {
+    const element = document.querySelector(selector);
+    if (element) element.textContent = localize(arText, enText);
+  }
+
+  function setMetricLabel(valueId, arText, enText) {
+    const value = document.getElementById(valueId);
+    const label = value?.previousElementSibling;
+    if (label) label.textContent = localize(arText, enText);
+  }
+
+  function applyAnalyticsLanguage() {
+    setStaticText("#dashboardAnalytics .analytics-header h2", "تحليل البيانات", "Data Analysis");
+    setStaticText("#dashboardAnalytics .analytics-header p", "تحليل كامل للمبيعات والموظفين والعملاء والأداء الشهري.", "Full sales, staff, customers, and monthly performance analysis.");
+    setStaticText("label[for='analysisFromDate']", "من تاريخ", "From Date");
+    setStaticText("label[for='analysisToDate']", "إلى تاريخ", "To Date");
+    setStaticText("label[for='analysisBarberFilter']", "الحلاق", "Barber");
+    setStaticText("label[for='analysisPaymentFilter']", "طريقة الدفع", "Payment Method");
+    if (elements.refreshBtn && !elements.refreshBtn.disabled) elements.refreshBtn.textContent = localize("تحديث", "Refresh");
+
+    setStaticText("[data-analysis-tab='overview']", "نظرة عامة", "Overview");
+    setStaticText("[data-analysis-tab='sales']", "المبيعات", "Sales");
+    setStaticText("[data-analysis-tab='staff']", "الموظفون", "Staff");
+    setStaticText("[data-analysis-tab='customers']", "العملاء", "Customers");
+    setStaticText("[data-analysis-tab='monthly']", "تحليل شهري", "Monthly Analysis");
+
+    setMetricLabel("analysisTotalSales", "إجمالي المبيعات", "Total Sales");
+    setMetricLabel("analysisInvoiceCount", "عدد الفواتير", "Invoices");
+    setMetricLabel("analysisAverageInvoice", "متوسط الفاتورة", "Average Invoice");
+    setMetricLabel("analysisUniqueCustomers", "عملاء مختلفون", "Unique Customers");
+    setMetricLabel("analysisExpectedMonthlyCustomers", "العملاء المتوقعون شهريا", "Expected Monthly Customers");
+    setMetricLabel("analysisExpectedMonthlySales", "المبيعات الشهرية المتوقعة", "Expected Monthly Sales");
+    setMetricLabel("analysisExpectedDailyCustomers", "العملاء اليوميون المتوقعون", "Expected Daily Customers");
+    setMetricLabel("analysisAverageDailySales", "متوسط المبيعات باليوم", "Average Daily Sales");
+    setMetricLabel("analysisKnownCustomers", "عملاء معروفون", "Known Customers");
+    setMetricLabel("analysisWalkInInvoices", "فواتير بدون بيانات عميل", "Walk-in Invoices");
+    setMetricLabel("monthlyAvgRevenue", "متوسط الإيراد الشهري", "Average Revenue / Month");
+    setMetricLabel("monthlyAvgGrowth", "متوسط النمو السنوي", "Average Growth / Year");
+    setMetricLabel("monthlyExpensePercent", "نسبة المصروفات من المبيعات", "Expense % of Sales");
+    setMetricLabel("monthlyProfitMargin", "هامش الربح", "Profit Margin");
+    setMetricLabel("monthlyCustomerGrowth", "نمو العملاء", "Customer Growth");
+    setMetricLabel("monthlyInvoiceRate", "معدل الفواتير", "Invoice Rate");
+    setMetricLabel("monthlyRevenuePerBarber", "الإيراد لكل حلاق", "Revenue / Barber");
+    setMetricLabel("monthlyInventoryCost", "نسبة تكلفة المخزون", "Inventory Cost %");
+
+    setStaticText("#analysisTabOverview .analytics-subpanel:nth-child(1) .analytics-title", "توزيع طرق الدفع", "Payment Mix");
+    setStaticText("#analysisTabOverview .analytics-subpanel:nth-child(2) .analytics-title", "مؤشرات ذكية", "Smart Insights");
+    setStaticText("#analysisTabSales .analytics-subpanel:nth-child(1) .analytics-title", "أفضل الخدمات", "Top Services");
+    setStaticText("#analysisTabSales .analytics-subpanel:nth-child(2) .analytics-title", "اتجاه المبيعات اليومي", "Daily Sales Trend");
+    setStaticText("#analysisTabSales .analytics-subpanel:nth-child(3) .analytics-title", "أفضل باقات الفواتير", "Top Invoice Packages");
+    setStaticText("#analysisTabStaff .analytics-title", "أداء الحلاقين", "Barber Performance");
+    setStaticText("#analysisTabCustomers .analytics-subpanel:nth-child(1) .analytics-title", "ملخص العملاء", "Customer Snapshot");
+    setStaticText("#analysisTabCustomers .analytics-subpanel:nth-child(2) .analytics-title", "أفضل العملاء", "Top Customers");
+    setStaticText("#analysisTabMonthly .analytics-subpanel:nth-child(1) .analytics-title", "الاتجاه الشهري", "Monthly Trend");
+    setStaticText("#analysisTabMonthly .analytics-subpanel:nth-child(2) .analytics-title", "اتجاه الأرباح", "Profit Trend");
+    setStaticText("#analysisTabMonthly .analytics-subpanel:nth-child(3) .analytics-title", "المبيعات مقابل المصروفات", "Sales vs Expenses");
+    setStaticText("#analysisTabMonthly .analytics-subpanel:nth-child(4) .analytics-title", "أفضل شهر أداء", "Top Performing Month");
+    setStaticText("#analysisTabMonthly .analytics-subpanel:nth-child(5) .analytics-title", "العائد على الأصول والمؤشرات", "ROA & Indicators");
+    setStaticText("#analysisTabMonthly .analytics-subpanel:nth-child(6) .analytics-title", "مقارنة شهر بشهر", "Month by Month Comparison");
+
+    const staffHeaders = ["الحلاق", "المبيعات", "الفواتير", "المتوسط", "النسبة", "الفواتير الشهرية المتوقعة", "الفواتير اليومية المتوقعة", "المبيعات الشهرية المتوقعة", "المبيعات اليومية المتوقعة", "التقييم"];
+    const staffHeadersEn = ["Barber", "Sales", "Invoices", "Average", "Share", "Expected Monthly Invoices", "Expected Daily Invoices", "Expected Monthly Sales", "Expected Daily Sales", "Rating"];
+    document.querySelectorAll("#analysisTabStaff thead th").forEach((th, index) => {
+      th.textContent = localize(staffHeaders[index], staffHeadersEn[index]);
+    });
+
+    const monthlyHeaders = ["الشهر", "المبيعات", "المصروفات", "السحوبات", "صافي الربح", "العملاء", "الفواتير", "متوسط الفاتورة", "النمو"];
+    const monthlyHeadersEn = ["Month", "Sales", "Expenses", "Withdrawals", "Net Profit", "Customers", "Invoices", "Average Invoice", "Growth"];
+    document.querySelectorAll("#analysisTabMonthly thead th").forEach((th, index) => {
+      th.textContent = localize(monthlyHeaders[index], monthlyHeadersEn[index]);
+    });
   }
 
   function formatNumber(value, digits = 0) {
@@ -130,7 +204,17 @@
 
   function getPaymentLabel(value) {
     const payment = normalize(value || localize("غير محدد", "Unknown"));
-    return getLanguage() === "en" ? (PAYMENT_TRANSLATIONS[payment] || payment) : payment;
+    const labels = {
+      "نقدي": { ar: "نقدي", en: "Cash" },
+      "Cash": { ar: "نقدي", en: "Cash" },
+      "انستا باي": { ar: "انستا باي", en: "Instapay" },
+      "Instapay": { ar: "انستا باي", en: "Instapay" },
+      "فودافون كاش": { ar: "فودافون كاش", en: "Vodafone Cash" },
+      "Vodafone Cash": { ar: "فودافون كاش", en: "Vodafone Cash" },
+      "فيزا": { ar: "فيزا", en: "Visa" },
+      "Visa": { ar: "فيزا", en: "Visa" }
+    };
+    return labels[payment] ? labels[payment][getLanguage()] : payment;
   }
 
   function groupBy(items, keyGetter) {
@@ -191,10 +275,14 @@
     const expectedMonthlyCustomers = Math.round((monthlyCustomersSoFar / elapsedDays) * daysInMonth);
     const expectedMonthlySales = Math.round((monthlySalesSoFar / elapsedDays) * daysInMonth);
     const expectedDailyCustomers = daysInMonth ? expectedMonthlyCustomers / daysInMonth : 0;
+    const averageDailySales = elapsedDays ? monthlySalesSoFar / elapsedDays : 0;
 
     elements.expectedMonthlyCustomers.textContent = formatNumber(expectedMonthlyCustomers);
     elements.expectedMonthlySales.textContent = formatMoney(expectedMonthlySales);
     elements.expectedDailyCustomers.textContent = formatNumber(Math.round(expectedDailyCustomers));
+    if (elements.averageDailySales) {
+      elements.averageDailySales.textContent = formatMoney(averageDailySales);
+    }
   }
 
   function renderPaymentMix(items) {
@@ -250,11 +338,11 @@
 
   function renderBarbers(items) {
     const total = items.reduce((sum, item) => sum + parseAmount(item.total), 0);
-    const rows = groupBy(items, invoice => normalize(invoice.barber) || "Unknown");
+    const rows = groupBy(items, invoice => normalize(invoice.barber) || localize("غير محدد", "Unknown"));
     const { monthPrefix, daysInMonth, elapsedDays } = getMonthProjectionContext();
     const monthRows = groupBy(
       items.filter(invoice => String(getInvoiceDate(invoice) || "").startsWith(monthPrefix)),
-      invoice => normalize(invoice.barber) || "Unknown"
+      invoice => normalize(invoice.barber) || localize("غير محدد", "Unknown")
     );
     const monthMap = new Map(monthRows.map(row => [row.key, row]));
 
@@ -341,7 +429,31 @@
     `).join("");
   }
 
+  function renderInsightsLocalized(items) {
+    const total = items.reduce((sum, item) => sum + parseAmount(item.total), 0);
+    const payments = groupBy(items, invoice => getPaymentLabel(invoice.paymentMethod || invoice.payment || localize("غير محدد", "Unknown")));
+    const barbers = groupBy(items, invoice => normalize(invoice.barber) || localize("غير محدد", "Unknown"));
+    const days = groupBy(items, invoice => getInvoiceDate(invoice) || localize("بدون تاريخ", "No date"));
+    const bestDay = [...days].sort((a, b) => b.total - a.total)[0];
+    const insights = [
+      payments[0] && { title: localize("أعلى طريقة دفع", "Top payment method"), text: `${payments[0].key} - ${formatMoney(payments[0].total)}` },
+      barbers[0] && { title: localize("أعلى حلاق مبيعات", "Top barber by sales"), text: `${barbers[0].key} - ${formatMoney(barbers[0].total)}` },
+      bestDay && { title: localize("أفضل يوم في الفترة", "Best day in period"), text: `${bestDay.key} - ${formatMoney(bestDay.total)}` },
+      { title: localize("متوسط قيمة الفاتورة", "Average ticket"), text: formatMoney(items.length ? total / items.length : 0) }
+    ].filter(Boolean);
+
+    elements.insightsList.innerHTML = insights.map(item => `
+      <div class="analytics-insight">
+        <strong>${escapeHtml(item.title)}</strong>
+        <span>${escapeHtml(item.text)}</span>
+      </div>
+    `).join("");
+  }
+
   function readStore(key) {
+    elements.refreshBtn.textContent = localize("جاري التحديث...", "Refreshing...");
+    elements.status.textContent = localize("جاري تحميل التحليلات...", "Loading analysis...");
+
     try {
       const parsed = JSON.parse(localStorage.getItem(key) || "[]");
       return Array.isArray(parsed) ? parsed : [];
@@ -482,12 +594,12 @@
       const costs = row.expenses + row.withdrawals + row.inventoryCost;
       return `
         <div class="monthly-chart-row">
-          <div class="monthly-chart-label">${row.month} Sales</div>
+          <div class="monthly-chart-label">${row.month} ${localize("المبيعات", "Sales")}</div>
           <div class="monthly-chart-track"><div class="monthly-chart-fill" style="width:${Math.max(4, Math.round((row.sales / max) * 100))}%"></div></div>
           <div class="monthly-chart-value">${formatMoney(row.sales)}</div>
         </div>
         <div class="monthly-chart-row">
-          <div class="monthly-chart-label">${row.month} Costs</div>
+          <div class="monthly-chart-label">${row.month} ${localize("التكاليف", "Costs")}</div>
           <div class="monthly-chart-track"><div class="monthly-chart-fill expense" style="width:${Math.max(4, Math.round((costs / max) * 100))}%"></div></div>
           <div class="monthly-chart-value">${formatMoney(costs)}</div>
         </div>
@@ -504,10 +616,10 @@
     }
     const topBy = getter => [...rows].sort((a, b) => getter(b) - getter(a))[0];
     const items = [
-      ["Highest Sales", topBy(row => row.sales), row => formatMoney(row.sales)],
-      ["Highest Profit", topBy(row => row.netProfit), row => formatMoney(row.netProfit)],
-      ["Highest Customers", topBy(row => row.customerCount), row => formatNumber(row.customerCount)],
-      ["Highest Average Invoice", topBy(row => row.averageInvoice), row => formatMoney(row.averageInvoice)]
+      [localize("أعلى المبيعات", "Highest Sales"), topBy(row => row.sales), row => formatMoney(row.sales)],
+      [localize("أعلى الأرباح", "Highest Profit"), topBy(row => row.netProfit), row => formatMoney(row.netProfit)],
+      [localize("أعلى عدد عملاء", "Highest Customers"), topBy(row => row.customerCount), row => formatNumber(row.customerCount)],
+      [localize("أعلى متوسط فاتورة", "Highest Average Invoice"), topBy(row => row.averageInvoice), row => formatMoney(row.averageInvoice)]
     ];
     container.innerHTML = items.map(([title, row, formatter]) => `
       <div class="analytics-insight"><strong>${title}</strong><span>${row.month} - ${formatter(row)}</span></div>
@@ -582,14 +694,15 @@
     if (indicators) {
       indicators.innerHTML = `
         <div class="indicator"><span>ROA</span><strong>${percent(roa)}</strong></div>
-        <div class="indicator"><span>Sales Growth</span><strong>${percent(avgSalesGrowth)}</strong></div>
-        <div class="indicator"><span>Profit Growth</span><strong>${percent(avgProfitGrowth)}</strong></div>
-        <div class="indicator"><span>Profit Margin</span><strong>${percent(profitMargin)}</strong></div>
+        <div class="indicator"><span>${localize("معدل نمو المبيعات", "Sales Growth")}</span><strong>${percent(avgSalesGrowth)}</strong></div>
+        <div class="indicator"><span>${localize("معدل نمو الأرباح", "Profit Growth")}</span><strong>${percent(avgProfitGrowth)}</strong></div>
+        <div class="indicator"><span>${localize("هامش الربح", "Profit Margin")}</span><strong>${percent(profitMargin)}</strong></div>
       `;
     }
   }
 
   function renderAll() {
+    applyAnalyticsLanguage();
     renderSummary(filteredInvoices);
     renderPaymentMix(filteredInvoices);
     renderServices(filteredInvoices);
@@ -597,7 +710,7 @@
     renderDailyTrend(filteredInvoices);
     renderBarbers(filteredInvoices);
     renderCustomers(filteredInvoices);
-    renderInsights(filteredInvoices);
+    renderInsightsLocalized(filteredInvoices);
     renderMonthly();
   }
 
@@ -643,10 +756,14 @@
 
     if (barbers.includes(selectedBarber)) elements.barberFilter.value = selectedBarber;
     if (payments.includes(selectedPayment)) elements.paymentFilter.value = selectedPayment;
+    if (elements.barberFilter.options[0]) elements.barberFilter.options[0].textContent = localize("كل الحلاقين", "All barbers");
+    if (elements.paymentFilter.options[0]) elements.paymentFilter.options[0].textContent = localize("كل الطرق", "All methods");
   }
 
   async function loadInvoices() {
     elements.refreshBtn.disabled = true;
+    elements.refreshBtn.textContent = localize("جاري التحديث...", "Refreshing...");
+    elements.status.textContent = localize("جاري تحميل التحليلات...", "Loading analysis...");
     elements.refreshBtn.textContent = localize("جاري التحديث...", "Refreshing...");
     elements.status.textContent = localize("جاري تحميل التحليلات...", "Loading analysis...");
 
@@ -665,6 +782,7 @@
       elements.status.textContent = localize("تعذر تحميل التحليلات.", "Could not load analysis.");
     } finally {
       elements.refreshBtn.disabled = false;
+      setTimeout(applyAnalyticsLanguage, 0);
       elements.refreshBtn.textContent = localize("تحديث", "Refresh");
     }
   }
@@ -684,9 +802,11 @@
 
   if (elements.refreshBtn) elements.refreshBtn.addEventListener("click", loadInvoices);
   window.addEventListener("romeo-language-change", () => {
+    applyAnalyticsLanguage();
     renderFilterOptions();
     renderAll();
   });
 
+  applyAnalyticsLanguage();
   loadInvoices();
 })();

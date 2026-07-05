@@ -49,6 +49,17 @@
       return currentLanguage() === "en" ? enText : arText;
     }
 
+    function applyPageLanguage() {
+      document.querySelectorAll("[data-i18n-ar][data-i18n-en]").forEach(element => {
+        element.textContent = localizeText(element.dataset.i18nAr, element.dataset.i18nEn);
+      });
+      document.querySelectorAll("[data-i18n-placeholder-ar][data-i18n-placeholder-en]").forEach(element => {
+        element.placeholder = localizeText(element.dataset.i18nPlaceholderAr, element.dataset.i18nPlaceholderEn);
+      });
+      if (!saveBtn.disabled) saveBtn.textContent = localizeText("إضافة سحب", "Add Withdrawal");
+      clearBtn.textContent = localizeText("مسح النموذج", "Clear Form");
+    }
+
     function normalizeStaff(staff, index = 0) {
       return {
         id: staff.id || staff.staffId || `staff-${index}`,
@@ -276,7 +287,7 @@
             <div>
               <div class="history-amount">${formatMoney(item.amount)}</div>
             </div>
-            <button type="button" class="action-btn soft" data-delete-id="${item.id}">Delete</button>
+            <button type="button" class="action-btn soft" data-delete-id="${item.id}">${localizeText("حذف", "Delete")}</button>
           </div>
           <div class="history-meta">
             <span>${staff.name}</span>
@@ -303,6 +314,7 @@
     }
 
     function renderAll() {
+      applyPageLanguage();
       if (!staffList.find(staff => staff.id === selectedId)) {
         selectedId = staffList[0]?.id || null;
       }
@@ -311,6 +323,7 @@
       renderSummary();
       renderHistory();
       localizeHistoryEmptyState();
+      applyPageLanguage();
     }
 
     function clearForm() {
@@ -344,7 +357,7 @@
       };
 
       saveBtn.disabled = true;
-      saveBtn.textContent = "Saving...";
+      saveBtn.textContent = localizeText("جاري الحفظ...", "Saving...");
 
       try {
         await saveWithdrawalToSheet(withdrawal);
@@ -357,7 +370,7 @@
         alert(error.message || "ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„Ø³Ø­Ø¨ ÙÙŠ Ø§Ù„Ø´ÙŠØª.");
       } finally {
         saveBtn.disabled = false;
-        saveBtn.textContent = "Add Withdrawal";
+        saveBtn.textContent = localizeText("إضافة سحب", "Add Withdrawal");
       }
     }
 
@@ -408,7 +421,7 @@
       if (!btn) return;
       if (!confirm("ØªØ­Ø°Ù Ø¹Ù…Ù„ÙŠØ© Ø§Ù„Ø³Ø­Ø¨ Ø¯ÙŠØŸ")) return;
       btn.disabled = true;
-      btn.textContent = "Deleting...";
+      btn.textContent = localizeText("جاري الحذف...", "Deleting...");
       await deleteWithdrawal(Number(btn.dataset.deleteId));
     });
     menuToggle.addEventListener("click", openSidebar);
@@ -427,6 +440,7 @@
       loadStaffFromSheet();
     });
 
+    applyPageLanguage();
     renderAll();
     loadStaffFromSheet();
 

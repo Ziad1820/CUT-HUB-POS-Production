@@ -102,6 +102,8 @@
     }
   };
 
+  LABELS.ar.noData = "لا توجد بيانات للوحة التحكم اليوم.";
+
   function getLanguage() {
     return localStorage.getItem("romeo-pos-language") || "ar";
   }
@@ -111,7 +113,7 @@
   }
 
   function getLocale() {
-    return getLanguage() === "en" ? "en-US" : "ar-EG";
+    return "en-US";
   }
 
   function formatNumber(value) {

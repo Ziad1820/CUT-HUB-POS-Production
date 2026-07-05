@@ -476,13 +476,13 @@
     <div class="page-grid">
       <aside class="left-panel">
         <section class="panel">
-          <input class="search-box" id="searchInput" type="text" placeholder="Search by name or code">
+          <input class="search-box" id="searchInput" type="text" placeholder="ابحث بالاسم أو الكود" data-i18n-placeholder-ar="ابحث بالاسم أو الكود" data-i18n-placeholder-en="Search by name or code">
         </section>
 
         <section class="panel">
           <div class="list-actions">
-            <button type="button" class="action-btn primary" id="addStaffBtn">Add Employee</button>
-            <button type="button" class="action-btn soft" id="resetBtn">Reset Data</button>
+            <button type="button" class="action-btn primary" id="addStaffBtn" data-i18n-ar="إضافة موظف" data-i18n-en="Add Employee">إضافة موظف</button>
+            <button type="button" class="action-btn soft" id="resetBtn" data-i18n-ar="إعادة ضبط البيانات" data-i18n-en="Reset Data">إعادة ضبط البيانات</button>
           </div>
         </section>
 
@@ -500,11 +500,11 @@
 
         <section class="summary-grid">
           <article class="summary-card">
-            <span>Total Clients</span>
+            <span data-i18n-ar="إجمالي العملاء" data-i18n-en="Total Clients">إجمالي العملاء</span>
             <strong id="sumClients">0</strong>
           </article>
           <article class="summary-card">
-            <span>Salaries</span>
+            <span data-i18n-ar="المرتبات" data-i18n-en="Salaries">المرتبات</span>
             <strong id="sumSalary">0</strong>
           </article>
           <article class="summary-card">
@@ -512,7 +512,7 @@
             <strong id="sumSales">0</strong>
           </article>
           <article class="summary-card">
-            <span>Percentage Of Salaries</span>
+            <span data-i18n-ar="نسبة المرتبات" data-i18n-en="Percentage Of Salaries">نسبة المرتبات</span>
             <strong id="sumPercentage">0</strong>
           </article>
           <article class="summary-card">
@@ -520,15 +520,15 @@
             <strong id="sumWithdrawals">0</strong>
           </article>
           <article class="summary-card">
-            <span>dedution</span>
+            <span data-i18n-ar="الخصومات" data-i18n-en="Deduction">الخصومات</span>
             <strong id="sumDedution">0</strong>
           </article>
           <article class="summary-card">
-            <span>Bonus</span>
+            <span data-i18n-ar="المكافأة" data-i18n-en="Bonus">المكافأة</span>
             <strong id="sumBonus">0</strong>
           </article>
           <article class="summary-card net">
-            <span>Net Salary</span>
+            <span data-i18n-ar="صافي الراتب" data-i18n-en="Net Salary">صافي الراتب</span>
             <strong id="sumNet">0</strong>
           </article>
         </section>
@@ -536,25 +536,25 @@
         <section class="panel">
           <div class="editor-grid">
             <div class="field">
-              <label for="staffName">Staff Name</label>
+              <label for="staffName" data-i18n-ar="اسم الموظف" data-i18n-en="Staff Name">اسم الموظف</label>
               <input id="staffName" type="text">
             </div>
             <div class="field">
-              <label for="staffCode">Staff Code</label>
+              <label for="staffCode" data-i18n-ar="كود الموظف" data-i18n-en="Staff Code">كود الموظف</label>
               <input id="staffCode" type="text">
             </div>
             <div class="field">
-              <label for="staffPercentage">Percentage Of Salaries</label>
+              <label for="staffPercentage" data-i18n-ar="نسبة المرتبات" data-i18n-en="Percentage Of Salaries">نسبة المرتبات</label>
               <div class="percent-input-wrap">
                 <input id="staffPercentage" type="number" min="0" max="100" step="0.01" inputmode="decimal">
               </div>
             </div>
             <div class="field">
-              <label for="staffSalary">Salaries</label>
+              <label for="staffSalary" data-i18n-ar="المرتبات" data-i18n-en="Salaries">المرتبات</label>
               <input id="staffSalary" type="number">
             </div>
             <label class="check-field" for="staffIsBarber">
-              <span>Show as Barber</span>
+              <span data-i18n-ar="إظهاره كحلاق" data-i18n-en="Show as Barber">إظهاره كحلاق</span>
               <input id="staffIsBarber" type="checkbox">
             </label>
           </div>
@@ -562,22 +562,22 @@
 
         <section class="panel">
           <div class="detail-actions">
-            <button type="button" class="action-btn primary" id="saveBtn">Save Changes</button>
-            <button type="button" class="action-btn danger" id="deleteBtn">Delete Employee</button>
+            <button type="button" class="action-btn primary" id="saveBtn" data-i18n-ar="حفظ التعديلات" data-i18n-en="Save Changes">حفظ التعديلات</button>
+            <button type="button" class="action-btn danger" id="deleteBtn" data-i18n-ar="حذف الموظف" data-i18n-en="Delete Employee">حذف الموظف</button>
           </div>
         </section>
 
         <section class="totals-panel">
           <article class="total-box">
-            <span>Employee Count</span>
+            <span data-i18n-ar="عدد الموظفين" data-i18n-en="Employee Count">عدد الموظفين</span>
             <strong id="overallStaff">0</strong>
           </article>
           <article class="total-box">
-            <span>Net Total Salary</span>
+            <span data-i18n-ar="إجمالي صافي الرواتب" data-i18n-en="Net Total Salary">إجمالي صافي الرواتب</span>
             <strong id="overallNet">0</strong>
           </article>
           <article class="total-box">
-            <span>Total Salary Package</span>
+            <span data-i18n-ar="إجمالي باقة الرواتب" data-i18n-en="Total Salary Package">إجمالي باقة الرواتب</span>
             <strong id="overallPackage">0</strong>
           </article>
         </section>
@@ -676,6 +676,15 @@
 
     function localizeText(arText, enText) {
       return currentLanguage() === "en" ? enText : arText;
+    }
+
+    function applyPageLanguage() {
+      document.querySelectorAll("[data-i18n-ar][data-i18n-en]").forEach(element => {
+        element.textContent = localizeText(element.dataset.i18nAr, element.dataset.i18nEn);
+      });
+      document.querySelectorAll("[data-i18n-placeholder-ar][data-i18n-placeholder-en]").forEach(element => {
+        element.placeholder = localizeText(element.dataset.i18nPlaceholderAr, element.dataset.i18nPlaceholderEn);
+      });
     }
 
     function cloneDefaults() {
@@ -945,7 +954,7 @@
           <strong>${staff.name}</strong>
           <div class="employee-meta">
             <span>${staff.code}</span>
-            <span>Net ${formatMoney(calculateNet(staff))}</span>
+            <span>${localizeText("الصافي", "Net")} ${formatMoney(calculateNet(staff))}</span>
           </div>
         `;
         card.addEventListener("click", () => {
@@ -1017,9 +1026,11 @@
     }
 
     function renderAll() {
+      applyPageLanguage();
       renderEmployeeList();
       fillDetails();
       renderOverall();
+      applyPageLanguage();
     }
 
     async function saveSelectedStaff() {
@@ -1125,6 +1136,7 @@
     document.getElementById("logoutBtn").addEventListener("click", () => RomeoAuth.logout());
     window.addEventListener("romeo-language-change", renderAll);
 
+    applyPageLanguage();
     renderAll();
     loadStaffFromSheet();
   </script>

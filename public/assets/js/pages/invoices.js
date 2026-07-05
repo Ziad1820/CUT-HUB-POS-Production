@@ -65,7 +65,7 @@
       const amount = Math.round(parseAmount(value));
       return getCurrentPageLanguage() === "en"
         ? `${amount.toLocaleString("en-US")} EGP`
-        : `${amount.toLocaleString("ar-EG")} جنيه`;
+        : `${amount.toLocaleString("en-US")} جنيه`;
     }
 
     function getCurrentPageLanguage() {
@@ -84,6 +84,24 @@
         elements.reloadBtn.textContent = localizeText("تحديث", "Update");
       }
       elements.clearFiltersBtn.textContent = localizeText("مسح الفلاتر", "Clear Filters");
+      const headers = document.querySelectorAll("thead th");
+      const tableLabels = [
+        "",
+        localizeText("التاريخ", "Date"),
+        localizeText("اسم العميل", "Customer Name"),
+        localizeText("الهاتف", "Phone"),
+        localizeText("الحلاق", "Barber"),
+        localizeText("طريقة الدفع", "Payment Method"),
+        localizeText("الإجمالي", "Total"),
+        localizeText("المدفوع", "Paid Amount"),
+        localizeText("التب", "Tip Amount"),
+        localizeText("الخدمات", "Services"),
+        localizeText("الملاحظة", "Note"),
+        localizeText("الإجراءات", "Actions")
+      ];
+      headers.forEach((header, index) => {
+        if (tableLabels[index]) header.textContent = tableLabels[index];
+      });
     }
 
     const PAYMENT_TRANSLATIONS = {
@@ -303,7 +321,7 @@
       const allTotal = invoices.reduce((sum, item) => sum + parseAmount(item.total), 0);
 
       elements.visibleTotal.textContent = formatMoney(visibleTotal);
-      elements.visibleCount.textContent = totalMatches.toLocaleString(getCurrentPageLanguage() === "en" ? "en-US" : "ar-EG");
+      elements.visibleCount.textContent = totalMatches.toLocaleString("en-US");
       elements.allTotal.textContent = formatMoney(allTotal);
     }
 
@@ -380,7 +398,7 @@
             <div class="invoice-actions">
               <button type="button" class="mini-btn dark" data-action="view" data-id="${escapeHtml(invoice.invoiceId)}">${localizeText("عرض", "View")}</button>
               <button type="button" class="mini-btn" data-action="pdf" data-id="${escapeHtml(invoice.invoiceId)}" ${invoice.pdfUrl ? "" : "disabled"}>PDF</button>
-              <button type="button" class="mini-btn danger" data-action="delete" data-id="${escapeHtml(invoice.invoiceId)}">Delete</button>
+              <button type="button" class="mini-btn danger" data-action="delete" data-id="${escapeHtml(invoice.invoiceId)}">${localizeText("حذف", "Delete")}</button>
             </div>
           </td>
         `;
@@ -424,8 +442,8 @@
       const phoneLabel = localizeText("رقم الهاتف", "Phone");
       const barberLabel = localizeText("الحلاق", "Barber");
       const paymentLabel = localizeText("طريقة الدفع", "Payment Method");
-      const paidLabel = "Paid Amount";
-      const tipLabel = "Tip Amount";
+      const paidLabel = localizeText("المدفوع", "Paid Amount");
+      const tipLabel = localizeText("التب", "Tip Amount");
       const servicesLabel = localizeText("الخدمات", "Services");
       const noteLabel = localizeText("الملاحظة", "Note");
 
@@ -558,7 +576,7 @@
         console.error(error);
         alert(error.message || localizeText("تعذر حذف الفاتورة من الشيت.", "Could not delete the invoice from the sheet."));
         button.disabled = false;
-        button.textContent = "Delete";
+        button.textContent = localizeText("حذف", "Delete");
       }
     }
 

@@ -381,73 +381,73 @@
     <section class="filter-panel">
       <div class="filters">
         <label class="field">
-          <span>From Date</span>
+          <span data-i18n-ar="من تاريخ" data-i18n-en="From Date">من تاريخ</span>
           <input type="date" id="fromDate">
         </label>
         <label class="field">
-          <span>To Date</span>
+          <span data-i18n-ar="إلى تاريخ" data-i18n-en="To Date">إلى تاريخ</span>
           <input type="date" id="toDate">
         </label>
-        <button type="button" class="primary" id="applyFilterBtn">Apply Filter</button>
-        <button type="button" id="thisMonthBtn">This Month</button>
-        <button type="button" class="success" id="monthLockBtn">Month Lock</button>
-        <button type="button" id="refreshClosingsBtn">Refresh Closings</button>
+        <button type="button" class="primary" id="applyFilterBtn" data-i18n-ar="تطبيق الفلتر" data-i18n-en="Apply Filter">تطبيق الفلتر</button>
+        <button type="button" id="thisMonthBtn" data-i18n-ar="هذا الشهر" data-i18n-en="This Month">هذا الشهر</button>
+        <button type="button" class="success" id="monthLockBtn" data-i18n-ar="قفل الشهر" data-i18n-en="Month Lock">قفل الشهر</button>
+        <button type="button" id="refreshClosingsBtn" data-i18n-ar="تحديث التقفيلات" data-i18n-en="Refresh Closings">تحديث التقفيلات</button>
       </div>
       <div class="status" id="statementStatus"></div>
     </section>
 
     <section class="grid">
       <div class="card">
-        <h2>Total Sales</h2>
+        <h2 data-i18n-ar="إجمالي المبيعات" data-i18n-en="Total Sales">إجمالي المبيعات</h2>
         <div class="metric-value" id="totalStaffSales">0 EGP</div>
       </div>
 
       <div class="card">
-        <h2>Invoices</h2>
+        <h2 data-i18n-ar="الفواتير" data-i18n-en="Invoices">الفواتير</h2>
         <div class="metric-value" id="invoiceCount">0</div>
       </div>
 
       <div class="card">
-        <h2>Expenses</h2>
+        <h2 data-i18n-ar="المصروفات" data-i18n-en="Expenses">المصروفات</h2>
         <div class="metric-value" id="expensesAmount">0 EGP</div>
       </div>
 
       <div class="card">
-        <h2>Total Tips</h2>
+        <h2 data-i18n-ar="إجمالي التب" data-i18n-en="Total Tips">إجمالي التب</h2>
         <div class="metric-value" id="totalTips">0 EGP</div>
       </div>
 
       <div class="card">
-        <h2>Total Clients</h2>
+        <h2 data-i18n-ar="إجمالي العملاء" data-i18n-en="Total Clients">إجمالي العملاء</h2>
         <div class="metric-value" id="totalClients">0</div>
       </div>
 
       <div class="card">
-        <h2>Withdrawals</h2>
+        <h2 data-i18n-ar="السحوبات" data-i18n-en="Withdrawals">السحوبات</h2>
         <div class="metric-value" id="withdrawAmount">0 EGP</div>
       </div>
 
       <div class="card">
-        <h2>Total Income</h2>
+        <h2 data-i18n-ar="إجمالي الدخل" data-i18n-en="Total Income">إجمالي الدخل</h2>
         <div class="metric-value" id="totalIncome">0 EGP</div>
       </div>
 
       <div class="card">
-        <h2>Average Invoice</h2>
+        <h2 data-i18n-ar="متوسط الفاتورة" data-i18n-en="Average Invoice">متوسط الفاتورة</h2>
         <div class="metric-value" id="averageInvoice">0 EGP</div>
       </div>
 
       <div class="card net-profit">
-        <h2>Net profit</h2>
+        <h2 data-i18n-ar="صافي الربح" data-i18n-en="Net profit">صافي الربح</h2>
         <div class="metric-value" id="netProfit">0 EGP</div>
       </div>
     </section>
 
     <section class="summary-card">
       <div class="section-title">
-        <h2>Previous Monthly Closings</h2>
+        <h2 data-i18n-ar="التقفيلات الشهرية السابقة" data-i18n-en="Previous Monthly Closings">التقفيلات الشهرية السابقة</h2>
         <div class="closing-actions">
-          <button type="button" class="danger" id="deleteSelectedClosingsBtn">Delete Selected</button>
+          <button type="button" class="danger" id="deleteSelectedClosingsBtn" data-i18n-ar="حذف المحدد" data-i18n-en="Delete Selected">حذف المحدد</button>
         </div>
       </div>
       <div class="table-wrap">
@@ -455,21 +455,21 @@
           <thead>
             <tr>
               <th><input class="closing-check" type="checkbox" id="selectAllClosings" aria-label="Select all monthly closings"></th>
-              <th>Month</th>
-              <th>From</th>
-              <th>To</th>
-              <th>Total Income</th>
-              <th>Expenses</th>
-              <th>Withdrawals</th>
-              <th>Net Profit</th>
-              <th>Closed By</th>
-              <th>Closed At</th>
-              <th>Action</th>
+              <th data-i18n-ar="الشهر" data-i18n-en="Month">الشهر</th>
+              <th data-i18n-ar="من" data-i18n-en="From">من</th>
+              <th data-i18n-ar="إلى" data-i18n-en="To">إلى</th>
+              <th data-i18n-ar="إجمالي الدخل" data-i18n-en="Total Income">إجمالي الدخل</th>
+              <th data-i18n-ar="المصروفات" data-i18n-en="Expenses">المصروفات</th>
+              <th data-i18n-ar="السحوبات" data-i18n-en="Withdrawals">السحوبات</th>
+              <th data-i18n-ar="صافي الربح" data-i18n-en="Net Profit">صافي الربح</th>
+              <th data-i18n-ar="تم الإغلاق بواسطة" data-i18n-en="Closed By">تم الإغلاق بواسطة</th>
+              <th data-i18n-ar="وقت الإغلاق" data-i18n-en="Closed At">وقت الإغلاق</th>
+              <th data-i18n-ar="الإجراء" data-i18n-en="Action">الإجراء</th>
             </tr>
           </thead>
           <tbody id="monthlyClosingsBody">
             <tr>
-              <td colspan="11">No monthly closings loaded yet.</td>
+              <td colspan="11">لم يتم تحميل أي تقفيلات شهرية حتى الآن.</td>
             </tr>
           </tbody>
         </table>
@@ -529,6 +529,24 @@
     const monthlyClosingsBody = document.getElementById("monthlyClosingsBody");
     const totalTipsEl = document.getElementById("totalTips");
     let monthlyClosings = [];
+
+    function getLanguage() {
+      return window.RomeoLanguage?.getCurrentLanguage?.()
+        || (document.documentElement.lang === "en" ? "en" : document.documentElement.lang === "ar" ? "ar" : "")
+        || document.body?.dataset.language
+        || localStorage.getItem("romeo-pos-language")
+        || "ar";
+    }
+
+    function localize(arText, enText) {
+      return getLanguage() === "en" ? enText : arText;
+    }
+
+    function applyPageLanguage() {
+      document.querySelectorAll("[data-i18n-ar][data-i18n-en]").forEach(element => {
+        element.textContent = localize(element.dataset.i18nAr, element.dataset.i18nEn);
+      });
+    }
 
     let currentSummary = {
       totalIncome: 0,
@@ -654,17 +672,17 @@
       const toDate = toDateInput.value;
 
       if (!fromDate || !toDate) {
-        setStatus("Choose from date and to date.", "error");
+        setStatus(localize("اختار تاريخ البداية والنهاية.", "Choose from date and to date."), "error");
         return;
       }
 
       if (fromDate > toDate) {
-        setStatus("From date must be before to date.", "error");
+        setStatus(localize("تاريخ البداية لازم يكون قبل تاريخ النهاية.", "From date must be before to date."), "error");
         return;
       }
 
       try {
-        setStatus("Loading income statement...");
+        setStatus(localize("جاري تحميل قائمة الدخل...", "Loading income statement..."));
         const result = await RomeoApi.request({
           action: "getIncomeStatementRange",
           fromDate,
@@ -676,11 +694,11 @@
         }
 
         renderSummary(result);
-        setStatus(`Showing numbers from ${fromDate} to ${toDate}.`, "success");
+        setStatus(localize(`عرض الأرقام من ${fromDate} إلى ${toDate}.`, `Showing numbers from ${fromDate} to ${toDate}.`), "success");
       } catch (error) {
         console.error(error);
         renderSummary({});
-        setStatus(error instanceof Error ? error.message : "Could not load income statement.", "error");
+        setStatus(error instanceof Error ? error.message : localize("تعذر تحميل قائمة الدخل.", "Could not load income statement."), "error");
       }
     }
 
@@ -710,7 +728,7 @@
       selectAllClosings.checked = false;
 
       if (!Array.isArray(closings) || closings.length === 0) {
-        monthlyClosingsBody.innerHTML = `<tr><td colspan="11">No monthly closings yet.</td></tr>`;
+        monthlyClosingsBody.innerHTML = `<tr><td colspan="11">${localize("لا توجد تقفيلات شهرية حتى الآن.", "No monthly closings yet.")}</td></tr>`;
         return;
       }
 
@@ -728,7 +746,7 @@
           <td>${formatCurrency(closing.netProfit)}</td>
           <td>${closing.closedBy || closing.actorDisplayName || "-"}</td>
           <td>${closing.closedAt || "-"}</td>
-          <td><button type="button" class="mini-btn danger" data-delete-monthly-closing="${closingKey}">Delete</button></td>
+          <td><button type="button" class="mini-btn danger" data-delete-monthly-closing="${closingKey}">${localize("حذف", "Delete")}</button></td>
         </tr>
       `;
       }).join("");
@@ -738,24 +756,24 @@
       try {
         const result = await RomeoApi.request({ action: "getMonthlyClosings" });
         if (result.status !== "success") {
-          throw new Error(result.message || "Could not load monthly closings.");
+          throw new Error(result.message || localize("تعذر تحميل التقفيلات الشهرية.", "Could not load monthly closings."));
         }
 
         renderClosings(result.closings || result.monthlyClosings || []);
       } catch (error) {
         console.error(error);
         monthlyClosings = [];
-        monthlyClosingsBody.innerHTML = `<tr><td colspan="11">${error instanceof Error ? error.message : "Could not load monthly closings."}</td></tr>`;
+        monthlyClosingsBody.innerHTML = `<tr><td colspan="11">${error instanceof Error ? error.message : localize("تعذر تحميل التقفيلات الشهرية.", "Could not load monthly closings.")}</td></tr>`;
       }
     }
 
     async function deleteMonthlyClosing(closing) {
       const monthKey = closing.month || closing.monthKey || "";
-      const confirmed = confirm(`Delete monthly closing ${monthKey || "selected month"}? This action cannot be undone.`);
+      const confirmed = confirm(localize(`حذف تقفيلة شهر ${monthKey || "الشهر المحدد"}؟ لا يمكن التراجع عن هذا الإجراء.`, `Delete monthly closing ${monthKey || "selected month"}? This action cannot be undone.`));
       if (!confirmed) return false;
 
       try {
-        setStatus("Deleting monthly closing...");
+        setStatus(localize("جاري حذف التقفيلة الشهرية...", "Deleting monthly closing..."));
         const result = await RomeoApi.request({
           action: "deleteMonthlyClosing",
           closingId: closing.closingId || closing.id || closing.monthLockId || "",
@@ -767,14 +785,14 @@
         });
 
         if (result.status !== "success") {
-          throw new Error(result.message || "Could not delete monthly closing.");
+          throw new Error(result.message || localize("تعذر حذف التقفيلة الشهرية.", "Could not delete monthly closing."));
         }
 
-        setStatus(`Monthly closing ${monthKey || ""} deleted.`, "success");
+        setStatus(localize(`تم حذف تقفيلة شهر ${monthKey || ""}.`, `Monthly closing ${monthKey || ""} deleted.`), "success");
         return true;
       } catch (error) {
         console.error(error);
-        setStatus(error instanceof Error ? error.message : "Could not delete monthly closing.", "error");
+        setStatus(error instanceof Error ? error.message : localize("تعذر حذف التقفيلة الشهرية.", "Could not delete monthly closing."), "error");
         return false;
       }
     }
@@ -782,7 +800,7 @@
     async function deleteSelectedClosings() {
       const selectedKeys = getSelectedClosingKeys();
       if (!selectedKeys.length) {
-        setStatus("Select at least one monthly closing to delete.", "error");
+        setStatus(localize("اختار تقفيلة شهرية واحدة على الأقل للحذف.", "Select at least one monthly closing to delete."), "error");
         return;
       }
 
@@ -790,7 +808,7 @@
         selectedKeys.includes(getClosingKey(closing, index))
       );
 
-      const confirmed = confirm(`Delete ${selectedClosings.length} selected monthly closing(s)? This action cannot be undone.`);
+      const confirmed = confirm(localize(`حذف ${selectedClosings.length} تقفيلة شهرية محددة؟ لا يمكن التراجع عن هذا الإجراء.`, `Delete ${selectedClosings.length} selected monthly closing(s)? This action cannot be undone.`));
       if (!confirmed) return;
 
       let deletedCount = 0;
@@ -807,19 +825,19 @@
           });
 
           if (result.status !== "success") {
-            throw new Error(result.message || "Could not delete monthly closing.");
+            throw new Error(result.message || localize("تعذر حذف التقفيلة الشهرية.", "Could not delete monthly closing."));
           }
 
           deletedCount += 1;
         } catch (error) {
           console.error(error);
-          setStatus(error instanceof Error ? error.message : "Could not delete selected closings.", "error");
+          setStatus(error instanceof Error ? error.message : localize("تعذر حذف التقفيلات المحددة.", "Could not delete selected closings."), "error");
           break;
         }
       }
 
       if (deletedCount > 0) {
-        setStatus(`${deletedCount} monthly closing(s) deleted.`, "success");
+        setStatus(localize(`تم حذف ${deletedCount} تقفيلة شهرية.`, `${deletedCount} monthly closing(s) deleted.`), "success");
         await loadClosings();
       }
     }
@@ -832,15 +850,15 @@
       const monthKey = getMonthKey();
 
       if (!monthKey || !fromDate || !toDate) {
-        setStatus("Choose the month range before locking.", "error");
+        setStatus(localize("اختار نطاق الشهر قبل القفل.", "Choose the month range before locking."), "error");
         return;
       }
 
-      const confirmed = confirm(`Lock month ${monthKey}? This should prevent edits before the closing date.`);
+      const confirmed = confirm(localize(`قفل شهر ${monthKey}؟ هذا يمنع التعديلات قبل تاريخ التقفيلة.`, `Lock month ${monthKey}? This should prevent edits before the closing date.`));
       if (!confirmed) return;
 
       try {
-        setStatus("Locking month...");
+        setStatus(localize("جاري قفل الشهر...", "Locking month..."));
         const result = await RomeoApi.request({
           action: "monthLock",
           month: monthKey,
@@ -851,14 +869,14 @@
         });
 
         if (result.status !== "success") {
-          throw new Error(result.message || "Could not lock month.");
+          throw new Error(result.message || localize("تعذر قفل الشهر.", "Could not lock month."));
         }
 
-        setStatus(`Month ${monthKey} locked successfully.`, "success");
+        setStatus(localize(`تم قفل شهر ${monthKey} بنجاح.`, `Month ${monthKey} locked successfully.`), "success");
         await loadClosings();
       } catch (error) {
         console.error(error);
-        setStatus(error instanceof Error ? error.message : "Could not lock month.", "error");
+        setStatus(error instanceof Error ? error.message : localize("تعذر قفل الشهر.", "Could not lock month."), "error");
       }
     }
 
@@ -892,6 +910,12 @@
       }
     });
 
+    applyPageLanguage();
+    window.addEventListener("romeo-language-change", () => {
+      applyPageLanguage();
+      renderClosings(monthlyClosings);
+    });
+
     setCurrentMonthRange();
     renderSummary(currentSummary);
     loadStatement();
@@ -901,6 +925,3 @@
   <script src="../assets/js/utils/language.js"></script>
 </body>
 </html>
-
-
-

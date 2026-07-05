@@ -465,13 +465,13 @@
     <div class="page-grid">
       <aside class="left-panel">
         <section class="panel">
-          <input class="search-box" id="searchInput" type="text" placeholder="Search item">
+          <input class="search-box" id="searchInput" type="text" placeholder="ابحث عن صنف" data-i18n-placeholder-ar="ابحث عن صنف" data-i18n-placeholder-en="Search item">
         </section>
 
         <section class="panel">
           <div class="action-row">
-            <button type="button" class="action-btn primary" id="addItemBtn">Add Item</button>
-            <button type="button" class="action-btn soft" id="resetBtn">Reset Items</button>
+            <button type="button" class="action-btn primary" id="addItemBtn" data-i18n-ar="إضافة صنف" data-i18n-en="Add Item">إضافة صنف</button>
+            <button type="button" class="action-btn soft" id="resetBtn" data-i18n-ar="إعادة ضبط الأصناف" data-i18n-en="Reset Items">إعادة ضبط الأصناف</button>
           </div>
         </section>
 
@@ -481,27 +481,27 @@
       <main class="main-panel">
         <section class="panel hero">
           <div>
-            <h2 id="itemTitle">Select Item</h2>
-            <p id="itemSubtitle">Ã˜Â§Ã˜Â®Ã˜ÂªÃ˜Â§Ã˜Â± Ã™â€¦Ã™â€ Ã˜ÂªÃ˜Â¬ Ã™â€¦Ã™â€  Ã˜Â§Ã™â€žÃ™â€šÃ˜Â§Ã˜Â¦Ã™â€¦Ã˜Â©Ã˜Å’ Ã™Ë†Ã˜Â¹Ã˜Â¯Ã™â€˜Ã™â€ž Ã˜Â§Ã™â€žÃ™Æ’Ã™â€¦Ã™Å Ã˜Â© Ã™Ë†Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â¯Ã™â€ Ã™â€° Ã™Ë†Ã˜Â³Ã˜Â¹Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â´Ã˜Â±Ã˜Â§Ã˜Â¡ Ã˜Â£Ã™Ë† Ã˜Â³Ã˜Â¬Ã™â€˜Ã™â€ž Ã˜Â­Ã˜Â±Ã™Æ’Ã˜Â© Ã˜Â¯Ã˜Â®Ã™Ë†Ã™â€ž Ã™Ë†Ã˜Â®Ã˜Â±Ã™Ë†Ã˜Â¬ Ã™â€žÃ™â€žÃ™â€¦Ã˜Â®Ã˜Â²Ã™Ë†Ã™â€ .</p>
+            <h2 id="itemTitle">اختر صنف</h2>
+            <p id="itemSubtitle">اختر صنف من القائمة، وعدل الكمية والحد الأدنى وسعر الشراء أو سجل حركة دخول وخروج للمخزون.</p>
           </div>
           <div class="hero-badge" id="itemCode">INV</div>
         </section>
 
         <section class="summary-grid">
           <article class="summary-card">
-            <span>Current Stock</span>
+            <span data-i18n-ar="المخزون الحالي" data-i18n-en="Current Stock">المخزون الحالي</span>
             <strong id="currentStock">0</strong>
           </article>
           <article class="summary-card low">
-            <span>Minimum Stock</span>
+            <span data-i18n-ar="الحد الأدنى" data-i18n-en="Minimum Stock">الحد الأدنى</span>
             <strong id="minimumStock">0</strong>
           </article>
           <article class="summary-card value">
-            <span>Buy Price</span>
+            <span data-i18n-ar="سعر الشراء" data-i18n-en="Buy Price">سعر الشراء</span>
             <strong id="buyPrice">0</strong>
           </article>
           <article class="summary-card good">
-            <span>Low Stock Items</span>
+            <span data-i18n-ar="أصناف قليلة المخزون" data-i18n-en="Low Stock Items">أصناف قليلة المخزون</span>
             <strong id="lowStockCount">0</strong>
           </article>
         </section>
@@ -509,27 +509,27 @@
         <section class="panel">
           <div class="editor-grid">
             <div class="field">
-              <label for="itemName">Item Name</label>
+              <label for="itemName" data-i18n-ar="اسم الصنف" data-i18n-en="Item Name">اسم الصنف</label>
               <input id="itemName" type="text">
             </div>
             <div class="field">
-              <label for="itemCodeInput">Item Code</label>
+              <label for="itemCodeInput" data-i18n-ar="كود الصنف" data-i18n-en="Item Code">كود الصنف</label>
               <input id="itemCodeInput" type="text">
             </div>
             <div class="field">
-              <label for="itemCategory">Category</label>
-              <input id="itemCategory" type="text" placeholder="Hair / Beard / Skin / Retail">
+              <label for="itemCategory" data-i18n-ar="التصنيف" data-i18n-en="Category">التصنيف</label>
+              <input id="itemCategory" type="text" placeholder="شعر / ذقن / بشرة / بيع" data-i18n-placeholder-ar="شعر / ذقن / بشرة / بيع" data-i18n-placeholder-en="Hair / Beard / Skin / Retail">
             </div>
             <div class="field">
-              <label for="itemQuantity">Current Quantity</label>
+              <label for="itemQuantity" data-i18n-ar="الكمية الحالية" data-i18n-en="Current Quantity">الكمية الحالية</label>
               <input id="itemQuantity" type="number" min="0">
             </div>
             <div class="field">
-              <label for="itemMinimum">Minimum Stock</label>
+              <label for="itemMinimum" data-i18n-ar="الحد الأدنى للمخزون" data-i18n-en="Minimum Stock">الحد الأدنى للمخزون</label>
               <input id="itemMinimum" type="number" min="0">
             </div>
             <div class="field">
-              <label for="itemBuyPrice">Buy Price</label>
+              <label for="itemBuyPrice" data-i18n-ar="سعر الشراء" data-i18n-en="Buy Price">سعر الشراء</label>
               <input id="itemBuyPrice" type="number" min="0" step="0.01">
             </div>
           </div>
@@ -537,43 +537,43 @@
 
         <section class="panel">
           <div class="action-row">
-            <button type="button" class="action-btn primary" id="saveItemBtn">Save Item</button>
-            <button type="button" class="action-btn danger" id="deleteItemBtn">Delete Item</button>
+            <button type="button" class="action-btn primary" id="saveItemBtn" data-i18n-ar="حفظ الصنف" data-i18n-en="Save Item">حفظ الصنف</button>
+            <button type="button" class="action-btn danger" id="deleteItemBtn" data-i18n-ar="حذف الصنف" data-i18n-en="Delete Item">حذف الصنف</button>
           </div>
         </section>
 
         <section class="panel">
           <div class="editor-grid">
             <div class="field">
-              <label for="movementType">Movement Type</label>
+              <label for="movementType" data-i18n-ar="نوع الحركة" data-i18n-en="Movement Type">نوع الحركة</label>
               <select id="movementType">
-                <option value="in">Stock In</option>
-                <option value="out">Stock Out</option>
+                <option value="in" data-i18n-ar="دخول مخزون" data-i18n-en="Stock In">دخول مخزون</option>
+                <option value="out" data-i18n-ar="خروج مخزون" data-i18n-en="Stock Out">خروج مخزون</option>
               </select>
             </div>
             <div class="field">
-              <label for="movementQuantity">Quantity</label>
+              <label for="movementQuantity" data-i18n-ar="الكمية" data-i18n-en="Quantity">الكمية</label>
               <input id="movementQuantity" type="number" min="1" step="1">
             </div>
             <div class="field">
-              <label for="movementDate">Date</label>
+              <label for="movementDate" data-i18n-ar="التاريخ" data-i18n-en="Date">التاريخ</label>
               <input id="movementDate" type="date">
             </div>
             <div class="field">
-              <label for="movementReason">Reason</label>
-              <input id="movementReason" type="text" placeholder="Purchase / Sale / Waste / Adjustment">
+              <label for="movementReason" data-i18n-ar="السبب" data-i18n-en="Reason">السبب</label>
+              <input id="movementReason" type="text" placeholder="شراء / بيع / هالك / تعديل" data-i18n-placeholder-ar="شراء / بيع / هالك / تعديل" data-i18n-placeholder-en="Purchase / Sale / Waste / Adjustment">
             </div>
             <div class="field full">
-              <label for="movementNote">Note</label>
-              <textarea id="movementNote" placeholder="اكتب ملاحظات عن الحركة"></textarea>
+              <label for="movementNote" data-i18n-ar="ملاحظة" data-i18n-en="Note">ملاحظة</label>
+              <textarea id="movementNote" placeholder="اكتب ملاحظات عن الحركة" data-i18n-placeholder-ar="اكتب ملاحظات عن الحركة" data-i18n-placeholder-en="Write notes about the movement"></textarea>
             </div>
           </div>
         </section>
 
         <section class="panel">
           <div class="action-row">
-            <button type="button" class="action-btn primary" id="addMovementBtn">Add Movement</button>
-            <button type="button" class="action-btn soft" id="clearMovementBtn">Clear Movement</button>
+            <button type="button" class="action-btn primary" id="addMovementBtn" data-i18n-ar="إضافة حركة" data-i18n-en="Add Movement">إضافة حركة</button>
+            <button type="button" class="action-btn soft" id="clearMovementBtn" data-i18n-ar="مسح الحركة" data-i18n-en="Clear Movement">مسح الحركة</button>
           </div>
         </section>
 
@@ -609,10 +609,10 @@
     const INVENTORY_KEY = "romeo-pos-inventory";
     const INVENTORY_LOG_KEY = "romeo-pos-inventory-log";
     const DEFAULT_ITEMS = [
-      { id: 1, name: "Hair Wax", code: "INV01", category: "Retail", quantity: 12, minimum: 5, buyPrice: 80 },
-      { id: 2, name: "Shampoo", code: "INV02", category: "Hair", quantity: 8, minimum: 4, buyPrice: 120 },
-      { id: 3, name: "Beard Oil", code: "INV03", category: "Beard", quantity: 3, minimum: 5, buyPrice: 90 },
-      { id: 4, name: "Face Mask", code: "INV04", category: "Skin", quantity: 10, minimum: 6, buyPrice: 45 }
+      { id: 1, name: "Hair Wax", arName: "واكس شعر", code: "INV01", category: "Retail", arCategory: "بيع", quantity: 12, minimum: 5, buyPrice: 80 },
+      { id: 2, name: "Shampoo", arName: "شامبو", code: "INV02", category: "Hair", arCategory: "شعر", quantity: 8, minimum: 4, buyPrice: 120 },
+      { id: 3, name: "Beard Oil", arName: "زيت ذقن", code: "INV03", category: "Beard", arCategory: "ذقن", quantity: 3, minimum: 5, buyPrice: 90 },
+      { id: 4, name: "Face Mask", arName: "ماسك وجه", code: "INV04", category: "Skin", arCategory: "بشرة", quantity: 10, minimum: 6, buyPrice: 45 }
     ];
   </script>
   <script src="../assets/js/core/api.js"></script>
@@ -713,7 +713,35 @@
       return currentLanguage() === "en" ? enText : arText;
     }
 
+    function getDefaultItemMeta(item) {
+      return DEFAULT_ITEMS.find(defaultItem =>
+        defaultItem.code === item.code ||
+        defaultItem.name === item.name ||
+        defaultItem.arName === item.name
+      ) || null;
+    }
+
+    function getItemName(item) {
+      const meta = getDefaultItemMeta(item);
+      return localizeText(meta?.arName || item.name, meta?.name || item.name);
+    }
+
+    function getItemCategory(item) {
+      const meta = getDefaultItemMeta(item);
+      return localizeText(meta?.arCategory || item.category || "عام", meta?.category || item.category || "General");
+    }
+
+    function applyInlineTranslations() {
+      document.querySelectorAll("[data-i18n-ar][data-i18n-en]").forEach(element => {
+        element.textContent = localizeText(element.dataset.i18nAr, element.dataset.i18nEn);
+      });
+      document.querySelectorAll("[data-i18n-placeholder-ar][data-i18n-placeholder-en]").forEach(element => {
+        element.placeholder = localizeText(element.dataset.i18nPlaceholderAr, element.dataset.i18nPlaceholderEn);
+      });
+    }
+
     function applyInventoryLanguage() {
+      applyInlineTranslations();
       elements.movementNote.placeholder = localizeText("اكتب ملاحظات عن الحركة", "Write notes about the movement");
     }
 
@@ -738,8 +766,10 @@
       const query = elements.searchInput.value.trim().toLowerCase();
       const filtered = items.filter(item =>
         !query ||
+        getItemName(item).toLowerCase().includes(query) ||
         String(item.name || "").toLowerCase().includes(query) ||
         String(item.code || "").toLowerCase().includes(query) ||
+        getItemCategory(item).toLowerCase().includes(query) ||
         String(item.category || "").toLowerCase().includes(query)
       );
 
@@ -750,10 +780,10 @@
         card.type = "button";
         card.className = `item-card${item.id === selectedId ? " active" : ""}${isLowStock(item) ? " low" : ""}`;
         card.innerHTML = `
-          <strong>${item.name}</strong>
+          <strong>${getItemName(item)}</strong>
           <div class="item-meta">
             <span>${item.code}</span>
-            <span>Qty ${numberValue(item.quantity)}</span>
+            <span>${localizeText("الكمية", "Qty")} ${numberValue(item.quantity)}</span>
           </div>
         `;
         card.addEventListener("click", () => {
@@ -764,23 +794,26 @@
       });
 
       if (!filtered.length) {
-        elements.itemList.innerHTML = `<div class="history-empty">No item found.</div>`;
+        elements.itemList.innerHTML = `<div class="history-empty">${localizeText("لا يوجد صنف مطابق.", "No item found.")}</div>`;
       }
     }
 
     function renderHero() {
       const item = getSelectedItem();
       if (!item) {
-        elements.itemTitle.textContent = "No Item Selected";
-        elements.itemSubtitle.textContent = "Ã˜Â£Ã˜Â¶Ã™Â Ã˜ÂµÃ™â€ Ã™Â Ã˜Â¬Ã˜Â¯Ã™Å Ã˜Â¯ Ã˜Â£Ã™Ë† Ã˜Â§Ã˜Â®Ã˜ÂªÃ˜Â± Ã˜ÂµÃ™â€ Ã™Â Ã™â€¦Ã™â€  Ã˜Â§Ã™â€žÃ™â€šÃ˜Â§Ã˜Â¦Ã™â€¦Ã˜Â© Ã˜Â¹Ã™â€žÃ™â€° Ã˜Â§Ã™â€žÃ˜Â´Ã™â€¦Ã˜Â§Ã™â€ž.";
+        elements.itemTitle.textContent = localizeText("لم يتم اختيار صنف", "No Item Selected");
+        elements.itemSubtitle.textContent = localizeText(
+          "أضف صنف جديد أو اختر صنف من القائمة.",
+          "Add a new item or choose an item from the list."
+        );
         elements.itemCode.textContent = "--";
         return;
       }
 
-      elements.itemTitle.textContent = item.name;
+      elements.itemTitle.textContent = getItemName(item);
       elements.itemSubtitle.textContent = localizeText(
-        `الصنف الحالي في قسم ${item.category || "عام"}، ويمكنك تعديل بياناته أو تسجيل حركة دخول وخروج للمخزون.`,
-        `The current item is in the ${item.category || "General"} category. You can edit its details or record stock in and out movements.`
+        `الصنف الحالي في قسم ${getItemCategory(item)}، ويمكنك تعديل بياناته أو تسجيل حركة دخول وخروج للمخزون.`,
+        `The current item is in the ${getItemCategory(item)} category. You can edit its details or record stock in and out movements.`
       );
       elements.itemCode.textContent = item.code;
     }
@@ -837,13 +870,13 @@
         row.innerHTML = `
           <div class="history-top">
             <div class="history-amount ${entry.type}">${entry.type === "in" ? "+" : "-"}${numberValue(entry.quantity)}</div>
-            <button type="button" class="action-btn soft" data-delete-log-id="${entry.id}">Delete</button>
+            <button type="button" class="action-btn soft" data-delete-log-id="${entry.id}">${localizeText("حذف", "Delete")}</button>
           </div>
           <div class="history-meta">
-            <span>${entry.reason || (entry.type === "in" ? "Stock In" : "Stock Out")}</span>
+            <span>${entry.reason || (entry.type === "in" ? localizeText("دخول مخزون", "Stock In") : localizeText("خروج مخزون", "Stock Out"))}</span>
             <span>${entry.date}</span>
           </div>
-          <div class="history-note">${entry.note || "No note"}</div>
+          <div class="history-note">${entry.note || localizeText("لا توجد ملاحظة", "No note")}</div>
         `;
         elements.historyList.appendChild(row);
       });
@@ -862,17 +895,17 @@
     }
 
     function addItem() {
-      const name = prompt("Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã˜Â§Ã˜Â³Ã™â€¦ Ã˜Â§Ã™â€žÃ˜ÂµÃ™â€ Ã™Â");
+      const name = prompt(localizeText("اكتب اسم الصنف", "Enter item name"));
       if (!name) return;
 
-      const code = prompt("Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã™Æ’Ã™Ë†Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜ÂµÃ™â€ Ã™Â", `INV${String(items.length + 1).padStart(2, "0")}`);
+      const code = prompt(localizeText("اكتب كود الصنف", "Enter item code"), `INV${String(items.length + 1).padStart(2, "0")}`);
       if (!code) return;
 
       const item = {
         id: Date.now(),
         name: name.trim(),
         code: code.trim().toUpperCase(),
-        category: "General",
+        category: currentLanguage() === "en" ? "General" : "عام",
         quantity: 0,
         minimum: 0,
         buyPrice: 0
@@ -902,7 +935,7 @@
     function deleteItem() {
       const item = getSelectedItem();
       if (!item) return;
-      if (!confirm(`Ã˜ÂªÃ˜Â­Ã˜Â°Ã™Â Ã˜Â§Ã™â€žÃ˜ÂµÃ™â€ Ã™Â ${item.name}Ã˜Å¸`)) return;
+      if (!confirm(localizeText(`تحذف الصنف ${getItemName(item)}؟`, `Delete item ${getItemName(item)}?`))) return;
 
       items = items.filter(entry => entry.id !== item.id);
       movementLog = movementLog.filter(entry => entry.itemId !== item.id);
@@ -916,18 +949,18 @@
       const item = getSelectedItem();
       const quantity = numberValue(elements.movementQuantity.value);
       if (!item) {
-        alert("Ã˜Â§Ã˜Â®Ã˜ÂªÃ˜Â§Ã˜Â± Ã˜ÂµÃ™â€ Ã™Â Ã˜Â§Ã™â€žÃ˜Â£Ã™Ë†Ã™â€ž.");
+        alert(localizeText("اختار صنف الأول.", "Choose an item first."));
         return;
       }
 
       if (!Number.isFinite(quantity) || quantity <= 0) {
-        alert("Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã™Æ’Ã™â€¦Ã™Å Ã˜Â© Ã˜ÂµÃ˜Â­Ã™Å Ã˜Â­Ã˜Â©.");
+        alert(localizeText("اكتب كمية صحيحة.", "Enter a valid quantity."));
         return;
       }
 
       const type = elements.movementType.value;
       if (type === "out" && quantity > numberValue(item.quantity)) {
-        alert("Ã˜Â§Ã™â€žÃ™Æ’Ã™â€¦Ã™Å Ã˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â³Ã˜Â­Ã™Ë†Ã˜Â¨Ã˜Â© Ã˜Â£Ã™Æ’Ã˜Â¨Ã˜Â± Ã™â€¦Ã™â€  Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â¬Ã™Ë†Ã˜Â¯ Ã™ÂÃ™Å  Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â®Ã˜Â²Ã™Ë†Ã™â€ .");
+        alert(localizeText("الكمية المسحوبة أكبر من الموجود في المخزون.", "The stock out quantity is greater than the current stock."));
         return;
       }
 
@@ -975,7 +1008,7 @@
     }
 
     function resetItems() {
-      if (!confirm("Ã˜ÂªÃ˜Â±Ã˜Â¬Ã˜Â¹ Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â®Ã˜Â²Ã™Ë†Ã™â€  Ã™â€žÃ™â€žÃ˜Â¨Ã™Å Ã˜Â§Ã™â€ Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â¬Ã˜Â±Ã™Å Ã˜Â¨Ã™Å Ã˜Â©Ã˜Å¸")) return;
+      if (!confirm(localizeText("ترجع المخزون للبيانات التجريبية؟", "Reset inventory to demo data?"))) return;
       items = cloneDefaults();
       movementLog = [];
       saveItems();
@@ -1016,7 +1049,7 @@
     elements.historyList.addEventListener("click", event => {
       const btn = event.target.closest("[data-delete-log-id]");
       if (!btn) return;
-      if (!confirm("Ã˜ÂªÃ˜Â­Ã˜Â°Ã™Â Ã˜Â­Ã˜Â±Ã™Æ’Ã˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â®Ã˜Â²Ã™Ë†Ã™â€  Ã˜Â¯Ã™Å Ã˜Å¸")) return;
+      if (!confirm(localizeText("تحذف حركة المخزون دي؟", "Delete this stock movement?"))) return;
       deleteLog(Number(btn.dataset.deleteLogId));
     });
     menuToggle.addEventListener("click", openSidebar);

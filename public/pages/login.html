@@ -151,9 +151,63 @@
     }
     .splash.active { display: grid; }
     .splash .scissor {
-      font-size: 96px;
-      color: #2a2118;
+      position: relative;
+      width: 118px;
+      height: 92px;
       animation: cut 1s ease forwards;
+    }
+
+    .splash .scissor::before,
+    .splash .scissor::after {
+      content: "";
+      position: absolute;
+      left: 42px;
+      top: 42px;
+      width: 72px;
+      height: 8px;
+      border-radius: 999px;
+      background: #2a2118;
+      transform-origin: 0 50%;
+      box-shadow: 0 0 0 1px rgba(42,33,24,0.08);
+    }
+
+    .splash .scissor::before {
+      transform: rotate(25deg);
+    }
+
+    .splash .scissor::after {
+      transform: rotate(-25deg);
+    }
+
+    .splash .scissor .handle {
+      position: absolute;
+      width: 34px;
+      height: 34px;
+      border: 8px solid #2a2118;
+      border-radius: 50%;
+      background: transparent;
+    }
+
+    .splash .scissor .handle.first {
+      left: 4px;
+      top: 16px;
+    }
+
+    .splash .scissor .handle.second {
+      left: 4px;
+      bottom: 8px;
+    }
+
+    .splash .scissor .joint {
+      position: absolute;
+      left: 35px;
+      top: 35px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #b7863f;
+      border: 5px solid #2a2118;
+      z-index: 2;
     }
     @keyframes cut {
       0%   { transform: scale(0.1) rotate(-20deg); opacity: 0; }
@@ -199,7 +253,11 @@
 </head>
 <body>
   <div class="splash" id="loginSplash">
-    <div class="scissor">*</div>
+    <div class="scissor" aria-hidden="true">
+      <span class="handle first"></span>
+      <span class="handle second"></span>
+      <span class="joint"></span>
+    </div>
   </div>
   <div class="login-card">
     <div class="brand-lockup">

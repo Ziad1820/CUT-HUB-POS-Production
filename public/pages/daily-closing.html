@@ -285,7 +285,6 @@
         <h1 class="brand-name">SALONIX</h1>
         <p class="brand-slogan">THE SMART WAY TO RUN YOUR SALON</p>
       </div>
-      <p>Daily closing with totals, previous closings, and activity tracking</p>
     </header>
 
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -311,45 +310,45 @@
     <section class="panel">
       <div class="controls">
         <div class="field">
-          <label for="closingDate">Select Date</label>
+          <label for="closingDate" data-i18n-ar="اختار التاريخ" data-i18n-en="Select Date">اختار التاريخ</label>
           <input id="closingDate" type="date">
         </div>
-        <button type="button" class="action-btn" id="previewBtn">Preview Day Numbers</button>
-        <button type="button" class="action-btn success" id="closeDayBtn">Close Day</button>
+        <button type="button" class="action-btn" id="previewBtn" data-i18n-ar="معاينة أرقام اليوم" data-i18n-en="Preview Day Numbers">معاينة أرقام اليوم</button>
+        <button type="button" class="action-btn success" id="closeDayBtn" data-i18n-ar="تقفيل اليوم" data-i18n-en="Close Day">تقفيل اليوم</button>
       </div>
 
       <div class="metrics">
-        <div class="metric"><span>Sales Total</span><strong id="salesTotal">0 EGP</strong></div>
-        <div class="metric"><span>Cash</span><strong id="cashTotal">0 EGP</strong></div>
-        <div class="metric"><span>Visa</span><strong id="visaTotal">0 EGP</strong></div>
-        <div class="metric"><span>Instapay</span><strong id="instapayTotal">0 EGP</strong></div>
-        <div class="metric"><span>Vodafone Cash</span><strong id="vodafoneTotal">0 EGP</strong></div>
-        <div class="metric"><span>Expenses</span><strong id="expensesTotal">0 EGP</strong></div>
-        <div class="metric"><span>Withdrawals</span><strong id="withdrawalsTotal">0 EGP</strong></div>
-        <div class="metric net" id="netMetric"><span>Net Total</span><strong id="netTotal">0 EGP</strong></div>
+        <div class="metric"><span data-i18n-ar="إجمالي المبيعات" data-i18n-en="Sales Total">إجمالي المبيعات</span><strong id="salesTotal">0 EGP</strong></div>
+        <div class="metric"><span data-i18n-ar="نقدي" data-i18n-en="Cash">نقدي</span><strong id="cashTotal">0 EGP</strong></div>
+        <div class="metric"><span data-i18n-ar="فيزا" data-i18n-en="Visa">فيزا</span><strong id="visaTotal">0 EGP</strong></div>
+        <div class="metric"><span data-i18n-ar="انستا باي" data-i18n-en="Instapay">انستا باي</span><strong id="instapayTotal">0 EGP</strong></div>
+        <div class="metric"><span data-i18n-ar="فودافون كاش" data-i18n-en="Vodafone Cash">فودافون كاش</span><strong id="vodafoneTotal">0 EGP</strong></div>
+        <div class="metric"><span data-i18n-ar="المصروفات" data-i18n-en="Expenses">المصروفات</span><strong id="expensesTotal">0 EGP</strong></div>
+        <div class="metric"><span data-i18n-ar="السحوبات" data-i18n-en="Withdrawals">السحوبات</span><strong id="withdrawalsTotal">0 EGP</strong></div>
+        <div class="metric net" id="netMetric"><span data-i18n-ar="صافي الإجمالي" data-i18n-en="Net Total">صافي الإجمالي</span><strong id="netTotal">0 EGP</strong></div>
       </div>
 
       <div class="status" id="statusLine">Choose a date, then preview the day numbers.</div>
     </section>
 
     <section class="panel">
-      <h2 style="margin:0 0 16px;">Previous Daily Closings</h2>
+      <h2 style="margin:0 0 16px;" data-i18n-ar="التقفيلات اليومية السابقة" data-i18n-en="Previous Daily Closings">التقفيلات اليومية السابقة</h2>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Sales</th>
-              <th>Cash</th>
-              <th>Visa</th>
-              <th>Instapay</th>
-              <th>Vodafone</th>
-              <th>Expenses</th>
-              <th>Withdrawals</th>
-              <th>Net</th>
-              <th>Closed By</th>
-              <th>Closed At</th>
-              <th>Actions</th>
+              <th data-i18n-ar="التاريخ" data-i18n-en="Date">التاريخ</th>
+              <th data-i18n-ar="المبيعات" data-i18n-en="Sales">المبيعات</th>
+              <th data-i18n-ar="نقدي" data-i18n-en="Cash">نقدي</th>
+              <th data-i18n-ar="فيزا" data-i18n-en="Visa">فيزا</th>
+              <th data-i18n-ar="انستا باي" data-i18n-en="Instapay">انستا باي</th>
+              <th data-i18n-ar="فودافون" data-i18n-en="Vodafone">فودافون</th>
+              <th data-i18n-ar="المصروفات" data-i18n-en="Expenses">المصروفات</th>
+              <th data-i18n-ar="السحوبات" data-i18n-en="Withdrawals">السحوبات</th>
+              <th data-i18n-ar="الصافي" data-i18n-en="Net">الصافي</th>
+              <th data-i18n-ar="تم الإغلاق بواسطة" data-i18n-en="Closed By">تم الإغلاق بواسطة</th>
+              <th data-i18n-ar="وقت الإغلاق" data-i18n-en="Closed At">وقت الإغلاق</th>
+              <th data-i18n-ar="الإجراءات" data-i18n-en="Actions">الإجراءات</th>
             </tr>
           </thead>
           <tbody id="closingsBody">
@@ -389,6 +388,26 @@
 
     let latestPreview = null;
     let closings = [];
+
+    function getLanguage() {
+      return window.RomeoLanguage?.getCurrentLanguage?.()
+        || (document.documentElement.lang === "en" ? "en" : document.documentElement.lang === "ar" ? "ar" : "")
+        || document.body?.dataset.language
+        || localStorage.getItem("romeo-pos-language")
+        || "ar";
+    }
+
+    function localize(arText, enText) {
+      return getLanguage() === "en" ? enText : arText;
+    }
+
+    function applyPageLanguage() {
+      document.querySelectorAll("[data-i18n-ar][data-i18n-en]").forEach(element => {
+        element.textContent = localize(element.dataset.i18nAr, element.dataset.i18nEn);
+      });
+      if (!elements.previewBtn.disabled) elements.previewBtn.textContent = localize("معاينة أرقام اليوم", "Preview Day Numbers");
+      if (!elements.closeDayBtn.disabled) elements.closeDayBtn.textContent = localize("تقفيل اليوم", "Close Day");
+    }
 
     function todayKey() {
       return new Intl.DateTimeFormat("en-CA", {
@@ -463,24 +482,29 @@
 
       if (preview.alreadyClosed && !isManager) {
         elements.closeDayBtn.disabled = true;
-        setStatus(`This day is already closed by ${preview.closedBy || "another user"}. Only a manager can close the same day again.`, "error");
+        setStatus(localize(`هذا اليوم تم تقفيله بالفعل بواسطة ${preview.closedBy || "مستخدم آخر"}. المدير فقط يقدر يقفل نفس اليوم مرة أخرى.`, `This day is already closed by ${preview.closedBy || "another user"}. Only a manager can close the same day again.`), "error");
         return;
       }
 
       elements.closeDayBtn.disabled = false;
-      setStatus(preview.alreadyClosed ? "This day is already closed. You can close it again because you have manager permission." : "Preview is ready. Review the numbers, then close the day.", "success");
+      setStatus(
+        preview.alreadyClosed
+          ? localize("هذا اليوم تم تقفيله بالفعل. يمكنك تقفيله مرة أخرى لأن لديك صلاحية مدير.", "This day is already closed. You can close it again because you have manager permission.")
+          : localize("المعاينة جاهزة. راجع الأرقام ثم اقفل اليوم.", "Preview is ready. Review the numbers, then close the day."),
+        "success"
+      );
     }
 
     async function loadPreview() {
       const date = elements.closingDate.value;
       if (!date) {
-        setStatus("Choose a date first.", "error");
+        setStatus(localize("اختار التاريخ الأول.", "Choose a date first."), "error");
         return;
       }
 
       elements.previewBtn.disabled = true;
-      elements.previewBtn.textContent = "Previewing...";
-      setStatus("Loading day numbers...", "");
+      elements.previewBtn.textContent = localize("جاري المعاينة...", "Previewing...");
+      setStatus(localize("جاري تحميل أرقام اليوم...", "Loading day numbers..."), "");
 
       try {
         const response = await RomeoApi.request({
@@ -490,23 +514,23 @@
         });
 
         if (response.status !== "success") {
-          throw new Error(response.message || "Could not load day numbers.");
+          throw new Error(response.message || localize("تعذر تحميل أرقام اليوم.", "Could not load day numbers."));
         }
 
         renderPreview(normalizePreview(response.preview || response));
       } catch (error) {
         latestPreview = null;
         elements.closeDayBtn.disabled = true;
-        setStatus(error.message || "Could not load day numbers. Make sure getDailyClosingPreview exists in App Script.", "error");
+        setStatus(error.message || localize("تعذر تحميل أرقام اليوم. تأكد من وجود getDailyClosingPreview في App Script.", "Could not load day numbers. Make sure getDailyClosingPreview exists in App Script."), "error");
       } finally {
         elements.previewBtn.disabled = false;
-        elements.previewBtn.textContent = "Preview Day Numbers";
+        elements.previewBtn.textContent = localize("معاينة أرقام اليوم", "Preview Day Numbers");
       }
     }
 
     function renderClosings() {
       if (!closings.length) {
-        elements.closingsBody.innerHTML = `<tr><td class="empty" colspan="12">No saved daily closings yet.</td></tr>`;
+        elements.closingsBody.innerHTML = `<tr><td class="empty" colspan="12">${localize("لا توجد تقفيلات يومية محفوظة حتى الآن.", "No saved daily closings yet.")}</td></tr>`;
         return;
       }
 
@@ -524,7 +548,7 @@
           <td>${escapeHtml(item.closedBy || item.closedByDisplayName || "-")}</td>
           <td>${escapeHtml(item.closedAt || item.createdAt || "-")}</td>
           <td>
-            ${isManager ? `<button type="button" class="mini-btn danger" data-delete-closing="${escapeHtml(item.closingId || "")}" data-closing-date="${escapeHtml(item.date || item.reportDate || "")}">Delete</button>` : "-"}
+            ${isManager ? `<button type="button" class="mini-btn danger" data-delete-closing="${escapeHtml(item.closingId || "")}" data-closing-date="${escapeHtml(item.date || item.reportDate || "")}">${localize("حذف", "Delete")}</button>` : "-"}
           </td>
         </tr>
       `).join("");
@@ -534,29 +558,29 @@
       try {
         const response = await RomeoApi.request({ action: "getDailyClosings" });
         if (response.status !== "success") {
-          throw new Error(response.message || "Could not load previous closings.");
+          throw new Error(response.message || localize("تعذر تحميل التقفيلات السابقة.", "Could not load previous closings."));
         }
 
         closings = response.closings || response.dailyClosings || [];
         renderClosings();
       } catch (error) {
         closings = [];
-        elements.closingsBody.innerHTML = `<tr><td class="empty" colspan="12">${escapeHtml(error.message || "Could not load previous closings.")}</td></tr>`;
+        elements.closingsBody.innerHTML = `<tr><td class="empty" colspan="12">${escapeHtml(error.message || localize("تعذر تحميل التقفيلات السابقة.", "Could not load previous closings."))}</td></tr>`;
       }
     }
 
     async function deleteClosing(closing) {
       if (!isManager) {
-        setStatus("Only the system owner can delete a daily closing.", "error");
+        setStatus(localize("مالك النظام فقط يقدر يحذف تقفيلة يومية.", "Only the system owner can delete a daily closing."), "error");
         return;
       }
 
       const closingDate = closing.date || closing.reportDate || "";
-      const confirmMessage = `Delete daily closing for ${closingDate || "this day"}? This action cannot be undone.`;
+      const confirmMessage = localize(`حذف تقفيلة يوم ${closingDate || "هذا اليوم"}؟ لا يمكن التراجع عن هذا الإجراء.`, `Delete daily closing for ${closingDate || "this day"}? This action cannot be undone.`);
       if (!confirm(confirmMessage)) return;
 
       try {
-        setStatus("Deleting daily closing...", "");
+        setStatus(localize("جاري حذف التقفيلة اليومية...", "Deleting daily closing..."), "");
         const response = await RomeoApi.request({
           action: "deleteDailyClosing",
           closingId: closing.closingId || "",
@@ -569,21 +593,21 @@
         });
 
         if (response.status !== "success") {
-          throw new Error(response.message || "Could not delete daily closing.");
+          throw new Error(response.message || localize("تعذر حذف التقفيلة اليومية.", "Could not delete daily closing."));
         }
 
-        setStatus("Daily closing deleted and saved in Activity Log.", "success");
+        setStatus(localize("تم حذف التقفيلة اليومية وحفظ العملية في سجل النشاط.", "Daily closing deleted and saved in Activity Log."), "success");
         await loadClosings();
         await loadPreview();
       } catch (error) {
-        setStatus(error.message || "Could not delete daily closing.", "error");
+        setStatus(error.message || localize("تعذر حذف التقفيلة اليومية.", "Could not delete daily closing."), "error");
       }
     }
 
     async function closeDay() {
       const date = elements.closingDate.value;
       if (!date) {
-        setStatus("Choose a date first.", "error");
+        setStatus(localize("اختار التاريخ الأول.", "Choose a date first."), "error");
         return;
       }
 
@@ -594,18 +618,18 @@
       if (!latestPreview) return;
 
       if (latestPreview.alreadyClosed && !isManager) {
-        setStatus("Only a manager can close the same day again.", "error");
+        setStatus(localize("المدير فقط يقدر يقفل نفس اليوم مرة أخرى.", "Only a manager can close the same day again."), "error");
         return;
       }
 
       const confirmMessage = latestPreview.alreadyClosed
-        ? "This day is already closed. Do you want to close it again with manager permission?"
-        : "Do you want to close this day and save it to the sheet?";
+        ? localize("هذا اليوم تم تقفيله بالفعل. هل تريد تقفيله مرة أخرى بصلاحية المدير؟", "This day is already closed. Do you want to close it again with manager permission?")
+        : localize("هل تريد تقفيل هذا اليوم وحفظه في الشيت؟", "Do you want to close this day and save it to the sheet?");
 
       if (!confirm(confirmMessage)) return;
 
       elements.closeDayBtn.disabled = true;
-      elements.closeDayBtn.textContent = "Closing...";
+      elements.closeDayBtn.textContent = localize("جاري التقفيل...", "Closing...");
 
       try {
         const response = await RomeoApi.request({
@@ -616,16 +640,16 @@
         });
 
         if (response.status !== "success") {
-          throw new Error(response.message || "Could not close the day.");
+          throw new Error(response.message || localize("تعذر تقفيل اليوم.", "Could not close the day."));
         }
 
-        setStatus("Day closed and saved in Activity Log.", "success");
+        setStatus(localize("تم تقفيل اليوم وحفظ العملية في سجل النشاط.", "Day closed and saved in Activity Log."), "success");
         await loadClosings();
         await loadPreview();
       } catch (error) {
-        setStatus(error.message || "Could not close the day.", "error");
+        setStatus(error.message || localize("تعذر تقفيل اليوم.", "Could not close the day."), "error");
       } finally {
-        elements.closeDayBtn.textContent = "Close Day";
+        elements.closeDayBtn.textContent = localize("تقفيل اليوم", "Close Day");
         elements.closeDayBtn.disabled = latestPreview?.alreadyClosed && !isManager;
       }
     }
@@ -649,7 +673,13 @@
     elements.closingDate.addEventListener("change", () => {
       latestPreview = null;
       elements.closeDayBtn.disabled = false;
-      setStatus("Choose a date, then preview the day numbers.", "");
+      setStatus(localize("اختار التاريخ ثم اعمل معاينة لأرقام اليوم.", "Choose a date, then preview the day numbers."), "");
+    });
+
+    applyPageLanguage();
+    window.addEventListener("romeo-language-change", () => {
+      applyPageLanguage();
+      renderClosings();
     });
 
     loadClosings();
@@ -657,8 +687,4 @@
   </script>
 </body>
 </html>
-
-
-
-
 

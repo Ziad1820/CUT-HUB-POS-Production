@@ -419,7 +419,7 @@
     <div class="page-grid">
       <aside class="left-panel">
         <section class="panel">
-          <input class="search-box" id="searchInput" type="text" placeholder="Search employee">
+          <input class="search-box" id="searchInput" type="text" placeholder="ابحث عن موظف" data-i18n-placeholder-ar="ابحث عن موظف" data-i18n-placeholder-en="Search employee">
         </section>
 
         <section class="employee-list" id="employeeList"></section>
@@ -436,19 +436,19 @@
 
         <section class="summary-grid">
           <article class="summary-card total">
-            <span>Employee Withdrawals</span>
+            <span data-i18n-ar="سحوبات الموظف" data-i18n-en="Employee Withdrawals">سحوبات الموظف</span>
             <strong id="employeeWithdrawals">0</strong>
           </article>
           <article class="summary-card count">
-            <span>Employee Records</span>
+            <span data-i18n-ar="عمليات الموظف" data-i18n-en="Employee Records">عمليات الموظف</span>
             <strong id="employeeRecords">0</strong>
           </article>
           <article class="summary-card total">
-            <span>Total Withdrawals</span>
+            <span data-i18n-ar="إجمالي السحوبات" data-i18n-en="Total Withdrawals">إجمالي السحوبات</span>
             <strong id="allWithdrawals">0</strong>
           </article>
           <article class="summary-card count">
-            <span>Total Records</span>
+            <span data-i18n-ar="إجمالي العمليات" data-i18n-en="Total Records">إجمالي العمليات</span>
             <strong id="allRecords">0</strong>
           </article>
         </section>
@@ -456,24 +456,24 @@
         <section class="panel">
           <div class="editor-grid">
             <div class="field">
-              <label for="withdrawAmount">Amount</label>
+              <label for="withdrawAmount" data-i18n-ar="المبلغ" data-i18n-en="Amount">المبلغ</label>
               <input id="withdrawAmount" type="number" min="0" step="0.01" placeholder="0">
             </div>
             <div class="field">
-              <label for="withdrawDate">Date</label>
+              <label for="withdrawDate" data-i18n-ar="التاريخ" data-i18n-en="Date">التاريخ</label>
               <input id="withdrawDate" type="date">
             </div>
             <div class="field full">
-              <label for="withdrawNote">Note</label>
-              <textarea id="withdrawNote" placeholder="Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã˜Â³Ã˜Â¨Ã˜Â¨ Ã˜Â§Ã™â€žÃ˜Â³Ã˜Â­Ã˜Â¨ Ã˜Â£Ã™Ë† Ã™â€¦Ã™â€žÃ˜Â§Ã˜Â­Ã˜Â¸Ã˜Â§Ã˜Âª Ã˜Â¥Ã˜Â¶Ã˜Â§Ã™ÂÃ™Å Ã˜Â©"></textarea>
+              <label for="withdrawNote" data-i18n-ar="الملاحظة" data-i18n-en="Note">الملاحظة</label>
+              <textarea id="withdrawNote" placeholder="اكتب سبب السحب أو ملاحظات إضافية" data-i18n-placeholder-ar="اكتب سبب السحب أو ملاحظات إضافية" data-i18n-placeholder-en="Write the withdrawal reason or extra notes"></textarea>
             </div>
           </div>
         </section>
 
         <section class="panel">
           <div class="action-row">
-            <button type="button" class="action-btn primary" id="saveBtn">Add Withdrawal</button>
-            <button type="button" class="action-btn soft" id="clearBtn">Clear Form</button>
+            <button type="button" class="action-btn primary" id="saveBtn" data-i18n-ar="إضافة سحب" data-i18n-en="Add Withdrawal">إضافة سحب</button>
+            <button type="button" class="action-btn soft" id="clearBtn" data-i18n-ar="مسح النموذج" data-i18n-en="Clear Form">مسح النموذج</button>
           </div>
         </section>
 

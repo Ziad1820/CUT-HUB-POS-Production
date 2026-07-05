@@ -1059,7 +1059,7 @@
       const barber = invoice.barber || "ØºÙŠØ± Ù…Ø­Ø¯Ø¯";
       const offerType = invoice.offerType || "Ø¹Ø§Ø¯ÙŠ";
       const paymentMethod = invoice.paymentMethod || "ØºÙŠØ± Ù…Ø­Ø¯Ø¯";
-      const printedAt = new Date().toLocaleString("ar-EG", {
+      const printedAt = new Date().toLocaleString("en-US", {
         year: "numeric",
         month: "2-digit",
         day: "2-digit",

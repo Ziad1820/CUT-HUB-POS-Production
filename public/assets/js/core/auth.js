@@ -115,7 +115,7 @@ const RomeoAuth = (() => {
   function finishLogout() {
     localStorage.removeItem(SESSION_KEY);
     sessionStorage.removeItem(SESSION_KEY);
-    window.location.href = "login.html";
+    window.location.replace("login.html");
   }
 
   let logoutInProgress = false;
@@ -125,9 +125,9 @@ const RomeoAuth = (() => {
     logoutInProgress = true;
 
     const currentUser = getCurrentUser();
+    finishLogout();
 
     if (!currentUser || !window.RomeoApi || typeof RomeoApi.request !== "function") {
-      finishLogout();
       return;
     }
 
@@ -141,8 +141,6 @@ const RomeoAuth = (() => {
       });
     } catch (error) {
       console.warn("Logout activity log failed:", error);
-    } finally {
-      finishLogout();
     }
   }
 

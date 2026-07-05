@@ -196,7 +196,8 @@
         }
 
         localStorage.removeItem("romeo-pos-session");
-        window.location.href = "login.html";
+        sessionStorage.removeItem("romeo-pos-session");
+        window.location.replace("login.html");
       });
     });
 
