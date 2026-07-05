@@ -3,7 +3,8 @@
 
     const elements = {
       searchInput: document.getElementById("searchInput"),
-      dateFilter: document.getElementById("dateFilter"),
+      fromDateFilter: document.getElementById("fromDateFilter"),
+      toDateFilter: document.getElementById("toDateFilter"),
       barberFilter: document.getElementById("barberFilter"),
       paymentFilter: document.getElementById("paymentFilter"),
       clearFiltersBtn: document.getElementById("clearFiltersBtn"),
@@ -94,7 +95,7 @@
         localizeText("طريقة الدفع", "Payment Method"),
         localizeText("الإجمالي", "Total"),
         localizeText("المدفوع", "Paid Amount"),
-        localizeText("التب", "Tip Amount"),
+        localizeText("مبلغ التيب", "Tip Amount"),
         localizeText("الخدمات", "Services"),
         localizeText("الملاحظة", "Note"),
         localizeText("الإجراءات", "Actions")
@@ -102,6 +103,11 @@
       headers.forEach((header, index) => {
         if (tableLabels[index]) header.textContent = tableLabels[index];
       });
+
+      const fromDateLabel = document.querySelector("label[for='fromDateFilter']");
+      const toDateLabel = document.querySelector("label[for='toDateFilter']");
+      if (fromDateLabel) fromDateLabel.textContent = localizeText("من تاريخ", "From Date");
+      if (toDateLabel) toDateLabel.textContent = localizeText("إلى تاريخ", "To Date");
     }
 
     const PAYMENT_TRANSLATIONS = {
@@ -173,9 +179,13 @@
     }
 
     function getServerFilters() {
+      const fromDate = elements.fromDateFilter.value;
+      const toDate = elements.toDateFilter.value;
       return {
         search: elements.searchInput.value.trim(),
-        date: elements.dateFilter.value,
+        date: fromDate && fromDate === toDate ? fromDate : "",
+        fromDate,
+        toDate,
         barber: elements.barberFilter.value,
         payment: elements.paymentFilter.value
       };
@@ -443,7 +453,7 @@
       const barberLabel = localizeText("الحلاق", "Barber");
       const paymentLabel = localizeText("طريقة الدفع", "Payment Method");
       const paidLabel = localizeText("المدفوع", "Paid Amount");
-      const tipLabel = localizeText("التب", "Tip Amount");
+      const tipLabel = localizeText("مبلغ التيب", "Tip Amount");
       const servicesLabel = localizeText("الخدمات", "Services");
       const noteLabel = localizeText("الملاحظة", "Note");
 
@@ -636,12 +646,14 @@
     });
 
     elements.searchInput.addEventListener("input", scheduleFilterReload);
-    elements.dateFilter.addEventListener("change", applyFilters);
+    elements.fromDateFilter.addEventListener("change", applyFilters);
+    elements.toDateFilter.addEventListener("change", applyFilters);
     elements.barberFilter.addEventListener("change", applyFilters);
     elements.paymentFilter.addEventListener("change", applyFilters);
     elements.clearFiltersBtn.addEventListener("click", () => {
       elements.searchInput.value = "";
-      elements.dateFilter.value = "";
+      elements.fromDateFilter.value = "";
+      elements.toDateFilter.value = "";
       elements.barberFilter.value = "";
       elements.paymentFilter.value = "";
       loadInvoices();

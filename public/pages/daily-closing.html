@@ -323,6 +323,7 @@
         <div class="metric"><span data-i18n-ar="فيزا" data-i18n-en="Visa">فيزا</span><strong id="visaTotal">0 EGP</strong></div>
         <div class="metric"><span data-i18n-ar="انستا باي" data-i18n-en="Instapay">انستا باي</span><strong id="instapayTotal">0 EGP</strong></div>
         <div class="metric"><span data-i18n-ar="فودافون كاش" data-i18n-en="Vodafone Cash">فودافون كاش</span><strong id="vodafoneTotal">0 EGP</strong></div>
+        <div class="metric"><span data-i18n-ar="إجمالي التيب" data-i18n-en="Total Tips">إجمالي التيب</span><strong id="tipTotal">0 EGP</strong></div>
         <div class="metric"><span data-i18n-ar="المصروفات" data-i18n-en="Expenses">المصروفات</span><strong id="expensesTotal">0 EGP</strong></div>
         <div class="metric"><span data-i18n-ar="السحوبات" data-i18n-en="Withdrawals">السحوبات</span><strong id="withdrawalsTotal">0 EGP</strong></div>
         <div class="metric net" id="netMetric"><span data-i18n-ar="صافي الإجمالي" data-i18n-en="Net Total">صافي الإجمالي</span><strong id="netTotal">0 EGP</strong></div>
@@ -379,6 +380,7 @@
       visaTotal: document.getElementById("visaTotal"),
       instapayTotal: document.getElementById("instapayTotal"),
       vodafoneTotal: document.getElementById("vodafoneTotal"),
+      tipTotal: document.getElementById("tipTotal"),
       expensesTotal: document.getElementById("expensesTotal"),
       withdrawalsTotal: document.getElementById("withdrawalsTotal"),
       netTotal: document.getElementById("netTotal"),
@@ -443,18 +445,21 @@
     }
 
     function normalizePreview(data) {
-      const sales = numberValue(data.salesTotal ?? data.todaySales ?? data.totalSales);
+      const rawSales = numberValue(data.salesTotal ?? data.todaySales ?? data.totalSales);
+      const tips = numberValue(data.tipTotal ?? data.todayTips ?? data.tipsTotal ?? data.totalTips);
       const cash = numberValue(data.cashTotal);
       const visa = numberValue(data.visaTotal);
       const instapay = numberValue(data.instapayTotal);
       const vodafone = numberValue(data.vodafoneCashTotal ?? data.vodafoneTotal);
       const expenses = numberValue(data.expensesTotal);
       const withdrawals = numberValue(data.withdrawalsTotal);
-      const net = numberValue(data.netTotal ?? (sales - expenses - withdrawals));
+      const sales = numberValue(data.salesIncludesTips) ? rawSales : rawSales + tips;
+      const net = sales - expenses - withdrawals;
 
       return {
         date: data.date || data.reportDate || elements.closingDate.value,
         salesTotal: sales,
+        tipTotal: tips,
         cashTotal: cash,
         visaTotal: visa,
         instapayTotal: instapay,
@@ -475,6 +480,7 @@
       elements.visaTotal.textContent = formatMoney(preview.visaTotal);
       elements.instapayTotal.textContent = formatMoney(preview.instapayTotal);
       elements.vodafoneTotal.textContent = formatMoney(preview.vodafoneCashTotal);
+      elements.tipTotal.textContent = formatMoney(preview.tipTotal);
       elements.expensesTotal.textContent = formatMoney(preview.expensesTotal);
       elements.withdrawalsTotal.textContent = formatMoney(preview.withdrawalsTotal);
       elements.netTotal.textContent = formatMoney(preview.netTotal);
@@ -687,4 +693,3 @@
   </script>
 </body>
 </html>
-

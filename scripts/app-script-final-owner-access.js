@@ -792,17 +792,16 @@ function calculateSalesAndPaymentTotals(dateKey) {
     if (rowDateKey !== dateKey) return;
 
     const amount = parseSheetAmount(row[5]);
-    const paidAmount = parseSheetAmount(row[6]) || amount;
     const tipAmount = parseSheetAmount(row[7]);
     const payment = normalizePaymentMethod(row[8]);
 
     totals.salesTotal += amount;
     totals.tipTotal += tipAmount;
 
-    if (payment === "cash") totals.cashTotal += paidAmount;
-    if (payment === "visa") totals.visaTotal += paidAmount;
-    if (payment === "instapay") totals.instapayTotal += paidAmount;
-    if (payment === "vodafone_cash") totals.vodafoneCashTotal += paidAmount;
+    if (payment === "cash") totals.cashTotal += amount;
+    if (payment === "visa") totals.visaTotal += amount;
+    if (payment === "instapay") totals.instapayTotal += amount;
+    if (payment === "vodafone_cash") totals.vodafoneCashTotal += amount;
   });
 
   return totals;
@@ -843,13 +842,15 @@ function buildDailyClosingPreview(dateKey) {
   const paymentTotals = calculateSalesAndPaymentTotals(dateKey);
   const expensesTotal = calculateExpensesTotal(dateKey);
   const withdrawalsTotal = calculateWithdrawalsTotal(dateKey);
-  const netTotal = paymentTotals.salesTotal - expensesTotal - withdrawalsTotal;
+  const salesWithTipsTotal = paymentTotals.salesTotal + paymentTotals.tipTotal;
+  const netTotal = salesWithTipsTotal - expensesTotal - withdrawalsTotal;
   const existingClosing = findDailyClosingByDate(dateKey);
 
   return {
     date: dateKey,
-    salesTotal: paymentTotals.salesTotal,
+    salesTotal: salesWithTipsTotal,
     tipTotal: paymentTotals.tipTotal,
+    salesIncludesTips: true,
     cashTotal: paymentTotals.cashTotal,
     visaTotal: paymentTotals.visaTotal,
     instapayTotal: paymentTotals.instapayTotal,
@@ -996,7 +997,7 @@ function closeDay(data) {
       "close_day",
       "daily_closing",
       closingId,
-      `${existingClosing ? "Re-closed" : "Closed"} day ${dateKey} | Sales: ${preview.salesTotal} | Expenses: ${preview.expensesTotal} | Withdrawals: ${preview.withdrawalsTotal} | Net: ${preview.netTotal}`
+      `${existingClosing ? "Re-closed" : "Closed"} day ${dateKey} | Sales: ${preview.salesTotal} | Tips: ${preview.tipTotal} | Expenses: ${preview.expensesTotal} | Withdrawals: ${preview.withdrawalsTotal} | Net: ${preview.netTotal}`
     );
 
     return jsonOutput({
@@ -1005,6 +1006,7 @@ function closeDay(data) {
         closingId,
         date: dateKey,
         salesTotal: preview.salesTotal,
+        tipTotal: preview.tipTotal,
         cashTotal: preview.cashTotal,
         visaTotal: preview.visaTotal,
         instapayTotal: preview.instapayTotal,
@@ -1516,6 +1518,8 @@ function getInvoices(data) {
   const filters = data.filters || {};
   const search = String(filters.search || data.search || "").trim().toLowerCase();
   const targetDate = String(filters.date || data.date || data.dateKey || "").trim();
+  const fromDate = String(filters.fromDate || data.fromDate || data.startDate || "").trim();
+  const toDate = String(filters.toDate || data.toDate || data.endDate || "").trim();
   const targetBarber = String(filters.barber || data.barber || "").trim();
   const targetPayment = String(filters.payment || data.payment || data.paymentMethod || "").trim();
   const limit = Math.min(Math.max(Number(data.limit) || 100, 1), 500);
@@ -1560,6 +1564,8 @@ function getInvoices(data) {
     if (invoice.barber) barberOptions[invoice.barber] = true;
     if (invoice.paymentMethod) paymentOptions[invoice.paymentMethod] = true;
     if (targetDate && invoice.dateKey !== targetDate) continue;
+    if (fromDate && invoice.dateKey < fromDate) continue;
+    if (toDate && invoice.dateKey > toDate) continue;
     if (targetBarber && invoice.barber !== targetBarber) continue;
     if (targetPayment && invoice.paymentMethod !== targetPayment) continue;
     if (search) {

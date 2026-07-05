@@ -146,6 +146,7 @@
     const instapayTodayTotal = document.getElementById("instapayTodayTotal");
     const vodafoneTodayTotal = document.getElementById("vodafoneTodayTotal");
     const visaTodayTotal = document.getElementById("visaTodayTotal");
+    const tipsTodayTotal = document.getElementById("tipsTodayTotal");
     const completeSaleBtn = document.getElementById("completeSaleBtn");
     const printBtn = document.getElementById("printBtn");
     const clearBtn = document.getElementById("clearBtn");
@@ -341,26 +342,84 @@
         .reduce((sum, item) => sum + numberValue(item.amount), 0);
     }
 
+    function renderDailyNetRows(groups) {
+      return groups.map(group => `
+        <div class="daily-net-group">
+          ${group.map(row => `
+            <span class="daily-net-row">
+              <span>${row.label}</span>
+              <b>${row.value}</b>
+            </span>
+          `).join("")}
+        </div>
+      `).join("");
+    }
+
     function updateDailyNet(todaySales, todayTips = latestTodayTips) {
       const dateKey = getReportDateKey();
       const withdrawalsTotal = getStoredTotalForDate(WITHDRAWALS_STORAGE_KEY, dateKey);
       const expensesTotal = getStoredTotalForDate(EXPENSES_STORAGE_KEY, dateKey);
-      const netTotal = numberValue(todaySales) - withdrawalsTotal - expensesTotal;
       const tipsTotal = numberValue(todayTips);
+      const cashTotal = numberValue(latestPaymentTotals.cash);
+      const instapayTotal = numberValue(latestPaymentTotals.instapay);
+      const vodafoneCashTotal = numberValue(latestPaymentTotals.vodafoneCash);
+      const visaTotal = numberValue(latestPaymentTotals.visa);
+      const netTotal = numberValue(todaySales) + tipsTotal - expensesTotal - withdrawalsTotal;
 
       dailyNetAmount.textContent = formatSignedCurrency(netTotal);
       dailyNetCard.classList.toggle("is-negative", netTotal < 0);
-      dailyNetBreakdown.textContent = getCurrentPageLanguage() === "en"
-        ? `Sales ${formatCurrency(todaySales)} - Withdrawals ${formatCurrency(withdrawalsTotal)} - Expenses ${formatCurrency(expensesTotal)} | Tips ${formatCurrency(tipsTotal)}`
-        : `المبيعات ${formatCurrency(todaySales)} - السحوبات ${formatCurrency(withdrawalsTotal)} - المصروفات ${formatCurrency(expensesTotal)} | التيب ${formatCurrency(tipsTotal)}`;
+      dailyNetBreakdown.className = "daily-net-details";
+      dailyNetBreakdown.innerHTML = getCurrentPageLanguage() === "en"
+        ? renderDailyNetRows([
+          [
+            { label: "Sales", value: formatCurrency(todaySales) },
+            { label: "Tips", value: formatCurrency(tipsTotal) },
+            { label: "Expenses", value: formatCurrency(expensesTotal) },
+            { label: "Withdrawals", value: formatCurrency(withdrawalsTotal) }
+          ],
+          [
+            { label: "Cash", value: formatCurrency(cashTotal) },
+            { label: "Instapay", value: formatCurrency(instapayTotal) },
+            { label: "Vodafone Cash", value: formatCurrency(vodafoneCashTotal) },
+            { label: "Visa", value: formatCurrency(visaTotal) }
+          ]
+        ])
+        : renderDailyNetRows([
+          [
+            { label: "المبيعات", value: formatCurrency(todaySales) },
+            { label: "التيب", value: formatCurrency(tipsTotal) },
+            { label: "المصروفات", value: formatCurrency(expensesTotal) },
+            { label: "السحوبات", value: formatCurrency(withdrawalsTotal) }
+          ],
+          [
+            { label: "النقدي", value: formatCurrency(cashTotal) },
+            { label: "انستا باي", value: formatCurrency(instapayTotal) },
+            { label: "فودافون كاش", value: formatCurrency(vodafoneCashTotal) },
+            { label: "الفيزا", value: formatCurrency(visaTotal) }
+          ]
+        ]);
     }
 
     function updatePaymentMethodTotals(totals = {}) {
       latestPaymentTotals = { ...totals };
-      cashTodayTotal.textContent = formatCurrency(numberValue(totals.cash));
-      instapayTodayTotal.textContent = formatCurrency(numberValue(totals.instapay));
-      vodafoneTodayTotal.textContent = formatCurrency(numberValue(totals.vodafoneCash));
-      visaTodayTotal.textContent = formatCurrency(numberValue(totals.visa));
+      const cashTotal = numberValue(totals.cash);
+      const instapayTotal = numberValue(totals.instapay);
+      const vodafoneCashTotal = numberValue(totals.vodafoneCash);
+      const visaTotal = numberValue(totals.visa);
+      const tipsTotal = numberValue(totals.tips);
+      const salesWithTipsTotal = cashTotal + instapayTotal + vodafoneCashTotal + visaTotal + tipsTotal;
+
+      if (cashTodayTotal) cashTodayTotal.textContent = formatCurrency(cashTotal);
+      if (instapayTodayTotal) instapayTodayTotal.textContent = formatCurrency(instapayTotal);
+      if (vodafoneTodayTotal) vodafoneTodayTotal.textContent = formatCurrency(vodafoneCashTotal);
+      if (visaTodayTotal) visaTodayTotal.textContent = formatCurrency(visaTotal);
+      if (tipsTodayTotal) {
+        tipsTodayTotal.textContent = formatCurrency(tipsTotal);
+      }
+      if (todaySalesAmount) {
+        todaySalesAmount.textContent = formatCurrency(salesWithTipsTotal);
+      }
+      updateDailyNet(latestTodaySales, tipsTotal || latestTodayTips);
     }
 
     function firstNumberValue(...values) {
@@ -376,10 +435,13 @@
     async function fetchTodayPaymentTotals() {
       try {
         const loadingText = localizeText("Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž...", "Loading...");
-        cashTodayTotal.textContent = loadingText;
-        instapayTodayTotal.textContent = loadingText;
-        vodafoneTodayTotal.textContent = loadingText;
-        visaTodayTotal.textContent = loadingText;
+        if (cashTodayTotal) cashTodayTotal.textContent = loadingText;
+        if (instapayTodayTotal) instapayTodayTotal.textContent = loadingText;
+        if (vodafoneTodayTotal) vodafoneTodayTotal.textContent = loadingText;
+        if (visaTodayTotal) visaTodayTotal.textContent = loadingText;
+        if (tipsTodayTotal) {
+          tipsTodayTotal.textContent = loadingText;
+        }
 
         const response = await fetch(API_URL, {
           method: "POST",
@@ -403,7 +465,8 @@
           cash: firstNumberValue(data.cashTotal, data.cash, data.cashTodayTotal, data.naqdTotal, data["Ã™â€ Ã™â€šÃ˜Â¯Ã™Å "]),
           instapay: firstNumberValue(data.instapayTotal, data.instapay, data.instapayTodayTotal, data["Ã˜Â§Ã™â€ Ã˜Â³Ã˜ÂªÃ˜Â§ Ã˜Â¨Ã˜Â§Ã™Å "]),
           vodafoneCash: firstNumberValue(data.vodafoneCashTotal, data.vodafoneCash, data.vodafoneTotal, data["Ã™ÂÃ™Ë†Ã˜Â¯Ã˜Â§Ã™ÂÃ™Ë†Ã™â€  Ã™Æ’Ã˜Â§Ã˜Â´"]),
-          visa: firstNumberValue(data.visaTotal, data.visa, data.visaTodayTotal, data["Ã™ÂÃ™Å Ã˜Â²Ã˜Â§"])
+          visa: firstNumberValue(data.visaTotal, data.visa, data.visaTodayTotal, data["Ã™ÂÃ™Å Ã˜Â²Ã˜Â§"]),
+          tips: firstNumberValue(data.tipTotal, data.todayTips, data.tipsTotal, data.totalTips)
         });
       } catch (error) {
         console.error(error);
@@ -497,6 +560,28 @@
       statusBox.className = "status";
     }
 
+    function isConnectionOnline() {
+      return !window.RomeoConnectivity || window.RomeoConnectivity.isOnline();
+    }
+
+    function getOfflineStatusMessage() {
+      return localizeText(
+        "لا يوجد اتصال بالإنترنت. لا يمكن حفظ أي بيانات حتى يعود الاتصال.",
+        "No internet connection. Data cannot be saved until the connection is restored."
+      );
+    }
+
+    function updateOnlineControls() {
+      const offline = !isConnectionOnline();
+      [completeSaleBtn, addServiceBtn, savePricesBtn, resetPricesBtn].forEach(button => {
+        if (button) button.disabled = offline;
+      });
+
+      if (offline) {
+        showStatus(getOfflineStatusMessage(), "error");
+      }
+    }
+
     function sanitizePhoneInput() {
       customerPhoneInput.value = customerPhoneInput.value.replace(/\D/g, "");
     }
@@ -559,7 +644,9 @@
 
     async function fetchTodaySales() {
       try {
-        todaySalesAmount.textContent = "Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž...";
+        if (todaySalesAmount) {
+          todaySalesAmount.textContent = "Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž...";
+        }
         const response = await fetch(API_URL, {
           method: "POST",
           body: JSON.stringify({
@@ -580,14 +667,18 @@
 
         latestTodaySales = numberValue(data.todaySales);
         latestTodayTips = numberValue(data.todayTips);
-        todaySalesAmount.textContent = formatCurrency(latestTodaySales);
+        if (todaySalesAmount) {
+          todaySalesAmount.textContent = formatCurrency(latestTodaySales);
+        }
         updateDailyNet(latestTodaySales, latestTodayTips);
         fetchTodayPaymentTotals();
       } catch (error) {
         console.error(error);
         latestTodaySales = 0;
         latestTodayTips = 0;
-        todaySalesAmount.textContent = formatCurrency(0);
+        if (todaySalesAmount) {
+          todaySalesAmount.textContent = formatCurrency(0);
+        }
         updateDailyNet(latestTodaySales, latestTodayTips);
         updatePaymentMethodTotals();
       }
@@ -787,6 +878,12 @@
     }
 
     async function addServiceToMenu() {
+      if (!isConnectionOnline()) {
+        showStatus(getOfflineStatusMessage(), "error");
+        updateOnlineControls();
+        return;
+      }
+
       const name = newServiceNameInput.value.trim();
       const price = Number(newServicePriceInput.value) || 0;
 
@@ -815,6 +912,12 @@
     }
 
     async function saveServicePrices() {
+      if (!isConnectionOnline()) {
+        showStatus(getOfflineStatusMessage(), "error");
+        updateOnlineControls();
+        return;
+      }
+
       const inputs = priceEditorList.querySelectorAll("input[data-service-index]");
 
       inputs.forEach(input => {
@@ -837,6 +940,12 @@
     }
 
     async function resetServicePrices() {
+      if (!isConnectionOnline()) {
+        showStatus(getOfflineStatusMessage(), "error");
+        updateOnlineControls();
+        return;
+      }
+
       availableServices = defaultServices.map(service => ({ ...service }));
       const savedToSheet = await persistServices();
       syncCartPrices();
@@ -852,6 +961,12 @@
     }
 
     window.deleteServiceFromMenu = async index => {
+      if (!isConnectionOnline()) {
+        showStatus(getOfflineStatusMessage(), "error");
+        updateOnlineControls();
+        return;
+      }
+
       const service = availableServices[index];
       if (!service) {
         return;
@@ -876,13 +991,16 @@
     };
 
     function setLoadingState(isLoading) {
-      completeSaleBtn.disabled = isLoading;
+      const offline = !isConnectionOnline();
+      completeSaleBtn.disabled = isLoading || offline;
       printBtn.disabled = isLoading;
       clearBtn.disabled = isLoading;
       completeSaleBtn.textContent = isLoading ? "Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜Â§Ã™â€žÃ˜Â­Ã™ÂÃ˜Â¸..." : "Ã˜Â¥Ã˜ÂªÃ™â€¦Ã˜Â§Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â³Ã˜Â§Ã˜Â¨";
 
       if (isLoading) {
         showStatus("Loading... Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â§Ã˜ÂªÃ™Ë†Ã˜Â±Ã˜Â© Ã™Ë†Ã˜Â§Ã™â€ Ã˜ÂªÃ˜Â¸Ã˜Â§Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â±Ã˜Â¯ Ã™â€¦Ã™â€  Google Sheets", "loading");
+      } else if (offline) {
+        showStatus(getOfflineStatusMessage(), "error");
       }
     }
 
@@ -1050,15 +1168,22 @@
       const invoiceWindow = invoiceFrame.contentWindow;
       if (!invoiceWindow) {
         invoiceFrame.remove();
-        alert("ØªØ¹Ø°Ø± ØªØ¬Ù‡ÙŠØ² Ø§Ù„Ø·Ø¨Ø§Ø¹Ø©. Ø­Ø§ÙˆÙ„ Ù…Ø±Ø© Ø£Ø®Ø±Ù‰.");
+        alert(localizeText("تعذر تجهيز الطباعة. حاول مرة أخرى.", "Could not prepare printing. Try again."));
         return;
       }
 
-      const customerName = invoice.customerName || "ØºÙŠØ± Ù…Ø³Ø¬Ù„";
-      const customerPhone = invoice.customerPhone || "ØºÙŠØ± Ù…Ø³Ø¬Ù„";
-      const barber = invoice.barber || "ØºÙŠØ± Ù…Ø­Ø¯Ø¯";
-      const offerType = invoice.offerType || "Ø¹Ø§Ø¯ÙŠ";
-      const paymentMethod = invoice.paymentMethod || "ØºÙŠØ± Ù…Ø­Ø¯Ø¯";
+      const isEnglish = getCurrentPageLanguage() === "en";
+      const invoiceLang = isEnglish ? "en" : "ar";
+      const invoiceDir = isEnglish ? "ltr" : "rtl";
+      const alignStart = isEnglish ? "left" : "right";
+      const unregisteredText = localizeText("غير مسجل", "Not registered");
+      const unspecifiedText = localizeText("غير محدد", "Not specified");
+      const regularText = localizeText("عادي", "Regular");
+      const customerName = invoice.customerName || unregisteredText;
+      const customerPhone = invoice.customerPhone || unregisteredText;
+      const barber = invoice.barber || unspecifiedText;
+      const offerType = invoice.offerType || regularText;
+      const paymentMethod = invoice.paymentMethod || unspecifiedText;
       const printedAt = new Date().toLocaleString("en-US", {
         year: "numeric",
         month: "2-digit",
@@ -1075,7 +1200,7 @@
           `).join("");
 
       invoiceWindow.document.write(`
-        <html lang="ar" dir="rtl">
+        <html lang="${invoiceLang}" dir="${invoiceDir}">
         <head>
           <meta charset="UTF-8">
           <title>SALONIX Invoice</title>
@@ -1087,7 +1212,7 @@
               color: #2a2118;
               background: #fff;
               font-family: Arial, "Tahoma", sans-serif;
-              direction: rtl;
+              direction: ${invoiceDir};
             }
             .invoice {
               width: 100%;
@@ -1157,7 +1282,7 @@
             th, td {
               padding: 10px 8px;
               border-bottom: 1px solid #ead9c1;
-              text-align: right;
+              text-align: ${alignStart};
               font-size: 13px;
             }
             th {
@@ -1223,27 +1348,27 @@
             <section class="content">
               <div class="meta">
                 <div class="meta-box">
-                  <span class="label">Ø§Ø³Ù… Ø§Ù„Ø¹Ù…ÙŠÙ„</span>
+                  <span class="label">${localizeText("اسم العميل", "Customer Name")}</span>
                   <span class="value">${escapePrintHtml(customerName)}</span>
                 </div>
                 <div class="meta-box">
-                  <span class="label">Ø±Ù‚Ù… Ø§Ù„Ø¹Ù…ÙŠÙ„</span>
+                  <span class="label">${localizeText("رقم العميل", "Customer Phone")}</span>
                   <span class="value">${escapePrintHtml(customerPhone)}</span>
                 </div>
                 <div class="meta-box">
-                  <span class="label">Ø§Ù„Ø­Ù„Ø§Ù‚</span>
+                  <span class="label">${localizeText("الموظف", "Employee")}</span>
                   <span class="value">${escapePrintHtml(barber)}</span>
                 </div>
                 <div class="meta-box">
-                  <span class="label">Ø·Ø±ÙŠÙ‚Ø© Ø§Ù„Ø¯ÙØ¹</span>
+                  <span class="label">${localizeText("طريقة الدفع", "Payment Method")}</span>
                   <span class="value">${escapePrintHtml(paymentMethod)}</span>
                 </div>
                 <div class="meta-box">
-                  <span class="label">Ù†ÙˆØ¹ Ø§Ù„Ø¹Ø±Ø¶</span>
+                  <span class="label">${localizeText("نوع العرض", "Offer Type")}</span>
                   <span class="value">${escapePrintHtml(offerType)}</span>
                 </div>
                 <div class="meta-box">
-                  <span class="label">Ø§Ù„ØªØ§Ø±ÙŠØ®</span>
+                  <span class="label">${localizeText("التاريخ", "Date")}</span>
                   <span class="value">${escapePrintHtml(printedAt)}</span>
                 </div>
               </div>
@@ -1252,8 +1377,8 @@
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>Ø§Ù„Ø®Ø¯Ù…Ø©</th>
-                    <th>Ø§Ù„Ø³Ø¹Ø±</th>
+                    <th>${localizeText("الخدمة", "Service")}</th>
+                    <th>${localizeText("السعر", "Price")}</th>
                   </tr>
                 </thead>
                 <tbody>${itemsRows}</tbody>
@@ -1261,7 +1386,7 @@
 
               <div class="summary">
                 <div class="summary-row">
-                  <span>Ø§Ù„Ù…Ø¯ÙÙˆØ¹</span>
+                  <span>${localizeText("المدفوع", "Paid")}</span>
                   <strong>${escapePrintHtml(formatCurrency(invoice.paidAmount))}</strong>
                 </div>
                 <div class="summary-row">
@@ -1269,17 +1394,17 @@
                   <strong>${escapePrintHtml(formatCurrency(invoice.tipAmount || 0))}</strong>
                 </div>
                 <div class="summary-row">
-                  <span>Ø§Ù„Ø¨Ø§Ù‚ÙŠ</span>
+                  <span>${localizeText("الباقي", "Change")}</span>
                   <strong>${escapePrintHtml(formatCurrency(invoice.remainingAmount))}</strong>
                 </div>
                 <div class="summary-row total">
-                  <span>Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ</span>
+                  <span>${localizeText("الإجمالي", "Total")}</span>
                   <strong>${escapePrintHtml(formatCurrency(invoice.total))}</strong>
                 </div>
               </div>
             </section>
 
-            <footer class="footer">Ø´ÙƒØ±Ø§ Ù„Ø²ÙŠØ§Ø±ØªÙƒÙ…</footer>
+            <footer class="footer">${localizeText("شكرا لزيارتكم", "Thank you for visiting us")}</footer>
           </main>
         </body>
         </html>
@@ -1296,8 +1421,8 @@
 
       const customerName = customerNameInput.value.trim();
       const customerPhone = customerPhoneInput.value.trim();
-      const barber = document.getElementById("barber").value || "ØºÙŠØ± Ù…Ø­Ø¯Ø¯";
-      const paymentMethod = getSelectedPaymentMethod() || "ØºÙŠØ± Ù…Ø­Ø¯Ø¯";
+      const barber = document.getElementById("barber").value || localizeText("غير محدد", "Not specified");
+      const paymentMethod = getSelectedPaymentMethod() || localizeText("غير محدد", "Not specified");
       const offerType = getSelectedOfferType();
       const total = getTotal();
       const paidAmount = Number(paidAmountInput.value) || 0;
@@ -1325,6 +1450,12 @@
 
     async function completeSale() {
       clearStatus();
+
+      if (!isConnectionOnline()) {
+        showStatus(getOfflineStatusMessage(), "error");
+        updateOnlineControls();
+        return;
+      }
 
       const customerName = customerNameInput.value.trim();
       const customerPhone = customerPhoneInput.value.trim();
@@ -1452,14 +1583,19 @@
       renderBarberOptions();
       renderServices();
       renderCart();
-      todaySalesAmount.textContent = formatCurrency(latestTodaySales);
+      if (todaySalesAmount) {
+        todaySalesAmount.textContent = formatCurrency(latestTodaySales);
+      }
       updateRemaining();
       updateDailyNet(latestTodaySales, latestTodayTips);
       updatePaymentMethodTotals(latestPaymentTotals);
+      updateOnlineControls();
     });
+    window.addEventListener("romeo-connectivity-change", updateOnlineControls);
     window.addEventListener("pageshow", () => {
       renderBarberOptions();
       loadBarbersFromSheet();
+      updateOnlineControls();
     });
     reportDateInput.addEventListener("change", fetchTodaySales);
     window.addEventListener("resize", syncServicesPanelHeight);
@@ -1500,6 +1636,7 @@
     renderCart();
     loadServicesFromSheet();
     fetchTodaySales();
+    updateOnlineControls();
     fixArabicInNode(document.body);
 
 
