@@ -67,7 +67,7 @@
     setStaticText("#dashboardAnalytics .analytics-header p", "تحليل كامل للمبيعات والموظفين والعملاء والأداء الشهري.", "Full sales, staff, customers, and monthly performance analysis.");
     setStaticText("label[for='analysisFromDate']", "من تاريخ", "From Date");
     setStaticText("label[for='analysisToDate']", "إلى تاريخ", "To Date");
-    setStaticText("label[for='analysisBarberFilter']", "الحلاق", "Barber");
+    setStaticText("label[for='analysisBarberFilter']", "الموظف", "Employee");
     setStaticText("label[for='analysisPaymentFilter']", "طريقة الدفع", "Payment Method");
     if (elements.refreshBtn && !elements.refreshBtn.disabled) elements.refreshBtn.textContent = localize("تحديث", "Refresh");
 
@@ -93,7 +93,7 @@
     setMetricLabel("monthlyProfitMargin", "هامش الربح", "Profit Margin");
     setMetricLabel("monthlyCustomerGrowth", "نمو العملاء", "Customer Growth");
     setMetricLabel("monthlyInvoiceRate", "معدل الفواتير", "Invoice Rate");
-    setMetricLabel("monthlyRevenuePerBarber", "الإيراد لكل حلاق", "Revenue / Barber");
+    setMetricLabel("monthlyRevenuePerBarber", "الإيراد لكل موظف", "Revenue / Employee");
     setMetricLabel("monthlyInventoryCost", "نسبة تكلفة المخزون", "Inventory Cost %");
 
     setStaticText("#analysisTabOverview .analytics-subpanel:nth-child(1) .analytics-title", "توزيع طرق الدفع", "Payment Mix");
@@ -101,7 +101,7 @@
     setStaticText("#analysisTabSales .analytics-subpanel:nth-child(1) .analytics-title", "أفضل الخدمات", "Top Services");
     setStaticText("#analysisTabSales .analytics-subpanel:nth-child(2) .analytics-title", "اتجاه المبيعات اليومي", "Daily Sales Trend");
     setStaticText("#analysisTabSales .analytics-subpanel:nth-child(3) .analytics-title", "أفضل باقات الفواتير", "Top Invoice Packages");
-    setStaticText("#analysisTabStaff .analytics-title", "أداء الحلاقين", "Barber Performance");
+    setStaticText("#analysisTabStaff .analytics-title", "أداء الموظفين", "Employee Performance");
     setStaticText("#analysisTabCustomers .analytics-subpanel:nth-child(1) .analytics-title", "ملخص العملاء", "Customer Snapshot");
     setStaticText("#analysisTabCustomers .analytics-subpanel:nth-child(2) .analytics-title", "أفضل العملاء", "Top Customers");
     setStaticText("#analysisTabMonthly .analytics-subpanel:nth-child(1) .analytics-title", "الاتجاه الشهري", "Monthly Trend");
@@ -111,8 +111,8 @@
     setStaticText("#analysisTabMonthly .analytics-subpanel:nth-child(5) .analytics-title", "العائد على الأصول والمؤشرات", "ROA & Indicators");
     setStaticText("#analysisTabMonthly .analytics-subpanel:nth-child(6) .analytics-title", "مقارنة شهر بشهر", "Month by Month Comparison");
 
-    const staffHeaders = ["الحلاق", "المبيعات", "الفواتير", "المتوسط", "النسبة", "الفواتير الشهرية المتوقعة", "الفواتير اليومية المتوقعة", "المبيعات الشهرية المتوقعة", "المبيعات اليومية المتوقعة", "التقييم"];
-    const staffHeadersEn = ["Barber", "Sales", "Invoices", "Average", "Share", "Expected Monthly Invoices", "Expected Daily Invoices", "Expected Monthly Sales", "Expected Daily Sales", "Rating"];
+    const staffHeaders = ["الموظف", "المبيعات", "الفواتير", "المتوسط", "النسبة", "الفواتير الشهرية المتوقعة", "الفواتير اليومية المتوقعة", "المبيعات الشهرية المتوقعة", "المبيعات اليومية المتوقعة", "التقييم"];
+    const staffHeadersEn = ["Employee", "Sales", "Invoices", "Average", "Share", "Expected Monthly Invoices", "Expected Daily Invoices", "Expected Monthly Sales", "Expected Daily Sales", "Rating"];
     document.querySelectorAll("#analysisTabStaff thead th").forEach((th, index) => {
       th.textContent = localize(staffHeaders[index], staffHeadersEn[index]);
     });
@@ -416,7 +416,7 @@
     const days = groupBy(items, invoice => getInvoiceDate(invoice) || localize("بدون تاريخ", "No date"));
     const insights = [
       payments[0] && { title: localize("أعلى طريقة دفع", "Top payment method"), text: `${payments[0].key} - ${formatMoney(payments[0].total)}` },
-      barbers[0] && { title: localize("أعلى حلاق مبيعات", "Top barber by sales"), text: `${barbers[0].key} - ${formatMoney(barbers[0].total)}` },
+      barbers[0] && { title: localize("أعلى موظف مبيعات", "Top employee by sales"), text: `${barbers[0].key} - ${formatMoney(barbers[0].total)}` },
       days[0] && { title: localize("أفضل يوم في الفترة", "Best day in period"), text: `${days.sort((a, b) => b.total - a.total)[0].key} - ${formatMoney(days[0].total)}` },
       { title: localize("متوسط قيمة الفاتورة", "Average ticket"), text: formatMoney(items.length ? total / items.length : 0) }
     ].filter(Boolean);
@@ -437,7 +437,7 @@
     const bestDay = [...days].sort((a, b) => b.total - a.total)[0];
     const insights = [
       payments[0] && { title: localize("أعلى طريقة دفع", "Top payment method"), text: `${payments[0].key} - ${formatMoney(payments[0].total)}` },
-      barbers[0] && { title: localize("أعلى حلاق مبيعات", "Top barber by sales"), text: `${barbers[0].key} - ${formatMoney(barbers[0].total)}` },
+      barbers[0] && { title: localize("أعلى موظف مبيعات", "Top employee by sales"), text: `${barbers[0].key} - ${formatMoney(barbers[0].total)}` },
       bestDay && { title: localize("أفضل يوم في الفترة", "Best day in period"), text: `${bestDay.key} - ${formatMoney(bestDay.total)}` },
       { title: localize("متوسط قيمة الفاتورة", "Average ticket"), text: formatMoney(items.length ? total / items.length : 0) }
     ].filter(Boolean);
@@ -738,7 +738,7 @@
     const barbers = [...new Set(invoices.map(invoice => normalize(invoice.barber)).filter(Boolean))].sort();
     const payments = [...new Set(invoices.map(invoice => normalize(invoice.paymentMethod || invoice.payment)).filter(Boolean))].sort();
 
-    elements.barberFilter.innerHTML = `<option value="">${localize("كل الحلاقين", "All barbers")}</option>`;
+    elements.barberFilter.innerHTML = `<option value="">${localize("كل الموظفين", "All employees")}</option>`;
     barbers.forEach(barber => {
       const option = document.createElement("option");
       option.value = barber;
@@ -756,7 +756,7 @@
 
     if (barbers.includes(selectedBarber)) elements.barberFilter.value = selectedBarber;
     if (payments.includes(selectedPayment)) elements.paymentFilter.value = selectedPayment;
-    if (elements.barberFilter.options[0]) elements.barberFilter.options[0].textContent = localize("كل الحلاقين", "All barbers");
+    if (elements.barberFilter.options[0]) elements.barberFilter.options[0].textContent = localize("كل الموظفين", "All employees");
     if (elements.paymentFilter.options[0]) elements.paymentFilter.options[0].textContent = localize("كل الطرق", "All methods");
   }
 

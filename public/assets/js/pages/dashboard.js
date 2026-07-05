@@ -102,6 +102,10 @@
     }
   };
 
+  LABELS.ar.subtitle = "نظرة سريعة على مبيعات اليوم والعملاء والصافي وأداء الموظفين.";
+  LABELS.ar.staffToday = "أداء الموظفين اليوم";
+  LABELS.ar.bestBarber = "أفضل موظف اليوم";
+  LABELS.ar.barber = "الموظف";
   LABELS.ar.noData = "لا توجد بيانات للوحة التحكم اليوم.";
 
   function getLanguage() {
