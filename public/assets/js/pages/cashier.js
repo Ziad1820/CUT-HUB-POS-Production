@@ -141,6 +141,12 @@
     const dailyNetCard = document.getElementById("dailyNetCard");
     const dailyNetAmount = document.getElementById("dailyNetAmount");
     const dailyNetBreakdown = document.getElementById("dailyNetBreakdown");
+    const latestInvoicesTitle = document.getElementById("latestInvoicesTitle");
+    const latestInvoicesList = document.getElementById("latestInvoicesList");
+    const latestInvoiceModal = document.getElementById("latestInvoiceModal");
+    const latestInvoiceModalTitle = document.getElementById("latestInvoiceModalTitle");
+    const latestInvoiceDetails = document.getElementById("latestInvoiceDetails");
+    const closeLatestInvoiceModalBtn = document.getElementById("closeLatestInvoiceModalBtn");
     const todaySalesAmount = document.getElementById("todaySalesAmount");
     const cashTodayTotal = document.getElementById("cashTodayTotal");
     const instapayTodayTotal = document.getElementById("instapayTodayTotal");
@@ -173,6 +179,7 @@
     const STAFF_STORAGE_KEY = "romeo-pos-staff-accounting-v2";
     const WITHDRAWALS_STORAGE_KEY = "romeo-pos-withdrawals";
     const EXPENSES_STORAGE_KEY = "romeo-pos-expenses";
+    const LATEST_INVOICES_STORAGE_KEY = "romeo-pos-latest-invoices";
     const BARBER_NAMES_BY_CODE = {
       R01: "KAREEM",
       R02: "8AYTH",
@@ -190,6 +197,8 @@
       { id: 6, name: "8atyh", code: "R02" }
     ];
     let barberStaffList = null;
+    let latestInvoices = [];
+    let activeLatestInvoice = null;
     fixArabicInNode(document.body);
 
     function getCurrentPageLanguage() {
@@ -233,6 +242,15 @@
       return Number.isFinite(parsed) ? parsed : 0;
     }
 
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
     function formatDateInputValue(date) {
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -251,6 +269,289 @@
       } catch (error) {
         return [];
       }
+    }
+
+    function getInvoiceDateLabel(invoice) {
+      const rawDate = invoice.dateKey || invoice.reportDate || invoice.date || invoice.createdAt || "";
+      const text = String(rawDate || "").trim();
+      const match = text.match(/(\d{4})-(\d{2})-(\d{2})/);
+      return match ? match[0] : (text || "-");
+    }
+
+    function normalizeLatestInvoice(invoice) {
+      return {
+        invoiceId: invoice.invoiceId || invoice.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        rowNumber: invoice.rowNumber || "",
+        date: getInvoiceDateLabel(invoice),
+        dateKey: invoice.dateKey || invoice.reportDate || invoice.date || "",
+        customerName: invoice.customerName || invoice.customer || "-",
+        customerPhone: invoice.customerPhone || invoice.phone || "-",
+        barber: invoice.barber || "-",
+        services: invoice.services || (Array.isArray(invoice.items) ? invoice.items.map(item => item.name).join(", ") : "-"),
+        paymentMethod: invoice.paymentMethod || invoice.payment || "-",
+        total: numberValue(invoice.total),
+        paidAmount: numberValue(invoice.paidAmount || invoice.total),
+        tipAmount: numberValue(invoice.tipAmount),
+        note: invoice.note || invoice.invoiceNote || "",
+        pdfUrl: invoice.pdfUrl || ""
+      };
+    }
+
+    function saveLatestInvoicesToStorage() {
+      localStorage.setItem(LATEST_INVOICES_STORAGE_KEY, JSON.stringify(latestInvoices.slice(0, 5)));
+    }
+
+    function renderLatestInvoices() {
+      if (!latestInvoicesTitle || !latestInvoicesList) {
+        return;
+      }
+
+      latestInvoicesTitle.textContent = localizeText("آخر 5 فواتير", "Latest 5 Invoices");
+
+      if (!latestInvoices.length) {
+        latestInvoicesList.innerHTML = `
+          <div class="latest-invoices-empty">
+            ${localizeText("لا توجد فواتير حديثة حتى الآن.", "No recent invoices yet.")}
+          </div>
+        `;
+        return;
+      }
+
+      latestInvoicesList.innerHTML = latestInvoices.slice(0, 5).map(invoice => `
+        <article class="latest-invoice-row">
+          <div>
+            <span>${localizeText("التاريخ", "Date")}</span>
+            <strong>${escapeHtml(invoice.date || "-")}</strong>
+          </div>
+          <div>
+            <span>${localizeText("العميل", "Customer")}</span>
+            <strong>${escapeHtml(invoice.customerName || "-")}</strong>
+          </div>
+          <div>
+            <span>${localizeText("الموظف", "Employee")}</span>
+            <strong>${escapeHtml(invoice.barber || "-")}</strong>
+          </div>
+          <div>
+            <span>${localizeText("الخدمة", "Service")}</span>
+            <strong>${escapeHtml(invoice.services || "-")}</strong>
+          </div>
+          <div>
+            <span>${localizeText("الدفع", "Payment")}</span>
+            <strong>${escapeHtml(invoice.paymentMethod || "-")}</strong>
+          </div>
+          <div class="latest-invoice-total">
+            <span>${localizeText("الإجمالي", "Total")}</span>
+            <strong>${escapeHtml(formatCurrency(invoice.total))}</strong>
+          </div>
+          <div>
+            <button type="button" class="mini-btn dark" data-latest-invoice-id="${escapeHtml(invoice.invoiceId)}">
+              ${localizeText("عرض", "View")}
+            </button>
+          </div>
+        </article>
+      `).join("");
+
+      fixArabicInNode(latestInvoicesList);
+    }
+
+    function findLatestInvoice(invoiceId) {
+      return latestInvoices.find(invoice => String(invoice.invoiceId) === String(invoiceId));
+    }
+
+    function getLatestInvoiceDateInput(invoice) {
+      const match = String(invoice.dateKey || invoice.date || "").match(/(\d{4})-(\d{2})-(\d{2})/);
+      return match ? match[0] : "";
+    }
+
+    function getPaymentOptions(selectedValue) {
+      const payments = ["نقدي", "انستا باي", "فودافون كاش", "فيزا"];
+      const current = String(selectedValue || "").trim();
+      const options = current && !payments.includes(current) ? [current, ...payments] : payments;
+
+      return options.map(value =>
+        `<option value="${escapeHtml(value)}" ${value === current ? "selected" : ""}>${escapeHtml(value)}</option>`
+      ).join("");
+    }
+
+    function getDetailValue(id) {
+      return document.getElementById(id)?.value?.trim() || "";
+    }
+
+    function setLatestInvoiceModalStatus(message, type = "") {
+      const status = document.getElementById("latestInvoiceModalStatus");
+      if (!status) return;
+      status.textContent = message || "";
+      status.className = `modal-status ${type}`.trim();
+    }
+
+    function renderLatestInvoiceDetails(invoice, editMode = false) {
+      if (!latestInvoiceDetails) return;
+
+      latestInvoiceModalTitle.textContent = localizeText("تفاصيل الفاتورة", "Invoice Details");
+      const dateLabel = localizeText("التاريخ", "Date");
+      const totalLabel = localizeText("الإجمالي", "Total");
+      const customerLabel = localizeText("اسم العميل", "Customer Name");
+      const phoneLabel = localizeText("رقم الهاتف", "Phone");
+      const employeeLabel = localizeText("الموظف", "Employee");
+      const paymentLabel = localizeText("طريقة الدفع", "Payment Method");
+      const paidLabel = localizeText("المدفوع", "Paid Amount");
+      const tipLabel = localizeText("مبلغ التيب", "Tip Amount");
+      const servicesLabel = localizeText("الخدمات", "Services");
+      const noteLabel = localizeText("الملاحظة", "Note");
+
+      latestInvoiceDetails.innerHTML = editMode ? `
+        <div class="detail-item"><span>${dateLabel}</span><input class="detail-input" id="latestEditInvoiceDate" type="date" value="${escapeHtml(getLatestInvoiceDateInput(invoice))}"></div>
+        <div class="detail-item"><span>${totalLabel}</span><input class="detail-input" id="latestEditInvoiceTotal" type="number" min="0" step="1" value="${escapeHtml(invoice.total)}"></div>
+        <div class="detail-item"><span>${customerLabel}</span><input class="detail-input" id="latestEditCustomerName" type="text" value="${escapeHtml(invoice.customerName || "")}"></div>
+        <div class="detail-item"><span>${phoneLabel}</span><input class="detail-input" id="latestEditCustomerPhone" type="tel" value="${escapeHtml(invoice.customerPhone || "")}"></div>
+        <div class="detail-item"><span>${employeeLabel}</span><input class="detail-input" id="latestEditInvoiceBarber" type="text" value="${escapeHtml(invoice.barber || "")}"></div>
+        <div class="detail-item"><span>${paymentLabel}</span><select class="detail-input" id="latestEditPaymentMethod">${getPaymentOptions(invoice.paymentMethod || "")}</select></div>
+        <div class="detail-item"><span>${paidLabel}</span><input class="detail-input" id="latestEditPaidAmount" type="number" min="0" step="1" value="${escapeHtml(invoice.paidAmount || invoice.total || 0)}"></div>
+        <div class="detail-item"><span>${tipLabel}</span><input class="detail-input" id="latestEditTipAmount" type="number" min="0" step="1" value="${escapeHtml(invoice.tipAmount || 0)}"></div>
+        <div class="detail-item full"><span>${servicesLabel}</span><textarea class="detail-input" id="latestEditInvoiceServices">${escapeHtml(invoice.services || "")}</textarea></div>
+        <div class="detail-item full"><span>${noteLabel}</span><textarea class="detail-input" id="latestEditInvoiceNote">${escapeHtml(invoice.note || "")}</textarea></div>
+        <div class="modal-status" id="latestInvoiceModalStatus"></div>
+        <div class="modal-actions full">
+          <button type="button" class="mini-btn" id="cancelLatestInvoiceEditBtn">${localizeText("إلغاء", "Cancel")}</button>
+          <button type="button" class="mini-btn dark" id="saveLatestInvoiceEditBtn">${localizeText("حفظ", "Save")}</button>
+        </div>
+      ` : `
+        <div class="detail-item"><span>${dateLabel}</span><strong>${escapeHtml(invoice.date || "-")}</strong></div>
+        <div class="detail-item"><span>${totalLabel}</span><strong>${escapeHtml(formatCurrency(invoice.total))}</strong></div>
+        <div class="detail-item"><span>${customerLabel}</span><strong>${escapeHtml(invoice.customerName || "-")}</strong></div>
+        <div class="detail-item"><span>${phoneLabel}</span><strong>${escapeHtml(invoice.customerPhone || "-")}</strong></div>
+        <div class="detail-item"><span>${employeeLabel}</span><strong>${escapeHtml(invoice.barber || "-")}</strong></div>
+        <div class="detail-item"><span>${paymentLabel}</span><strong>${escapeHtml(invoice.paymentMethod || "-")}</strong></div>
+        <div class="detail-item"><span>${paidLabel}</span><strong>${escapeHtml(formatCurrency(invoice.paidAmount || invoice.total || 0))}</strong></div>
+        <div class="detail-item"><span>${tipLabel}</span><strong>${escapeHtml(formatCurrency(invoice.tipAmount || 0))}</strong></div>
+        <div class="detail-item full"><span>${servicesLabel}</span><strong>${escapeHtml(invoice.services || "-")}</strong></div>
+        <div class="detail-item full"><span>${noteLabel}</span><strong>${escapeHtml(invoice.note || "-")}</strong></div>
+        <div class="modal-actions full">
+          <button type="button" class="mini-btn dark" id="editLatestInvoiceBtn">${localizeText("تعديل", "Edit")}</button>
+        </div>
+      `;
+
+      fixArabicInNode(latestInvoiceDetails);
+    }
+
+    function openLatestInvoiceDetails(invoice) {
+      activeLatestInvoice = invoice;
+      renderLatestInvoiceDetails(invoice, false);
+      latestInvoiceModal.classList.add("active");
+    }
+
+    function closeLatestInvoiceDetails() {
+      latestInvoiceModal.classList.remove("active");
+      activeLatestInvoice = null;
+    }
+
+    function getLatestInvoiceUpdatePayload(invoice) {
+      const invoiceDate = getDetailValue("latestEditInvoiceDate");
+      return {
+        action: "updateInvoice",
+        invoiceId: invoice.invoiceId,
+        rowNumber: invoice.rowNumber,
+        date: invoiceDate,
+        dateKey: invoiceDate,
+        customerName: getDetailValue("latestEditCustomerName"),
+        customerPhone: getDetailValue("latestEditCustomerPhone"),
+        services: getDetailValue("latestEditInvoiceServices"),
+        total: numberValue(getDetailValue("latestEditInvoiceTotal")),
+        paidAmount: numberValue(getDetailValue("latestEditPaidAmount")),
+        tipAmount: numberValue(getDetailValue("latestEditTipAmount")),
+        payment: getDetailValue("latestEditPaymentMethod"),
+        paymentMethod: getDetailValue("latestEditPaymentMethod"),
+        barber: getDetailValue("latestEditInvoiceBarber"),
+        note: getDetailValue("latestEditInvoiceNote"),
+        invoiceNote: getDetailValue("latestEditInvoiceNote"),
+        pdfUrl: invoice.pdfUrl || ""
+      };
+    }
+
+    async function saveLatestInvoiceEdit(button) {
+      if (!activeLatestInvoice) return;
+
+      if (!activeLatestInvoice.invoiceId && !activeLatestInvoice.rowNumber) {
+        setLatestInvoiceModalStatus(localizeText("الفاتورة دي محتاجة تتحمل من الشيت الأول قبل التعديل.", "This invoice must be loaded from the sheet before editing."), "error");
+        return;
+      }
+
+      const payload = getLatestInvoiceUpdatePayload(activeLatestInvoice);
+      if (!payload.date) {
+        setLatestInvoiceModalStatus(localizeText("اختار تاريخ الفاتورة.", "Choose invoice date."), "error");
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = localizeText("جاري الحفظ...", "Saving...");
+      setLatestInvoiceModalStatus(localizeText("جاري حفظ التعديل...", "Saving invoice changes..."));
+
+      try {
+        const result = await RomeoApi.request(payload);
+        if (result.status !== "success") {
+          throw new Error(result.message || localizeText("تعذر حفظ تعديل الفاتورة.", "Could not save invoice changes."));
+        }
+
+        const updatedInvoice = normalizeLatestInvoice({ ...activeLatestInvoice, ...payload });
+        activeLatestInvoice = updatedInvoice;
+        latestInvoices = latestInvoices.map(invoice =>
+          String(invoice.invoiceId) === String(updatedInvoice.invoiceId) ? updatedInvoice : invoice
+        );
+        saveLatestInvoicesToStorage();
+        renderLatestInvoices();
+        renderLatestInvoiceDetails(updatedInvoice, false);
+        fetchTodaySales();
+        loadLatestInvoicesFromSheet();
+      } catch (error) {
+        console.error(error);
+        setLatestInvoiceModalStatus(error.message || localizeText("تعذر حفظ تعديل الفاتورة.", "Could not save invoice changes."), "error");
+        button.disabled = false;
+        button.textContent = localizeText("حفظ", "Save");
+      }
+    }
+
+    function loadStoredLatestInvoices() {
+      latestInvoices = getStoredList(LATEST_INVOICES_STORAGE_KEY)
+        .map(normalizeLatestInvoice)
+        .slice(0, 5);
+      renderLatestInvoices();
+    }
+
+    async function loadLatestInvoicesFromSheet() {
+      if (!isConnectionOnline()) {
+        return;
+      }
+
+      try {
+        const result = await RomeoApi.request({
+          action: "getInvoices",
+          limit: 5,
+          offset: 0,
+          filters: {}
+        });
+
+        if (result.status !== "success" || !Array.isArray(result.invoices)) {
+          return;
+        }
+
+        latestInvoices = result.invoices
+          .map(normalizeLatestInvoice)
+          .slice(0, 5);
+        saveLatestInvoicesToStorage();
+        renderLatestInvoices();
+      } catch (error) {
+        console.warn("Latest invoices could not be loaded.", error);
+      }
+    }
+
+    function addLatestInvoice(invoice) {
+      const nextInvoice = normalizeLatestInvoice(invoice);
+      latestInvoices = [
+        nextInvoice,
+        ...latestInvoices.filter(item => String(item.invoiceId) !== String(nextInvoice.invoiceId))
+      ].slice(0, 5);
+      saveLatestInvoicesToStorage();
+      renderLatestInvoices();
     }
 
     function getStoredStaffForBarbers() {
@@ -1528,7 +1829,14 @@
         setLoadingState(true);
         const shouldPrint = window.confirm("Ù‡Ù„ ØªØ±ÙŠØ¯ Ø·Ø¨Ø§Ø¹Ø© Ø§Ù„ÙØ§ØªÙˆØ±Ø© Ø§Ù„Ø¢Ù†ØŸ");
 
-        await saveInvoice(invoiceData);
+        const saveResult = await saveInvoice(invoiceData);
+        addLatestInvoice({
+          ...invoiceData,
+          ...(saveResult.invoice || saveResult.data || {}),
+          invoiceId: saveResult.invoiceId || saveResult.id || saveResult.invoice?.invoiceId || saveResult.data?.invoiceId || invoiceData.invoiceId,
+          rowNumber: saveResult.rowNumber || saveResult.invoice?.rowNumber || saveResult.data?.rowNumber || invoiceData.rowNumber,
+          pdfUrl: saveResult.pdfUrl || saveResult.invoice?.pdfUrl || saveResult.data?.pdfUrl || invoiceData.pdfUrl
+        });
 
         if (shouldPrint) {
           printInvoice({
@@ -1548,6 +1856,7 @@
         showStatus("Ã˜ÂªÃ™â€¦ Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â§Ã˜ÂªÃ™Ë†Ã˜Â±Ã˜Â© Ã˜Â¨Ã™â€ Ã˜Â¬Ã˜Â§Ã˜Â­.", "success");
         resetForm();
         fetchTodaySales();
+        loadLatestInvoicesFromSheet();
       } catch (error) {
         showStatus(error.message || "Ã˜Â­Ã˜Â¯Ã˜Â« Ã˜Â®Ã˜Â·Ã˜Â£ Ã˜Â£Ã˜Â«Ã™â€ Ã˜Â§Ã˜Â¡ Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â§Ã˜ÂªÃ™Ë†Ã˜Â±Ã˜Â©.", "error");
       } finally {
@@ -1589,6 +1898,7 @@
       updateRemaining();
       updateDailyNet(latestTodaySales, latestTodayTips);
       updatePaymentMethodTotals(latestPaymentTotals);
+      renderLatestInvoices();
       updateOnlineControls();
     });
     window.addEventListener("romeo-connectivity-change", updateOnlineControls);
@@ -1621,6 +1931,45 @@
     resetPricesBtn.addEventListener("click", resetServicePrices);
     addServiceBtn.addEventListener("click", addServiceToMenu);
     logoutBtn.addEventListener("click", () => RomeoAuth.logout());
+    if (latestInvoicesList) {
+      latestInvoicesList.addEventListener("click", event => {
+        const button = event.target.closest("[data-latest-invoice-id]");
+        if (!button) return;
+
+        const invoice = findLatestInvoice(button.dataset.latestInvoiceId);
+        if (invoice) {
+          openLatestInvoiceDetails(invoice);
+        }
+      });
+    }
+    if (closeLatestInvoiceModalBtn) {
+      closeLatestInvoiceModalBtn.addEventListener("click", closeLatestInvoiceDetails);
+    }
+    if (latestInvoiceModal) {
+      latestInvoiceModal.addEventListener("click", event => {
+        if (event.target === latestInvoiceModal) {
+          closeLatestInvoiceDetails();
+        }
+      });
+    }
+    if (latestInvoiceDetails) {
+      latestInvoiceDetails.addEventListener("click", event => {
+        if (event.target.closest("#editLatestInvoiceBtn") && activeLatestInvoice) {
+          renderLatestInvoiceDetails(activeLatestInvoice, true);
+          return;
+        }
+
+        if (event.target.closest("#cancelLatestInvoiceEditBtn") && activeLatestInvoice) {
+          renderLatestInvoiceDetails(activeLatestInvoice, false);
+          return;
+        }
+
+        const saveButton = event.target.closest("#saveLatestInvoiceEditBtn");
+        if (saveButton) {
+          saveLatestInvoiceEdit(saveButton);
+        }
+      });
+    }
     priceEditorModal.addEventListener("click", event => {
       if (event.target === priceEditorModal) {
         closePriceEditor();
@@ -1635,6 +1984,8 @@
     renderServices();
     renderCart();
     loadServicesFromSheet();
+    loadStoredLatestInvoices();
+    loadLatestInvoicesFromSheet();
     fetchTodaySales();
     updateOnlineControls();
     fixArabicInNode(document.body);
