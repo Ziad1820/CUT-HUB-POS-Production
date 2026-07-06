@@ -74,6 +74,28 @@
       line-height: 1;
     }
 
+    .quick-booking-link {
+      position: absolute;
+      top: 24px;
+      right: 24px;
+      z-index: 20;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: #ead9bd;
+      color: var(--ink);
+      min-height: 48px;
+      border-radius: 14px;
+      padding: 0 18px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 900;
+      font-family: inherit;
+    }
+
+    html[dir="ltr"] .quick-booking-link {
+      right: auto;
+      left: 24px;
+    }
+
     .sidebar-overlay {
       position: fixed;
       inset: 0;
@@ -1252,6 +1274,8 @@
         <button type="button" class="menu-toggle" id="menuToggle">â‹¯</button>
       </div>
 
+      <button type="button" class="quick-booking-link" id="quickBookingLink" data-i18n-ar="حجز" data-i18n-en="Booking">حجز</button>
+
       <div class="brand-lockup">
         <img class="brand-logo" src="../assets/images/salonix-logo.svg" alt="SALONIX logo">
         <h1 class="brand-name">SALONIX</h1>
@@ -1460,7 +1484,7 @@
   <script src="../assets/js/core/api.js"></script>
   <script src="../assets/js/core/auth.js"></script>
   <script src="../assets/js/utils/layout.js"></script>
-  <script src="../assets/js/pages/cashier.js?v=20260617-iframeprint"></script>
+  <script src="../assets/js/pages/cashier.js?v=20260706-bookings-shortcut"></script>
 
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>

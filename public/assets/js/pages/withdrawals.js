@@ -1,6 +1,4 @@
     const STAFF_SOURCE_KEY = "romeo-pos-staff-accounting-v2";
-    const WITHDRAWALS_KEY = "romeo-pos-withdrawals";
-
     RomeoAuth.requireAuth("view_withdrawals");
 
     const API_URL = RomeoApi.API_URL;
@@ -100,76 +98,86 @@
           : staffList[0]?.id || null;
         localStorage.setItem(STAFF_SOURCE_KEY, JSON.stringify(sheetStaff));
         renderAll();
+        loadWithdrawalsFromSheet();
       } catch (error) {
         console.warn("Staff sheet sync is not available yet.", error);
       }
     }
 
-    function getWithdrawals() {
-      try {
-        const parsed = JSON.parse(localStorage.getItem(WITHDRAWALS_KEY) || "[]");
-        return Array.isArray(parsed) ? parsed : [];
-      } catch (error) {
-        return [];
-      }
+    function findStaffForWithdrawal(withdrawal) {
+      const staffCode = String(withdrawal.staffCode || "").trim().toUpperCase();
+      const staffName = String(withdrawal.staffName || "").trim().toLowerCase();
+      return staffList.find(staff =>
+        (staffCode && String(staff.code || "").trim().toUpperCase() === staffCode) ||
+        (staffName && String(staff.name || "").trim().toLowerCase() === staffName)
+      ) || null;
     }
 
     let staffList = getStaff();
-    let withdrawalList = getWithdrawals();
+    let withdrawalList = [];
     let selectedId = staffList[0]?.id || null;
 
     if (!elements.withdrawDate.value) {
       elements.withdrawDate.value = new Date().toISOString().slice(0, 10);
     }
 
-    function saveWithdrawals() {
-      localStorage.setItem(WITHDRAWALS_KEY, JSON.stringify(withdrawalList));
+    function normalizeWithdrawalFromSheet(withdrawal) {
+      const staff = findStaffForWithdrawal(withdrawal);
+      return {
+        id: String(withdrawal.withdrawalId || withdrawal.id || withdrawal.rowNumber || Date.now()),
+        rowNumber: withdrawal.rowNumber || "",
+        staffId: staff ? staff.id : String(withdrawal.staffName || withdrawal.staffCode || "unknown"),
+        staffName: withdrawal.staffName || staff?.name || "",
+        staffCode: withdrawal.staffCode || staff?.code || "",
+        amount: Number(withdrawal.amount || 0),
+        date: withdrawal.date || new Date().toISOString().slice(0, 10),
+        note: String(withdrawal.note || "").trim()
+      };
+    }
+
+    async function loadWithdrawalsFromSheet() {
+      try {
+        const data = await RomeoApi.request({ action: "getWithdrawals" });
+        if (data.status !== "success") {
+          throw new Error(data.message || "Failed to load withdrawals");
+        }
+
+        withdrawalList = Array.isArray(data.withdrawals)
+          ? data.withdrawals.map(normalizeWithdrawalFromSheet)
+          : [];
+        renderAll();
+      } catch (error) {
+        console.error(error);
+        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("تعذر تحميل السحوبات من الشيت.", "Could not load withdrawals from the sheet.")}</div>`;
+      }
     }
 
     async function saveWithdrawalToSheet(withdrawal) {
-      const response = await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify({
-          action: "withdrawal",
-          withdrawalId: withdrawal.id,
-          staffName: withdrawal.staffName,
-          staffCode: withdrawal.staffCode,
-          amount: withdrawal.amount,
-          note: withdrawal.note,
-          date: withdrawal.date
-        })
+      const data = await RomeoApi.request({
+        action: "withdrawal",
+        withdrawalId: withdrawal.id,
+        staffName: withdrawal.staffName,
+        staffCode: withdrawal.staffCode,
+        amount: withdrawal.amount,
+        note: withdrawal.note,
+        date: withdrawal.date
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || `Failed to save withdrawal (${response.status})`);
-      }
-
-      const data = await response.json();
       if (data.status !== "success") {
         throw new Error(data.message || "Failed to save withdrawal");
       }
     }
 
     async function deleteWithdrawalFromSheet(withdrawal) {
-      const response = await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify({
-          action: "deleteWithdrawal",
-          withdrawalId: withdrawal.id,
-          staffName: withdrawal.staffName,
-          amount: withdrawal.amount,
-          note: withdrawal.note,
-          date: withdrawal.date
-        })
+      const data = await RomeoApi.request({
+        action: "deleteWithdrawal",
+        withdrawalId: withdrawal.id,
+        staffName: withdrawal.staffName,
+        amount: withdrawal.amount,
+        note: withdrawal.note,
+        date: withdrawal.date
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || `Failed to delete withdrawal (${response.status})`);
-      }
-
-      const data = await response.json();
       if (data.status !== "success") {
         throw new Error(data.message || "Failed to delete withdrawal");
       }
@@ -361,10 +369,8 @@
 
       try {
         await saveWithdrawalToSheet(withdrawal);
-        withdrawalList.unshift(withdrawal);
-        saveWithdrawals();
         clearForm();
-        renderAll();
+        await loadWithdrawalsFromSheet();
       } catch (error) {
         console.error(error);
         alert(error.message || "ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„Ø³Ø­Ø¨ ÙÙŠ Ø§Ù„Ø´ÙŠØª.");
@@ -375,16 +381,14 @@
     }
 
     async function deleteWithdrawal(id) {
-      const withdrawal = withdrawalList.find(item => item.id === id);
+      const withdrawal = withdrawalList.find(item => String(item.id) === String(id));
       if (!withdrawal) {
         return;
       }
 
       try {
         await deleteWithdrawalFromSheet(withdrawal);
-        withdrawalList = withdrawalList.filter(item => item.id !== id);
-        saveWithdrawals();
-        renderAll();
+        await loadWithdrawalsFromSheet();
       } catch (error) {
         console.error(error);
         alert(error.message || "ØªØ¹Ø°Ø± Ø­Ø°Ù Ø§Ù„Ø³Ø­Ø¨ Ù…Ù† Ø§Ù„Ø´ÙŠØª.");
@@ -422,7 +426,7 @@
       if (!confirm("ØªØ­Ø°Ù Ø¹Ù…Ù„ÙŠØ© Ø§Ù„Ø³Ø­Ø¨ Ø¯ÙŠØŸ")) return;
       btn.disabled = true;
       btn.textContent = localizeText("جاري الحذف...", "Deleting...");
-      await deleteWithdrawal(Number(btn.dataset.deleteId));
+      await deleteWithdrawal(btn.dataset.deleteId);
     });
     menuToggle.addEventListener("click", openSidebar);
     sidebarOverlay.addEventListener("click", closeSidebar);
@@ -443,4 +447,4 @@
     applyPageLanguage();
     renderAll();
     loadStaffFromSheet();
-
+    loadWithdrawalsFromSheet();

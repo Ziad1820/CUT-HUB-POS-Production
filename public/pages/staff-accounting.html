@@ -702,6 +702,7 @@
         percentage: numberValue(staff.percentage || staff.salaryPercentage),
         withdraw: numberValue(staff.withdraw),
         debt: numberValue(staff.debt || staff.deduction),
+        attendanceDeduction: numberValue(staff.attendanceDeduction),
         lateDiscount: numberValue(staff.lateDiscount),
         salary: numberValue(staff.salary || staff.salaries),
         bonus: numberValue(staff.bonus)
@@ -774,7 +775,7 @@
             salary: numberValue(staff.salary),
             percentage: numberValue(staff.percentage),
             bonus: numberValue(staff.bonus),
-            deduction: calculateDeduction(staff),
+            deduction: calculateManualDeduction(staff),
             isBarber: staff.isBarber !== false
           }))
         });
@@ -838,6 +839,10 @@
     }
 
     function calculateDeduction(staff) {
+      return calculateManualDeduction(staff) + numberValue(staff.attendanceDeduction);
+    }
+
+    function calculateManualDeduction(staff) {
       return numberValue(staff.debt) + numberValue(staff.lateDiscount);
     }
 

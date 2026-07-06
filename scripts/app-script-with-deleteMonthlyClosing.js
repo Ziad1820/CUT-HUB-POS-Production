@@ -1,13 +1,16 @@
-﻿function doPost(e) {
+function doPost(e) {
   const data = JSON.parse(e.postData.contents || "{}");
 
   if (data.action === "invoice") return createInvoice(data);
   if (data.action === "getInvoices") return getInvoices(data);
   if (data.action === "deleteInvoice") return deleteInvoice(data);
+  if (data.action === "updateInvoice") return updateInvoice(data);
 
   if (data.action === "withdrawal") return createWithdrawal(data);
+  if (data.action === "getWithdrawals") return getWithdrawals(data);
   if (data.action === "deleteWithdrawal") return deleteWithdrawal(data);
   if (data.action === "expense") return createExpense(data);
+  if (data.action === "getExpenses") return getExpenses(data);
   if (data.action === "deleteExpense") return deleteExpense(data);
 
   if (data.action === "loginUser") return loginUser(data);
@@ -24,6 +27,16 @@
   if (data.action === "saveStaff") return saveStaff(data);
 
   if (data.action === "getActivityLogs") return getActivityLogs(data);
+
+  if (data.action === "createAttendanceRecord") return createAttendanceRecord(data);
+  if (data.action === "getAttendanceRecords") return getAttendanceRecords(data);
+  if (data.action === "approveAttendanceDeduction") return approveAttendanceDeduction(data);
+  if (data.action === "deleteAttendanceRecord") return deleteAttendanceRecord(data);
+
+  if (data.action === "createBooking") return createBooking(data);
+  if (data.action === "getBookings") return getBookings(data);
+  if (data.action === "updateBooking") return updateBooking(data);
+  if (data.action === "deleteBooking") return deleteBooking(data);
 
   if (data.action === "getDailyClosingPreview") return getDailyClosingPreview(data);
   if (data.action === "dashboardTodayStats") return dashboardTodayStats(data);
@@ -132,6 +145,27 @@ function getActorPermissions(data) {
 function actorCanManageUsers(data) {
   const actor = getActor(data || {});
   return String(actor.userName || "").trim().toLowerCase() === "owner";
+}
+
+function actorHasPermission(data, permission) {
+  if (actorCanManageUsers(data || {})) {
+    return true;
+  }
+
+  const permissions = getActorPermissions(data || {});
+  return permissions.indexOf(permission) !== -1;
+}
+
+function requirePermission(data, permission, message) {
+  if (actorHasPermission(data || {}, permission)) {
+    return null;
+  }
+
+  return jsonOutput({
+    status: "error",
+    permissionDenied: true,
+    message: message || "You do not have permission to perform this action."
+  });
 }
 
 function getActivityLogSheet() {
@@ -531,6 +565,9 @@ function getServices() {
 }
 
 function saveServices(data) {
+  const permissionError = requirePermission(data, "edit_prices", "You do not have permission to edit prices.");
+  if (permissionError) return permissionError;
+
   const sheet = SpreadsheetApp.getActive().getSheetByName("SERVICES");
   if (!sheet) {
     return jsonOutput({ status: "error", message: "Sheet SERVICES not found" });
@@ -618,6 +655,7 @@ function getStaff() {
   try {
     const sheet = getStaffSheet();
     const lastRow = sheet.getLastRow();
+    const attendanceTotals = getApprovedAttendanceTotalsForCurrentMonth();
 
     if (lastRow < 2) {
       return jsonOutput({ status: "success", staff: [] });
@@ -641,7 +679,9 @@ function getStaff() {
         isBarber: parseSheetBoolean(row[10], true)
       }))
       .filter(staffMember => staffMember.name && staffMember.active)
-      .map(staffMember => ({
+      .map(staffMember => {
+        const attendanceDeduction = attendanceTotals[normalizeLookupKey(staffMember.name)] || 0;
+        return {
         id: staffMember.id,
         name: staffMember.name,
         code: staffMember.code,
@@ -649,8 +689,11 @@ function getStaff() {
         percentage: staffMember.percentage,
         bonus: staffMember.bonus,
         deduction: staffMember.deduction,
+        attendanceDeduction,
+        totalDeduction: staffMember.deduction + attendanceDeduction,
         isBarber: staffMember.isBarber
-      }));
+        };
+      });
 
     return jsonOutput({ status: "success", staff });
   } catch (error) {
@@ -660,6 +703,9 @@ function getStaff() {
 
 function saveStaff(data) {
   try {
+    const permissionError = requirePermission(data, "view_staff_accounting", "You do not have permission to edit staff.");
+    if (permissionError) return permissionError;
+
     const sheet = getStaffSheet();
     const staffList = Array.isArray(data.staff) ? data.staff : [];
     const lastRow = sheet.getLastRow();
@@ -713,6 +759,371 @@ function saveStaff(data) {
     });
   } catch (error) {
     return jsonOutput({ status: "error", message: error.message });
+  }
+}
+
+const ATTENDANCE_HEADERS = [
+  "ID",
+  "DATE",
+  "STAFF_ID",
+  "STAFF_NAME",
+  "RECORD_TYPE",
+  "SHIFT_START",
+  "CHECK_IN",
+  "BREAK_OUT",
+  "BREAK_IN",
+  "CHECK_OUT",
+  "WORK_HOURS",
+  "BREAK_HOURS",
+  "LATE_HOURS",
+  "SHORT_HOURS",
+  "ABSENCE_DAYS",
+  "PENALTY_AMOUNT",
+  "PENALTY_REASON",
+  "SUGGESTED_DEDUCTION",
+  "APPROVED_DEDUCTION",
+  "APPROVAL_STATUS",
+  "APPROVED_BY",
+  "NOTE",
+  "CREATED_AT",
+  "UPDATED_AT"
+];
+
+function getAttendanceSheet() {
+  const ss = SpreadsheetApp.getActive();
+  let sheet = ss.getSheetByName("ATTENDANCE");
+
+  if (!sheet) {
+    sheet = ss.insertSheet("ATTENDANCE");
+  }
+
+  ensureAttendanceHeaders(sheet);
+  return sheet;
+}
+
+function ensureAttendanceHeaders(sheet) {
+  const headerRange = sheet.getRange(1, 1, 1, ATTENDANCE_HEADERS.length);
+  const currentHeaders = headerRange.getValues()[0].map(value => String(value || "").trim());
+  const hasHeaders = currentHeaders.some(Boolean);
+  const matches = ATTENDANCE_HEADERS.every((header, index) => currentHeaders[index] === header);
+
+  if (!hasHeaders || !matches) {
+    headerRange.setValues([ATTENDANCE_HEADERS]);
+  }
+}
+
+function normalizeLookupKey(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function parseTimeMinutes(value) {
+  const text = String(value || "").trim();
+  if (!text) return null;
+
+  const parts = text.split(":");
+  if (parts.length < 2) return null;
+
+  const hours = Number(parts[0]);
+  const minutes = Number(parts[1]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+
+  return (hours * 60) + minutes;
+}
+
+function getHoursBetween(startValue, endValue) {
+  const start = parseTimeMinutes(startValue);
+  const end = parseTimeMinutes(endValue);
+
+  if (start === null || end === null || end < start) {
+    return 0;
+  }
+
+  return (end - start) / 60;
+}
+
+function roundHours(value) {
+  return Math.round(parseSheetAmount(value) * 100) / 100;
+}
+
+function getMonthlyAbsenceCount(staffName, dateKey, excludeId) {
+  const sheet = getAttendanceSheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+
+  const monthKey = String(dateKey || "").slice(0, 7);
+  const staffKey = normalizeLookupKey(staffName);
+  const rows = sheet.getRange(2, 1, lastRow - 1, ATTENDANCE_HEADERS.length).getValues();
+
+  return rows.filter(row => {
+    const id = String(row[0] || "").trim();
+    const rowDate = getDateKey(row[1], TIME_ZONE);
+    const rowStaff = normalizeLookupKey(row[3]);
+    const type = String(row[4] || "").trim();
+    return id !== excludeId
+      && rowDate.slice(0, 7) === monthKey
+      && rowStaff === staffKey
+      && type === "absent";
+  }).length;
+}
+
+function calculateAttendanceValues(data) {
+  const recordType = String(data.recordType || "work").trim();
+  const salary = parseSheetAmount(data.salary);
+  const dailyRate = salary > 0 ? salary / 26 : 0;
+  const hourlyRate = dailyRate > 0 ? dailyRate / 8 : 0;
+  const penaltyAmount = parseSheetAmount(data.penaltyAmount);
+  const shiftStart = String(data.shiftStart || "10:00").trim();
+  const checkIn = String(data.checkIn || "").trim();
+  const checkOut = String(data.checkOut || "").trim();
+  const breakOut = String(data.breakOut || "").trim();
+  const breakIn = String(data.breakIn || "").trim();
+
+  if (recordType === "absent") {
+    const absenceCount = getMonthlyAbsenceCount(data.staffName, data.dateKey || data.date);
+    const isPaidLeave = absenceCount < 4;
+    return {
+      workHours: 0,
+      breakHours: 0,
+      lateHours: 0,
+      shortHours: 0,
+      absenceDays: 1,
+      suggestedDeduction: roundHours(isPaidLeave ? penaltyAmount : dailyRate + penaltyAmount)
+    };
+  }
+
+  if (recordType === "penalty") {
+    return {
+      workHours: 0,
+      breakHours: 0,
+      lateHours: 0,
+      shortHours: 0,
+      absenceDays: 0,
+      suggestedDeduction: roundHours(penaltyAmount)
+    };
+  }
+
+  const presenceHours = getHoursBetween(checkIn, checkOut);
+  const breakHours = getHoursBetween(breakOut, breakIn);
+  const workHours = Math.max(0, presenceHours - breakHours);
+  const lateHours = Math.max(0, getHoursBetween(shiftStart, checkIn));
+  const shortHours = Math.max(0, 8 - workHours);
+  const billableMissingHours = Math.max(lateHours, shortHours);
+  const suggestedDeduction = (billableMissingHours * hourlyRate) + penaltyAmount;
+
+  return {
+    workHours: roundHours(workHours),
+    breakHours: roundHours(breakHours),
+    lateHours: roundHours(lateHours),
+    shortHours: roundHours(shortHours),
+    absenceDays: 0,
+    suggestedDeduction: roundHours(suggestedDeduction)
+  };
+}
+
+function attendanceRecordFromRow(row, rowNumber) {
+  return {
+    rowNumber,
+    id: String(row[0] || "").trim(),
+    date: getDateKey(row[1], TIME_ZONE),
+    staffId: String(row[2] || "").trim(),
+    staffName: String(row[3] || "").trim(),
+    recordType: String(row[4] || "work").trim(),
+    shiftStart: String(row[5] || "").trim(),
+    checkIn: String(row[6] || "").trim(),
+    breakOut: String(row[7] || "").trim(),
+    breakIn: String(row[8] || "").trim(),
+    checkOut: String(row[9] || "").trim(),
+    workHours: parseSheetAmount(row[10]),
+    breakHours: parseSheetAmount(row[11]),
+    lateHours: parseSheetAmount(row[12]),
+    shortHours: parseSheetAmount(row[13]),
+    absenceDays: parseSheetAmount(row[14]),
+    penaltyAmount: parseSheetAmount(row[15]),
+    penaltyReason: String(row[16] || "").trim(),
+    suggestedDeduction: parseSheetAmount(row[17]),
+    approvedDeduction: parseSheetAmount(row[18]),
+    approvalStatus: String(row[19] || "pending").trim(),
+    approvedBy: String(row[20] || "").trim(),
+    note: String(row[21] || "").trim(),
+    createdAt: getDisplayDateTime(row[22]),
+    updatedAt: getDisplayDateTime(row[23])
+  };
+}
+
+function createAttendanceRecord(data) {
+  try {
+    const permissionError = requirePermission(data, "view_attendance", "You do not have permission to manage attendance.");
+    if (permissionError) return permissionError;
+
+    const sheet = getAttendanceSheet();
+    const now = getCairoDateTime();
+    const dateKey = getDateKey(data.date || data.dateKey || now, TIME_ZONE);
+    const staffName = String(data.staffName || "").trim();
+
+    if (!staffName) {
+      return jsonOutput({ status: "error", message: "Staff name is required." });
+    }
+
+    const values = calculateAttendanceValues({ ...data, dateKey });
+    const id = String(data.id || `ATT-${Utilities.getUuid()}`).trim();
+    const row = [
+      id,
+      dateKey,
+      String(data.staffId || "").trim(),
+      staffName,
+      String(data.recordType || "work").trim(),
+      String(data.shiftStart || "10:00").trim(),
+      String(data.checkIn || "").trim(),
+      String(data.breakOut || "").trim(),
+      String(data.breakIn || "").trim(),
+      String(data.checkOut || "").trim(),
+      values.workHours,
+      values.breakHours,
+      values.lateHours,
+      values.shortHours,
+      values.absenceDays,
+      parseSheetAmount(data.penaltyAmount),
+      String(data.penaltyReason || "").trim(),
+      values.suggestedDeduction,
+      0,
+      "pending",
+      "",
+      String(data.note || "").trim(),
+      now,
+      now
+    ];
+
+    sheet.appendRow(row);
+    logActivity(data, "create", "attendance", id, `Created attendance record for ${staffName} on ${dateKey}. Suggested deduction: ${values.suggestedDeduction}`);
+
+    return jsonOutput({ status: "success", record: attendanceRecordFromRow(row, sheet.getLastRow()) });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
+}
+
+function getAttendanceRecords(data) {
+  try {
+    const permissionError = requirePermission(data, "view_attendance", "You do not have permission to view attendance.");
+    if (permissionError) return permissionError;
+
+    const sheet = getAttendanceSheet();
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return jsonOutput({ status: "success", records: [] });
+    }
+
+    const fromDate = getDateKey(data.fromDate || data.date || "", TIME_ZONE);
+    const toDate = getDateKey(data.toDate || data.date || "", TIME_ZONE);
+    const staffKey = normalizeLookupKey(data.staffName);
+    const status = String(data.approvalStatus || "").trim();
+    const rows = sheet.getRange(2, 1, lastRow - 1, ATTENDANCE_HEADERS.length).getValues();
+
+    const records = rows
+      .map((row, index) => attendanceRecordFromRow(row, index + 2))
+      .filter(record => {
+        if (fromDate && record.date < fromDate) return false;
+        if (toDate && record.date > toDate) return false;
+        if (staffKey && normalizeLookupKey(record.staffName) !== staffKey) return false;
+        if (status && record.approvalStatus !== status) return false;
+        return true;
+      })
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.rowNumber - a.rowNumber);
+
+    return jsonOutput({ status: "success", records });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
+}
+
+function approveAttendanceDeduction(data) {
+  try {
+    const permissionError = requirePermission(data, "view_staff_accounting", "You do not have permission to approve deductions.");
+    if (permissionError) return permissionError;
+
+    const sheet = getAttendanceSheet();
+    const rowNumber = Number(data.rowNumber);
+    if (!rowNumber || rowNumber < 2 || rowNumber > sheet.getLastRow()) {
+      return jsonOutput({ status: "error", message: "Attendance record was not found." });
+    }
+
+    const row = sheet.getRange(rowNumber, 1, 1, ATTENDANCE_HEADERS.length).getValues()[0];
+    const record = attendanceRecordFromRow(row, rowNumber);
+    const approvedDeduction = data.approvedDeduction === undefined || data.approvedDeduction === null || data.approvedDeduction === ""
+      ? record.suggestedDeduction
+      : parseSheetAmount(data.approvedDeduction);
+    const actor = getActor(data);
+    const now = getCairoDateTime();
+
+    sheet.getRange(rowNumber, 19, 1, 6).setValues([[
+      approvedDeduction,
+      "approved",
+      actor.displayName,
+      record.note,
+      record.createdAt || row[22],
+      now
+    ]]);
+
+    logActivity(data, "update", "attendance", record.id, `Approved attendance deduction for ${record.staffName}. Amount: ${approvedDeduction}`);
+
+    return jsonOutput({
+      status: "success",
+      record: {
+        ...record,
+        approvedDeduction,
+        approvalStatus: "approved",
+        approvedBy: actor.displayName,
+        updatedAt: now
+      }
+    });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
+}
+
+function deleteAttendanceRecord(data) {
+  try {
+    const permissionError = requirePermission(data, "view_staff_accounting", "You do not have permission to delete attendance records.");
+    if (permissionError) return permissionError;
+
+    const sheet = getAttendanceSheet();
+    const rowNumber = Number(data.rowNumber);
+    if (!rowNumber || rowNumber < 2 || rowNumber > sheet.getLastRow()) {
+      return jsonOutput({ status: "error", message: "Attendance record was not found." });
+    }
+
+    const row = sheet.getRange(rowNumber, 1, 1, ATTENDANCE_HEADERS.length).getValues()[0];
+    const record = attendanceRecordFromRow(row, rowNumber);
+    sheet.deleteRow(rowNumber);
+
+    logActivity(data, "delete", "attendance", record.id, `Deleted attendance record for ${record.staffName} on ${record.date}.`);
+    return jsonOutput({ status: "success" });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
+}
+
+function getApprovedAttendanceTotalsForCurrentMonth() {
+  try {
+    const today = getCairoDateKey();
+    const monthKey = today.slice(0, 7);
+    const sheet = getAttendanceSheet();
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return {};
+
+    const rows = sheet.getRange(2, 1, lastRow - 1, ATTENDANCE_HEADERS.length).getValues();
+    return rows.reduce((totals, row) => {
+      const record = attendanceRecordFromRow(row, 0);
+      if (record.date.slice(0, 7) !== monthKey || record.approvalStatus !== "approved") {
+        return totals;
+      }
+
+      const key = normalizeLookupKey(record.staffName);
+      totals[key] = (totals[key] || 0) + record.approvedDeduction;
+      return totals;
+    }, {});
+  } catch (error) {
+    return {};
   }
 }
 function getDailyClosingSheet() {
@@ -951,6 +1362,9 @@ function getDailyClosings(data) {
 
 function closeDay(data) {
   try {
+    const permissionError = requirePermission(data, "view_daily_closing", "You do not have permission to close the day.");
+    if (permissionError) return permissionError;
+
     const sheet = getDailyClosingSheet();
     const actor = getActor(data || {});
     const dateKey = getRequestedDateKey(data, TIME_ZONE);
@@ -1378,7 +1792,26 @@ function getInvoicePaymentDetails(data) {
   };
 }
 
+function invoiceRowAuditSnapshot(row) {
+  return {
+    date: getDateKey(row[0], TIME_ZONE) || String(row[0] || "").trim(),
+    customerName: String(row[1] || "").trim(),
+    customerPhone: String(row[2] || "").trim(),
+    services: String(row[3] || "").trim(),
+    pdfUrl: String(row[4] || "").trim(),
+    total: parseSheetAmount(row[5]),
+    paidAmount: parseSheetAmount(row[6]),
+    tipAmount: parseSheetAmount(row[7]),
+    paymentMethod: String(row[8] || "").trim(),
+    barber: String(row[9] || "").trim(),
+    note: String(row[10] || "").trim()
+  };
+}
+
 function createInvoice(data) {
+  const permissionError = requirePermission(data, "access_cashier", "You do not have permission to create invoices.");
+  if (permissionError) return permissionError;
+
   const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
   ensureDataInvoiceColumns(sheet);
   const invoiceDateTime = getInvoiceDateTime(data);
@@ -1414,6 +1847,99 @@ function createInvoice(data) {
   );
 
   return jsonOutput({ status: "success", pdfUrl });
+}
+
+
+function updateInvoice(data) {
+  try {
+    const permissionError = requirePermission(data, "view_invoices", "You do not have permission to edit invoices.");
+    if (permissionError) return permissionError;
+
+    const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
+    if (!sheet) {
+      return jsonOutput({ status: "error", message: "Sheet DATA not found" });
+    }
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return jsonOutput({ status: "error", message: "Invoice not found" });
+    }
+
+    const targetRowNumber = Number(data.rowNumber || 0);
+    const targetInvoiceId = String(data.invoiceId || "").trim();
+
+    if (
+      targetRowNumber < 2 ||
+      targetRowNumber > lastRow ||
+      !targetInvoiceId ||
+      (targetInvoiceId && targetInvoiceId !== `DATA-${targetRowNumber}`)
+    ) {
+      return jsonOutput({ status: "error", message: "Invoice must be loaded from the sheet before editing." });
+    }
+
+    ensureDataInvoiceColumns(sheet);
+    const currentRow = sheet.getRange(targetRowNumber, 1, 1, 11).getValues()[0];
+    const beforeUpdate = invoiceRowAuditSnapshot(currentRow);
+    const currentDate = currentRow[0];
+    const nextDate = getDateKey(data.date || data.dateKey || currentDate, TIME_ZONE) || currentDate;
+
+    const currentLockedError = getLockedDateError(currentDate, "Invoice");
+    if (currentLockedError) {
+      return jsonOutput({ status: "error", message: currentLockedError, locked: true });
+    }
+
+    const nextLockedError = getLockedDateError(nextDate, "Invoice");
+    if (nextLockedError) {
+      return jsonOutput({ status: "error", message: nextLockedError, locked: true });
+    }
+
+    const updatedRow = [
+      nextDate,
+      data.customerName || "",
+      data.customerPhone || "",
+      data.services || "",
+      data.pdfUrl || currentRow[4] || "",
+      data.total || 0,
+      data.paidAmount || currentRow[6] || data.total || 0,
+      data.tipAmount || currentRow[7] || 0,
+      data.payment || data.paymentMethod || "",
+      data.barber || "",
+      data.note || data.invoiceNote || ""
+    ];
+
+    sheet.getRange(targetRowNumber, 1, 1, 11).setValues([updatedRow]);
+    const afterUpdate = invoiceRowAuditSnapshot(updatedRow);
+
+    logActivity(
+      data,
+      "update",
+      "invoice",
+      targetInvoiceId || `DATA-${targetRowNumber}`,
+      `Updated invoice ${targetInvoiceId || `DATA-${targetRowNumber}`} | Before: ${JSON.stringify(beforeUpdate)} | After: ${JSON.stringify(afterUpdate)}`
+    );
+
+    return jsonOutput({
+      status: "success",
+      invoice: {
+        invoiceId: targetInvoiceId || `DATA-${targetRowNumber}`,
+        rowNumber: targetRowNumber,
+        date: getDisplayDateTime(updatedRow[0]),
+        dateKey: getDateKey(updatedRow[0], TIME_ZONE),
+        customerName: String(updatedRow[1] || "").trim(),
+        customerPhone: String(updatedRow[2] || "").trim(),
+        services: String(updatedRow[3] || "").trim(),
+        pdfUrl: String(updatedRow[4] || "").trim(),
+        total: parseSheetAmount(updatedRow[5]),
+        paidAmount: parseSheetAmount(updatedRow[6]),
+        tipAmount: parseSheetAmount(updatedRow[7]),
+        paymentMethod: String(updatedRow[8] || "").trim(),
+        barber: String(updatedRow[9] || "").trim(),
+        note: String(updatedRow[10] || "").trim()
+      }
+    });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
 }
 
 function getInvoices(data) {
@@ -1513,6 +2039,9 @@ function getDisplayDateTime(value) {
 }
 
 function deleteInvoice(data) {
+  const permissionError = requirePermission(data, "view_invoices", "You do not have permission to delete invoices.");
+  if (permissionError) return permissionError;
+
   const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
   if (!sheet) {
     return jsonOutput({ status: "error", message: "Sheet DATA not found" });
@@ -1525,6 +2054,15 @@ function deleteInvoice(data) {
 
   const targetRowNumber = Number(data.rowNumber);
   const targetInvoiceId = String(data.invoiceId || "").trim();
+
+  if (
+    targetRowNumber < 2 ||
+    targetRowNumber > lastRow ||
+    !targetInvoiceId ||
+    targetInvoiceId !== `DATA-${targetRowNumber}`
+  ) {
+    return jsonOutput({ status: "error", message: "Invoice must be loaded from the sheet before deletion." });
+  }
 
   if (
     targetRowNumber >= 2 &&
@@ -1590,6 +2128,9 @@ function deleteInvoice(data) {
 }
 
 function createWithdrawal(data) {
+  const permissionError = requirePermission(data, "view_withdrawals", "You do not have permission to add withdrawals.");
+  if (permissionError) return permissionError;
+
   const sheet = SpreadsheetApp.getActive().getSheetByName("WITHDRAWLS");
   if (!sheet) {
     return jsonOutput({ status: "error", message: "Sheet WITHDRAWLS not found" });
@@ -1620,7 +2161,40 @@ function createWithdrawal(data) {
   return jsonOutput({ status: "success" });
 }
 
+function getWithdrawals(data) {
+  const sheet = SpreadsheetApp.getActive().getSheetByName("WITHDRAWLS");
+  if (!sheet) {
+    return jsonOutput({ status: "error", message: "Sheet WITHDRAWLS not found" });
+  }
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return jsonOutput({ status: "success", withdrawals: [] });
+  }
+
+  const rows = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+  const withdrawals = rows.map((row, index) => {
+    const rowNumber = index + 2;
+    const withdrawalId = row[4] || `WITHDRAWLS-${rowNumber}`;
+    return {
+      id: withdrawalId,
+      withdrawalId,
+      rowNumber,
+      staffName: row[0] || "",
+      staffCode: "",
+      amount: parseSheetAmount(row[1]),
+      note: row[2] || "",
+      date: getDateKey(row[3], TIME_ZONE)
+    };
+  }).reverse();
+
+  return jsonOutput({ status: "success", withdrawals });
+}
+
 function deleteWithdrawal(data) {
+  const permissionError = requirePermission(data, "view_withdrawals", "You do not have permission to delete withdrawals.");
+  if (permissionError) return permissionError;
+
   const sheet = SpreadsheetApp.getActive().getSheetByName("WITHDRAWLS");
   if (!sheet) {
     return jsonOutput({ status: "error", message: "Sheet WITHDRAWLS not found" });
@@ -1673,6 +2247,9 @@ function deleteWithdrawal(data) {
 }
 
 function createExpense(data) {
+  const permissionError = requirePermission(data, "view_expenses", "You do not have permission to add expenses.");
+  if (permissionError) return permissionError;
+
   const sheet = SpreadsheetApp.getActive().getSheetByName("EXPENSES");
   if (!sheet) {
     return jsonOutput({ status: "error", message: "Sheet EXPENSES not found" });
@@ -1704,7 +2281,40 @@ function createExpense(data) {
   return jsonOutput({ status: "success" });
 }
 
+function getExpenses(data) {
+  const sheet = SpreadsheetApp.getActive().getSheetByName("EXPENSES");
+  if (!sheet) {
+    return jsonOutput({ status: "error", message: "Sheet EXPENSES not found" });
+  }
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return jsonOutput({ status: "success", expenses: [] });
+  }
+
+  const rows = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+  const expenses = rows.map((row, index) => {
+    const rowNumber = index + 2;
+    const expenseId = row[5] || `EXPENSES-${rowNumber}`;
+    return {
+      id: expenseId,
+      expenseId,
+      rowNumber,
+      category: row[0] || "",
+      amount: parseSheetAmount(row[1]),
+      title: row[2] || "",
+      note: row[3] || "",
+      date: getDateKey(row[4], TIME_ZONE)
+    };
+  }).reverse();
+
+  return jsonOutput({ status: "success", expenses });
+}
+
 function deleteExpense(data) {
+  const permissionError = requirePermission(data, "view_expenses", "You do not have permission to delete expenses.");
+  if (permissionError) return permissionError;
+
   const sheet = SpreadsheetApp.getActive().getSheetByName("EXPENSES");
   if (!sheet) {
     return jsonOutput({ status: "error", message: "Sheet EXPENSES not found" });
@@ -2040,6 +2650,294 @@ function getTodayPaymentTotals(data) {
     visaTotal: totals.visaTotal
   };
 }
+
+function getBookingsSheet() {
+  const sheet = SpreadsheetApp.getActive().getSheetByName("Bookings");
+  if (!sheet) {
+    throw new Error("Sheet Bookings not found");
+  }
+  ensureBookingsColumns(sheet);
+  return sheet;
+}
+
+function ensureBookingsColumns(sheet) {
+  const headers = [
+    "ID",
+    "DATE",
+    "TIME",
+    "CUSTOMER",
+    "PHONE",
+    "EMPLOYEE",
+    "SERVICE",
+    "NOTE",
+    "STATUS",
+    "CREATED_AT",
+    "UPDATED_AT"
+  ];
+
+  const currentColumns = sheet.getMaxColumns();
+  if (currentColumns < headers.length) {
+    sheet.insertColumnsAfter(currentColumns, headers.length - currentColumns);
+  }
+
+  const currentHeaders = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
+  const hasHeaders = currentHeaders.some(value => String(value || "").trim());
+  if (!hasHeaders) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  }
+}
+
+function normalizeBookingStatus(value) {
+  const status = String(value || "pending").trim().toLowerCase();
+  const allowed = {
+    pending: true,
+    confirmed: true,
+    done: true,
+    cancelled: true
+  };
+
+  return allowed[status] ? status : "pending";
+}
+
+function bookingFromRow(row, rowNumber) {
+  const id = String(row[0] || "").trim() || `BOOK-${rowNumber}`;
+
+  return {
+    id,
+    bookingId: id,
+    rowNumber,
+    date: getDateKey(row[1], TIME_ZONE) || String(row[1] || "").trim(),
+    time: getBookingTimeValue(row[2]),
+    customerName: String(row[3] || "").trim(),
+    customerPhone: String(row[4] || "").trim(),
+    employee: String(row[5] || "").trim(),
+    service: String(row[6] || "").trim(),
+    note: String(row[7] || "").trim(),
+    status: normalizeBookingStatus(row[8]),
+    createdAt: getDisplayDateTime(row[9]),
+    updatedAt: getDisplayDateTime(row[10])
+  };
+}
+
+function getBookingTimeValue(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, TIME_ZONE, "HH:mm");
+  }
+
+  const text = normalizeDigits(String(value || "").trim());
+  const timeMatch = text.match(/(\d{1,2}):(\d{2})/);
+  if (timeMatch) {
+    return `${padDatePart(timeMatch[1])}:${timeMatch[2]}`;
+  }
+
+  return text;
+}
+
+function findBookingRow(sheet, data) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+
+  const targetRowNumber = Number(data.rowNumber || 0);
+  const targetId = String(data.id || data.bookingId || "").trim();
+
+  if (targetRowNumber >= 2 && targetRowNumber <= lastRow) {
+    const row = sheet.getRange(targetRowNumber, 1, 1, 11).getValues()[0];
+    const booking = bookingFromRow(row, targetRowNumber);
+    if (!targetId || booking.id === targetId || targetId === `BOOK-${targetRowNumber}`) {
+      return { rowNumber: targetRowNumber, row, booking };
+    }
+  }
+
+  if (!targetId) return null;
+
+  const rows = sheet.getRange(2, 1, lastRow - 1, 11).getValues();
+  for (let index = 0; index < rows.length; index++) {
+    const rowNumber = index + 2;
+    const booking = bookingFromRow(rows[index], rowNumber);
+    if (booking.id === targetId || targetId === `BOOK-${rowNumber}`) {
+      return { rowNumber, row: rows[index], booking };
+    }
+  }
+
+  return null;
+}
+
+function createBooking(data) {
+  try {
+    const permissionError = requirePermission(data, "view_bookings", "You do not have permission to create bookings.");
+    if (permissionError) return permissionError;
+
+    const sheet = getBookingsSheet();
+    const now = getCairoDateTime();
+    const id = String(data.id || data.bookingId || Utilities.getUuid()).trim();
+    const date = getDateKey(data.date || data.bookingDate || "", TIME_ZONE);
+    const time = String(data.time || data.bookingTime || "").trim();
+    const customerName = String(data.customerName || data.customer || "").trim();
+    const customerPhone = String(data.customerPhone || data.phone || "").trim();
+    const employee = String(data.employee || data.barber || "").trim();
+    const service = String(data.service || data.services || "").trim();
+    const note = String(data.note || "").trim();
+    const status = normalizeBookingStatus(data.status);
+
+    if (!date || !time || !customerName || !customerPhone || !employee || !service) {
+      return jsonOutput({ status: "error", message: "Missing required booking fields." });
+    }
+
+    sheet.appendRow([
+      id,
+      date,
+      time,
+      customerName,
+      customerPhone,
+      employee,
+      service,
+      note,
+      status,
+      now,
+      now
+    ]);
+
+    SpreadsheetApp.flush();
+    const rowNumber = sheet.getLastRow();
+    const booking = bookingFromRow(sheet.getRange(rowNumber, 1, 1, 11).getValues()[0], rowNumber);
+
+    logActivity(
+      data,
+      "create",
+      "booking",
+      id,
+      `Created booking | Customer: ${customerName} | Phone: ${customerPhone} | Date: ${date} ${time} | Employee: ${employee} | Service: ${service}`
+    );
+
+    return jsonOutput({ status: "success", booking });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
+}
+
+function getBookings(data) {
+  try {
+    const permissionError = requirePermission(data, "view_bookings", "You do not have permission to view bookings.");
+    if (permissionError) return permissionError;
+
+    const sheet = getBookingsSheet();
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return jsonOutput({ status: "success", bookings: [] });
+    }
+
+    const filters = data.filters || {};
+    const targetDate = getDateKey(filters.date || data.date || data.bookingDate || "", TIME_ZONE);
+    const fromDate = getDateKey(filters.fromDate || data.fromDate || "", TIME_ZONE);
+    const toDate = getDateKey(filters.toDate || data.toDate || "", TIME_ZONE);
+    const targetStatus = String(filters.status || data.status || "").trim().toLowerCase();
+    const search = String(filters.search || data.search || "").trim().toLowerCase();
+    const rows = sheet.getRange(2, 1, lastRow - 1, 11).getValues();
+
+    const bookings = rows
+      .map((row, index) => bookingFromRow(row, index + 2))
+      .filter(booking =>
+        booking.id ||
+        booking.date ||
+        booking.time ||
+        booking.customerName ||
+        booking.customerPhone ||
+        booking.employee ||
+        booking.service
+      )
+      .filter(booking => !targetDate || booking.date === targetDate)
+      .filter(booking => !fromDate || booking.date >= fromDate)
+      .filter(booking => !toDate || booking.date <= toDate)
+      .filter(booking => !targetStatus || booking.status === targetStatus)
+      .filter(booking => {
+        if (!search) return true;
+        const haystack = `${booking.customerName} ${booking.customerPhone} ${booking.employee} ${booking.service} ${booking.note}`.toLowerCase();
+        return haystack.indexOf(search) !== -1;
+      })
+      .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+
+    return jsonOutput({ status: "success", bookings });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
+}
+
+function updateBooking(data) {
+  try {
+    const permissionError = requirePermission(data, "view_bookings", "You do not have permission to edit bookings.");
+    if (permissionError) return permissionError;
+
+    const sheet = getBookingsSheet();
+    const found = findBookingRow(sheet, data);
+    if (!found) {
+      return jsonOutput({ status: "error", message: "Booking not found" });
+    }
+
+    const beforeUpdate = found.booking;
+    const now = getCairoDateTime();
+    const nextDate = getDateKey(data.date || data.bookingDate || beforeUpdate.date, TIME_ZONE);
+    const updatedRow = [
+      beforeUpdate.id,
+      nextDate,
+      String(data.time || data.bookingTime || beforeUpdate.time || "").trim(),
+      String(data.customerName || data.customer || beforeUpdate.customerName || "").trim(),
+      String(data.customerPhone || data.phone || beforeUpdate.customerPhone || "").trim(),
+      String(data.employee || data.barber || beforeUpdate.employee || "").trim(),
+      String(data.service || data.services || beforeUpdate.service || "").trim(),
+      String(data.note !== undefined ? data.note : beforeUpdate.note || "").trim(),
+      normalizeBookingStatus(data.status || beforeUpdate.status),
+      beforeUpdate.createdAt || getCairoDateTime(),
+      now
+    ];
+
+    if (!updatedRow[1] || !updatedRow[2] || !updatedRow[3] || !updatedRow[4] || !updatedRow[5] || !updatedRow[6]) {
+      return jsonOutput({ status: "error", message: "Missing required booking fields." });
+    }
+
+    sheet.getRange(found.rowNumber, 1, 1, 11).setValues([updatedRow]);
+    const booking = bookingFromRow(updatedRow, found.rowNumber);
+
+    logActivity(
+      data,
+      "update",
+      "booking",
+      beforeUpdate.id,
+      `Updated booking ${beforeUpdate.id} | Before: ${JSON.stringify(beforeUpdate)} | After: ${JSON.stringify(booking)}`
+    );
+
+    return jsonOutput({ status: "success", booking });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
+}
+
+function deleteBooking(data) {
+  try {
+    const permissionError = requirePermission(data, "view_bookings", "You do not have permission to delete bookings.");
+    if (permissionError) return permissionError;
+
+    const sheet = getBookingsSheet();
+    const found = findBookingRow(sheet, data);
+    if (!found) {
+      return jsonOutput({ status: "error", message: "Booking not found" });
+    }
+
+    sheet.deleteRow(found.rowNumber);
+
+    logActivity(
+      data,
+      "delete",
+      "booking",
+      found.booking.id,
+      `Deleted booking | Customer: ${found.booking.customerName || "-"} | Phone: ${found.booking.customerPhone || "-"} | Date: ${found.booking.date || "-"} ${found.booking.time || "-"} | Employee: ${found.booking.employee || "-"}`
+    );
+
+    return jsonOutput({ status: "success" });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
+}
+
 function getDateKey(value, timeZone) {
   if (value instanceof Date && !isNaN(value.getTime())) {
     return Utilities.formatDate(value, timeZone, "yyyy-MM-dd");

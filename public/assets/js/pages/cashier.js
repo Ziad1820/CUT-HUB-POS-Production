@@ -165,6 +165,7 @@
     const addServiceBtn = document.getElementById("addServiceBtn");
     const newServiceNameInput = document.getElementById("newServiceName");
     const newServicePriceInput = document.getElementById("newServicePrice");
+    const quickBookingLink = document.getElementById("quickBookingLink");
     const menuToggle = document.getElementById("menuToggle");
     const sidebar = document.getElementById("sidebar");
     const sidebarOverlay = document.getElementById("sidebarOverlay");
@@ -176,10 +177,13 @@
     let latestTodaySales = 0;
     let latestTodayTips = 0;
     let latestPaymentTotals = {};
+    let latestTodayExpenses = 0;
+    let latestTodayWithdrawals = 0;
+    let invoiceSubmitInProgress = false;
     const STAFF_STORAGE_KEY = "romeo-pos-staff-accounting-v2";
-    const WITHDRAWALS_STORAGE_KEY = "romeo-pos-withdrawals";
-    const EXPENSES_STORAGE_KEY = "romeo-pos-expenses";
     const LATEST_INVOICES_STORAGE_KEY = "romeo-pos-latest-invoices";
+    const INVOICE_SUBMIT_LOCK_KEY = "romeo-pos-invoice-submit-lock";
+    const INVOICE_SUBMIT_LOCK_TTL = 2 * 60 * 1000;
     const BARBER_NAMES_BY_CODE = {
       R01: "KAREEM",
       R02: "8AYTH",
@@ -271,6 +275,67 @@
       }
     }
 
+    function getInvoiceFingerprint(invoice) {
+      return JSON.stringify({
+        date: invoice.dateKey || invoice.reportDate || invoice.date || "",
+        customerName: normalizeServiceName(invoice.customerName || invoice.customer || "").toLowerCase(),
+        customerPhone: String(invoice.customerPhone || "").replace(/\D/g, ""),
+        services: normalizeServiceName(invoice.services || ""),
+        total: numberValue(invoice.total),
+        paidAmount: numberValue(invoice.paidAmount),
+        tipAmount: numberValue(invoice.tipAmount),
+        paymentMethod: normalizeServiceName(invoice.paymentMethod || invoice.payment || ""),
+        barber: normalizeServiceName(invoice.barber || ""),
+        offerType: normalizeServiceName(invoice.offerType || "")
+      });
+    }
+
+    function readInvoiceSubmitLock() {
+      try {
+        return JSON.parse(localStorage.getItem(INVOICE_SUBMIT_LOCK_KEY) || "null");
+      } catch (error) {
+        localStorage.removeItem(INVOICE_SUBMIT_LOCK_KEY);
+        return null;
+      }
+    }
+
+    function getActiveInvoiceSubmitLock(fingerprint) {
+      const lock = readInvoiceSubmitLock();
+      if (!lock || lock.fingerprint !== fingerprint) {
+        return null;
+      }
+
+      const lockAge = Date.now() - Number(lock.createdAt || 0);
+      if (lockAge > INVOICE_SUBMIT_LOCK_TTL) {
+        localStorage.removeItem(INVOICE_SUBMIT_LOCK_KEY);
+        return null;
+      }
+
+      return lock;
+    }
+
+    function createInvoiceSubmitLock(fingerprint) {
+      const lock = {
+        fingerprint,
+        requestId: `invoice-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        createdAt: Date.now()
+      };
+      localStorage.setItem(INVOICE_SUBMIT_LOCK_KEY, JSON.stringify(lock));
+      return lock;
+    }
+
+    function clearInvoiceSubmitLock(lock) {
+      const currentLock = readInvoiceSubmitLock();
+      if (!lock || !currentLock || currentLock.requestId === lock.requestId) {
+        localStorage.removeItem(INVOICE_SUBMIT_LOCK_KEY);
+      }
+    }
+
+    function shouldKeepInvoiceLock(error) {
+      const message = String(error?.message || error || "").toLowerCase();
+      return /network|fetch|internet|connection|offline|timeout|اتصال|إنترنت|انترنت/.test(message);
+    }
+
     function getInvoiceDateLabel(invoice) {
       const rawDate = invoice.dateKey || invoice.reportDate || invoice.date || invoice.createdAt || "";
       const text = String(rawDate || "").trim();
@@ -358,6 +423,10 @@
       return latestInvoices.find(invoice => String(invoice.invoiceId) === String(invoiceId));
     }
 
+    function canEditLatestInvoice(invoice) {
+      return Boolean(invoice && invoice.invoiceId && invoice.rowNumber);
+    }
+
     function getLatestInvoiceDateInput(invoice) {
       const match = String(invoice.dateKey || invoice.date || "").match(/(\d{4})-(\d{2})-(\d{2})/);
       return match ? match[0] : "";
@@ -426,9 +495,11 @@
         <div class="detail-item"><span>${tipLabel}</span><strong>${escapeHtml(formatCurrency(invoice.tipAmount || 0))}</strong></div>
         <div class="detail-item full"><span>${servicesLabel}</span><strong>${escapeHtml(invoice.services || "-")}</strong></div>
         <div class="detail-item full"><span>${noteLabel}</span><strong>${escapeHtml(invoice.note || "-")}</strong></div>
-        <div class="modal-actions full">
-          <button type="button" class="mini-btn dark" id="editLatestInvoiceBtn">${localizeText("تعديل", "Edit")}</button>
-        </div>
+        ${canEditLatestInvoice(invoice) ? `
+          <div class="modal-actions full">
+            <button type="button" class="mini-btn dark" id="editLatestInvoiceBtn">${localizeText("تعديل", "Edit")}</button>
+          </div>
+        ` : `<div class="modal-status error">${localizeText("لا يمكن تعديل فاتورة لم يتم تحميلها من الشيت.", "Invoices that were not loaded from the sheet cannot be edited.")}</div>`}
       `;
 
       fixArabicInNode(latestInvoiceDetails);
@@ -471,8 +542,8 @@
     async function saveLatestInvoiceEdit(button) {
       if (!activeLatestInvoice) return;
 
-      if (!activeLatestInvoice.invoiceId && !activeLatestInvoice.rowNumber) {
-        setLatestInvoiceModalStatus(localizeText("الفاتورة دي محتاجة تتحمل من الشيت الأول قبل التعديل.", "This invoice must be loaded from the sheet before editing."), "error");
+      if (!canEditLatestInvoice(activeLatestInvoice)) {
+        setLatestInvoiceModalStatus(localizeText("لا يمكن تعديل فاتورة لم يتم تحميلها من الشيت.", "Invoices that were not loaded from the sheet cannot be edited."), "error");
         return;
       }
 
@@ -637,12 +708,6 @@
       }
     }
 
-    function getStoredTotalForDate(key, dateKey) {
-      return getStoredList(key)
-        .filter(item => item && item.date === dateKey)
-        .reduce((sum, item) => sum + numberValue(item.amount), 0);
-    }
-
     function renderDailyNetRows(groups) {
       return groups.map(group => `
         <div class="daily-net-group">
@@ -657,9 +722,8 @@
     }
 
     function updateDailyNet(todaySales, todayTips = latestTodayTips) {
-      const dateKey = getReportDateKey();
-      const withdrawalsTotal = getStoredTotalForDate(WITHDRAWALS_STORAGE_KEY, dateKey);
-      const expensesTotal = getStoredTotalForDate(EXPENSES_STORAGE_KEY, dateKey);
+      const withdrawalsTotal = numberValue(latestTodayWithdrawals);
+      const expensesTotal = numberValue(latestTodayExpenses);
       const tipsTotal = numberValue(todayTips);
       const cashTotal = numberValue(latestPaymentTotals.cash);
       const instapayTotal = numberValue(latestPaymentTotals.instapay);
@@ -699,6 +763,29 @@
             { label: "الفيزا", value: formatCurrency(visaTotal) }
           ]
         ]);
+    }
+
+    async function fetchDailyNetTotals() {
+      try {
+        const data = await RomeoApi.request({
+          action: "getDailyClosingPreview",
+          date: getReportDateKey()
+        });
+
+        if (data.status !== "success") {
+          throw new Error(data.message || "Failed to load daily totals");
+        }
+
+        const preview = data.preview || {};
+        latestTodayExpenses = numberValue(preview.expensesTotal);
+        latestTodayWithdrawals = numberValue(preview.withdrawalsTotal);
+        updateDailyNet(latestTodaySales, latestTodayTips);
+      } catch (error) {
+        console.warn("Daily net sheet totals are not available yet.", error);
+        latestTodayExpenses = 0;
+        latestTodayWithdrawals = 0;
+        updateDailyNet(latestTodaySales, latestTodayTips);
+      }
     }
 
     function updatePaymentMethodTotals(totals = {}) {
@@ -744,20 +831,11 @@
           tipsTodayTotal.textContent = loadingText;
         }
 
-        const response = await fetch(API_URL, {
-          method: "POST",
-          body: JSON.stringify({
-            action: "todayPaymentTotals",
-            reportDate: getReportDateKey()
-          })
+        const data = await RomeoApi.request({
+          action: "todayPaymentTotals",
+          reportDate: getReportDateKey()
         });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText || `Failed to load payment totals (${response.status})`);
-        }
-
-        const data = await response.json();
         if (data.status !== "success") {
           throw new Error(data.message || "Failed to load payment totals");
         }
@@ -911,17 +989,7 @@
       customersLoading = true;
 
       try {
-        const response = await fetch(API_URL, {
-          method: "POST",
-          body: JSON.stringify({ action: "customerLookup" })
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText || `Ã˜Â®Ã˜Â·Ã˜Â£ Ã™ÂÃ™Å  Ã˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€žÃ˜Â§Ã˜Â¡ (${response.status})`);
-        }
-
-        const data = await response.json();
+        const data = await RomeoApi.request({ action: "customerLookup" });
         if (data.status !== "success") {
           throw new Error(data.message || "Ã˜ÂªÃ˜Â¹Ã˜Â°Ã˜Â± Ã˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€žÃ˜Â§Ã˜Â¡");
         }
@@ -948,20 +1016,11 @@
         if (todaySalesAmount) {
           todaySalesAmount.textContent = "Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž...";
         }
-        const response = await fetch(API_URL, {
-          method: "POST",
-          body: JSON.stringify({
-            action: "todaySales",
-            reportDate: getReportDateKey()
-          })
+        const data = await RomeoApi.request({
+          action: "todaySales",
+          reportDate: getReportDateKey()
         });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText || `Failed to load today's sales (${response.status})`);
-        }
-
-        const data = await response.json();
         if (data.status !== "success") {
           throw new Error(data.message || "Failed to load today's sales");
         }
@@ -971,7 +1030,7 @@
         if (todaySalesAmount) {
           todaySalesAmount.textContent = formatCurrency(latestTodaySales);
         }
-        updateDailyNet(latestTodaySales, latestTodayTips);
+        fetchDailyNetTotals();
         fetchTodayPaymentTotals();
       } catch (error) {
         console.error(error);
@@ -980,7 +1039,7 @@
         if (todaySalesAmount) {
           todaySalesAmount.textContent = formatCurrency(0);
         }
-        updateDailyNet(latestTodaySales, latestTodayTips);
+        fetchDailyNetTotals();
         updatePaymentMethodTotals();
       }
     }
@@ -1825,11 +1884,33 @@
         invoiceNote
       };
 
+      if (invoiceSubmitInProgress) {
+        showStatus(localizeText("جاري حفظ الفاتورة بالفعل. انتظر لحظات.", "Invoice is already being saved. Please wait."), "error");
+        return;
+      }
+
+      const invoiceFingerprint = getInvoiceFingerprint(invoiceData);
+      const activeLock = getActiveInvoiceSubmitLock(invoiceFingerprint);
+      if (activeLock) {
+        showStatus(localizeText(
+          "الفاتورة دي اتبعتت للحفظ بالفعل. راجع آخر الفواتير قبل إعادة المحاولة.",
+          "This invoice was already sent for saving. Check the latest invoices before trying again."
+        ), "error");
+        return;
+      }
+
+      const invoiceLock = createInvoiceSubmitLock(invoiceFingerprint);
+      invoiceSubmitInProgress = true;
+      invoiceData.clientRequestId = invoiceLock.requestId;
+      invoiceData.idempotencyKey = invoiceLock.requestId;
+      invoiceData.invoiceFingerprint = invoiceFingerprint;
+
       try {
         setLoadingState(true);
         const shouldPrint = window.confirm("Ù‡Ù„ ØªØ±ÙŠØ¯ Ø·Ø¨Ø§Ø¹Ø© Ø§Ù„ÙØ§ØªÙˆØ±Ø© Ø§Ù„Ø¢Ù†ØŸ");
 
         const saveResult = await saveInvoice(invoiceData);
+        clearInvoiceSubmitLock(invoiceLock);
         addLatestInvoice({
           ...invoiceData,
           ...(saveResult.invoice || saveResult.data || {}),
@@ -1858,8 +1939,12 @@
         fetchTodaySales();
         loadLatestInvoicesFromSheet();
       } catch (error) {
+        if (!shouldKeepInvoiceLock(error)) {
+          clearInvoiceSubmitLock(invoiceLock);
+        }
         showStatus(error.message || "Ã˜Â­Ã˜Â¯Ã˜Â« Ã˜Â®Ã˜Â·Ã˜Â£ Ã˜Â£Ã˜Â«Ã™â€ Ã˜Â§Ã˜Â¡ Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â§Ã˜ÂªÃ™Ë†Ã˜Â±Ã˜Â©.", "error");
       } finally {
+        invoiceSubmitInProgress = false;
         setLoadingState(false);
       }
     }
@@ -1884,9 +1969,6 @@
         renderBarberOptions();
       }
 
-      if (event.key === WITHDRAWALS_STORAGE_KEY || event.key === EXPENSES_STORAGE_KEY) {
-        updateDailyNet(latestTodaySales, latestTodayTips);
-      }
     });
     window.addEventListener("romeo-language-change", () => {
       renderBarberOptions();
@@ -1905,6 +1987,7 @@
     window.addEventListener("pageshow", () => {
       renderBarberOptions();
       loadBarbersFromSheet();
+      fetchTodaySales();
       updateOnlineControls();
     });
     reportDateInput.addEventListener("change", fetchTodaySales);
@@ -1922,6 +2005,11 @@
         window.location.href = link.dataset.href;
       });
     });
+    if (quickBookingLink) {
+      quickBookingLink.addEventListener("click", () => {
+        window.location.href = "bookings.html";
+      });
+    }
     completeSaleBtn.addEventListener("click", completeSale);
     printBtn.addEventListener("click", printCurrentInvoice);
     clearBtn.addEventListener("click", resetForm);

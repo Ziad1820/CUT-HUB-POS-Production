@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="../assets/css/shared.css">
+    <link rel="stylesheet" href="../assets/css/pages/bookings.css">
 <title>Bookings - SALONIX</title>
   <style>
     :root{--ink:#2a2118;--muted:#77695c;--accent-dark:#8c642e;--shadow:0 18px 40px rgba(76,54,28,.14)}*{box-sizing:border-box}
@@ -26,7 +27,7 @@
 <body>
   <div class="app">
     <div class="header">
-      <div class="header-menu"><button type="button" class="menu-toggle" id="menuToggle">Ã¢â€¹Â¯</button></div>
+      <div class="header-menu"><button type="button" class="menu-toggle" id="menuToggle">...</button></div>
       <div class="brand-lockup">
         <img class="brand-logo" src="../assets/images/salonix-logo.svg" alt="SALONIX logo">
         <h1 class="brand-name">SALONIX</h1>
@@ -37,6 +38,95 @@
       <h2>Bookings</h2>
       <p>Ã˜Â§Ã™â€žÃ˜ÂµÃ™ÂÃ˜Â­Ã˜Â© Ã˜Â¬Ã˜Â§Ã™â€¡Ã˜Â²Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â¢Ã™â€ Ã˜Å’ Ã™Ë†Ã™â€ Ã™â€šÃ˜Â¯Ã˜Â± Ã™â€žÃ˜Â§Ã˜Â­Ã™â€šÃ™â€¹Ã˜Â§ Ã™â€ Ã˜Â¶Ã™Å Ã™Â Ã™ÂÃ™Å Ã™â€¡Ã˜Â§ Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¬Ã™Ë†Ã˜Â²Ã˜Â§Ã˜Âª.</p>
     </section>
+
+    <main class="bookings-layout" aria-label="Bookings workspace">
+      <section class="booking-panel booking-form-panel">
+        <div class="section-heading">
+          <h2 data-i18n-ar="حجز جديد" data-i18n-en="New Booking">حجز جديد</h2>
+          <p data-i18n-ar="سجل بيانات العميل وحدد الموعد والموظف والخدمة المطلوبة." data-i18n-en="Add customer details, appointment time, employee, and requested service.">سجل بيانات العميل وحدد الموعد والموظف والخدمة المطلوبة.</p>
+        </div>
+
+        <form id="bookingForm" class="booking-form">
+          <label>
+            <span data-i18n-ar="اسم العميل" data-i18n-en="Customer Name">اسم العميل</span>
+            <input id="customerName" type="text" autocomplete="name" placeholder="مثال: أحمد محمد" data-i18n-placeholder-ar="مثال: أحمد محمد" data-i18n-placeholder-en="Example: Ahmed Mohamed" required>
+          </label>
+          <label>
+            <span data-i18n-ar="رقم الهاتف" data-i18n-en="Phone Number">رقم الهاتف</span>
+            <input id="customerPhone" type="tel" autocomplete="tel" placeholder="01xxxxxxxxx" data-i18n-placeholder-ar="01xxxxxxxxx" data-i18n-placeholder-en="01xxxxxxxxx" required>
+          </label>
+          <label>
+            <span data-i18n-ar="تاريخ الحجز" data-i18n-en="Booking Date">تاريخ الحجز</span>
+            <input id="bookingDate" type="date" required>
+          </label>
+          <label>
+            <span data-i18n-ar="وقت الحجز" data-i18n-en="Booking Time">وقت الحجز</span>
+            <input id="bookingTime" type="time" required>
+          </label>
+          <label>
+            <span data-i18n-ar="الموظف" data-i18n-en="Employee">الموظف</span>
+            <select id="bookingEmployee" required></select>
+          </label>
+          <label>
+            <span data-i18n-ar="الخدمة" data-i18n-en="Service">الخدمة</span>
+            <input id="bookingService" type="text" placeholder="مثال: شعر، دقن" data-i18n-placeholder-ar="مثال: شعر، دقن" data-i18n-placeholder-en="Example: Haircut, Beard" required>
+          </label>
+          <label class="full">
+            <span data-i18n-ar="ملاحظة" data-i18n-en="Note">ملاحظة</span>
+            <textarea id="bookingNote" rows="3" placeholder="اكتب أي تفاصيل مهمة للحجز" data-i18n-placeholder-ar="اكتب أي تفاصيل مهمة للحجز" data-i18n-placeholder-en="Write any important booking details"></textarea>
+          </label>
+          <div class="form-actions full">
+            <button class="primary-btn" id="saveBookingBtn" type="submit" data-i18n-ar="حفظ الحجز" data-i18n-en="Save Booking">حفظ الحجز</button>
+            <button class="soft-btn" id="clearBookingBtn" type="button" data-i18n-ar="مسح البيانات" data-i18n-en="Clear Form">مسح البيانات</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="booking-panel booking-board-panel">
+        <div class="section-heading">
+          <h2 data-i18n-ar="الحجوزات" data-i18n-en="Bookings">الحجوزات</h2>
+          <p data-i18n-ar="تابع حجوزات اليوم، أكد الموعد، أو أغلق الحجز بعد حضوره." data-i18n-en="Track today bookings, confirm appointments, or mark them as completed.">تابع حجوزات اليوم، أكد الموعد، أو أغلق الحجز بعد حضوره.</p>
+        </div>
+
+        <div class="booking-stats">
+          <div class="booking-stat">
+            <span data-i18n-ar="حجوزات التاريخ" data-i18n-en="Date Bookings">حجوزات التاريخ</span>
+            <strong id="todayBookingsCount">0</strong>
+          </div>
+          <div class="booking-stat">
+            <span data-i18n-ar="مؤكد" data-i18n-en="Confirmed">مؤكد</span>
+            <strong id="confirmedBookingsCount">0</strong>
+          </div>
+          <div class="booking-stat">
+            <span data-i18n-ar="بانتظار التأكيد" data-i18n-en="Pending">بانتظار التأكيد</span>
+            <strong id="pendingBookingsCount">0</strong>
+          </div>
+        </div>
+
+        <div class="booking-filters">
+          <label>
+            <span data-i18n-ar="التاريخ" data-i18n-en="Date">التاريخ</span>
+            <input id="filterDate" type="date">
+          </label>
+          <label>
+            <span data-i18n-ar="الحالة" data-i18n-en="Status">الحالة</span>
+            <select id="statusFilter">
+              <option value="" data-i18n-ar="كل الحالات" data-i18n-en="All Statuses">كل الحالات</option>
+              <option value="pending" data-i18n-ar="بانتظار التأكيد" data-i18n-en="Pending">بانتظار التأكيد</option>
+              <option value="confirmed" data-i18n-ar="مؤكد" data-i18n-en="Confirmed">مؤكد</option>
+              <option value="done" data-i18n-ar="تم الحضور" data-i18n-en="Completed">تم الحضور</option>
+              <option value="cancelled" data-i18n-ar="ملغي" data-i18n-en="Cancelled">ملغي</option>
+            </select>
+          </label>
+          <label class="search-label">
+            <span data-i18n-ar="بحث" data-i18n-en="Search">بحث</span>
+            <input id="bookingSearch" type="search" placeholder="ابحث بالاسم أو الهاتف أو الخدمة" data-i18n-placeholder-ar="ابحث بالاسم أو الهاتف أو الخدمة" data-i18n-placeholder-en="Search name, phone, or service">
+          </label>
+        </div>
+
+        <div class="bookings-list" id="bookingsList"></div>
+      </section>
+    </main>
   </div>
 
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -75,6 +165,7 @@
   </script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>
+  <script src="../assets/js/pages/bookings.js"></script>
 </body>
 </html>
 

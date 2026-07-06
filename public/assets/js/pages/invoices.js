@@ -422,6 +422,10 @@
       return invoices.find(item => String(item.invoiceId) === String(invoiceId));
     }
 
+    function canEditInvoice(invoice) {
+      return Boolean(invoice && invoice.invoiceId && invoice.rowNumber);
+    }
+
     function getPaymentOptions(selectedValue) {
       const payments = [
         ["نقدي", "نقدي"],
@@ -486,9 +490,11 @@
         <div class="detail-item full"><span>${servicesLabel}</span><strong>${escapeHtml(formatServices(invoice.services || "-"))}</strong></div>
         <div class="detail-item full"><span>${noteLabel}</span><strong>${escapeHtml(invoice.note || invoice.invoiceNote || "-")}</strong></div>
         <div class="detail-item full"><span>PDF</span><strong>${invoice.pdfUrl ? `<a href="${escapeHtml(invoice.pdfUrl)}" target="_blank" rel="noopener">${localizeText("فتح الفاتورة", "Open Invoice")}</a>` : "-"}</strong></div>
-        <div class="modal-actions full">
-          <button type="button" class="mini-btn dark" id="editInvoiceBtn">${localizeText("تعديل", "Edit")}</button>
-        </div>
+        ${canEditInvoice(invoice) ? `
+          <div class="modal-actions full">
+            <button type="button" class="mini-btn dark" id="editInvoiceBtn">${localizeText("تعديل", "Edit")}</button>
+          </div>
+        ` : `<div class="modal-status error">${localizeText("لا يمكن تعديل فاتورة لم يتم تحميلها من الشيت.", "Invoices that were not loaded from the sheet cannot be edited.")}</div>`}
       `;
     }
 
@@ -531,6 +537,11 @@
 
     async function saveInvoiceEdit(button) {
       if (!activeInvoice) return;
+
+      if (!canEditInvoice(activeInvoice)) {
+        setModalStatus(localizeText("لا يمكن تعديل فاتورة لم يتم تحميلها من الشيت.", "Invoices that were not loaded from the sheet cannot be edited."), "error");
+        return;
+      }
 
       const payload = getUpdateInvoicePayload(activeInvoice);
       if (!payload.date) {

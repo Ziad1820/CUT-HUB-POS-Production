@@ -1,4 +1,3 @@
-    const EXPENSES_KEY = "romeo-pos-expenses";
     const EXPENSE_CATEGORIES = [
       { id: "supplies", name: "Supplies", arName: "مستلزمات", code: "SUP" },
       { id: "utilities", name: "Utilities", arName: "مرافق", code: "UTL" },
@@ -35,7 +34,7 @@
     const saveBtn = document.getElementById("saveBtn");
     const clearBtn = document.getElementById("clearBtn");
 
-    let expenseList = getExpenses();
+    let expenseList = [];
     let selectedCategoryId = EXPENSE_CATEGORIES[0]?.id || null;
 
     populateCategorySelect();
@@ -86,40 +85,58 @@
       clearBtn.textContent = localizeText("مسح النموذج", "Clear Form");
     }
 
-    function getExpenses() {
-      try {
-        const parsed = JSON.parse(localStorage.getItem(EXPENSES_KEY) || "[]");
-        return Array.isArray(parsed) ? parsed : [];
-      } catch (error) {
-        return [];
-      }
+    function getExpenseCategoryId(value) {
+      const normalized = String(value || "").trim().toLowerCase();
+      const category = EXPENSE_CATEGORIES.find(item =>
+        item.id.toLowerCase() === normalized ||
+        item.name.toLowerCase() === normalized ||
+        String(item.arName || "").toLowerCase() === normalized ||
+        item.code.toLowerCase() === normalized
+      );
+      return category ? category.id : (EXPENSE_CATEGORIES[0]?.id || "other");
     }
 
-    function saveExpenses() {
-      localStorage.setItem(EXPENSES_KEY, JSON.stringify(expenseList));
+    function normalizeExpenseFromSheet(expense) {
+      return {
+        id: String(expense.expenseId || expense.id || expense.rowNumber || Date.now()),
+        rowNumber: expense.rowNumber || "",
+        categoryId: expense.categoryId || getExpenseCategoryId(expense.category),
+        amount: normalizeAmount(expense.amount),
+        date: expense.date || new Date().toISOString().slice(0, 10),
+        title: String(expense.title || "").trim(),
+        note: String(expense.note || "").trim()
+      };
+    }
+
+    async function loadExpensesFromSheet() {
+      try {
+        const data = await RomeoApi.request({ action: "getExpenses" });
+        if (data.status !== "success") {
+          throw new Error(data.message || "Failed to load expenses");
+        }
+
+        expenseList = Array.isArray(data.expenses)
+          ? data.expenses.map(normalizeExpenseFromSheet)
+          : [];
+        renderAll();
+      } catch (error) {
+        console.error(error);
+        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("تعذر تحميل المصروفات من الشيت.", "Could not load expenses from the sheet.")}</div>`;
+      }
     }
 
     async function saveExpenseToSheet(expense) {
       const category = EXPENSE_CATEGORIES.find(item => item.id === expense.categoryId);
-      const response = await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify({
-          action: "expense",
-          expenseId: expense.id,
-          category: category ? category.name : expense.categoryId,
-          amount: expense.amount,
-          title: expense.title,
-          note: expense.note,
-          date: expense.date
-        })
+      const data = await RomeoApi.request({
+        action: "expense",
+        expenseId: expense.id,
+        category: category ? category.name : expense.categoryId,
+        amount: expense.amount,
+        title: expense.title,
+        note: expense.note,
+        date: expense.date
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || `Failed to save expense (${response.status})`);
-      }
-
-      const data = await response.json();
       if (data.status !== "success") {
         throw new Error(data.message || "Failed to save expense");
       }
@@ -127,25 +144,16 @@
 
     async function deleteExpenseFromSheet(expense) {
       const category = EXPENSE_CATEGORIES.find(item => item.id === expense.categoryId);
-      const response = await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify({
-          action: "deleteExpense",
-          expenseId: expense.id,
-          category: category ? category.name : expense.categoryId,
-          amount: expense.amount,
-          title: expense.title,
-          note: expense.note,
-          date: expense.date
-        })
+      const data = await RomeoApi.request({
+        action: "deleteExpense",
+        expenseId: expense.id,
+        category: category ? category.name : expense.categoryId,
+        amount: expense.amount,
+        title: expense.title,
+        note: expense.note,
+        date: expense.date
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || `Failed to delete expense (${response.status})`);
-      }
-
-      const data = await response.json();
       if (data.status !== "success") {
         throw new Error(data.message || "Failed to delete expense");
       }
@@ -428,11 +436,9 @@
 
       try {
         await saveExpenseToSheet(expense);
-        expenseList.unshift(expense);
         selectedCategoryId = categoryId;
-        saveExpenses();
         clearForm();
-        renderAll();
+        await loadExpensesFromSheet();
       } catch (error) {
         console.error(error);
         alert(error.message || localizeText("تعذر حفظ المصروف في الشيت.", "Could not save the expense to the sheet."));
@@ -443,16 +449,14 @@
     }
 
     async function deleteExpense(id) {
-      const expense = expenseList.find(item => item.id === id);
+      const expense = expenseList.find(item => String(item.id) === String(id));
       if (!expense) {
         return;
       }
 
       try {
         await deleteExpenseFromSheet(expense);
-        expenseList = expenseList.filter(item => item.id !== id);
-        saveExpenses();
-        renderAll();
+        await loadExpensesFromSheet();
       } catch (error) {
         console.error(error);
         alert(error.message || localizeText("تعذر حذف المصروف من الشيت.", "Could not delete the expense from the sheet."));
@@ -488,11 +492,9 @@
 
       try {
         await saveExpenseToSheet(expense);
-        expenseList.unshift(expense);
         selectedCategoryId = categoryId;
-        saveExpenses();
         clearForm();
-        renderAll();
+        await loadExpensesFromSheet();
       } catch (error) {
         console.error(error);
         alert(error.message || localizeText("تعذر حفظ المصروف في الشيت.", "Could not save the expense to the sheet."));
@@ -503,14 +505,12 @@
     }
 
     async function deleteExpenseLocalized(id) {
-      const expense = expenseList.find(item => item.id === id);
+      const expense = expenseList.find(item => String(item.id) === String(id));
       if (!expense) return;
 
       try {
         await deleteExpenseFromSheet(expense);
-        expenseList = expenseList.filter(item => item.id !== id);
-        saveExpenses();
-        renderAll();
+        await loadExpensesFromSheet();
       } catch (error) {
         console.error(error);
         alert(error.message || localizeText("تعذر حذف المصروف من الشيت.", "Could not delete the expense from the sheet."));
@@ -557,7 +557,7 @@
       if (!confirm(localizeText("تحذف المصروف ده؟", "Delete this expense?"))) return;
       btn.disabled = true;
       btn.textContent = localizeText("جاري الحذف...", "Deleting...");
-      await deleteExpenseLocalized(Number(btn.dataset.deleteId));
+      await deleteExpenseLocalized(btn.dataset.deleteId);
     }, true);
     elements.historyList.addEventListener("click", async event => {
       const btn = event.target.closest("[data-delete-id]");
@@ -565,7 +565,7 @@
       if (!confirm(localizeText("تحذف المصروف ده؟", "Delete this expense?"))) return;
       btn.disabled = true;
       btn.textContent = localizeText("جاري الحذف...", "Deleting...");
-      await deleteExpenseLocalized(Number(btn.dataset.deleteId));
+      await deleteExpenseLocalized(btn.dataset.deleteId);
     });
     menuToggle.addEventListener("click", openSidebar);
     sidebarOverlay.addEventListener("click", closeSidebar);
@@ -574,4 +574,5 @@
 
     clearForm();
     renderAll();
+    loadExpensesFromSheet();
 

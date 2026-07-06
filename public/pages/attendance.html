@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="../assets/css/shared.css">
+    <link rel="stylesheet" href="../assets/css/pages/attendance.css">
 <title>Attendance - SALONIX</title>
   <style>
     :root{--ink:#2a2118;--muted:#77695c;--accent-dark:#8c642e;--shadow:0 18px 40px rgba(76,54,28,.14)}*{box-sizing:border-box}
@@ -37,6 +38,48 @@
       <h2>Attendance</h2>
       <p>Ã˜Â§Ã™â€žÃ˜ÂµÃ™ÂÃ˜Â­Ã˜Â© Ã˜Â¬Ã˜Â§Ã™â€¡Ã˜Â²Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â¢Ã™â€ Ã˜Å’ Ã™Ë†Ã™â€ Ã™â€šÃ˜Â¯Ã˜Â± Ã™â€žÃ˜Â§Ã˜Â­Ã™â€šÃ™â€¹Ã˜Â§ Ã™â€ Ã˜Â¶Ã™Å Ã™Â Ã™ÂÃ™Å Ã™â€¡Ã˜Â§ Ã˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã™Ë†Ã˜Â§Ã™â€ Ã˜ÂµÃ˜Â±Ã˜Â§Ã™Â Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â¸Ã™ÂÃ™Å Ã™â€ .</p>
     </section>
+    <main class="attendance-layout">
+      <section class="panel form-panel">
+        <div class="section-heading">
+          <h2 data-i18n-ar="تسجيل حضور" data-i18n-en="Attendance Entry">تسجيل حضور</h2>
+          <p data-i18n-ar="الخصم يظهر كمقترح فقط، ولا يسمع في حساب الموظف إلا بعد الاعتماد." data-i18n-en="Deductions stay pending until approved, then they affect staff accounting.">الخصم يظهر كمقترح فقط، ولا يسمع في حساب الموظف إلا بعد الاعتماد.</p>
+        </div>
+        <form id="attendanceForm" class="attendance-form">
+          <label><span data-i18n-ar="الموظف" data-i18n-en="Employee">الموظف</span><select id="staffSelect" required></select></label>
+          <label><span data-i18n-ar="التاريخ" data-i18n-en="Date">التاريخ</span><input id="attendanceDate" type="date" required></label>
+          <label><span data-i18n-ar="نوع السجل" data-i18n-en="Record Type">نوع السجل</span><select id="recordType"><option value="work" data-i18n-ar="حضور يوم" data-i18n-en="Work Day">حضور يوم</option><option value="absent" data-i18n-ar="غياب" data-i18n-en="Absence">غياب</option><option value="penalty" data-i18n-ar="عقوبة فقط" data-i18n-en="Penalty Only">عقوبة فقط</option></select></label>
+          <label class="work-field"><span data-i18n-ar="بداية الشيفت" data-i18n-en="Shift Start">بداية الشيفت</span><input id="shiftStart" type="time" value="10:00"></label>
+          <label class="work-field"><span data-i18n-ar="حضور" data-i18n-en="Check In">حضور</span><input id="checkIn" type="time"></label>
+          <label class="work-field"><span data-i18n-ar="خروج بريك" data-i18n-en="Break Out">خروج بريك</span><input id="breakOut" type="time"></label>
+          <label class="work-field"><span data-i18n-ar="رجوع بريك" data-i18n-en="Break In">رجوع بريك</span><input id="breakIn" type="time"></label>
+          <label class="work-field"><span data-i18n-ar="انصراف" data-i18n-en="Check Out">انصراف</span><input id="checkOut" type="time"></label>
+          <label><span data-i18n-ar="مبلغ العقوبة" data-i18n-en="Penalty Amount">مبلغ العقوبة</span><input id="penaltyAmount" type="number" min="0" step="1" value="0"></label>
+          <label><span data-i18n-ar="سبب العقوبة" data-i18n-en="Penalty Reason">سبب العقوبة</span><input id="penaltyReason" type="text" placeholder="مثال: تأخير متكرر" data-i18n-placeholder-ar="مثال: تأخير متكرر" data-i18n-placeholder-en="Example: repeated lateness"></label>
+          <label class="full"><span data-i18n-ar="ملاحظة" data-i18n-en="Note">ملاحظة</span><textarea id="attendanceNote" rows="3" placeholder="اكتب أي ملاحظات مهمة" data-i18n-placeholder-ar="اكتب أي ملاحظات مهمة" data-i18n-placeholder-en="Write any important notes"></textarea></label>
+          <div class="preview-card full"><div><span data-i18n-ar="ساعات العمل" data-i18n-en="Work Hours">ساعات العمل</span><strong id="previewWorkHours">0</strong></div><div><span data-i18n-ar="البريك" data-i18n-en="Break">البريك</span><strong id="previewBreakHours">0</strong></div><div><span data-i18n-ar="الخصم المقترح" data-i18n-en="Suggested Deduction">الخصم المقترح</span><strong id="previewDeduction">0 EGP</strong></div></div>
+          <div class="form-actions full"><button class="primary-btn" id="saveAttendanceBtn" type="submit" data-i18n-ar="حفظ السجل" data-i18n-en="Save Record">حفظ السجل</button><button class="soft-btn" id="clearAttendanceBtn" type="button" data-i18n-ar="مسح البيانات" data-i18n-en="Clear Form">مسح البيانات</button></div>
+        </form>
+      </section>
+
+      <section class="panel records-panel">
+        <div class="section-heading">
+          <h2 data-i18n-ar="سجلات الحضور" data-i18n-en="Attendance Records">سجلات الحضور</h2>
+          <p data-i18n-ar="راجع السجلات واعتمد الخصم الصحيح قبل إضافته لحساب الموظف." data-i18n-en="Review records and approve deductions before they affect payroll.">راجع السجلات واعتمد الخصم الصحيح قبل إضافته لحساب الموظف.</p>
+        </div>
+        <div class="attendance-stats">
+          <div class="stat-card"><span data-i18n-ar="سجلات الشهر" data-i18n-en="Month Records">سجلات الشهر</span><strong id="recordsCount">0</strong></div>
+          <div class="stat-card"><span data-i18n-ar="غياب" data-i18n-en="Absences">غياب</span><strong id="absenceCount">0</strong></div>
+          <div class="stat-card"><span data-i18n-ar="خصم معتمد" data-i18n-en="Approved Deduction">خصم معتمد</span><strong id="approvedTotal">0 EGP</strong></div>
+          <div class="stat-card"><span data-i18n-ar="بانتظار الاعتماد" data-i18n-en="Pending">بانتظار الاعتماد</span><strong id="pendingTotal">0 EGP</strong></div>
+        </div>
+        <div class="records-toolbar">
+          <label><span data-i18n-ar="من تاريخ" data-i18n-en="From Date">من تاريخ</span><input id="fromDate" type="date"></label>
+          <label><span data-i18n-ar="إلى تاريخ" data-i18n-en="To Date">إلى تاريخ</span><input id="toDate" type="date"></label>
+          <button class="primary-btn" id="refreshAttendanceBtn" type="button" data-i18n-ar="تحديث" data-i18n-en="Refresh">تحديث</button>
+        </div>
+        <div class="records-list" id="recordsList"></div>
+      </section>
+    </main>
   </div>
 
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -75,6 +118,7 @@
   </script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>
+  <script src="../assets/js/pages/attendance.js"></script>
 </body>
 </html>
 
