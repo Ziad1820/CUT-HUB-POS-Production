@@ -30,6 +30,7 @@ function doPost(e) {
 
   if (data.action === "createAttendanceRecord") return createAttendanceRecord(data);
   if (data.action === "getAttendanceRecords") return getAttendanceRecords(data);
+  if (data.action === "updateAttendanceStep") return updateAttendanceStep(data);
   if (data.action === "approveAttendanceDeduction") return approveAttendanceDeduction(data);
   if (data.action === "deleteAttendanceRecord") return deleteAttendanceRecord(data);
 
@@ -872,7 +873,7 @@ function calculateAttendanceValues(data) {
   const dailyRate = salary > 0 ? salary / 26 : 0;
   const hourlyRate = dailyRate > 0 ? dailyRate / 8 : 0;
   const penaltyAmount = parseSheetAmount(data.penaltyAmount);
-  const shiftStart = String(data.shiftStart || "10:00").trim();
+  const shiftStart = String(data.shiftStart || "12:00").trim();
   const checkIn = String(data.checkIn || "").trim();
   const checkOut = String(data.checkOut || "").trim();
   const breakOut = String(data.breakOut || "").trim();
@@ -899,6 +900,17 @@ function calculateAttendanceValues(data) {
       shortHours: 0,
       absenceDays: 0,
       suggestedDeduction: roundHours(penaltyAmount)
+    };
+  }
+
+  if (!checkOut) {
+    return {
+      workHours: 0,
+      breakHours: 0,
+      lateHours: 0,
+      shortHours: 0,
+      absenceDays: 0,
+      suggestedDeduction: 0
     };
   }
 
@@ -964,6 +976,11 @@ function createAttendanceRecord(data) {
       return jsonOutput({ status: "error", message: "Staff name is required." });
     }
 
+    const existingOpenRecord = findOpenAttendanceRecord(sheet, staffName, dateKey);
+    if (String(data.recordType || "work").trim() === "work" && existingOpenRecord) {
+      return jsonOutput({ status: "error", message: "This staff member already has an open attendance record today." });
+    }
+
     const values = calculateAttendanceValues({ ...data, dateKey });
     const id = String(data.id || `ATT-${Utilities.getUuid()}`).trim();
     const row = [
@@ -972,7 +989,7 @@ function createAttendanceRecord(data) {
       String(data.staffId || "").trim(),
       staffName,
       String(data.recordType || "work").trim(),
-      String(data.shiftStart || "10:00").trim(),
+      String(data.shiftStart || "12:00").trim(),
       String(data.checkIn || "").trim(),
       String(data.breakOut || "").trim(),
       String(data.breakIn || "").trim(),
@@ -986,7 +1003,7 @@ function createAttendanceRecord(data) {
       String(data.penaltyReason || "").trim(),
       values.suggestedDeduction,
       0,
-      "pending",
+      String(data.recordType || "work").trim() === "work" && !String(data.checkOut || "").trim() ? "open" : "pending",
       "",
       String(data.note || "").trim(),
       now,
@@ -997,6 +1014,95 @@ function createAttendanceRecord(data) {
     logActivity(data, "create", "attendance", id, `Created attendance record for ${staffName} on ${dateKey}. Suggested deduction: ${values.suggestedDeduction}`);
 
     return jsonOutput({ status: "success", record: attendanceRecordFromRow(row, sheet.getLastRow()) });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
+}
+
+function findOpenAttendanceRecord(sheet, staffName, dateKey) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+
+  const staffKey = normalizeLookupKey(staffName);
+  const rows = sheet.getRange(2, 1, lastRow - 1, ATTENDANCE_HEADERS.length).getValues();
+
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    const record = attendanceRecordFromRow(rows[index], index + 2);
+    if (
+      record.date === dateKey &&
+      normalizeLookupKey(record.staffName) === staffKey &&
+      record.recordType === "work" &&
+      !record.checkOut &&
+      record.approvalStatus !== "approved"
+    ) {
+      return record;
+    }
+  }
+
+  return null;
+}
+
+function updateAttendanceStep(data) {
+  try {
+    const permissionError = requirePermission(data, "view_attendance", "You do not have permission to update attendance.");
+    if (permissionError) return permissionError;
+
+    const sheet = getAttendanceSheet();
+    const rowNumber = Number(data.rowNumber);
+    if (!rowNumber || rowNumber < 2 || rowNumber > sheet.getLastRow()) {
+      return jsonOutput({ status: "error", message: "Attendance record was not found." });
+    }
+
+    const step = String(data.step || "").trim();
+    const timeValue = String(data.time || "").trim();
+    const stepColumns = {
+      checkIn: 7,
+      breakOut: 8,
+      breakIn: 9,
+      checkOut: 10
+    };
+
+    if (!stepColumns[step] || !timeValue) {
+      return jsonOutput({ status: "error", message: "Invalid attendance step." });
+    }
+
+    const row = sheet.getRange(rowNumber, 1, 1, ATTENDANCE_HEADERS.length).getValues()[0];
+    const record = attendanceRecordFromRow(row, rowNumber);
+
+    if (record.approvalStatus === "approved") {
+      return jsonOutput({ status: "error", message: "Approved attendance records cannot be edited." });
+    }
+
+    const updatedRecord = {
+      ...record,
+      [step]: timeValue,
+      salary: data.salary
+    };
+    const values = calculateAttendanceValues(updatedRecord);
+    const status = step === "checkOut" ? "pending" : "open";
+    const now = getCairoDateTime();
+
+    sheet.getRange(rowNumber, stepColumns[step]).setValue(timeValue);
+    sheet.getRange(rowNumber, 11, 1, 10).setValues([[
+      values.workHours,
+      values.breakHours,
+      values.lateHours,
+      values.shortHours,
+      values.absenceDays,
+      record.penaltyAmount,
+      record.penaltyReason,
+      values.suggestedDeduction,
+      0,
+      status
+    ]]);
+    sheet.getRange(rowNumber, 24).setValue(now);
+
+    logActivity(data, "update", "attendance", record.id, `Updated attendance ${step} for ${record.staffName} on ${record.date}.`);
+
+    return jsonOutput({
+      status: "success",
+      record: attendanceRecordFromRow(sheet.getRange(rowNumber, 1, 1, ATTENDANCE_HEADERS.length).getValues()[0], rowNumber)
+    });
   } catch (error) {
     return jsonOutput({ status: "error", message: error.message });
   }

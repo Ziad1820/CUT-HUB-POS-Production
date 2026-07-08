@@ -1,4 +1,14 @@
 (function () {
+  const STAFF_STORAGE_KEY = "romeo-pos-staff-accounting-v2";
+  const DEFAULT_ATTENDANCE_STAFF = [
+    { id: 1, name: "Ramdan", code: "R07", salary: 0 },
+    { id: 2, name: "Khaled", code: "R08", salary: 2500 },
+    { id: 3, name: "Mohamed Emmad", code: "R09", salary: 2500 },
+    { id: 4, name: "Karem", code: "R01", salary: 5500 },
+    { id: 5, name: "Eleby", code: "R03", salary: 3300 },
+    { id: 6, name: "8atyh", code: "R02", salary: 3300 }
+  ];
+
   const state = {
     staff: [],
     records: []
@@ -50,6 +60,11 @@
     return `${year}-${month}-${day}`;
   }
 
+  function currentTimeKey() {
+    const date = new Date();
+    return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  }
+
   function monthStartKey() {
     const date = new Date();
     const year = date.getFullYear();
@@ -92,6 +107,31 @@
     return state.staff.find(staff => String(staff.id) === elements.staffSelect.value) || null;
   }
 
+  function normalizeStaffRecord(staff, index = 0) {
+    const name = String(staff.name || staff.staffName || "").trim();
+    return {
+      id: staff.id || staff.staffId || `staff-${index}`,
+      name,
+      code: String(staff.code || staff.staffCode || "").trim().toUpperCase(),
+      salary: numberValue(staff.salary || staff.salaries),
+      isBarber: staff.isBarber !== false
+    };
+  }
+
+  function getStoredStaffFallback() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || "[]");
+      const storedStaff = Array.isArray(parsed)
+        ? parsed.map(normalizeStaffRecord).filter(staff => staff.name)
+        : [];
+      return storedStaff.length
+        ? storedStaff
+        : DEFAULT_ATTENDANCE_STAFF.map(normalizeStaffRecord);
+    } catch (error) {
+      return DEFAULT_ATTENDANCE_STAFF.map(normalizeStaffRecord);
+    }
+  }
+
   function calculatePreview() {
     const staff = selectedStaff();
     const salary = numberValue(staff?.salary);
@@ -114,10 +154,14 @@
       return { workHours: 0, breakHours: 0, deduction: round(penalty) };
     }
 
+    if (!elements.checkOut.value) {
+      return { workHours: 0, breakHours: 0, deduction: 0 };
+    }
+
     const presenceHours = hoursBetween(elements.checkIn.value, elements.checkOut.value);
     const breakHours = hoursBetween(elements.breakOut.value, elements.breakIn.value);
     const workHours = Math.max(0, presenceHours - breakHours);
-    const lateHours = Math.max(0, hoursBetween(elements.shiftStart.value || "10:00", elements.checkIn.value));
+    const lateHours = Math.max(0, hoursBetween(elements.shiftStart.value || "12:00", elements.checkIn.value));
     const shortHours = Math.max(0, 8 - workHours);
     const missingHours = Math.max(lateHours, shortHours);
     return {
@@ -163,6 +207,45 @@
     fillStaffSelect();
   }
 
+  function fillStaffSelectSafe() {
+    const placeholder = text("اختر الموظف", "Choose employee");
+    elements.staffSelect.innerHTML = `<option value="">${placeholder}</option>${
+      state.staff.map(staff => `<option value="${staff.id}">${staff.name}</option>`).join("")
+    }`;
+  }
+
+  async function loadStaffSafe() {
+    state.staff = getStoredStaffFallback();
+    fillStaffSelectSafe();
+
+    try {
+      const data = await RomeoApi.request({ action: "getStaff" });
+      if (data.status === "success" && Array.isArray(data.staff) && data.staff.length) {
+        state.staff = data.staff.map(normalizeStaffRecord).filter(staff => staff.name);
+        localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(state.staff));
+        fillStaffSelectSafe();
+      }
+    } catch (error) {
+      console.warn("Staff sheet sync failed. Falling back to local staff cache.", error);
+    }
+    return;
+    elements.staffSelect.innerHTML = `<option value="">${text("جاري تحميل الموظفين...", "Loading staff...")}</option>`;
+
+    try {
+      const data = await RomeoApi.request({ action: "getStaff" });
+      if (data.status === "success" && Array.isArray(data.staff) && data.staff.length) {
+        state.staff = data.staff.map(normalizeStaffRecord).filter(staff => staff.name);
+        fillStaffSelectSafe();
+        return;
+      }
+    } catch (error) {
+      console.warn("Staff sheet sync failed. Falling back to local staff cache.", error);
+    }
+
+    state.staff = getStoredStaffFallback();
+    fillStaffSelectSafe();
+  }
+
   async function loadRecords() {
     elements.recordsList.innerHTML = `<div class="empty-state">${text("جاري تحميل سجلات الحضور...", "Loading attendance records...")}</div>`;
     const data = await RomeoApi.request({
@@ -179,6 +262,10 @@
   }
 
   function statusLabel(status) {
+    if (status === "open") {
+      return text("داخل الشيفت", "Open Shift");
+    }
+
     return status === "approved"
       ? text("معتمد", "Approved")
       : text("بانتظار الاعتماد", "Pending");
@@ -196,7 +283,7 @@
       acc.absence += record.recordType === "absent" ? 1 : 0;
       if (record.approvalStatus === "approved") {
         acc.approved += numberValue(record.approvedDeduction);
-      } else {
+      } else if (record.approvalStatus !== "open") {
         acc.pending += numberValue(record.suggestedDeduction);
       }
       return acc;
@@ -217,7 +304,9 @@
     }
 
     elements.recordsList.innerHTML = state.records.map(record => {
-      const pending = record.approvalStatus !== "approved";
+      const open = record.approvalStatus === "open";
+      const pending = record.approvalStatus !== "approved" && !open;
+      const statusClass = open ? "status-open" : pending ? "status-pending" : "status-approved";
       return `
         <article class="attendance-record" data-row-number="${record.rowNumber}">
           <div>
@@ -282,7 +371,7 @@
 
   function clearForm(resetDate = true) {
     elements.recordType.value = "work";
-    elements.shiftStart.value = "10:00";
+    elements.shiftStart.value = "12:00";
     elements.checkIn.value = "";
     elements.breakOut.value = "";
     elements.breakIn.value = "";
@@ -292,6 +381,84 @@
     elements.note.value = "";
     if (resetDate) elements.attendanceDate.value = todayKey();
     updatePreview();
+  }
+
+  function findOpenRecord(staff) {
+    return state.records.find(record =>
+      record.recordType === "work" &&
+      record.approvalStatus === "open" &&
+      record.date === elements.attendanceDate.value &&
+      String(record.staffName || "").trim().toLowerCase() === String(staff.name || "").trim().toLowerCase()
+    );
+  }
+
+  async function runAttendanceStep(step) {
+    const staff = selectedStaff();
+    if (!staff) {
+      alert(text("اختار موظف الأول.", "Choose an employee first."));
+      return;
+    }
+
+    const timeValue = currentTimeKey();
+    const inputByStep = {
+      checkIn: elements.checkIn,
+      breakOut: elements.breakOut,
+      breakIn: elements.breakIn,
+      checkOut: elements.checkOut
+    };
+
+    if (inputByStep[step]) {
+      inputByStep[step].value = timeValue;
+      updatePreview();
+    }
+
+    if (step === "checkIn") {
+      if (findOpenRecord(staff)) {
+        alert(text("الموظف ده عنده شيفت مفتوح بالفعل.", "This employee already has an open shift."));
+        return;
+      }
+
+      const response = await RomeoApi.request({
+        action: "createAttendanceRecord",
+        staffId: staff.id,
+        staffName: staff.name,
+        salary: staff.salary,
+        date: elements.attendanceDate.value,
+        recordType: "work",
+        shiftStart: elements.shiftStart.value,
+        checkIn: timeValue,
+        penaltyAmount: elements.penaltyAmount.value,
+        penaltyReason: elements.penaltyReason.value,
+        note: elements.note.value
+      });
+
+      if (response.status !== "success") {
+        throw new Error(response.message || "Failed to check in.");
+      }
+
+      await loadRecords();
+      return;
+    }
+
+    const openRecord = findOpenRecord(staff);
+    if (!openRecord) {
+      alert(text("لا يوجد شيفت مفتوح للموظف ده اليوم. سجل حضور الأول.", "No open shift for this employee today. Check in first."));
+      return;
+    }
+
+    const response = await RomeoApi.request({
+      action: "updateAttendanceStep",
+      rowNumber: openRecord.rowNumber,
+      step,
+      time: timeValue,
+      salary: staff.salary
+    });
+
+    if (response.status !== "success") {
+      throw new Error(response.message || "Failed to update attendance.");
+    }
+
+    await loadRecords();
   }
 
   async function approveRecord(rowNumber) {
@@ -330,6 +497,9 @@
     elements.form.addEventListener("submit", saveRecord);
     elements.clearBtn.addEventListener("click", () => clearForm(true));
     elements.refreshBtn.addEventListener("click", () => loadRecords().catch(error => alert(error.message)));
+    document.querySelectorAll("[data-attendance-step]").forEach(button => {
+      button.addEventListener("click", () => runAttendanceStep(button.dataset.attendanceStep).catch(error => alert(error.message)));
+    });
     [elements.staffSelect, elements.recordType, elements.shiftStart, elements.checkIn, elements.breakOut, elements.breakIn, elements.checkOut, elements.penaltyAmount].forEach(element => {
       element.addEventListener("input", updatePreview);
       element.addEventListener("change", updatePreview);
@@ -357,7 +527,7 @@
     applyLanguage();
 
     try {
-      await loadStaff();
+      await loadStaffSafe();
       await loadRecords();
       updatePreview();
     } catch (error) {

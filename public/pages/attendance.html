@@ -48,7 +48,7 @@
           <label><span data-i18n-ar="الموظف" data-i18n-en="Employee">الموظف</span><select id="staffSelect" required></select></label>
           <label><span data-i18n-ar="التاريخ" data-i18n-en="Date">التاريخ</span><input id="attendanceDate" type="date" required></label>
           <label><span data-i18n-ar="نوع السجل" data-i18n-en="Record Type">نوع السجل</span><select id="recordType"><option value="work" data-i18n-ar="حضور يوم" data-i18n-en="Work Day">حضور يوم</option><option value="absent" data-i18n-ar="غياب" data-i18n-en="Absence">غياب</option><option value="penalty" data-i18n-ar="عقوبة فقط" data-i18n-en="Penalty Only">عقوبة فقط</option></select></label>
-          <label class="work-field"><span data-i18n-ar="بداية الشيفت" data-i18n-en="Shift Start">بداية الشيفت</span><input id="shiftStart" type="time" value="10:00"></label>
+          <label class="work-field"><span data-i18n-ar="بداية الشيفت" data-i18n-en="Shift Start">بداية الشيفت</span><input id="shiftStart" type="time" value="12:00"></label>
           <label class="work-field"><span data-i18n-ar="حضور" data-i18n-en="Check In">حضور</span><input id="checkIn" type="time"></label>
           <label class="work-field"><span data-i18n-ar="خروج بريك" data-i18n-en="Break Out">خروج بريك</span><input id="breakOut" type="time"></label>
           <label class="work-field"><span data-i18n-ar="رجوع بريك" data-i18n-en="Break In">رجوع بريك</span><input id="breakIn" type="time"></label>
@@ -56,6 +56,12 @@
           <label><span data-i18n-ar="مبلغ العقوبة" data-i18n-en="Penalty Amount">مبلغ العقوبة</span><input id="penaltyAmount" type="number" min="0" step="1" value="0"></label>
           <label><span data-i18n-ar="سبب العقوبة" data-i18n-en="Penalty Reason">سبب العقوبة</span><input id="penaltyReason" type="text" placeholder="مثال: تأخير متكرر" data-i18n-placeholder-ar="مثال: تأخير متكرر" data-i18n-placeholder-en="Example: repeated lateness"></label>
           <label class="full"><span data-i18n-ar="ملاحظة" data-i18n-en="Note">ملاحظة</span><textarea id="attendanceNote" rows="3" placeholder="اكتب أي ملاحظات مهمة" data-i18n-placeholder-ar="اكتب أي ملاحظات مهمة" data-i18n-placeholder-en="Write any important notes"></textarea></label>
+          <div class="quick-attendance-actions full">
+            <button class="primary-btn" type="button" data-attendance-step="checkIn" data-i18n-ar="تسجيل حضور الآن" data-i18n-en="Check In Now">تسجيل حضور الآن</button>
+            <button class="soft-btn" type="button" data-attendance-step="breakOut" data-i18n-ar="خروج بريك الآن" data-i18n-en="Break Out Now">خروج بريك الآن</button>
+            <button class="soft-btn" type="button" data-attendance-step="breakIn" data-i18n-ar="رجوع بريك الآن" data-i18n-en="Break In Now">رجوع بريك الآن</button>
+            <button class="primary-btn" type="button" data-attendance-step="checkOut" data-i18n-ar="تسجيل انصراف الآن" data-i18n-en="Check Out Now">تسجيل انصراف الآن</button>
+          </div>
           <div class="preview-card full"><div><span data-i18n-ar="ساعات العمل" data-i18n-en="Work Hours">ساعات العمل</span><strong id="previewWorkHours">0</strong></div><div><span data-i18n-ar="البريك" data-i18n-en="Break">البريك</span><strong id="previewBreakHours">0</strong></div><div><span data-i18n-ar="الخصم المقترح" data-i18n-en="Suggested Deduction">الخصم المقترح</span><strong id="previewDeduction">0 EGP</strong></div></div>
           <div class="form-actions full"><button class="primary-btn" id="saveAttendanceBtn" type="submit" data-i18n-ar="حفظ السجل" data-i18n-en="Save Record">حفظ السجل</button><button class="soft-btn" id="clearAttendanceBtn" type="button" data-i18n-ar="مسح البيانات" data-i18n-en="Clear Form">مسح البيانات</button></div>
         </form>
@@ -96,7 +102,6 @@
     <button class="sidebar-link" type="button" data-href="withdrawals.html">Withdrawals</button>
     <button class="sidebar-link" type="button" data-href="expenses.html">Expenses</button>
     <button class="sidebar-link" type="button" data-href="enventory.html">Enventory</button>
-    <button class="sidebar-link" type="button" data-href="staff-discount.html">staff Discount</button>
     <button class="sidebar-link active" type="button">Attendance</button>
     <button class="sidebar-link" type="button" data-href="bookings.html">Bookings</button>
     <button type="button" id="logoutBtn">Logout</button>

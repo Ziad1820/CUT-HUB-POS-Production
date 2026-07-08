@@ -12,7 +12,6 @@
     "withdrawals.html",
     "expenses.html",
     "enventory.html",
-    "staff-discount.html",
     "attendance.html",
     "bookings.html",
     "language",
@@ -32,7 +31,6 @@
     "withdrawals.html": "view_withdrawals",
     "expenses.html": "view_expenses",
     "enventory.html": "view_inventory",
-    "staff-discount.html": "view_staff_discount",
     "attendance.html": "view_attendance",
     "bookings.html": "view_bookings"
   };
@@ -59,7 +57,6 @@
     if (text.includes("withdrawal") || text.includes("Ø§Ù„Ø³Ø­ÙˆØ¨Ø§Øª")) return "withdrawals.html";
     if (text.includes("expense") || text.includes("Ø§Ù„Ù…ØµØ±ÙˆÙØ§Øª")) return "expenses.html";
     if (text.includes("inventory") || text.includes("enventory") || text.includes("Ø§Ù„Ù…Ø®Ø²ÙˆÙ†")) return "enventory.html";
-    if (text.includes("staff discount") || text.includes("Ø®ØµÙˆÙ…Ø§Øª Ø§Ù„Ù…ÙˆØ¸ÙÙŠÙ†")) return "staff-discount.html";
     if (text.includes("attendance") || text.includes("Ø§Ù„Ø­Ø¶ÙˆØ±")) return "attendance.html";
     if (text.includes("booking") || text.includes("Ø§Ù„Ø­Ø¬ÙˆØ²Ø§Øª")) return "bookings.html";
     if (text.includes("logout") || text.includes("ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø®Ø±ÙˆØ¬")) return "logout";

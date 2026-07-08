@@ -94,7 +94,6 @@
       withdrawals: "Withdrawals",
       expenses: "Expenses",
       inventory: "Inventory",
-      staffDiscount: "Staff Discount",
       attendance: "Attendance",
       bookings: "Bookings",
       language: "Language",
@@ -434,7 +433,6 @@ function getInvoicesForDate(invoices, dateKey) {
         ["withdrawals.html", t("withdrawals")],
         ["expenses.html", t("expenses")],
         ["enventory.html", t("inventory")],
-        ["staff-discount.html", t("staffDiscount")],
         ["attendance.html", t("attendance")],
         ["bookings.html", t("bookings")]
       ];
