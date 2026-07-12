@@ -316,7 +316,7 @@
       display: grid;
       grid-template-columns: 1.1fr 0.9fr;
       gap: 24px;
-      align-items: start;
+      align-items: stretch;
     }
 
     .panel {
@@ -342,7 +342,14 @@
     .services-panel {
       display: flex;
       flex-direction: column;
+      min-height: clamp(560px, 58vh, 760px);
       overflow: hidden;
+    }
+
+    .cart-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: clamp(560px, 58vh, 760px);
     }
 
     .services-grid {
@@ -357,7 +364,7 @@
     .services-panel .services-grid {
       flex: 1;
       max-height: none;
-      min-height: 0;
+      min-height: clamp(420px, 44vh, 620px);
       align-content: start;
     }
 
@@ -646,7 +653,8 @@
       color: var(--ink);
     }
 
-    .payment-fields input {
+    .payment-fields input,
+    .payment-fields select {
       width: 100%;
       border: 1px solid var(--border);
       background: #fffaf2;
@@ -654,6 +662,8 @@
       padding: 14px;
       border-radius: 14px;
       font-size: 16px;
+      font-family: inherit;
+      font-weight: 800;
       outline: none;
     }
 
@@ -793,10 +803,38 @@
 
     .daily-net-card {
       background: linear-gradient(135deg, #163f2c, #27734f);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
     }
 
     .daily-net-card.is-negative {
       background: linear-gradient(135deg, #5b1f18, #9a3328);
+    }
+
+    .daily-net-card.is-loading {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .daily-net-card.is-loading::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+      animation: dailyNetLoading 1.1s linear infinite;
+      pointer-events: none;
+    }
+
+    @keyframes dailyNetLoading {
+      from {
+        transform: translateX(-100%);
+      }
+
+      to {
+        transform: translateX(100%);
+      }
     }
 
     .daily-sales-card span {
@@ -812,25 +850,43 @@
       font-size: 14px;
     }
 
-    .daily-net-card {
-      align-items: stretch;
-    }
-
-    .daily-net-card > strong {
-      align-self: center;
-      display: flex;
-      align-items: center;
-      min-height: 100%;
+    .daily-net-title {
+      margin: 0;
+      text-align: right;
     }
 
     .daily-net-details {
       display: grid;
       grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr);
       gap: 4px 24px;
-      min-width: min(520px, 100%);
       color: rgba(255,255,255,0.76);
       font-size: 11px;
       line-height: 1.25;
+      direction: rtl;
+    }
+
+    .daily-net-loading {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: rgba(255,255,255,0.82);
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .daily-net-spinner {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #ffffff;
+      animation: dailyNetSpin 0.8s linear infinite;
+    }
+
+    @keyframes dailyNetSpin {
+      to {
+        transform: rotate(360deg);
+      }
     }
 
     .daily-net-group {
@@ -873,6 +929,14 @@
       .daily-sales-card {
         flex-direction: column;
         align-items: stretch;
+      }
+
+      .daily-net-card {
+        direction: inherit;
+      }
+
+      .daily-net-main {
+        min-width: 0;
       }
 
       .daily-net-details {
@@ -1263,6 +1327,12 @@
 
       .services-panel .services-grid {
         max-height: 72.8vh;
+        min-height: 360px;
+      }
+
+      .services-panel,
+      .cart-panel {
+        min-height: 0;
       }
     }
   </style>
@@ -1410,8 +1480,8 @@
         <div class="daily-summary-stack">
           <section class="daily-sales-card daily-net-card" id="dailyNetCard" aria-live="polite">
             <div>
-              <span>ØµØ§ÙÙŠ Ø§Ù„ÙŠÙˆÙ…</span>
-            <p id="dailyNetBreakdown">Sales - Withdrawals - Expenses</p>
+              <span class="daily-net-title">ØµØ§ÙÙŠ Ø§Ù„ÙŠÙˆÙ…</span>
+              <p id="dailyNetBreakdown">Sales - Withdrawals - Expenses</p>
             </div>
             <strong id="dailyNetAmount">0 EGP</strong>
           </section>

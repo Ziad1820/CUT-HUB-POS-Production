@@ -731,6 +731,7 @@
     }
 
     let staffList = getStoredStaff();
+    let withdrawalsList = readArrayStore(WITHDRAWALS_KEY);
     let selectedId = staffList[0]?.id || null;
     let staffClientRequestId = 0;
     let staffSalesRequestId = 0;
@@ -758,6 +759,30 @@
         renderAll();
       } catch (error) {
         console.warn("Staff sheet sync is not available yet.", error);
+      }
+    }
+
+    function normalizeWithdrawalRecord(withdrawal) {
+      return {
+        staffId: String(withdrawal.staffId || "").trim(),
+        staffName: String(withdrawal.staffName || withdrawal.employeeName || "").trim(),
+        staffCode: String(withdrawal.staffCode || "").trim().toUpperCase(),
+        amount: numberValue(withdrawal.amount),
+        date: withdrawal.date || ""
+      };
+    }
+
+    async function loadWithdrawalsFromSheet() {
+      try {
+        const data = await RomeoApi.request({ action: "getWithdrawals" });
+        if (data.status !== "success" || !Array.isArray(data.withdrawals)) {
+          return;
+        }
+
+        withdrawalsList = data.withdrawals.map(normalizeWithdrawalRecord);
+        renderAll();
+      } catch (error) {
+        console.warn("Withdrawals sheet sync is not available yet.", error);
       }
     }
 
@@ -819,12 +844,14 @@
     function getStaffWithdrawalsTotal(staff) {
       const staffId = String(staff.id);
       const staffName = normalizeName(staff.name);
+      const staffCode = String(staff.code || "").trim().toUpperCase();
 
-      return readArrayStore(WITHDRAWALS_KEY)
+      return withdrawalsList
         .filter(item => {
           const sameId = String(item.staffId) === staffId;
           const sameName = item.staffName && normalizeName(item.staffName) === staffName;
-          return sameId || sameName;
+          const sameCode = staffCode && String(item.staffCode || "").trim().toUpperCase() === staffCode;
+          return sameId || sameName || sameCode;
         })
         .reduce((sum, item) => sum + numberValue(item.amount), 0);
     }
@@ -873,20 +900,10 @@
       elements.sumClients.textContent = "Loading...";
 
       try {
-        const response = await fetch(API_URL, {
-          method: "POST",
-          body: JSON.stringify({
-            action: "staffClientCount",
-            barber: getBarberSheetName(staff)
-          })
+        const data = await RomeoApi.request({
+          action: "staffClientCount",
+          barber: getBarberSheetName(staff)
         });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText || `Ã˜Â®Ã˜Â·Ã˜Â£ Ã™ÂÃ™Å  Ã˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž Ã˜Â¹Ã˜Â¯Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€žÃ˜Â§Ã˜Â¡ (${response.status})`);
-        }
-
-        const data = await response.json();
         if (data.status !== "success") {
           throw new Error(data.message || "Ã˜ÂªÃ˜Â¹Ã˜Â°Ã˜Â± Ã˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž Ã˜Â¹Ã˜Â¯Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€žÃ˜Â§Ã˜Â¡");
         }
@@ -907,20 +924,10 @@
       elements.sumSales.textContent = "Loading...";
 
       try {
-        const response = await fetch(API_URL, {
-          method: "POST",
-          body: JSON.stringify({
-            action: "staffTotalSales",
-            barber: getBarberSheetName(staff)
-          })
+        const data = await RomeoApi.request({
+          action: "staffTotalSales",
+          barber: getBarberSheetName(staff)
         });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText || `Failed to load total sales (${response.status})`);
-        }
-
-        const data = await response.json();
         if (data.status !== "success") {
           throw new Error(data.message || "Failed to load total sales");
         }
@@ -1143,6 +1150,7 @@
     applyPageLanguage();
     renderAll();
     loadStaffFromSheet();
+    loadWithdrawalsFromSheet();
   </script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>

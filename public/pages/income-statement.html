@@ -418,6 +418,26 @@
       </div>
 
       <div class="card">
+        <h2 data-i18n-ar="إجمالي النقدي" data-i18n-en="Total Cash">إجمالي النقدي</h2>
+        <div class="metric-value" id="cashTotal">0 EGP</div>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n-ar="إجمالي الانستاباي" data-i18n-en="Total Instapay">إجمالي الانستاباي</h2>
+        <div class="metric-value" id="instapayTotal">0 EGP</div>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n-ar="إجمالي الفودافون كاش" data-i18n-en="Total Vodafone Cash">إجمالي الفودافون كاش</h2>
+        <div class="metric-value" id="vodafoneCashTotal">0 EGP</div>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n-ar="إجمالي الفيزا" data-i18n-en="Total Visa">إجمالي الفيزا</h2>
+        <div class="metric-value" id="visaTotal">0 EGP</div>
+      </div>
+
+      <div class="card">
         <h2 data-i18n-ar="إجمالي العملاء" data-i18n-en="Total Clients">إجمالي العملاء</h2>
         <div class="metric-value" id="totalClients">0</div>
       </div>
@@ -527,6 +547,10 @@
     const statementStatus = document.getElementById("statementStatus");
     const monthlyClosingsBody = document.getElementById("monthlyClosingsBody");
     const totalTipsEl = document.getElementById("totalTips");
+    const cashTotalEl = document.getElementById("cashTotal");
+    const instapayTotalEl = document.getElementById("instapayTotal");
+    const vodafoneCashTotalEl = document.getElementById("vodafoneCashTotal");
+    const visaTotalEl = document.getElementById("visaTotal");
     let monthlyClosings = [];
 
     function getLanguage() {
@@ -551,6 +575,10 @@
       totalIncome: 0,
       totalSales: 0,
       totalTips: 0,
+      cashTotal: 0,
+      instapayTotal: 0,
+      vodafoneCashTotal: 0,
+      visaTotal: 0,
       totalExpenses: 0,
       totalWithdrawals: 0,
       netProfit: 0,
@@ -638,11 +666,19 @@
       const totalExpenses = toAmount(source.totalExpenses ?? source.expenses ?? source.expenseTotal);
       const totalWithdrawals = toAmount(source.totalWithdrawals ?? source.withdrawals ?? source.withdrawalsTotal);
       const invoiceCount = toAmount(source.invoiceCount ?? source.totalInvoices ?? source.invoicesCount);
+      const cashTotal = toAmount(source.cashTotal ?? source.cash ?? source.cashAmount);
+      const instapayTotal = toAmount(source.instapayTotal ?? source.instapay ?? source.instapayAmount);
+      const vodafoneCashTotal = toAmount(source.vodafoneCashTotal ?? source.vodafoneTotal ?? source.vodafoneCash ?? source.vodafoneAmount);
+      const visaTotal = toAmount(source.visaTotal ?? source.visa ?? source.visaAmount);
 
       return {
         totalIncome,
         totalSales,
         totalTips,
+        cashTotal,
+        instapayTotal,
+        vodafoneCashTotal,
+        visaTotal,
         totalExpenses,
         totalWithdrawals,
         netProfit: toAmount(source.netProfit ?? (totalIncome - totalExpenses - totalWithdrawals)),
@@ -657,6 +693,10 @@
       currentSummary = normalizeSummary(summary);
       totalIncomeEl.textContent = formatCurrency(currentSummary.totalIncome);
       totalTipsEl.textContent = formatCurrency(currentSummary.totalTips);
+      cashTotalEl.textContent = formatCurrency(currentSummary.cashTotal);
+      instapayTotalEl.textContent = formatCurrency(currentSummary.instapayTotal);
+      vodafoneCashTotalEl.textContent = formatCurrency(currentSummary.vodafoneCashTotal);
+      visaTotalEl.textContent = formatCurrency(currentSummary.visaTotal);
       expensesAmountEl.textContent = formatCurrency(currentSummary.totalExpenses);
       withdrawAmountEl.textContent = formatCurrency(currentSummary.totalWithdrawals);
       netProfitEl.textContent = formatCurrency(currentSummary.netProfit);

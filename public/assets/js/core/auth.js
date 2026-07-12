@@ -1,5 +1,5 @@
 const RomeoAuth = (() => {
-  const API_URL = window.RomeoApi ? RomeoApi.API_URL : "https://script.google.com/macros/s/AKfycbwsoJpbtliwgyTTA77NZcgWzN6CzCJr5nm9M2IT32Wz7g7GZHHjUhGfdagdbfrFZnVr/exec";
+  const API_URL = window.RomeoApi ? RomeoApi.API_URL : "https://script.google.com/macros/s/AKfycbxzjIIgtx6Q6w2oi6Kl6ZHz76nNSxOShD189jz6Irx882wyBdNJqfB0tZ2ZvVVlS-32/exec";
   const SESSION_KEY = "romeo-pos-session";
   const OWNER_USERNAME = "owner";
   const ALL_PERMISSIONS = [
@@ -34,10 +34,16 @@ const RomeoAuth = (() => {
       return RomeoApi.request(payload);
     }
 
+    const requestPayload = { ...(payload || {}) };
+    const sessionToken = getSessionToken();
+    if (sessionToken && !requestPayload.sessionToken) {
+      requestPayload.sessionToken = sessionToken;
+    }
+
     const response = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(requestPayload)
     });
 
     if (!response.ok) {
@@ -73,21 +79,35 @@ const RomeoAuth = (() => {
     if (!stored) return null;
 
     try {
-      return JSON.parse(stored);
+      const session = JSON.parse(stored);
+      if (!session || !session.user || !session.sessionToken) {
+        sessionStorage.removeItem(SESSION_KEY);
+        return null;
+      }
+
+      return session;
     } catch (error) {
       sessionStorage.removeItem(SESSION_KEY);
       return null;
     }
   }
 
-  function saveSession(user) {
+  function saveSession(user, sessionToken) {
     localStorage.removeItem(SESSION_KEY);
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ user: normalizeUser(user) }));
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+      user: normalizeUser(user),
+      sessionToken: String(sessionToken || "").trim()
+    }));
   }
 
   function getCurrentUser() {
     const session = getCurrentSession();
     return session && session.user ? normalizeUser(session.user) : null;
+  }
+
+  function getSessionToken() {
+    const session = getCurrentSession();
+    return session && session.sessionToken ? String(session.sessionToken).trim() : "";
   }
 
   async function login(username, password) {
@@ -105,7 +125,7 @@ const RomeoAuth = (() => {
         };
       }
 
-      saveSession(result.user);
+      saveSession(result.user, result.sessionToken || result.token);
       return { success: true, user: normalizeUser(result.user) };
     } catch (error) {
       return { success: false, message: error.message };
@@ -124,20 +144,17 @@ const RomeoAuth = (() => {
     if (logoutInProgress) return;
     logoutInProgress = true;
 
-    const currentUser = getCurrentUser();
+    const sessionToken = getSessionToken();
     finishLogout();
 
-    if (!currentUser || !window.RomeoApi || typeof RomeoApi.request !== "function") {
+    if (!sessionToken || !window.RomeoApi || typeof RomeoApi.request !== "function") {
       return;
     }
 
     try {
       await RomeoApi.request({
         action: "logoutUser",
-        currentUser,
-        actor: currentUser,
-        actorUserName: currentUser.username,
-        actorDisplayName: currentUser.displayName
+        sessionToken
       });
     } catch (error) {
       console.warn("Logout activity log failed:", error);
@@ -210,10 +227,7 @@ const RomeoAuth = (() => {
       return usersCache;
     }
 
-    const result = await apiRequest({
-      action: "getUsers",
-      currentUser: getCurrentUser()
-    });
+    const result = await apiRequest({ action: "getUsers" });
     if (result.status !== "success") {
       throw new Error(result.message || "تعذر تحميل المستخدمين.");
     }
@@ -231,7 +245,6 @@ const RomeoAuth = (() => {
 
       const result = await apiRequest({
         action: "createUser",
-        currentUser,
         displayName: String(userInput.displayName || "").trim(),
         username: String(userInput.username || "").trim(),
         password: String(userInput.password || ""),
@@ -260,7 +273,6 @@ const RomeoAuth = (() => {
 
       const result = await apiRequest({
         action: "updateUser",
-        currentUser,
         username: String(username || "").trim(),
         displayName: String(updates.displayName || "").trim(),
         password: String(updates.password || ""),
@@ -276,7 +288,7 @@ const RomeoAuth = (() => {
       usersCache = null;
 
       if (currentUser && currentUser.username === username) {
-        saveSession(result.user);
+        saveSession(result.user, getSessionToken());
       }
 
       return { success: true, user: normalizeUser(result.user) };
@@ -298,7 +310,6 @@ const RomeoAuth = (() => {
     try {
       const result = await apiRequest({
         action: "deleteUser",
-        currentUser,
         username: String(username || "").trim()
       });
 
@@ -319,6 +330,7 @@ const RomeoAuth = (() => {
     createUser,
     deleteUser,
     getCurrentUser,
+    getSessionToken,
     getReturnTo,
     getUsers,
     hasPermission,

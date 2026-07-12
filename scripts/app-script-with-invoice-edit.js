@@ -88,6 +88,9 @@ const ALL_PERMISSIONS = [
   "manage_users"
 ];
 
+const SESSION_TTL_SECONDS = 6 * 60 * 60;
+const SESSION_CACHE_PREFIX = "romeo-session-";
+
 function getCairoDateTime() {
   return Utilities.formatDate(new Date(), TIME_ZONE, "yyyy-MM-dd HH:mm:ss");
 }
@@ -108,53 +111,82 @@ function getRequestedDateKey(data, timeZone) {
   return Utilities.formatDate(new Date(), timeZone, "yyyy-MM-dd");
 }
 
-function getActor(data) {
-  const currentUser = data.currentUser || data.actor || {};
-  const userName = String(
-    data.actorUserName ||
-    data.performedBy ||
-    currentUser.username ||
-    currentUser.userName ||
-    data.username ||
-    ""
-  ).trim();
+function getSessionToken(data) {
+  return String(data.sessionToken || data.token || data.authToken || "").trim();
+}
 
-  const displayName = String(
-    data.actorDisplayName ||
-    currentUser.displayName ||
-    currentUser.name ||
-    data.displayName ||
-    userName ||
-    "system"
-  ).trim();
+function createSessionForUser(user) {
+  const token = `${Utilities.getUuid()}-${Utilities.getUuid()}`;
+  const session = {
+    username: user.username,
+    createdAt: getCairoDateTime(),
+    expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString()
+  };
+
+  CacheService
+    .getScriptCache()
+    .put(SESSION_CACHE_PREFIX + token, JSON.stringify(session), SESSION_TTL_SECONDS);
+
+  return { token, expiresAt: session.expiresAt };
+}
+
+function readSessionRecord(token) {
+  if (!token) return null;
+
+  const raw = CacheService.getScriptCache().get(SESSION_CACHE_PREFIX + token);
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    return null;
+  }
+}
+
+function deleteSession(token) {
+  if (!token) return;
+  CacheService.getScriptCache().remove(SESSION_CACHE_PREFIX + token);
+}
+
+function getAuthenticatedUser(data) {
+  const token = getSessionToken(data || {});
+  const session = readSessionRecord(token);
+  if (!session || !session.username) return null;
+
+  const sessionUsername = String(session.username || "").trim().toLowerCase();
+  return readUsersFromSheet().find(user =>
+    String(user.username || "").trim().toLowerCase() === sessionUsername
+  ) || null;
+}
+
+function getActor(data) {
+  const user = getAuthenticatedUser(data || {});
+  if (!user) {
+    return { userName: "system", displayName: "system" };
+  }
 
   return {
-    userName: userName || "system",
-    displayName: displayName || "system"
+    userName: user.username,
+    displayName: user.displayName || user.username
   };
 }
 
 function getActorPermissions(data) {
-  const currentUser = data.currentUser || data.actor || {};
-  const permissions = currentUser.permissions || data.permissions || [];
-
-  return Array.isArray(permissions)
-    ? permissions.map(permission => String(permission || "").trim()).filter(Boolean)
-    : [];
+  const user = getAuthenticatedUser(data || {});
+  return user ? normalizeManagedPermissions(user.username, user.permissions) : [];
 }
 
 function actorCanManageUsers(data) {
-  const actor = getActor(data || {});
-  return String(actor.userName || "").trim().toLowerCase() === "owner";
+  const user = getAuthenticatedUser(data || {});
+  return !!user && String(user.username || "").trim().toLowerCase() === "owner";
 }
 
 function actorHasPermission(data, permission) {
-  if (actorCanManageUsers(data || {})) {
-    return true;
-  }
+  const user = getAuthenticatedUser(data || {});
+  if (!user) return false;
+  if (String(user.username || "").trim().toLowerCase() === "owner") return true;
 
-  const permissions = getActorPermissions(data || {});
-  return permissions.indexOf(permission) !== -1;
+  return normalizeManagedPermissions(user.username, user.permissions).indexOf(permission) !== -1;
 }
 
 function requirePermission(data, permission, message) {
@@ -205,10 +237,21 @@ function getActivityLogs(data) {
     const lastRow = sheet.getLastRow();
 
     if (lastRow < 2) {
-      return jsonOutput({ status: "success", logs: [] });
+      return jsonOutput({ status: "success", logs: [], hasMore: false, totalLogs: 0 });
     }
 
-    const rows = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
+    const totalRows = lastRow - 1;
+    const limit = Math.max(1, Math.min(Number(data.limit) || 100, 500));
+    const offset = Math.max(0, Number(data.offset) || 0);
+    const remainingRows = Math.max(0, totalRows - offset);
+
+    if (!remainingRows) {
+      return jsonOutput({ status: "success", logs: [], hasMore: false, totalLogs: totalRows });
+    }
+
+    const rowsToRead = Math.min(limit, remainingRows);
+    const startRow = lastRow - offset - rowsToRead + 1;
+    const rows = sheet.getRange(startRow, 1, rowsToRead, 8).getValues();
 
     const logs = rows
       .map(row => ({
@@ -233,7 +276,12 @@ function getActivityLogs(data) {
       )
       .reverse();
 
-    return jsonOutput({ status: "success", logs });
+    return jsonOutput({
+      status: "success",
+      logs,
+      hasMore: offset + rowsToRead < totalRows,
+      totalLogs: totalRows
+    });
   } catch (error) {
     return jsonOutput({ status: "error", message: error.message });
   }
@@ -244,7 +292,21 @@ function getUsersSheet() {
   if (!sheet) {
     throw new Error("Sheet USERS not found");
   }
+  ensureUsersSheetColumns(sheet);
   return sheet;
+}
+
+function ensureUsersSheetColumns(sheet) {
+  const requiredColumns = 6;
+  const currentColumns = sheet.getMaxColumns();
+  if (currentColumns < requiredColumns) {
+    sheet.insertColumnsAfter(currentColumns, requiredColumns - currentColumns);
+  }
+
+  const hashHeader = String(sheet.getRange(1, 6).getValue() || "").trim();
+  if (!hashHeader) {
+    sheet.getRange(1, 6).setValue("PASSWORD_HASH");
+  }
 }
 
 function parsePermissions(value) {
@@ -279,13 +341,43 @@ function sanitizeUser(user) {
   };
 }
 
+function hashPassword(password) {
+  const digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(password || ""),
+    Utilities.Charset.UTF_8
+  );
+
+  return digest
+    .map(byte => {
+      const value = byte < 0 ? byte + 256 : byte;
+      return (`0${value.toString(16)}`).slice(-2);
+    })
+    .join("");
+}
+
+function verifyPassword(user, password) {
+  const plainPassword = String(password || "");
+  const storedHash = String(user.passwordHash || "").trim();
+  if (storedHash && storedHash === hashPassword(plainPassword)) return true;
+
+  return String(user.password || "") === plainPassword;
+}
+
+function ensureUserPasswordHash(user, password) {
+  if (!user || !user.rowNumber || user.passwordHash) return;
+
+  const sheet = getUsersSheet();
+  sheet.getRange(user.rowNumber, 6).setValue(hashPassword(password));
+}
+
 function readUsersFromSheet() {
   const sheet = getUsersSheet();
   const lastRow = sheet.getLastRow();
 
   if (lastRow < 2) return [];
 
-  const rows = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+  const rows = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
 
   return rows
     .map((row, index) => ({
@@ -294,7 +386,8 @@ function readUsersFromSheet() {
       password: String(row[1] || ""),
       displayName: String(row[2] || "").trim(),
       permissions: parsePermissions(row[3]),
-      createdAt: row[4]
+      createdAt: row[4],
+      passwordHash: String(row[5] || "").trim()
     }))
     .filter(user => user.username);
 }
@@ -322,7 +415,7 @@ function loginUser(data) {
 
     const user = readUsersFromSheet().find(item =>
       item.username === username &&
-      item.password === password
+      verifyPassword(item, password)
     );
 
     if (!user) {
@@ -332,8 +425,11 @@ function loginUser(data) {
       });
     }
 
+    ensureUserPasswordHash(user, password);
+    const session = createSessionForUser(user);
+
     logActivity(
-      { actorUserName: user.username, actorDisplayName: user.displayName },
+      { sessionToken: session.token },
       "login",
       "system",
       user.username,
@@ -342,7 +438,9 @@ function loginUser(data) {
 
     return jsonOutput({
       status: "success",
-      user: sanitizeUser(user)
+      user: sanitizeUser(user),
+      sessionToken: session.token,
+      expiresAt: session.expiresAt
     });
   } catch (error) {
     return jsonOutput({ status: "error", message: error.message });
@@ -354,19 +452,14 @@ function logoutUser(data) {
     const actor = getActor(data || {});
 
     logActivity(
-      {
-        currentUser: {
-          username: actor.userName,
-          displayName: actor.displayName
-        },
-        actorUserName: actor.userName,
-        actorDisplayName: actor.displayName
-      },
+      data,
       "logout",
       "system",
       actor.userName,
       `User logged out: ${actor.displayName || actor.userName}`
     );
+
+    deleteSession(getSessionToken(data || {}));
 
     return jsonOutput({ status: "success" });
   } catch (error) {
@@ -408,10 +501,11 @@ function createUserInSheet(data) {
 
     sheet.appendRow([
       username,
-      password,
+      "",
       displayName,
       stringifyPermissions(finalPermissions),
-      getCairoDateKey()
+      getCairoDateKey(),
+      hashPassword(password)
     ]);
 
     logActivity(
@@ -460,17 +554,22 @@ function updateUserInSheet(data) {
 
     const oldDisplayName = user.displayName;
     const displayName = String(data.displayName || user.displayName).trim() || username;
-    const password = String(data.password || user.password);
+    const password = String(data.password || "");
     const permissions = normalizeManagedPermissions(
       username,
       Array.isArray(data.permissions) ? data.permissions : user.permissions
     );
 
     sheet.getRange(user.rowNumber, 2, 1, 3).setValues([[
-      password,
+      password ? "" : user.password,
       displayName,
       stringifyPermissions(permissions)
     ]]);
+    if (password) {
+      sheet.getRange(user.rowNumber, 6).setValue(hashPassword(password));
+    } else if (!user.passwordHash && user.password) {
+      ensureUserPasswordHash(user, user.password);
+    }
 
     logActivity(
       data,
@@ -1301,7 +1400,7 @@ function calculateSalesAndPaymentTotals(dateKey) {
 
   if (!sheet) return totals;
 
-  const rows = getSheetRangeFromRow2(sheet, 1, 9);
+  const rows = getSheetRangeFromRow2(sheet, 1, 11);
 
   rows.forEach(row => {
     const rowDateKey = getDateKey(row[0], TIME_ZONE);
@@ -1314,10 +1413,12 @@ function calculateSalesAndPaymentTotals(dateKey) {
     totals.salesTotal += amount;
     totals.tipTotal += tipAmount;
 
-    if (payment === "cash") totals.cashTotal += amount;
-    if (payment === "visa") totals.visaTotal += amount;
-    if (payment === "instapay") totals.instapayTotal += amount;
-    if (payment === "vodafone_cash") totals.vodafoneCashTotal += amount;
+    const paymentAmount = amount + tipAmount;
+
+    if (payment === "cash") totals.cashTotal += paymentAmount;
+    if (payment === "visa") totals.visaTotal += paymentAmount;
+    if (payment === "instapay") totals.instapayTotal += paymentAmount;
+    if (payment === "vodafone_cash") totals.vodafoneCashTotal += paymentAmount;
   });
 
   return totals;
@@ -1358,15 +1459,14 @@ function buildDailyClosingPreview(dateKey) {
   const paymentTotals = calculateSalesAndPaymentTotals(dateKey);
   const expensesTotal = calculateExpensesTotal(dateKey);
   const withdrawalsTotal = calculateWithdrawalsTotal(dateKey);
-  const salesWithTipsTotal = paymentTotals.salesTotal + paymentTotals.tipTotal;
-  const netTotal = salesWithTipsTotal - expensesTotal - withdrawalsTotal;
+  const netTotal = paymentTotals.salesTotal + paymentTotals.tipTotal - expensesTotal - withdrawalsTotal;
   const existingClosing = findDailyClosingByDate(dateKey);
 
   return {
     date: dateKey,
-    salesTotal: salesWithTipsTotal,
+    salesTotal: paymentTotals.salesTotal,
     tipTotal: paymentTotals.tipTotal,
-    salesIncludesTips: true,
+    salesIncludesTips: false,
     cashTotal: paymentTotals.cashTotal,
     visaTotal: paymentTotals.visaTotal,
     instapayTotal: paymentTotals.instapayTotal,
@@ -1647,12 +1747,16 @@ function calculateIncomeStatementRange(fromDateValue, toDateValue) {
   const expensesSheet = spreadsheet.getSheetByName("EXPENSES");
   const withdrawalsSheet = spreadsheet.getSheetByName("WITHDRAWLS");
 
-  const invoiceRows = getSheetRangeFromRow2(dataSheet, 1, 11);
+  const invoiceRows = getSheetRangeFromRow2(dataSheet, 1, 12);
   const expenseRows = expensesSheet ? getSheetRangeFromRow2(expensesSheet, 1, 6) : [];
   const withdrawalRows = withdrawalsSheet ? getSheetRangeFromRow2(withdrawalsSheet, 1, 5) : [];
 
   let totalSales = 0;
   let totalTips = 0;
+  let cashTotal = 0;
+  let instapayTotal = 0;
+  let vodafoneCashTotal = 0;
+  let visaTotal = 0;
   let invoiceCount = 0;
   const customers = {};
 
@@ -1664,8 +1768,19 @@ function calculateIncomeStatementRange(fromDateValue, toDateValue) {
     if (!hasData) return;
 
     invoiceCount += 1;
-    totalSales += parseSheetAmount(row[5]);
-    totalTips += parseSheetAmount(row[7]);
+    const invoiceTotal = parseSheetAmount(row[5]);
+    const tipAmount = parseSheetAmount(row[7]);
+    const payment = normalizePaymentMethod(row[8]);
+
+    totalSales += invoiceTotal;
+    totalTips += tipAmount;
+
+    const paymentAmount = invoiceTotal + tipAmount;
+
+    if (payment === "cash") cashTotal += paymentAmount;
+    if (payment === "visa") visaTotal += paymentAmount;
+    if (payment === "instapay") instapayTotal += paymentAmount;
+    if (payment === "vodafone_cash") vodafoneCashTotal += paymentAmount;
 
     const customerKey = String(row[2] || row[1] || "").trim();
     if (customerKey) customers[customerKey] = true;
@@ -1694,6 +1809,10 @@ function calculateIncomeStatementRange(fromDateValue, toDateValue) {
     totalSales,
     totalIncome,
     totalTips,
+    cashTotal,
+    instapayTotal,
+    vodafoneCashTotal,
+    visaTotal,
     totalExpenses,
     totalWithdrawals,
     netProfit,
@@ -1984,7 +2103,7 @@ function updateInvoice(data) {
     }
 
     ensureDataInvoiceColumns(sheet);
-    const currentRow = sheet.getRange(targetRowNumber, 1, 1, 11).getValues()[0];
+    const currentRow = sheet.getRange(targetRowNumber, 1, 1, 12).getValues()[0];
     const beforeUpdate = invoiceRowAuditSnapshot(currentRow);
     const currentDate = currentRow[0];
     const nextDate = getDateKey(data.date || data.dateKey || currentDate, TIME_ZONE) || currentDate;
@@ -2068,7 +2187,8 @@ function getInvoices(data) {
   const targetPayment = String(filters.payment || data.payment || data.paymentMethod || "").trim();
   const limit = Math.min(Math.max(Number(data.limit) || 100, 1), 500);
   const offset = Math.max(Number(data.offset) || 0, 0);
-  const rows = sheet.getRange(2, 1, lastRow - 1, Math.min(sheet.getLastColumn(), 11)).getValues();
+  ensureDataInvoiceColumns(sheet);
+  const rows = sheet.getRange(2, 1, lastRow - 1, Math.min(sheet.getLastColumn(), 12)).getValues();
   const matches = [];
   const barberOptions = {};
   const paymentOptions = {};
@@ -2088,9 +2208,9 @@ function getInvoices(data) {
       total: parseSheetAmount(row[5]),
       paidAmount: parseSheetAmount(row[6]),
       tipAmount: parseSheetAmount(row[7]),
-      paymentMethod: String(row[8] || "").trim(),
-      barber: String(row[9] || "").trim(),
-      note: String(row[10] || "").trim()
+    paymentMethod: String(row[8] || "").trim(),
+    barber: String(row[9] || "").trim(),
+    note: String(row[10] || "").trim()
     };
 
     const hasData =

@@ -25,6 +25,10 @@
       expenseCategory: document.getElementById("expenseCategory"),
       expenseTitle: document.getElementById("expenseTitle"),
       expenseNote: document.getElementById("expenseNote"),
+      filterFromDate: document.getElementById("filterFromDate"),
+      filterToDate: document.getElementById("filterToDate"),
+      deleteSelectedBtn: document.getElementById("deleteSelectedBtn"),
+      selectedExpensesCount: document.getElementById("selectedExpensesCount"),
       historyList: document.getElementById("historyList")
     };
 
@@ -33,8 +37,11 @@
     const sidebarOverlay = document.getElementById("sidebarOverlay");
     const saveBtn = document.getElementById("saveBtn");
     const clearBtn = document.getElementById("clearBtn");
+    const applyDateFilterBtn = document.getElementById("applyDateFilterBtn");
+    const clearDateFilterBtn = document.getElementById("clearDateFilterBtn");
 
     let expenseList = [];
+    let selectedExpenseIds = new Set();
     let selectedCategoryId = EXPENSE_CATEGORIES[0]?.id || null;
 
     populateCategorySelect();
@@ -159,6 +166,21 @@
       }
     }
 
+    function isNotFoundError(error) {
+      const message = String(error?.message || error || "").toLowerCase();
+      return message.includes("not found")
+        || message.includes("notfound")
+        || message.includes("not exist")
+        || message.includes("does not exist")
+        || message.includes("missing");
+    }
+
+    function removeExpenseLocally(expense) {
+      expenseList = expenseList.filter(item => String(item.id) !== String(expense.id));
+      selectedExpenseIds.delete(String(expense.id));
+      renderAll();
+    }
+
     function populateCategorySelect() {
       elements.expenseCategory.innerHTML = "";
       EXPENSE_CATEGORIES.forEach(category => {
@@ -173,8 +195,38 @@
       return EXPENSE_CATEGORIES.find(category => category.id === selectedCategoryId) || null;
     }
 
+    function isDateInFilter(dateValue) {
+      const date = String(dateValue || "").slice(0, 10);
+      const fromDate = elements.filterFromDate.value;
+      const toDate = elements.filterToDate.value;
+
+      if (!date) return false;
+      if (fromDate && date < fromDate) return false;
+      if (toDate && date > toDate) return false;
+      return true;
+    }
+
+    function getFilteredExpenses() {
+      return expenseList.filter(item => isDateInFilter(item.date));
+    }
+
+    function updateSelectedExpensesState() {
+      const category = getSelectedCategory();
+      const visibleItems = category ? getCategoryExpenses(category.id) : getFilteredExpenses();
+      const availableIds = new Set(visibleItems.map(item => String(item.id)));
+      selectedExpenseIds = new Set(
+        [...selectedExpenseIds].filter(id => availableIds.has(String(id)))
+      );
+
+      const selectedCount = selectedExpenseIds.size;
+      elements.deleteSelectedBtn.disabled = selectedCount === 0;
+      elements.selectedExpensesCount.textContent = currentLanguage() === "en"
+        ? `${selectedCount} selected`
+        : `${selectedCount} محدد`;
+    }
+
     function getCategoryExpenses(categoryId) {
-      return expenseList.filter(item => item.categoryId === categoryId);
+      return getFilteredExpenses().filter(item => item.categoryId === categoryId);
     }
 
     function renderCategoryList() {
@@ -236,13 +288,15 @@
       const category = getSelectedCategory();
       const categoryItems = category ? getCategoryExpenses(category.id) : [];
       const categoryTotal = categoryItems.reduce((sum, item) => sum + normalizeAmount(item.amount), 0);
-      const allTotal = expenseList.reduce((sum, item) => sum + normalizeAmount(item.amount), 0);
-      const average = expenseList.length ? allTotal / expenseList.length : 0;
+      const filteredExpenses = getFilteredExpenses();
+      const allTotal = filteredExpenses.reduce((sum, item) => sum + normalizeAmount(item.amount), 0);
+      const average = filteredExpenses.length ? allTotal / filteredExpenses.length : 0;
 
       elements.categoryExpenses.textContent = formatMoney(categoryTotal);
       elements.categoryRecords.textContent = categoryItems.length;
       elements.allExpenses.textContent = formatMoney(allTotal);
       elements.averageExpense.textContent = formatMoney(average);
+      updateSelectedExpensesState();
     }
 
     function renderHistory() {
@@ -336,7 +390,10 @@
         row.className = "history-item";
         row.innerHTML = `
           <div class="history-top">
-            <div class="history-amount">${formatMoney(item.amount)}</div>
+            <label class="history-select">
+              <input type="checkbox" data-select-id="${item.id}" ${selectedExpenseIds.has(String(item.id)) ? "checked" : ""}>
+              <div class="history-amount">${formatMoney(item.amount)}</div>
+            </label>
             <button type="button" class="action-btn soft" data-delete-id="${item.id}">${localizeText("حذف", "Delete")}</button>
           </div>
           <div class="history-meta">
@@ -512,8 +569,46 @@
         await deleteExpenseFromSheet(expense);
         await loadExpensesFromSheet();
       } catch (error) {
+        if (isNotFoundError(error)) {
+          removeExpenseLocally(expense);
+          return;
+        }
         console.error(error);
         alert(error.message || localizeText("تعذر حذف المصروف من الشيت.", "Could not delete the expense from the sheet."));
+      }
+    }
+
+    async function deleteSelectedExpenses() {
+      const selectedItems = expenseList.filter(item => selectedExpenseIds.has(String(item.id)));
+      if (!selectedItems.length) {
+        return;
+      }
+
+      if (!confirm(localizeText("تحذف المصروفات المحددة؟", "Delete selected expenses?"))) {
+        return;
+      }
+
+      elements.deleteSelectedBtn.disabled = true;
+      elements.deleteSelectedBtn.textContent = localizeText("جاري الحذف...", "Deleting...");
+
+      try {
+        for (const expense of selectedItems) {
+          try {
+            await deleteExpenseFromSheet(expense);
+          } catch (error) {
+            if (!isNotFoundError(error)) {
+              throw error;
+            }
+          }
+        }
+        selectedExpenseIds.clear();
+        await loadExpensesFromSheet();
+      } catch (error) {
+        console.error(error);
+        alert(error.message || localizeText("تعذر حذف المصروفات المحددة.", "Could not delete selected expenses."));
+      } finally {
+        elements.deleteSelectedBtn.textContent = localizeText("حذف المحدد", "Delete Selected");
+        updateSelectedExpensesState();
       }
     }
 
@@ -550,6 +645,28 @@
     });
     saveBtn.addEventListener("click", addExpenseLocalized);
     clearBtn.addEventListener("click", clearForm);
+    elements.deleteSelectedBtn.addEventListener("click", deleteSelectedExpenses);
+    applyDateFilterBtn.addEventListener("click", renderAll);
+    clearDateFilterBtn.addEventListener("click", () => {
+      elements.filterFromDate.value = "";
+      elements.filterToDate.value = "";
+      selectedExpenseIds.clear();
+      renderAll();
+    });
+    elements.filterFromDate.addEventListener("change", renderAll);
+    elements.filterToDate.addEventListener("change", renderAll);
+    elements.historyList.addEventListener("change", event => {
+      const checkbox = event.target.closest("[data-select-id]");
+      if (!checkbox) return;
+
+      const id = String(checkbox.dataset.selectId);
+      if (checkbox.checked) {
+        selectedExpenseIds.add(id);
+      } else {
+        selectedExpenseIds.delete(id);
+      }
+      updateSelectedExpensesState();
+    });
     elements.historyList.addEventListener("click", async event => {
       const btn = event.target.closest("[data-delete-id]");
       if (!btn) return;

@@ -267,6 +267,32 @@
       color: var(--ink);
     }
 
+    .action-btn.danger {
+      background: #b93228;
+      color: white;
+    }
+
+    .action-btn:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .filter-actions {
+      margin-top: 14px;
+    }
+
+    .bulk-actions {
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .selected-count {
+      color: var(--muted);
+      font-weight: 800;
+    }
+
     .history-list {
       display: grid;
       gap: 12px;
@@ -287,6 +313,18 @@
       justify-content: space-between;
       gap: 12px;
       align-items: center;
+    }
+
+    .history-select {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .history-select input {
+      width: 20px;
+      height: 20px;
+      accent-color: #b7863f;
     }
 
     .history-amount {
@@ -438,6 +476,23 @@
           <div class="hero-badge" id="categoryCode">EXP</div>
         </section>
 
+        <section class="panel">
+          <div class="editor-grid">
+            <div class="field">
+              <label for="filterFromDate" data-i18n-ar="من تاريخ" data-i18n-en="From Date">من تاريخ</label>
+              <input id="filterFromDate" type="date">
+            </div>
+            <div class="field">
+              <label for="filterToDate" data-i18n-ar="إلى تاريخ" data-i18n-en="To Date">إلى تاريخ</label>
+              <input id="filterToDate" type="date">
+            </div>
+          </div>
+          <div class="action-row filter-actions">
+            <button type="button" class="action-btn primary" id="applyDateFilterBtn" data-i18n-ar="تطبيق الفلتر" data-i18n-en="Apply Filter">تطبيق الفلتر</button>
+            <button type="button" class="action-btn soft" id="clearDateFilterBtn" data-i18n-ar="مسح الفلتر" data-i18n-en="Clear Filter">مسح الفلتر</button>
+          </div>
+        </section>
+
         <section class="summary-grid">
           <article class="summary-card total">
             <span data-i18n-ar="مصروفات التصنيف" data-i18n-en="Category Expenses">مصروفات التصنيف</span>
@@ -490,6 +545,10 @@
         </section>
 
         <section class="panel">
+          <div class="action-row bulk-actions">
+            <button type="button" class="action-btn danger" id="deleteSelectedBtn" disabled data-i18n-ar="حذف المحدد" data-i18n-en="Delete Selected">حذف المحدد</button>
+            <span class="selected-count" id="selectedExpensesCount">0 محدد</span>
+          </div>
           <div class="history-list" id="historyList"></div>
         </section>
       </main>

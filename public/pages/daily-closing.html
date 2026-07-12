@@ -452,8 +452,8 @@
       const vodafone = numberValue(data.vodafoneCashTotal ?? data.vodafoneTotal);
       const expenses = numberValue(data.expensesTotal);
       const withdrawals = numberValue(data.withdrawalsTotal);
-      const sales = numberValue(data.salesIncludesTips) ? rawSales : rawSales + tips;
-      const net = sales - expenses - withdrawals;
+      const sales = rawSales;
+      const net = sales + tips - expenses - withdrawals;
 
       return {
         date: data.date || data.reportDate || elements.closingDate.value,
@@ -590,11 +590,7 @@
           action: "deleteDailyClosing",
           closingId: closing.closingId || "",
           date: closingDate,
-          reportDate: closingDate,
-          username: currentUser?.username || "",
-          userName: currentUser?.username || "",
-          displayName: currentUser?.displayName || currentUser?.username || "",
-          permissions: currentUser?.permissions || []
+          reportDate: closingDate
         });
 
         if (response.status !== "success") {

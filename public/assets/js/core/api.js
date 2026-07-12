@@ -1,5 +1,5 @@
 (function () {
-  const API_URL = "https://script.google.com/macros/s/AKfycbwsoJpbtliwgyTTA77NZcgWzN6CzCJr5nm9M2IT32Wz7g7GZHHjUhGfdagdbfrFZnVr/exec";
+  const API_URL = "https://script.google.com/macros/s/AKfycbxzjIIgtx6Q6w2oi6Kl6ZHz76nNSxOShD189jz6Irx882wyBdNJqfB0tZ2ZvVVlS-32/exec";
   const SESSION_KEY = "romeo-pos-session";
   let onlineState = navigator.onLine !== false;
   let offlineBanner = null;
@@ -57,45 +57,45 @@
     return onlineState;
   }
 
-  function getCurrentUserFromSession() {
+  function browserReportsOffline() {
+    return navigator.onLine === false;
+  }
+
+  function getApiErrorMessage() {
+    return getLanguage() === "en"
+      ? "Could not reach the database. Please try again."
+      : "تعذر الاتصال بقاعدة البيانات. حاول مرة أخرى.";
+  }
+
+  function getCurrentSessionToken() {
     try {
       const stored = sessionStorage.getItem(SESSION_KEY);
       if (!stored) return null;
 
       const session = JSON.parse(stored);
-      const user = session && session.user ? session.user : null;
-      if (!user || !user.username) return null;
-
-      return {
-        username: String(user.username || "").trim(),
-        displayName: String(user.displayName || user.username || "").trim(),
-        permissions: Array.isArray(user.permissions) ? user.permissions : []
-      };
+      const token = session && (session.sessionToken || session.token || session.user?.sessionToken);
+      return token ? String(token).trim() : null;
     } catch (error) {
       return null;
     }
   }
 
-  function withCurrentUser(payload) {
+  function withCurrentSession(payload) {
     const nextPayload = { ...(payload || {}) };
-    const user = getCurrentUserFromSession();
+    const sessionToken = getCurrentSessionToken();
 
-    if (!user || nextPayload.currentUser || nextPayload.actor) {
-      return nextPayload;
+    if (sessionToken && !nextPayload.sessionToken) {
+      nextPayload.sessionToken = sessionToken;
     }
-
-    nextPayload.currentUser = user;
-    nextPayload.actor = user;
-    nextPayload.actorUserName = user.username;
-    nextPayload.actorDisplayName = user.displayName;
 
     return nextPayload;
   }
 
   async function request(payload) {
-    const bodyPayload = withCurrentUser(payload);
+    const bodyPayload = withCurrentSession(payload);
 
-    if (!isOnline()) {
+    if (browserReportsOffline()) {
+      setOnlineState(false);
       throw new Error(getOfflineMessage());
     }
 
@@ -109,8 +109,12 @@
       });
       setOnlineState(true);
     } catch (error) {
-      setOnlineState(false);
-      throw new Error(getOfflineMessage());
+      if (browserReportsOffline()) {
+        setOnlineState(false);
+        throw new Error(getOfflineMessage());
+      }
+      setOnlineState(true);
+      throw new Error(getApiErrorMessage());
     }
 
     if (!response.ok) {

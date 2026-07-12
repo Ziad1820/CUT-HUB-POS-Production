@@ -432,6 +432,35 @@
       return match ? match[0] : "";
     }
 
+    function getLatestInvoiceBarberOptions(selectedValue) {
+      const selected = String(selectedValue || "").trim();
+      const options = [];
+      const seen = new Set();
+
+      function addOption(value, label) {
+        const optionValue = String(value || "").trim();
+        const optionLabel = String(label || value || "").trim();
+        if (!optionValue || seen.has(optionValue.toLowerCase())) return;
+        seen.add(optionValue.toLowerCase());
+        options.push({ value: optionValue, label: optionLabel });
+      }
+
+      getStoredStaffForBarbers().forEach(staff => {
+        addOption(getBarberSheetName(staff), staff.name);
+      });
+
+      if (selected) {
+        addOption(selected, selected);
+      }
+
+      return [
+        `<option value="">${escapeHtml(localizeText("اختر الموظف", "Choose employee"))}</option>`,
+        ...options.map(option =>
+          `<option value="${escapeHtml(option.value)}" ${option.value === selected ? "selected" : ""}>${escapeHtml(option.label)}</option>`
+        )
+      ].join("");
+    }
+
     function getPaymentOptions(selectedValue) {
       const payments = ["نقدي", "انستا باي", "فودافون كاش", "فيزا"];
       const current = String(selectedValue || "").trim();
@@ -473,7 +502,7 @@
         <div class="detail-item"><span>${totalLabel}</span><input class="detail-input" id="latestEditInvoiceTotal" type="number" min="0" step="1" value="${escapeHtml(invoice.total)}"></div>
         <div class="detail-item"><span>${customerLabel}</span><input class="detail-input" id="latestEditCustomerName" type="text" value="${escapeHtml(invoice.customerName || "")}"></div>
         <div class="detail-item"><span>${phoneLabel}</span><input class="detail-input" id="latestEditCustomerPhone" type="tel" value="${escapeHtml(invoice.customerPhone || "")}"></div>
-        <div class="detail-item"><span>${employeeLabel}</span><input class="detail-input" id="latestEditInvoiceBarber" type="text" value="${escapeHtml(invoice.barber || "")}"></div>
+        <div class="detail-item"><span>${employeeLabel}</span><select class="detail-input" id="latestEditInvoiceBarber">${getLatestInvoiceBarberOptions(invoice.barber || "")}</select></div>
         <div class="detail-item"><span>${paymentLabel}</span><select class="detail-input" id="latestEditPaymentMethod">${getPaymentOptions(invoice.paymentMethod || "")}</select></div>
         <div class="detail-item"><span>${paidLabel}</span><input class="detail-input" id="latestEditPaidAmount" type="number" min="0" step="1" value="${escapeHtml(invoice.paidAmount || invoice.total || 0)}"></div>
         <div class="detail-item"><span>${tipLabel}</span><input class="detail-input" id="latestEditTipAmount" type="number" min="0" step="1" value="${escapeHtml(invoice.tipAmount || 0)}"></div>
@@ -721,6 +750,23 @@
       `).join("");
     }
 
+    function setDailyNetLoading(isLoading) {
+      if (!dailyNetCard || !dailyNetAmount || !dailyNetBreakdown) {
+        return;
+      }
+
+      dailyNetCard.classList.toggle("is-loading", isLoading);
+
+      if (!isLoading) {
+        return;
+      }
+
+      const loadingText = localizeText("جاري تحميل أرقام اليوم...", "Loading day numbers...");
+      dailyNetAmount.textContent = localizeText("جاري التحميل...", "Loading...");
+      dailyNetBreakdown.className = "daily-net-loading";
+      dailyNetBreakdown.innerHTML = `<span class="daily-net-spinner"></span><span>${loadingText}</span>`;
+    }
+
     function updateDailyNet(todaySales, todayTips = latestTodayTips) {
       const withdrawalsTotal = numberValue(latestTodayWithdrawals);
       const expensesTotal = numberValue(latestTodayExpenses);
@@ -795,7 +841,7 @@
       const vodafoneCashTotal = numberValue(totals.vodafoneCash);
       const visaTotal = numberValue(totals.visa);
       const tipsTotal = numberValue(totals.tips);
-      const salesWithTipsTotal = cashTotal + instapayTotal + vodafoneCashTotal + visaTotal + tipsTotal;
+      const salesWithTipsTotal = cashTotal + instapayTotal + vodafoneCashTotal + visaTotal;
 
       if (cashTodayTotal) cashTodayTotal.textContent = formatCurrency(cashTotal);
       if (instapayTodayTotal) instapayTodayTotal.textContent = formatCurrency(instapayTotal);
@@ -1012,6 +1058,7 @@
     }
 
     async function fetchTodaySales() {
+      setDailyNetLoading(true);
       try {
         if (todaySalesAmount) {
           todaySalesAmount.textContent = "Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž...";
@@ -1030,8 +1077,10 @@
         if (todaySalesAmount) {
           todaySalesAmount.textContent = formatCurrency(latestTodaySales);
         }
-        fetchDailyNetTotals();
-        fetchTodayPaymentTotals();
+        await Promise.all([
+          fetchDailyNetTotals(),
+          fetchTodayPaymentTotals()
+        ]);
       } catch (error) {
         console.error(error);
         latestTodaySales = 0;
@@ -1039,8 +1088,10 @@
         if (todaySalesAmount) {
           todaySalesAmount.textContent = formatCurrency(0);
         }
-        fetchDailyNetTotals();
+        await fetchDailyNetTotals();
         updatePaymentMethodTotals();
+      } finally {
+        setDailyNetLoading(false);
       }
     }
 
@@ -1358,7 +1409,7 @@
       completeSaleBtn.textContent = isLoading ? "Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜Â§Ã™â€žÃ˜Â­Ã™ÂÃ˜Â¸..." : "Ã˜Â¥Ã˜ÂªÃ™â€¦Ã˜Â§Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â³Ã˜Â§Ã˜Â¨";
 
       if (isLoading) {
-        showStatus("Loading... Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â§Ã˜ÂªÃ™Ë†Ã˜Â±Ã˜Â© Ã™Ë†Ã˜Â§Ã™â€ Ã˜ÂªÃ˜Â¸Ã˜Â§Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â±Ã˜Â¯ Ã™â€¦Ã™â€  Google Sheets", "loading");
+        showStatus("جاري حفظ الفاتورة .....", "loading");
       } else if (offline) {
         showStatus(getOfflineStatusMessage(), "error");
       }

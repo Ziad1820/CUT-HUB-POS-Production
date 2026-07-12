@@ -261,6 +261,20 @@
       line-height: 1.8;
     }
 
+    .load-more-wrap {
+      display: flex;
+      justify-content: center;
+      padding-top: 18px;
+    }
+
+    .load-more-wrap[hidden] {
+      display: none;
+    }
+
+    .button.load-more {
+      min-width: 220px;
+    }
+
     body[data-language="ar"] table { direction: rtl; }
     body[data-language="ar"] th,
     body[data-language="ar"] td { text-align: right; }
@@ -375,6 +389,9 @@
           </tbody>
         </table>
       </div>
+      <div class="load-more-wrap" id="loadMoreWrap" hidden>
+        <button class="button load-more" type="button" id="loadMoreBtn">عرض المزيد</button>
+      </div>
     </section>
   </div>
 
@@ -389,7 +406,11 @@
 
     const state = {
       logs: [],
-      filtered: []
+      filtered: [],
+      offset: 0,
+      pageSize: 100,
+      hasMore: false,
+      loadingMore: false
     };
 
     const els = {
@@ -403,7 +424,9 @@
       total: document.getElementById("totalLogs"),
       deletes: document.getElementById("deleteLogs"),
       updates: document.getElementById("updateLogs"),
-      creates: document.getElementById("createLogs")
+      creates: document.getElementById("createLogs"),
+      loadMoreWrap: document.getElementById("loadMoreWrap"),
+      loadMore: document.getElementById("loadMoreBtn")
     };
 
     const ACTION_LABELS = {
@@ -540,6 +563,7 @@
 
     function renderLogs() {
       renderMetrics();
+      updateLoadMoreButton();
 
       if (!state.filtered.length) {
         setEmpty(localizeText("لا توجد عمليات مطابقة للفلاتر الحالية.", "No activity matches the current filters."));
@@ -594,28 +618,66 @@
       renderLogs();
     }
 
-    async function loadLogs() {
-      setEmpty(localizeText("جاري تحميل سجل العمليات...", "Loading activity log..."));
+    function updateLoadMoreButton() {
+      if (!els.loadMoreWrap || !els.loadMore) return;
+
+      els.loadMoreWrap.hidden = !state.hasMore;
+      els.loadMore.disabled = state.loadingMore;
+      els.loadMore.textContent = state.loadingMore
+        ? localizeText("جاري تحميل المزيد...", "Loading more...")
+        : localizeText("عرض المزيد", "Load More");
+    }
+
+    async function loadLogs({ append = false } = {}) {
+      state.loadingMore = append;
+      updateLoadMoreButton();
+
+      if (!append) {
+        state.offset = 0;
+        state.hasMore = false;
+        state.logs = [];
+        state.filtered = [];
+        setEmpty(localizeText("جاري تحميل آخر 100 عملية...", "Loading latest 100 activity logs..."));
+      }
 
       try {
-        const response = await RomeoApi.request({ action: "getActivityLogs" });
+        const response = await RomeoApi.request({
+          action: "getActivityLogs",
+          limit: state.pageSize,
+          offset: append ? state.offset : 0
+        });
         if (response.status !== "success") {
           throw new Error(response.message || "Activity log API is not ready.");
         }
 
         const rows = response.logs || response.activityLogs || [];
-        state.logs = rows.map(normalizeLog).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+        const backendIgnoredPaging = rows.length > state.pageSize;
+        const pageRows = backendIgnoredPaging
+          ? rows.slice(state.offset, state.offset + state.pageSize)
+          : rows;
+        const normalizedRows = pageRows.map((log, index) => normalizeLog(log, state.offset + index));
+        state.logs = append ? state.logs.concat(normalizedRows) : normalizedRows;
+        state.logs = state.logs.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+        state.offset += pageRows.length;
+        state.hasMore = backendIgnoredPaging
+          ? state.offset < rows.length
+          : Boolean(response.hasMore);
         applyFilters();
       } catch (error) {
-        state.logs = [];
-        state.filtered = [];
-        renderMetrics();
-        setEmpty(
-          localizeText(
-            "صفحة سجل العمليات جاهزة. الخطوة الجاية نضيف action باسم getActivityLogs في App Script وننشئ شيت ACTIVITY_LOG.",
-            "Activity Log page is ready. Next, add a getActivityLogs action in App Script and create an ACTIVITY_LOG sheet."
-          )
-        );
+        if (!append) {
+          state.logs = [];
+          state.filtered = [];
+          renderMetrics();
+          setEmpty(
+            localizeText(
+              "تعذر تحميل سجل العمليات.",
+              "Could not load activity log."
+            )
+          );
+        }
+      } finally {
+        state.loadingMore = false;
+        updateLoadMoreButton();
       }
     }
 
@@ -625,6 +687,7 @@
     });
 
     els.refresh.addEventListener("click", loadLogs);
+    els.loadMore.addEventListener("click", () => loadLogs({ append: true }));
     window.addEventListener("romeo-language-change", renderLogs);
     loadLogs();
   </script>

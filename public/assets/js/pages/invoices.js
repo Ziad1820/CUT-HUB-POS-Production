@@ -12,7 +12,6 @@
       invoiceRows: document.getElementById("invoiceRows"),
       visibleTotal: document.getElementById("visibleTotal"),
       visibleCount: document.getElementById("visibleCount"),
-      allTotal: document.getElementById("allTotal"),
       selectedCount: document.getElementById("selectedCount"),
       selectAllInvoices: document.getElementById("selectAllInvoices"),
       deleteSelectedBtn: document.getElementById("deleteSelectedBtn"),
@@ -35,7 +34,7 @@
     let totalMatches = 0;
     let filterTimer = null;
     let filterOptions = { barbers: [], paymentMethods: [] };
-    const PAGE_SIZE = 100;
+    const PAGE_SIZE = 25;
     const selectedInvoiceIds = new Set();
 
     function parseAmount(value) {
@@ -211,6 +210,14 @@
       return result;
     }
 
+    function getInvoicesFromResult(result) {
+      if (Array.isArray(result.invoices)) return result.invoices;
+      if (Array.isArray(result.data)) return result.data;
+      if (Array.isArray(result.rows)) return result.rows;
+      if (Array.isArray(result.records)) return result.records;
+      return [];
+    }
+
     async function loadInvoices(options = {}) {
       const append = Boolean(options.append);
       const offset = append ? nextOffset : 0;
@@ -238,7 +245,13 @@
           filters: getServerFilters()
         });
 
-        const nextInvoices = Array.isArray(result.invoices) ? result.invoices : [];
+        const nextInvoices = getInvoicesFromResult(result);
+        if (!nextInvoices.length && Number(result.totalMatches || 0) > 0) {
+          throw new Error(localizeText(
+            "قاعدة البيانات رجعت عدد فواتير لكن لم ترجع بيانات الصفوف. اضغط تحديث أو جرب تحميل دفعة أقل.",
+            "The database returned invoice matches but no invoice rows. Refresh or try loading a smaller batch."
+          ));
+        }
         invoices = append ? invoices.concat(nextInvoices) : nextInvoices;
         filteredInvoices = invoices;
         nextOffset = Number(result.nextOffset || invoices.length || 0);
@@ -256,7 +269,14 @@
         updateLoadMoreUi();
       } catch (error) {
         console.error(error);
-        elements.invoiceRows.innerHTML = `<tr><td colspan="12" class="empty-state">${escapeHtml(error.message || localizeText("تعذر تحميل الفواتير من الشيت.", "Could not load invoices from the sheet."))}</td></tr>`;
+        const message = String(error?.message || "");
+        const friendlyMessage = message.includes("Unexpected token")
+          ? localizeText(
+            "تعذر قراءة رد قاعدة البيانات. اضغط تحديث مرة أخرى.",
+            "Could not read the database response. Please refresh again."
+          )
+          : (message || localizeText("تعذر تحميل الفواتير من الشيت.", "Could not load invoices from the sheet."));
+        elements.invoiceRows.innerHTML = `<tr><td colspan="12" class="empty-state">${escapeHtml(friendlyMessage)}</td></tr>`;
         renderSummary([]);
         hasMoreInvoices = false;
         updateLoadMoreUi();
@@ -328,11 +348,9 @@
 
     function renderSummary(items) {
       const visibleTotal = items.reduce((sum, item) => sum + parseAmount(item.total), 0);
-      const allTotal = invoices.reduce((sum, item) => sum + parseAmount(item.total), 0);
 
       elements.visibleTotal.textContent = formatMoney(visibleTotal);
       elements.visibleCount.textContent = totalMatches.toLocaleString("en-US");
-      elements.allTotal.textContent = formatMoney(allTotal);
     }
 
     function pruneSelectedInvoices() {
@@ -426,6 +444,26 @@
       return Boolean(invoice && invoice.invoiceId && invoice.rowNumber);
     }
 
+    function getBarberEditOptions(selectedValue) {
+      const current = String(selectedValue || "").trim();
+      const sourceBarbers = filterOptions.barbers.length
+        ? filterOptions.barbers
+        : invoices.map(item => String(item.barber || "").trim()).filter(Boolean);
+      const barbers = [...new Set(sourceBarbers)];
+
+      if (current && !barbers.includes(current)) {
+        barbers.unshift(current);
+      }
+
+      const placeholder = localizeText("اختر الموظف", "Choose employee");
+      return [
+        `<option value="">${escapeHtml(placeholder)}</option>`,
+        ...barbers.map(barber =>
+          `<option value="${escapeHtml(barber)}" ${barber === current ? "selected" : ""}>${escapeHtml(barber)}</option>`
+        )
+      ].join("");
+    }
+
     function getPaymentOptions(selectedValue) {
       const payments = [
         ["نقدي", "نقدي"],
@@ -466,7 +504,7 @@
         <div class="detail-item"><span>${totalLabel}</span><input class="detail-input" id="editInvoiceTotal" type="number" min="0" step="1" value="${escapeHtml(parseAmount(invoice.total))}"></div>
         <div class="detail-item"><span>${customerLabel}</span><input class="detail-input" id="editCustomerName" type="text" value="${escapeHtml(invoice.customerName || "")}"></div>
         <div class="detail-item"><span>${phoneLabel}</span><input class="detail-input" id="editCustomerPhone" type="tel" value="${escapeHtml(invoice.customerPhone || "")}"></div>
-        <div class="detail-item"><span>${barberLabel}</span><input class="detail-input" id="editInvoiceBarber" type="text" value="${escapeHtml(invoice.barber || "")}"></div>
+        <div class="detail-item"><span>${barberLabel}</span><select class="detail-input" id="editInvoiceBarber">${getBarberEditOptions(invoice.barber || "")}</select></div>
         <div class="detail-item"><span>${paymentLabel}</span><select class="detail-input" id="editPaymentMethod">${getPaymentOptions(invoice.paymentMethod || invoice.payment || "")}</select></div>
         <div class="detail-item"><span>${paidLabel}</span><input class="detail-input" id="editPaidAmount" type="number" min="0" step="1" value="${escapeHtml(parseAmount(invoice.paidAmount || invoice.total))}"></div>
         <div class="detail-item"><span>${tipLabel}</span><input class="detail-input" id="editTipAmount" type="number" min="0" step="1" value="${escapeHtml(parseAmount(invoice.tipAmount))}"></div>

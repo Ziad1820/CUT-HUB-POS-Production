@@ -23,6 +23,10 @@
       withdrawAmount: document.getElementById("withdrawAmount"),
       withdrawDate: document.getElementById("withdrawDate"),
       withdrawNote: document.getElementById("withdrawNote"),
+      filterFromDate: document.getElementById("filterFromDate"),
+      filterToDate: document.getElementById("filterToDate"),
+      deleteSelectedBtn: document.getElementById("deleteSelectedBtn"),
+      selectedWithdrawalsCount: document.getElementById("selectedWithdrawalsCount"),
       historyList: document.getElementById("historyList")
     };
 
@@ -31,6 +35,8 @@
     const sidebarOverlay = document.getElementById("sidebarOverlay");
     const saveBtn = document.getElementById("saveBtn");
     const clearBtn = document.getElementById("clearBtn");
+    const applyDateFilterBtn = document.getElementById("applyDateFilterBtn");
+    const clearDateFilterBtn = document.getElementById("clearDateFilterBtn");
 
     function formatMoney(value) {
       return Number(value || 0).toLocaleString("en-US");
@@ -115,6 +121,7 @@
 
     let staffList = getStaff();
     let withdrawalList = [];
+    let selectedWithdrawalIds = new Set();
     let selectedId = staffList[0]?.id || null;
 
     if (!elements.withdrawDate.value) {
@@ -187,8 +194,36 @@
       return staffList.find(staff => staff.id === selectedId) || null;
     }
 
+    function isDateInFilter(dateValue) {
+      const date = String(dateValue || "").slice(0, 10);
+      const fromDate = elements.filterFromDate.value;
+      const toDate = elements.filterToDate.value;
+
+      if (!date) return false;
+      if (fromDate && date < fromDate) return false;
+      if (toDate && date > toDate) return false;
+      return true;
+    }
+
+    function getFilteredWithdrawals() {
+      return withdrawalList.filter(item => isDateInFilter(item.date));
+    }
+
     function getEmployeeWithdrawals(staffId) {
-      return withdrawalList.filter(item => item.staffId === staffId);
+      return getFilteredWithdrawals().filter(item => item.staffId === staffId);
+    }
+
+    function updateSelectedWithdrawalsState() {
+      const availableIds = new Set(withdrawalList.map(item => String(item.id)));
+      selectedWithdrawalIds = new Set(
+        [...selectedWithdrawalIds].filter(id => availableIds.has(String(id)))
+      );
+
+      const selectedCount = selectedWithdrawalIds.size;
+      elements.deleteSelectedBtn.disabled = selectedCount === 0;
+      elements.selectedWithdrawalsCount.textContent = currentLanguage() === "en"
+        ? `${selectedCount} selected`
+        : `${selectedCount} محدد`;
     }
 
     function renderEmployeeList() {
@@ -263,12 +298,14 @@
       const staff = getSelectedStaff();
       const employeeItems = staff ? getEmployeeWithdrawals(staff.id) : [];
       const employeeTotal = employeeItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-      const allTotal = withdrawalList.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const filteredWithdrawals = getFilteredWithdrawals();
+      const allTotal = filteredWithdrawals.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
       elements.employeeWithdrawals.textContent = formatMoney(employeeTotal);
       elements.employeeRecords.textContent = employeeItems.length;
       elements.allWithdrawals.textContent = formatMoney(allTotal);
-      elements.allRecords.textContent = withdrawalList.length;
+      elements.allRecords.textContent = filteredWithdrawals.length;
+      updateSelectedWithdrawalsState();
     }
 
     function renderHistory() {
@@ -292,9 +329,12 @@
         row.className = "history-item";
         row.innerHTML = `
           <div class="history-top">
-            <div>
-              <div class="history-amount">${formatMoney(item.amount)}</div>
-            </div>
+            <label class="history-select">
+              <input type="checkbox" data-select-id="${item.id}" ${selectedWithdrawalIds.has(String(item.id)) ? "checked" : ""}>
+              <div>
+                <div class="history-amount">${formatMoney(item.amount)}</div>
+              </div>
+            </label>
             <button type="button" class="action-btn soft" data-delete-id="${item.id}">${localizeText("حذف", "Delete")}</button>
           </div>
           <div class="history-meta">
@@ -395,6 +435,34 @@
       }
     }
 
+    async function deleteSelectedWithdrawals() {
+      const selectedItems = withdrawalList.filter(item => selectedWithdrawalIds.has(String(item.id)));
+      if (!selectedItems.length) {
+        return;
+      }
+
+      if (!confirm(localizeText("تحذف السحوبات المحددة؟", "Delete selected withdrawals?"))) {
+        return;
+      }
+
+      elements.deleteSelectedBtn.disabled = true;
+      elements.deleteSelectedBtn.textContent = localizeText("جاري الحذف...", "Deleting...");
+
+      try {
+        for (const withdrawal of selectedItems) {
+          await deleteWithdrawalFromSheet(withdrawal);
+        }
+        selectedWithdrawalIds.clear();
+        await loadWithdrawalsFromSheet();
+      } catch (error) {
+        console.error(error);
+        alert(error.message || localizeText("تعذر حذف السحوبات المحددة.", "Could not delete selected withdrawals."));
+      } finally {
+        elements.deleteSelectedBtn.textContent = localizeText("حذف المحدد", "Delete Selected");
+        updateSelectedWithdrawalsState();
+      }
+    }
+
     function openSidebar() {
       sidebar.classList.add("active");
       sidebarOverlay.classList.add("active");
@@ -420,7 +488,28 @@
     elements.searchInput.addEventListener("input", renderEmployeeList);
     saveBtn.addEventListener("click", addWithdrawal);
     clearBtn.addEventListener("click", clearForm);
+    elements.deleteSelectedBtn.addEventListener("click", deleteSelectedWithdrawals);
+    applyDateFilterBtn.addEventListener("click", renderAll);
+    clearDateFilterBtn.addEventListener("click", () => {
+      elements.filterFromDate.value = "";
+      elements.filterToDate.value = "";
+      renderAll();
+    });
+    elements.filterFromDate.addEventListener("change", renderAll);
+    elements.filterToDate.addEventListener("change", renderAll);
     elements.historyList.addEventListener("click", async event => {
+      const checkbox = event.target.closest("[data-select-id]");
+      if (checkbox) {
+        const id = String(checkbox.dataset.selectId);
+        if (checkbox.checked) {
+          selectedWithdrawalIds.add(id);
+        } else {
+          selectedWithdrawalIds.delete(id);
+        }
+        updateSelectedWithdrawalsState();
+        return;
+      }
+
       const btn = event.target.closest("[data-delete-id]");
       if (!btn) return;
       if (!confirm("ØªØ­Ø°Ù Ø¹Ù…Ù„ÙŠØ© Ø§Ù„Ø³Ø­Ø¨ Ø¯ÙŠØŸ")) return;
