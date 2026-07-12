@@ -176,6 +176,11 @@
       color: #fff;
     }
 
+    .button.danger {
+      background: var(--danger);
+      color: #fff;
+    }
+
     .cards {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -203,6 +208,37 @@
       border: 1px solid var(--border);
       border-radius: 22px;
       background: rgba(255,250,242,.72);
+    }
+
+    .bulk-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .select-all-logs {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .log-select,
+    .select-all-logs input {
+      width: 20px;
+      height: 20px;
+      accent-color: var(--danger);
+      cursor: pointer;
+    }
+
+    .selected-count {
+      color: var(--muted);
+      font-weight: 900;
     }
 
     table {
@@ -273,6 +309,17 @@
 
     .button.load-more {
       min-width: 220px;
+    }
+
+    .mini-delete {
+      border: none;
+      border-radius: 999px;
+      padding: 8px 18px;
+      background: #f4ded6;
+      color: #a32b22;
+      font-weight: 900;
+      cursor: pointer;
+      white-space: nowrap;
     }
 
     body[data-language="ar"] table { direction: rtl; }
@@ -373,19 +420,29 @@
     </section>
 
     <section class="panel">
+      <div class="bulk-actions">
+        <label class="select-all-logs">
+          <input type="checkbox" id="selectAllLogs">
+          <span data-i18n="Select All">Select All</span>
+        </label>
+        <span class="selected-count" id="selectedLogsCount">0 selected</span>
+        <button class="button danger" type="button" id="deleteSelectedLogsBtn" disabled data-i18n="Delete Selected">Delete Selected</button>
+      </div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
+              <th></th>
               <th data-i18n="Action Type">Action Type</th>
               <th data-i18n="User">User</th>
               <th data-i18n="Date & Time">Date & Time</th>
               <th data-i18n="Entity Type">Entity Type</th>
               <th data-i18n="Details">Details</th>
+              <th data-i18n="Actions">Actions</th>
             </tr>
           </thead>
           <tbody id="logsBody">
-            <tr><td class="empty" colspan="5" data-i18n="Loading...">Loading...</td></tr>
+            <tr><td class="empty" colspan="7" data-i18n="Loading...">Loading...</td></tr>
           </tbody>
         </table>
       </div>
@@ -407,6 +464,7 @@
     const state = {
       logs: [],
       filtered: [],
+      selectedIds: new Set(),
       offset: 0,
       pageSize: 100,
       hasMore: false,
@@ -425,6 +483,9 @@
       deletes: document.getElementById("deleteLogs"),
       updates: document.getElementById("updateLogs"),
       creates: document.getElementById("createLogs"),
+      selectAll: document.getElementById("selectAllLogs"),
+      selectedCount: document.getElementById("selectedLogsCount"),
+      deleteSelected: document.getElementById("deleteSelectedLogsBtn"),
       loadMoreWrap: document.getElementById("loadMoreWrap"),
       loadMore: document.getElementById("loadMoreBtn")
     };
@@ -551,7 +612,8 @@
     }
 
     function setEmpty(message) {
-      els.body.innerHTML = `<tr><td class="empty" colspan="5">${escapeHtml(message)}</td></tr>`;
+      els.body.innerHTML = `<tr><td class="empty" colspan="7">${escapeHtml(message)}</td></tr>`;
+      updateSelectionControls();
     }
 
     function renderMetrics() {
@@ -559,6 +621,25 @@
       els.deletes.textContent = state.filtered.filter(log => log.action === "delete").length;
       els.updates.textContent = state.filtered.filter(log => log.action === "update").length;
       els.creates.textContent = state.filtered.filter(log => log.action === "create").length;
+    }
+
+    function getVisibleLogIds() {
+      return state.filtered.map(log => String(log.logId || "")).filter(Boolean);
+    }
+
+    function updateSelectionControls() {
+      const visibleIds = getVisibleLogIds();
+      const visibleIdSet = new Set(visibleIds);
+      state.selectedIds = new Set([...state.selectedIds].filter(id => visibleIdSet.has(id)));
+
+      const selectedCount = state.selectedIds.size;
+      const visibleSelectedCount = visibleIds.filter(id => state.selectedIds.has(id)).length;
+
+      els.selectedCount.textContent = localizeText(`${selectedCount} محدد`, `${selectedCount} selected`);
+      els.deleteSelected.disabled = selectedCount === 0;
+      els.selectAll.disabled = visibleIds.length === 0;
+      els.selectAll.checked = visibleIds.length > 0 && visibleSelectedCount === visibleIds.length;
+      els.selectAll.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visibleIds.length;
     }
 
     function renderLogs() {
@@ -575,17 +656,21 @@
         const actionClass = ACTION_LABELS[log.action] ? log.action : "";
         const entityLabel = labelFrom(ENTITY_LABELS, log.entityType);
         const entityId = log.entityId ? ` <span class="muted">#${escapeHtml(log.entityId)}</span>` : "";
+        const logId = String(log.logId || "");
 
         return `
           <tr>
+            <td><input class="log-select" type="checkbox" data-select-log="${escapeHtml(logId)}" ${state.selectedIds.has(logId) ? "checked" : ""}></td>
             <td><span class="badge ${escapeHtml(actionClass)}">${escapeHtml(labelFrom(ACTION_LABELS, log.action))}</span></td>
             <td>${escapeHtml(user)}</td>
             <td>${escapeHtml(formatDateTime(log.createdAt))}</td>
             <td>${escapeHtml(entityLabel)}${entityId}</td>
             <td><div class="details">${escapeHtml(log.details || "-")}</div></td>
+            <td><button class="mini-delete" type="button" data-delete-log="${escapeHtml(logId)}">${escapeHtml(localizeText("حذف", "Delete"))}</button></td>
           </tr>
         `;
       }).join("");
+      updateSelectionControls();
     }
 
     function applyFilters() {
@@ -615,6 +700,7 @@
         return true;
       });
 
+      updateSelectionControls();
       renderLogs();
     }
 
@@ -628,6 +714,67 @@
         : localizeText("عرض المزيد", "Load More");
     }
 
+    async function deleteActivityLog(log) {
+      const response = await RomeoApi.request({
+        action: "deleteActivityLog",
+        logId: log.logId,
+        id: log.logId,
+        createdAt: log.createdAt,
+        entityId: log.entityId,
+        entityType: log.entityType,
+        details: log.details
+      });
+
+      if (response.status !== "success") {
+        throw new Error(response.message || localizeText("تعذر حذف السجل.", "Could not delete log."));
+      }
+    }
+
+    async function deleteSelectedLogs() {
+      const selectedLogs = state.filtered.filter(log => state.selectedIds.has(String(log.logId || "")));
+      if (!selectedLogs.length) {
+        updateSelectionControls();
+        return;
+      }
+
+      if (!confirm(localizeText(`حذف ${selectedLogs.length} عملية من سجل النشاط؟`, `Delete ${selectedLogs.length} activity log records?`))) {
+        return;
+      }
+
+      els.deleteSelected.disabled = true;
+      els.deleteSelected.textContent = localizeText("جاري الحذف...", "Deleting...");
+
+      try {
+        for (const log of selectedLogs) {
+          await deleteActivityLog(log);
+        }
+        state.selectedIds.clear();
+        await loadLogs();
+      } catch (error) {
+        alert(error.message || localizeText("تعذر حذف السجلات المحددة.", "Could not delete selected logs."));
+      } finally {
+        els.deleteSelected.textContent = localizeText("حذف المحدد", "Delete Selected");
+        updateSelectionControls();
+      }
+    }
+
+    async function deleteSingleLog(logId) {
+      const log = state.filtered.find(item => String(item.logId || "") === String(logId));
+      if (!log) return;
+
+      if (!confirm(localizeText("حذف هذه العملية من سجل النشاط؟", "Delete this activity log record?"))) {
+        return;
+      }
+
+      try {
+        await deleteActivityLog(log);
+        state.selectedIds.delete(String(logId));
+        await loadLogs();
+      } catch (error) {
+        alert(error.message || localizeText("تعذر حذف السجل.", "Could not delete log."));
+      }
+    }
+
     async function loadLogs({ append = false } = {}) {
       state.loadingMore = append;
       updateLoadMoreButton();
@@ -637,6 +784,7 @@
         state.hasMore = false;
         state.logs = [];
         state.filtered = [];
+        state.selectedIds.clear();
         setEmpty(localizeText("جاري تحميل آخر 100 عملية...", "Loading latest 100 activity logs..."));
       }
 
@@ -687,6 +835,33 @@
     });
 
     els.refresh.addEventListener("click", loadLogs);
+    els.selectAll.addEventListener("change", event => {
+      const visibleIds = getVisibleLogIds();
+      if (event.target.checked) {
+        visibleIds.forEach(id => state.selectedIds.add(id));
+      } else {
+        visibleIds.forEach(id => state.selectedIds.delete(id));
+      }
+      renderLogs();
+    });
+    els.deleteSelected.addEventListener("click", deleteSelectedLogs);
+    els.body.addEventListener("change", event => {
+      const checkbox = event.target.closest("[data-select-log]");
+      if (!checkbox) return;
+
+      const id = String(checkbox.dataset.selectLog || "");
+      if (checkbox.checked) {
+        state.selectedIds.add(id);
+      } else {
+        state.selectedIds.delete(id);
+      }
+      updateSelectionControls();
+    });
+    els.body.addEventListener("click", event => {
+      const button = event.target.closest("[data-delete-log]");
+      if (!button) return;
+      deleteSingleLog(button.dataset.deleteLog);
+    });
     els.loadMore.addEventListener("click", () => loadLogs({ append: true }));
     window.addEventListener("romeo-language-change", renderLogs);
     loadLogs();
