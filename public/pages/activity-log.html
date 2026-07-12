@@ -577,9 +577,13 @@
     function normalizeLog(log, index) {
       const action = normalizeAction(log.action || log.type || log.actionType);
       const entityType = normalizeEntityType(log.entityType || log.entity || log.targetType);
+      const rowNumber = Number(log.rowNumber || 0);
+      const rawLogId = decodeText(log.logId || log.id || "");
 
       return {
-        logId: decodeText(log.logId || log.id || `LOG-${index + 1}`),
+        logId: rawLogId || (rowNumber ? `ROW-${rowNumber}` : `LOG-${index + 1}`),
+        rawLogId,
+        rowNumber,
         action,
         entityType,
         entityId: decodeText(log.entityId || log.targetId || ""),
@@ -717,8 +721,9 @@
     async function deleteActivityLog(log) {
       const response = await RomeoApi.request({
         action: "deleteActivityLog",
-        logId: log.logId,
-        id: log.logId,
+        logId: log.rawLogId || log.logId,
+        id: log.rawLogId || log.logId,
+        rowNumber: log.rowNumber,
         createdAt: log.createdAt,
         entityId: log.entityId,
         entityType: log.entityType,
@@ -735,7 +740,9 @@
     }
 
     async function deleteSelectedLogs() {
-      const selectedLogs = state.filtered.filter(log => state.selectedIds.has(String(log.logId || "")));
+      const selectedLogs = state.filtered
+        .filter(log => state.selectedIds.has(String(log.logId || "")))
+        .sort((a, b) => Number(b.rowNumber || 0) - Number(a.rowNumber || 0));
       if (!selectedLogs.length) {
         updateSelectionControls();
         return;

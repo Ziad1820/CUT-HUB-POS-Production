@@ -255,7 +255,8 @@ function getActivityLogs(data) {
     const rows = sheet.getRange(startRow, 1, rowsToRead, 8).getValues();
 
     const logs = rows
-      .map(row => ({
+      .map((row, index) => ({
+        rowNumber: startRow + index,
         logId: String(row[0] || "").trim(),
         action: String(row[1] || "").trim(),
         entityType: String(row[2] || "").trim(),
@@ -294,7 +295,8 @@ function deleteActivityLog(data) {
     if (permissionError) return permissionError;
 
     const logId = String(data.logId || data.id || "").trim();
-    if (!logId) {
+    const rowNumber = Number(data.rowNumber || 0);
+    if (!logId && !rowNumber) {
       return jsonOutput({ status: "error", message: "Missing logId." });
     }
 
@@ -304,10 +306,18 @@ function deleteActivityLog(data) {
       return jsonOutput({ status: "error", message: "Activity log not found." });
     }
 
-    const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-    const index = ids.findIndex(row => String(row[0] || "").trim() === logId);
-    if (index !== -1) {
-      sheet.deleteRow(index + 2);
+    if (logId && !/^ROW-\d+$/i.test(logId) && !/^LOG-\d+$/i.test(logId)) {
+      const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+      const index = ids.findIndex(row => String(row[0] || "").trim() === logId);
+      if (index !== -1) {
+        sheet.deleteRow(index + 2);
+        SpreadsheetApp.flush();
+        return jsonOutput({ status: "success", message: "Activity log deleted." });
+      }
+    }
+
+    if (rowNumber >= 2 && rowNumber <= lastRow) {
+      sheet.deleteRow(rowNumber);
       SpreadsheetApp.flush();
       return jsonOutput({ status: "success", message: "Activity log deleted." });
     }
