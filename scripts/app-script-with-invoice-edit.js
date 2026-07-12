@@ -300,14 +300,16 @@ function deleteActivityLog(data) {
 
     const sheet = getActivityLogSheet();
     const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return jsonOutput({ status: "error", message: "Activity log not found." });
+    }
 
-    for (let row = 2; row <= lastRow; row++) {
-      const currentId = String(sheet.getRange(row, 1).getValue() || "").trim();
-      if (currentId === logId) {
-        sheet.deleteRow(row);
-        SpreadsheetApp.flush();
-        return jsonOutput({ status: "success", message: "Activity log deleted." });
-      }
+    const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    const index = ids.findIndex(row => String(row[0] || "").trim() === logId);
+    if (index !== -1) {
+      sheet.deleteRow(index + 2);
+      SpreadsheetApp.flush();
+      return jsonOutput({ status: "success", message: "Activity log deleted." });
     }
 
     return jsonOutput({ status: "error", message: "Activity log not found." });
