@@ -27,6 +27,7 @@ function doPost(e) {
   if (data.action === "saveStaff") return saveStaff(data);
 
   if (data.action === "getActivityLogs") return getActivityLogs(data);
+  if (data.action === "deleteActivityLog") return deleteActivityLog(data);
 
   if (data.action === "createAttendanceRecord") return createAttendanceRecord(data);
   if (data.action === "getAttendanceRecords") return getAttendanceRecords(data);
@@ -282,6 +283,34 @@ function getActivityLogs(data) {
       hasMore: offset + rowsToRead < totalRows,
       totalLogs: totalRows
     });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
+}
+
+function deleteActivityLog(data) {
+  try {
+    const permissionError = requirePermission(data, "manage_users", "Only managers can delete activity logs.");
+    if (permissionError) return permissionError;
+
+    const logId = String(data.logId || data.id || "").trim();
+    if (!logId) {
+      return jsonOutput({ status: "error", message: "Missing logId." });
+    }
+
+    const sheet = getActivityLogSheet();
+    const lastRow = sheet.getLastRow();
+
+    for (let row = 2; row <= lastRow; row++) {
+      const currentId = String(sheet.getRange(row, 1).getValue() || "").trim();
+      if (currentId === logId) {
+        sheet.deleteRow(row);
+        SpreadsheetApp.flush();
+        return jsonOutput({ status: "success", message: "Activity log deleted." });
+      }
+    }
+
+    return jsonOutput({ status: "error", message: "Activity log not found." });
   } catch (error) {
     return jsonOutput({ status: "error", message: error.message });
   }
