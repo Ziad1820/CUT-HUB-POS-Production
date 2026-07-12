@@ -739,6 +739,21 @@
       }
     }
 
+    async function deleteActivityLogs(logs) {
+      const response = await RomeoApi.request({
+        action: "deleteActivityLogs",
+        logs: logs.map(log => ({
+          logId: log.rawLogId || log.logId,
+          id: log.rawLogId || log.logId,
+          rowNumber: log.rowNumber
+        }))
+      });
+
+      if (response.status !== "success") {
+        throw new Error(response.message || localizeText("تعذر حذف السجلات المحددة.", "Could not delete selected logs."));
+      }
+    }
+
     async function deleteSelectedLogs() {
       const selectedLogs = state.filtered
         .filter(log => state.selectedIds.has(String(log.logId || "")))
@@ -756,9 +771,7 @@
       els.deleteSelected.textContent = localizeText("جاري الحذف...", "Deleting...");
 
       try {
-        for (const log of selectedLogs) {
-          await deleteActivityLog(log);
-        }
+        await deleteActivityLogs(selectedLogs);
         state.selectedIds.clear();
         await loadLogs();
       } catch (error) {

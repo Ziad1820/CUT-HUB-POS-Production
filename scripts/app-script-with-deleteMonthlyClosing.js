@@ -28,6 +28,7 @@ function doPost(e) {
 
   if (data.action === "getActivityLogs") return getActivityLogs(data);
   if (data.action === "deleteActivityLog") return deleteActivityLog(data);
+  if (data.action === "deleteActivityLogs") return deleteActivityLogs(data);
 
   if (data.action === "createAttendanceRecord") return createAttendanceRecord(data);
   if (data.action === "getAttendanceRecords") return getAttendanceRecords(data);
@@ -323,6 +324,68 @@ function deleteActivityLog(data) {
     }
 
     return jsonOutput({ status: "error", message: "Activity log not found." });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
+}
+
+function deleteActivityLogs(data) {
+  try {
+    const permissionError = requirePermission(data, "manage_users", "Only managers can delete activity logs.");
+    if (permissionError) return permissionError;
+
+    const logs = Array.isArray(data.logs) ? data.logs : [];
+    if (!logs.length) {
+      return jsonOutput({ status: "error", message: "No activity logs selected." });
+    }
+
+    const sheet = getActivityLogSheet();
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return jsonOutput({ status: "success", deletedCount: 0 });
+    }
+
+    const rowsToDelete = [];
+    const requestedIds = logs
+      .map(log => String(log.logId || log.id || "").trim())
+      .filter(id => id && !/^ROW-\d+$/i.test(id) && !/^LOG-\d+$/i.test(id));
+
+    if (requestedIds.length) {
+      const idSet = new Set(requestedIds);
+      const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+      ids.forEach((row, index) => {
+        const currentId = String(row[0] || "").trim();
+        if (idSet.has(currentId)) rowsToDelete.push(index + 2);
+      });
+    }
+
+    logs.forEach(log => {
+      const rowNumber = Number(log.rowNumber || 0);
+      if (rowNumber >= 2 && rowNumber <= lastRow) {
+        rowsToDelete.push(rowNumber);
+      }
+    });
+
+    const sortedRows = [...new Set(rowsToDelete)]
+      .filter(row => row >= 2 && row <= lastRow)
+      .sort((a, b) => b - a);
+
+    let deletedCount = 0;
+    for (let i = 0; i < sortedRows.length; i++) {
+      const endRow = sortedRows[i];
+      let startRow = endRow;
+      while (i + 1 < sortedRows.length && sortedRows[i + 1] === startRow - 1) {
+        i++;
+        startRow = sortedRows[i];
+      }
+
+      const count = endRow - startRow + 1;
+      sheet.deleteRows(startRow, count);
+      deletedCount += count;
+    }
+
+    SpreadsheetApp.flush();
+    return jsonOutput({ status: "success", deletedCount });
   } catch (error) {
     return jsonOutput({ status: "error", message: error.message });
   }
