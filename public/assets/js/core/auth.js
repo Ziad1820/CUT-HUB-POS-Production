@@ -1,5 +1,5 @@
 const RomeoAuth = (() => {
-  const API_URL = window.RomeoApi ? RomeoApi.API_URL : "https://script.google.com/macros/s/AKfycbxzjIIgtx6Q6w2oi6Kl6ZHz76nNSxOShD189jz6Irx882wyBdNJqfB0tZ2ZvVVlS-32/exec";
+  const API_URL = window.RomeoApi ? RomeoApi.API_URL : "https://script.google.com/macros/s/AKfycbzT2RyyUyrLtPXqtv7lNw9o9APCA8PniBv4pL_sQ7qVrtu_Gtzs9leIRRIkRIbt_peU/exec";
   const SESSION_KEY = "romeo-pos-session";
   const OWNER_USERNAME = "owner";
   const ALL_PERMISSIONS = [
