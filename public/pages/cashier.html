@@ -1276,9 +1276,32 @@
       gap: 12px;
     }
 
+    .price-editor-toolbar {
+      padding: 16px 20px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .price-editor-select-all {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .price-editor-selected-count {
+      color: var(--muted);
+      font-weight: 900;
+    }
+
     .price-editor-row {
       display: grid;
-      grid-template-columns: 1fr 180px auto;
+      grid-template-columns: auto 1fr 180px auto;
       gap: 12px;
       align-items: center;
       background: #fffaf2;
@@ -1291,7 +1314,14 @@
       font-size: 16px;
     }
 
-    .price-editor-row input {
+    .price-editor-checkbox {
+      width: 18px;
+      height: 18px;
+      accent-color: #b83228;
+      cursor: pointer;
+    }
+
+    .price-editor-row input[type="number"] {
       width: 100%;
       border: 1px solid var(--border);
       border-radius: 14px;
@@ -1333,6 +1363,23 @@
       .services-panel,
       .cart-panel {
         min-height: 0;
+      }
+
+      .price-editor-toolbar {
+        align-items: stretch;
+      }
+
+      .price-editor-toolbar .danger-btn {
+        width: 100%;
+      }
+
+      .price-editor-row {
+        grid-template-columns: auto 1fr;
+      }
+
+      .price-editor-row input[type="number"],
+      .price-editor-row .danger-btn {
+        grid-column: 2;
       }
     }
   </style>
@@ -1528,6 +1575,14 @@
         <input id="newServicePrice" type="number" min="0" step="1" placeholder="Ø§Ù„Ø³Ø¹Ø±">
         <button class="primary-btn" type="button" id="addServiceBtn">Ø¥Ø¶Ø§ÙØ©</button>
       </div>
+      <div class="price-editor-toolbar">
+        <label class="price-editor-select-all">
+          <input class="price-editor-checkbox" id="selectAllServicesForDelete" type="checkbox">
+          <span>تحديد الكل</span>
+        </label>
+        <span class="price-editor-selected-count" id="selectedServicesCount">0 محدد</span>
+        <button class="danger-btn" type="button" id="deleteSelectedServicesBtn" disabled>حذف المحدد</button>
+      </div>
       <div class="price-editor-list" id="priceEditorList"></div>
       <div class="modal-footer">
         <button class="secondary-btn" type="button" id="resetPricesBtn">Ø§Ø³ØªØ±Ø¬Ø§Ø¹ Ø§Ù„Ø£Ø³Ø¹Ø§Ø± Ø§Ù„Ø£ØµÙ„ÙŠØ©</button>
@@ -1553,7 +1608,7 @@
   <script src="../assets/js/core/api.js"></script>
   <script src="../assets/js/core/auth.js"></script>
   <script src="../assets/js/utils/layout.js"></script>
-  <script src="../assets/js/pages/cashier.js?v=20260706-bookings-shortcut"></script>
+  <script src="../assets/js/pages/cashier.js?v=20260712-bulk-service-delete"></script>
 
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>

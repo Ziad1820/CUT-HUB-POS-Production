@@ -159,6 +159,9 @@
     const editPricesBtn = document.getElementById("editPricesBtn");
     const priceEditorModal = document.getElementById("priceEditorModal");
     const priceEditorList = document.getElementById("priceEditorList");
+    const selectAllServicesForDelete = document.getElementById("selectAllServicesForDelete");
+    const selectedServicesCount = document.getElementById("selectedServicesCount");
+    const deleteSelectedServicesBtn = document.getElementById("deleteSelectedServicesBtn");
     const savePricesBtn = document.getElementById("savePricesBtn");
     const closePriceEditorBtn = document.getElementById("closePriceEditorBtn");
     const resetPricesBtn = document.getElementById("resetPricesBtn");
@@ -178,6 +181,7 @@
     let latestTodayTips = 0;
     let latestPaymentTotals = {};
     let latestTodayExpenses = 0;
+    let selectedServiceNames = new Set();
     let latestTodayWithdrawals = 0;
     let invoiceSubmitInProgress = false;
     const STAFF_STORAGE_KEY = "romeo-pos-staff-accounting-v2";
@@ -1243,11 +1247,34 @@
       priceEditorModal.classList.remove("active");
     }
 
+    function updateSelectedServicesControls() {
+      const availableNames = availableServices.map(service => service.name);
+      selectedServiceNames = new Set([...selectedServiceNames].filter(name => availableNames.includes(name)));
+
+      const selectedCount = selectedServiceNames.size;
+      const allSelected = availableServices.length > 0 && availableServices.every(service => selectedServiceNames.has(service.name));
+
+      if (selectedServicesCount) {
+        selectedServicesCount.textContent = `${selectedCount} محدد`;
+      }
+
+      if (deleteSelectedServicesBtn) {
+        deleteSelectedServicesBtn.disabled = selectedCount === 0;
+      }
+
+      if (selectAllServicesForDelete) {
+        selectAllServicesForDelete.disabled = availableServices.length === 0;
+        selectAllServicesForDelete.checked = allSelected;
+        selectAllServicesForDelete.indeterminate = selectedCount > 0 && !allSelected;
+      }
+    }
+
     function renderPriceEditor() {
       priceEditorList.innerHTML = availableServices
         .map(
           (service, index) => `
             <div class="price-editor-row">
+              <input class="price-editor-checkbox" type="checkbox" data-select-service="${index}" ${selectedServiceNames.has(service.name) ? "checked" : ""}>
               <strong>${service.name}</strong>
               <input type="number" min="0" step="1" data-service-index="${index}" value="${service.price}">
               <button class="danger-btn" type="button" onclick="deleteServiceFromMenu(${index})">Ã˜Â­Ã˜Â°Ã™Â</button>
@@ -1255,6 +1282,7 @@
           `
         )
         .join("");
+      updateSelectedServicesControls();
     }
 
     function syncCartPrices() {
@@ -1388,6 +1416,7 @@
       }
 
       availableServices.splice(index, 1);
+      selectedServiceNames.delete(service.name);
       cart = cart.filter(item => item.name !== service.name);
       const savedToSheet = await persistServices();
       renderPriceEditor();
@@ -1400,6 +1429,40 @@
         savedToSheet ? "success" : "error"
       );
     };
+
+    async function deleteSelectedServicesFromMenu() {
+      if (!isConnectionOnline()) {
+        showStatus(getOfflineStatusMessage(), "error");
+        updateOnlineControls();
+        return;
+      }
+
+      const selectedServices = availableServices.filter(service => selectedServiceNames.has(service.name));
+      if (!selectedServices.length) {
+        updateSelectedServicesControls();
+        return;
+      }
+
+      if (!window.confirm(`هل تريد حذف ${selectedServices.length} خدمة؟`)) {
+        return;
+      }
+
+      const selectedNames = new Set(selectedServices.map(service => service.name));
+      availableServices = availableServices.filter(service => !selectedNames.has(service.name));
+      cart = cart.filter(item => !selectedNames.has(item.name));
+      selectedServiceNames.clear();
+
+      const savedToSheet = await persistServices();
+      renderPriceEditor();
+      renderServices();
+      renderCart();
+      showStatus(
+        savedToSheet
+          ? "تم حذف الخدمات المحددة وحفظ التعديل في الشيت."
+          : "تم حذف الخدمات المحددة على هذا الجهاز فقط، ولم يتم حفظ التعديل في الشيت.",
+        savedToSheet ? "success" : "error"
+      );
+    }
 
     function setLoadingState(isLoading) {
       const offline = !isConnectionOnline();
@@ -2069,6 +2132,32 @@
     savePricesBtn.addEventListener("click", saveServicePrices);
     resetPricesBtn.addEventListener("click", resetServicePrices);
     addServiceBtn.addEventListener("click", addServiceToMenu);
+    if (deleteSelectedServicesBtn) {
+      deleteSelectedServicesBtn.addEventListener("click", deleteSelectedServicesFromMenu);
+    }
+    if (selectAllServicesForDelete) {
+      selectAllServicesForDelete.addEventListener("change", event => {
+        selectedServiceNames = event.target.checked
+          ? new Set(availableServices.map(service => service.name))
+          : new Set();
+        renderPriceEditor();
+      });
+    }
+    priceEditorList.addEventListener("change", event => {
+      const checkbox = event.target.closest("[data-select-service]");
+      if (!checkbox) return;
+
+      const service = availableServices[Number(checkbox.dataset.selectService)];
+      if (!service) return;
+
+      if (checkbox.checked) {
+        selectedServiceNames.add(service.name);
+      } else {
+        selectedServiceNames.delete(service.name);
+      }
+
+      updateSelectedServicesControls();
+    });
     logoutBtn.addEventListener("click", () => RomeoAuth.logout());
     if (latestInvoicesList) {
       latestInvoicesList.addEventListener("click", event => {
