@@ -288,6 +288,22 @@
       margin-bottom: 14px;
     }
 
+    .select-all-expenses {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .select-all-expenses input {
+      width: 20px;
+      height: 20px;
+      accent-color: #b7863f;
+      cursor: pointer;
+    }
+
     .selected-count {
       color: var(--muted);
       font-weight: 800;
@@ -546,6 +562,10 @@
 
         <section class="panel">
           <div class="action-row bulk-actions">
+            <label class="select-all-expenses">
+              <input type="checkbox" id="selectAllExpenses">
+              <span data-i18n-ar="تحديد الكل" data-i18n-en="Select All">تحديد الكل</span>
+            </label>
             <button type="button" class="action-btn danger" id="deleteSelectedBtn" disabled data-i18n-ar="حذف المحدد" data-i18n-en="Delete Selected">حذف المحدد</button>
             <span class="selected-count" id="selectedExpensesCount">0 محدد</span>
           </div>
@@ -579,7 +599,7 @@
   <script src="../assets/js/core/api.js"></script>
   <script src="../assets/js/core/auth.js"></script>
   <script src="../assets/js/utils/layout.js"></script>
-  <script src="../assets/js/pages/expenses.js"></script>
+  <script src="../assets/js/pages/expenses.js?v=20260712-select-all"></script>
 
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>

@@ -27,6 +27,7 @@
       expenseNote: document.getElementById("expenseNote"),
       filterFromDate: document.getElementById("filterFromDate"),
       filterToDate: document.getElementById("filterToDate"),
+      selectAllExpenses: document.getElementById("selectAllExpenses"),
       deleteSelectedBtn: document.getElementById("deleteSelectedBtn"),
       selectedExpensesCount: document.getElementById("selectedExpensesCount"),
       historyList: document.getElementById("historyList")
@@ -210,19 +211,31 @@
       return expenseList.filter(item => isDateInFilter(item.date));
     }
 
+    function getVisibleHistoryExpenses() {
+      const category = getSelectedCategory();
+      return category
+        ? [...getCategoryExpenses(category.id)].sort((a, b) => new Date(b.date) - new Date(a.date))
+        : [];
+    }
+
     function updateSelectedExpensesState() {
       const category = getSelectedCategory();
-      const visibleItems = category ? getCategoryExpenses(category.id) : getFilteredExpenses();
+      const visibleItems = getVisibleHistoryExpenses();
       const availableIds = new Set(visibleItems.map(item => String(item.id)));
       selectedExpenseIds = new Set(
         [...selectedExpenseIds].filter(id => availableIds.has(String(id)))
       );
 
       const selectedCount = selectedExpenseIds.size;
+      const visibleIds = visibleItems.map(item => String(item.id));
+      const visibleSelectedCount = visibleIds.filter(id => selectedExpenseIds.has(id)).length;
       elements.deleteSelectedBtn.disabled = selectedCount === 0;
       elements.selectedExpensesCount.textContent = currentLanguage() === "en"
         ? `${selectedCount} selected`
         : `${selectedCount} محدد`;
+      elements.selectAllExpenses.disabled = !category || visibleIds.length === 0;
+      elements.selectAllExpenses.checked = visibleIds.length > 0 && visibleSelectedCount === visibleIds.length;
+      elements.selectAllExpenses.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visibleIds.length;
     }
 
     function getCategoryExpenses(categoryId) {
@@ -301,8 +314,7 @@
 
     function renderHistory() {
       const category = getSelectedCategory();
-      const items = category ? getCategoryExpenses(category.id) : [];
-      const sorted = [...items].sort((a, b) => new Date(b.date) - new Date(a.date));
+      const sorted = getVisibleHistoryExpenses();
       elements.historyList.innerHTML = "";
 
       if (!category) {
@@ -332,6 +344,7 @@
         `;
         elements.historyList.appendChild(row);
       });
+      updateSelectedExpensesState();
     }
 
     function renderLocalizedHero() {
@@ -370,8 +383,7 @@
 
     function renderHistory() {
       const category = getSelectedCategory();
-      const items = category ? getCategoryExpenses(category.id) : [];
-      const sorted = [...items].sort((a, b) => new Date(b.date) - new Date(a.date));
+      const sorted = getVisibleHistoryExpenses();
       elements.historyList.innerHTML = "";
 
       if (!category) {
@@ -405,6 +417,7 @@
         `;
         elements.historyList.appendChild(row);
       });
+      updateSelectedExpensesState();
     }
 
     function renderLocalizedHero() {
@@ -646,6 +659,15 @@
     saveBtn.addEventListener("click", addExpenseLocalized);
     clearBtn.addEventListener("click", clearForm);
     elements.deleteSelectedBtn.addEventListener("click", deleteSelectedExpenses);
+    elements.selectAllExpenses.addEventListener("change", event => {
+      const visibleIds = getVisibleHistoryExpenses().map(item => String(item.id));
+      if (event.target.checked) {
+        visibleIds.forEach(id => selectedExpenseIds.add(id));
+      } else {
+        visibleIds.forEach(id => selectedExpenseIds.delete(id));
+      }
+      renderHistory();
+    });
     applyDateFilterBtn.addEventListener("click", renderAll);
     clearDateFilterBtn.addEventListener("click", () => {
       elements.filterFromDate.value = "";
