@@ -169,6 +169,7 @@
 
     .action-btn.dark { background: linear-gradient(135deg, #24180d, #5f4524); color: #fff; }
     .action-btn.success { background: var(--success); color: #fff; }
+    .action-btn.danger { background: var(--danger); color: #fff; }
     .action-btn:disabled { opacity: .55; cursor: not-allowed; }
 
     .mini-btn {
@@ -246,6 +247,32 @@
       min-width: 1080px;
     }
 
+    .closings-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 0 14px;
+      flex-wrap: wrap;
+    }
+
+    .selected-count {
+      color: var(--muted);
+      font-weight: 900;
+    }
+
+    .select-cell {
+      text-align: center;
+      width: 54px;
+    }
+
+    .closing-select {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--danger);
+      cursor: pointer;
+    }
+
     th,
     td {
       padding: 14px 12px;
@@ -271,6 +298,8 @@
       .header-menu { position: static; width: 100%; margin-bottom: 16px; }
       .controls,
       .metrics { grid-template-columns: 1fr; }
+      .closings-toolbar { align-items: stretch; }
+      .closings-toolbar .action-btn { width: 100%; }
     }
   </style>
 </head>
@@ -333,10 +362,15 @@
 
     <section class="panel">
       <h2 style="margin:0 0 16px;" data-i18n-ar="التقفيلات اليومية السابقة" data-i18n-en="Previous Daily Closings">التقفيلات اليومية السابقة</h2>
+      <div class="closings-toolbar" id="closingsToolbar" hidden>
+        <button type="button" class="action-btn danger" id="deleteSelectedClosingsBtn" disabled data-i18n-ar="حذف المحدد" data-i18n-en="Delete Selected">حذف المحدد</button>
+        <span class="selected-count" id="selectedClosingsCount">0 محدد</span>
+      </div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
+              <th class="select-cell"><input id="selectAllClosings" class="closing-select" type="checkbox" aria-label="Select all daily closings"></th>
               <th data-i18n-ar="التاريخ" data-i18n-en="Date">التاريخ</th>
               <th data-i18n-ar="المبيعات" data-i18n-en="Sales">المبيعات</th>
               <th data-i18n-ar="نقدي" data-i18n-en="Cash">نقدي</th>
@@ -352,7 +386,7 @@
             </tr>
           </thead>
           <tbody id="closingsBody">
-            <tr><td class="empty" colspan="12">Loading previous closings...</td></tr>
+            <tr><td class="empty" colspan="13">Loading previous closings...</td></tr>
           </tbody>
         </table>
       </div>
@@ -384,11 +418,16 @@
       withdrawalsTotal: document.getElementById("withdrawalsTotal"),
       netTotal: document.getElementById("netTotal"),
       netMetric: document.getElementById("netMetric"),
-      closingsBody: document.getElementById("closingsBody")
+      closingsBody: document.getElementById("closingsBody"),
+      closingsToolbar: document.getElementById("closingsToolbar"),
+      deleteSelectedClosingsBtn: document.getElementById("deleteSelectedClosingsBtn"),
+      selectedClosingsCount: document.getElementById("selectedClosingsCount"),
+      selectAllClosings: document.getElementById("selectAllClosings")
     };
 
     let latestPreview = null;
     let closings = [];
+    let selectedClosingKeys = new Set();
 
     function getLanguage() {
       return window.RomeoLanguage?.getCurrentLanguage?.()
@@ -441,6 +480,24 @@
     function setStatus(message, type) {
       elements.statusLine.textContent = message;
       elements.statusLine.className = `status ${type || ""}`.trim();
+    }
+
+    function getClosingKey(closing) {
+      return String(closing?.closingId || closing?.date || closing?.reportDate || "").trim();
+    }
+
+    function updateBulkDeleteControls() {
+      const selectedCount = selectedClosingKeys.size;
+      const selectableKeys = closings.map(getClosingKey).filter(Boolean);
+      const allSelected = selectableKeys.length > 0 && selectableKeys.every(key => selectedClosingKeys.has(key));
+
+      elements.closingsToolbar.hidden = !isManager;
+      elements.deleteSelectedClosingsBtn.disabled = !isManager || selectedCount === 0;
+      elements.deleteSelectedClosingsBtn.textContent = localize("حذف المحدد", "Delete Selected");
+      elements.selectedClosingsCount.textContent = localize(`${selectedCount} محدد`, `${selectedCount} selected`);
+      elements.selectAllClosings.disabled = !isManager || selectableKeys.length === 0;
+      elements.selectAllClosings.checked = allSelected;
+      elements.selectAllClosings.indeterminate = selectedCount > 0 && !allSelected;
     }
 
     function normalizePreview(data) {
@@ -535,12 +592,17 @@
 
     function renderClosings() {
       if (!closings.length) {
-        elements.closingsBody.innerHTML = `<tr><td class="empty" colspan="12">${localize("لا توجد تقفيلات يومية محفوظة حتى الآن.", "No saved daily closings yet.")}</td></tr>`;
+        selectedClosingKeys.clear();
+        elements.closingsBody.innerHTML = `<tr><td class="empty" colspan="13">${localize("لا توجد تقفيلات يومية محفوظة حتى الآن.", "No saved daily closings yet.")}</td></tr>`;
+        updateBulkDeleteControls();
         return;
       }
 
       elements.closingsBody.innerHTML = closings.map(item => `
         <tr>
+          <td class="select-cell">
+            ${isManager ? `<input class="closing-select" type="checkbox" data-select-closing="${escapeHtml(getClosingKey(item))}" ${selectedClosingKeys.has(getClosingKey(item)) ? "checked" : ""} aria-label="${escapeHtml(localize("تحديد التقفيلة", "Select closing"))}">` : "-"}
+          </td>
           <td>${escapeHtml(item.date || item.reportDate || "-")}</td>
           <td class="amount">${formatMoney(item.salesTotal)}</td>
           <td class="amount">${formatMoney(item.cashTotal)}</td>
@@ -557,6 +619,7 @@
           </td>
         </tr>
       `).join("");
+      updateBulkDeleteControls();
     }
 
     async function loadClosings() {
@@ -567,10 +630,28 @@
         }
 
         closings = response.closings || response.dailyClosings || [];
+        const availableKeys = new Set(closings.map(getClosingKey).filter(Boolean));
+        selectedClosingKeys = new Set([...selectedClosingKeys].filter(key => availableKeys.has(key)));
         renderClosings();
       } catch (error) {
         closings = [];
-        elements.closingsBody.innerHTML = `<tr><td class="empty" colspan="12">${escapeHtml(error.message || localize("تعذر تحميل التقفيلات السابقة.", "Could not load previous closings."))}</td></tr>`;
+        selectedClosingKeys.clear();
+        elements.closingsBody.innerHTML = `<tr><td class="empty" colspan="13">${escapeHtml(error.message || localize("تعذر تحميل التقفيلات السابقة.", "Could not load previous closings."))}</td></tr>`;
+        updateBulkDeleteControls();
+      }
+    }
+
+    async function deleteClosingFromSheet(closing) {
+      const closingDate = closing.date || closing.reportDate || "";
+      const response = await RomeoApi.request({
+        action: "deleteDailyClosing",
+        closingId: closing.closingId || "",
+        date: closingDate,
+        reportDate: closingDate
+      });
+
+      if (response.status !== "success") {
+        throw new Error(response.message || localize("تعذر حذف التقفيلة اليومية.", "Could not delete daily closing."));
       }
     }
 
@@ -586,22 +667,51 @@
 
       try {
         setStatus(localize("جاري حذف التقفيلة اليومية...", "Deleting daily closing..."), "");
-        const response = await RomeoApi.request({
-          action: "deleteDailyClosing",
-          closingId: closing.closingId || "",
-          date: closingDate,
-          reportDate: closingDate
-        });
+        await deleteClosingFromSheet(closing);
 
-        if (response.status !== "success") {
-          throw new Error(response.message || localize("تعذر حذف التقفيلة اليومية.", "Could not delete daily closing."));
-        }
-
+        selectedClosingKeys.delete(getClosingKey(closing));
         setStatus(localize("تم حذف التقفيلة اليومية وحفظ العملية في سجل النشاط.", "Daily closing deleted and saved in Activity Log."), "success");
         await loadClosings();
         await loadPreview();
       } catch (error) {
         setStatus(error.message || localize("تعذر حذف التقفيلة اليومية.", "Could not delete daily closing."), "error");
+      }
+    }
+
+    async function deleteSelectedClosings() {
+      if (!isManager) {
+        setStatus(localize("مالك النظام فقط يقدر يحذف التقفيلات اليومية.", "Only the system owner can delete daily closings."), "error");
+        return;
+      }
+
+      const selectedClosings = closings.filter(item => selectedClosingKeys.has(getClosingKey(item)));
+      if (!selectedClosings.length) {
+        updateBulkDeleteControls();
+        return;
+      }
+
+      const confirmMessage = localize(
+        `حذف ${selectedClosings.length} تقفيلة يومية؟ لا يمكن التراجع عن هذا الإجراء.`,
+        `Delete ${selectedClosings.length} daily closings? This action cannot be undone.`
+      );
+      if (!confirm(confirmMessage)) return;
+
+      elements.deleteSelectedClosingsBtn.disabled = true;
+      elements.deleteSelectedClosingsBtn.textContent = localize("جاري الحذف...", "Deleting...");
+
+      try {
+        setStatus(localize("جاري حذف التقفيلات المحددة...", "Deleting selected daily closings..."), "");
+        for (const closing of selectedClosings) {
+          await deleteClosingFromSheet(closing);
+        }
+
+        selectedClosingKeys.clear();
+        setStatus(localize("تم حذف التقفيلات المحددة وحفظ العمليات في سجل النشاط.", "Selected daily closings deleted and saved in Activity Log."), "success");
+        await loadClosings();
+        await loadPreview();
+      } catch (error) {
+        setStatus(error.message || localize("تعذر حذف التقفيلات المحددة.", "Could not delete selected daily closings."), "error");
+        updateBulkDeleteControls();
       }
     }
 
@@ -656,8 +766,34 @@
     }
 
     elements.closingDate.value = todayKey();
+    elements.closingsToolbar.hidden = !isManager;
+    elements.selectAllClosings.disabled = !isManager;
     elements.previewBtn.addEventListener("click", loadPreview);
     elements.closeDayBtn.addEventListener("click", closeDay);
+    elements.deleteSelectedClosingsBtn.addEventListener("click", deleteSelectedClosings);
+    elements.selectAllClosings.addEventListener("change", event => {
+      if (!isManager) return;
+      const checked = event.target.checked;
+      selectedClosingKeys = checked
+        ? new Set(closings.map(getClosingKey).filter(Boolean))
+        : new Set();
+      renderClosings();
+    });
+    elements.closingsBody.addEventListener("change", event => {
+      const checkbox = event.target.closest("[data-select-closing]");
+      if (!checkbox || !isManager) return;
+
+      const key = checkbox.dataset.selectClosing || "";
+      if (!key) return;
+
+      if (checkbox.checked) {
+        selectedClosingKeys.add(key);
+      } else {
+        selectedClosingKeys.delete(key);
+      }
+
+      updateBulkDeleteControls();
+    });
     elements.closingsBody.addEventListener("click", event => {
       const button = event.target.closest("[data-delete-closing]");
       if (!button) return;
