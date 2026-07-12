@@ -1480,12 +1480,7 @@
 
     function syncServicesPanelHeight() {
       requestAnimationFrame(() => {
-        if (window.innerWidth <= 960) {
-          servicesPanel.style.height = "";
-          return;
-        }
-
-        servicesPanel.style.height = `${cartPanel.offsetHeight}px`;
+        servicesPanel.style.height = "";
       });
     }
 
@@ -2106,9 +2101,6 @@
     });
     reportDateInput.addEventListener("change", fetchTodaySales);
     window.addEventListener("resize", syncServicesPanelHeight);
-    if ("ResizeObserver" in window) {
-      new ResizeObserver(syncServicesPanelHeight).observe(cartPanel);
-    }
     document.querySelectorAll('input[name="offerType"]').forEach(input => {
       input.addEventListener("change", renderCart);
     });

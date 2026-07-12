@@ -316,7 +316,7 @@
       display: grid;
       grid-template-columns: 1.1fr 0.9fr;
       gap: 24px;
-      align-items: stretch;
+      align-items: start;
     }
 
     .panel {
@@ -342,14 +342,15 @@
     .services-panel {
       display: flex;
       flex-direction: column;
-      min-height: clamp(560px, 58vh, 760px);
+      height: min(760px, calc(100vh - 120px));
+      min-height: 520px;
       overflow: hidden;
     }
 
     .cart-panel {
       display: flex;
       flex-direction: column;
-      min-height: clamp(560px, 58vh, 760px);
+      min-height: 0;
     }
 
     .services-grid {
@@ -364,8 +365,9 @@
     .services-panel .services-grid {
       flex: 1;
       max-height: none;
-      min-height: clamp(420px, 44vh, 620px);
+      min-height: 0;
       align-content: start;
+      overscroll-behavior: contain;
     }
 
     .services-grid::-webkit-scrollbar {
@@ -1362,6 +1364,7 @@
 
       .services-panel,
       .cart-panel {
+        height: auto;
         min-height: 0;
       }
 
