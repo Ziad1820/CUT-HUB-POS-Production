@@ -25,6 +25,7 @@
       withdrawNote: document.getElementById("withdrawNote"),
       filterFromDate: document.getElementById("filterFromDate"),
       filterToDate: document.getElementById("filterToDate"),
+      selectAllWithdrawals: document.getElementById("selectAllWithdrawals"),
       deleteSelectedBtn: document.getElementById("deleteSelectedBtn"),
       selectedWithdrawalsCount: document.getElementById("selectedWithdrawalsCount"),
       historyList: document.getElementById("historyList")
@@ -213,6 +214,13 @@
       return getFilteredWithdrawals().filter(item => item.staffId === staffId);
     }
 
+    function getVisibleHistoryWithdrawals() {
+      const staff = getSelectedStaff();
+      return staff
+        ? [...getEmployeeWithdrawals(staff.id)].sort((a, b) => new Date(b.date) - new Date(a.date))
+        : [];
+    }
+
     function updateSelectedWithdrawalsState() {
       const availableIds = new Set(withdrawalList.map(item => String(item.id)));
       selectedWithdrawalIds = new Set(
@@ -220,10 +228,15 @@
       );
 
       const selectedCount = selectedWithdrawalIds.size;
+      const visibleIds = getVisibleHistoryWithdrawals().map(item => String(item.id));
+      const visibleSelectedCount = visibleIds.filter(id => selectedWithdrawalIds.has(id)).length;
       elements.deleteSelectedBtn.disabled = selectedCount === 0;
       elements.selectedWithdrawalsCount.textContent = currentLanguage() === "en"
         ? `${selectedCount} selected`
         : `${selectedCount} محدد`;
+      elements.selectAllWithdrawals.disabled = visibleIds.length === 0;
+      elements.selectAllWithdrawals.checked = visibleIds.length > 0 && visibleSelectedCount === visibleIds.length;
+      elements.selectAllWithdrawals.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visibleIds.length;
     }
 
     function renderEmployeeList() {
@@ -310,8 +323,7 @@
 
     function renderHistory() {
       const staff = getSelectedStaff();
-      const items = staff ? getEmployeeWithdrawals(staff.id) : [];
-      const sorted = [...items].sort((a, b) => new Date(b.date) - new Date(a.date));
+      const sorted = getVisibleHistoryWithdrawals();
       elements.historyList.innerHTML = "";
 
       if (!staff) {
@@ -345,6 +357,7 @@
         `;
         elements.historyList.appendChild(row);
       });
+      updateSelectedWithdrawalsState();
     }
 
     function localizeHistoryEmptyState() {
@@ -489,6 +502,15 @@
     saveBtn.addEventListener("click", addWithdrawal);
     clearBtn.addEventListener("click", clearForm);
     elements.deleteSelectedBtn.addEventListener("click", deleteSelectedWithdrawals);
+    elements.selectAllWithdrawals.addEventListener("change", event => {
+      const visibleIds = getVisibleHistoryWithdrawals().map(item => String(item.id));
+      if (event.target.checked) {
+        visibleIds.forEach(id => selectedWithdrawalIds.add(id));
+      } else {
+        visibleIds.forEach(id => selectedWithdrawalIds.delete(id));
+      }
+      renderHistory();
+    });
     applyDateFilterBtn.addEventListener("click", renderAll);
     clearDateFilterBtn.addEventListener("click", () => {
       elements.filterFromDate.value = "";
