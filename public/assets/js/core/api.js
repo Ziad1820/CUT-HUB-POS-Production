@@ -1,5 +1,5 @@
 (function () {
-  const API_URL = "https://script.google.com/macros/s/AKfycbzHncCPIB0uudb0cwlbxArfTKNhM749yy6mtzvwfv1nGyINV6iAI0sis3eDs_KhDM1t/exec";
+  const API_URL = "https://script.google.com/macros/s/AKfycbzYAB-QRa4lHAlo9Xcg8fDqorOFrOwyab9nJQQ1tj0f_zuZxxze1LnqScKLmULrVRam/exec";
   const SESSION_KEY = "romeo-pos-session";
   let onlineState = navigator.onLine !== false;
   let offlineBanner = null;

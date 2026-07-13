@@ -460,6 +460,26 @@ function hashPassword(password) {
     .join("");
 }
 
+function resetOwnerPasswordEmergency() {
+  const NEW_OWNER_PASSWORD = "change-this-password";
+  if (NEW_OWNER_PASSWORD === "change-this-password") {
+    throw new Error("Set NEW_OWNER_PASSWORD before running resetOwnerPasswordEmergency.");
+  }
+
+  const sheet = getUsersSheet();
+  const users = readUsersFromSheet();
+  const owner = users.find(user => String(user.username || "").trim().toLowerCase() === "owner");
+
+  if (!owner) {
+    throw new Error("Owner user was not found in USERS sheet.");
+  }
+
+  sheet.getRange(owner.rowNumber, 2).setValue("");
+  sheet.getRange(owner.rowNumber, 6).setValue(hashPassword(NEW_OWNER_PASSWORD));
+  SpreadsheetApp.flush();
+  Logger.log("Owner password was reset successfully.");
+}
+
 function verifyPassword(user, password) {
   const plainPassword = String(password || "");
   const storedHash = String(user.passwordHash || "").trim();
