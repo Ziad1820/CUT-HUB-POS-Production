@@ -375,6 +375,7 @@
     const usersList = document.getElementById("usersList");
     const statusBox = document.getElementById("statusBox");
     let usersCache = [];
+    let editingUsername = "";
 
     const systemPermissions = [
       "access_dashboard",
@@ -479,8 +480,11 @@
     }
 
     function resetForm() {
+      editingUsername = "";
       document.getElementById("displayName").value = "";
-      document.getElementById("username").value = "";
+      const usernameInput = document.getElementById("username");
+      usernameInput.value = "";
+      usernameInput.disabled = false;
       document.getElementById("password").value = "";
       document.querySelectorAll('.permissions input[type="checkbox"]').forEach((input, index) => {
         input.disabled = false;
@@ -535,17 +539,25 @@
       const username = document.getElementById("username").value.trim();
       const password = document.getElementById("password").value;
       const permissions = selectedPermissions().filter(permission => permission !== "manage_users");
-      const existing = usersCache.find(user => user.username === username);
+      const editingUser = editingUsername
+        ? usersCache.find(user => user.username === editingUsername)
+        : null;
+      const existing = editingUser || usersCache.find(user => user.username === username);
 
       if (username.toLowerCase() === "owner" && !existing) {
         showStatus(localizeText("لا يمكن إنشاء مالك نظام ثاني. استخدم اسم مستخدم مختلف.", "You cannot create a second system owner. Use a different username."), "error");
         return;
       }
 
+      if (editingUsername && !editingUser) {
+        showStatus(localizeText("تعذر العثور على المستخدم الجاري تعديله. أعد تحميل المستخدمين وحاول مرة أخرى.", "Could not find the user being edited. Reload users and try again."), "error");
+        return;
+      }
+
       showStatus(localizeText("جاري حفظ المستخدم...", "Saving user..."), "success");
 
       const result = existing
-        ? await RomeoAuth.updateUser(username, {
+        ? await RomeoAuth.updateUser(existing.username, {
             displayName,
             password,
             permissions
@@ -578,8 +590,11 @@
         return;
       }
 
+      editingUsername = user.username;
       document.getElementById("displayName").value = user.displayName;
-      document.getElementById("username").value = user.username;
+      const usernameInput = document.getElementById("username");
+      usernameInput.value = user.username;
+      usernameInput.disabled = true;
       document.getElementById("password").value = "";
       document.querySelectorAll('.permissions input[type="checkbox"]').forEach(input => {
         input.checked = isOwner(user) || user.permissions.includes(input.value);
