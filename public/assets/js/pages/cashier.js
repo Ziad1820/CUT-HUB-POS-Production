@@ -1845,8 +1845,8 @@
                 </g>
                 <circle cx="80" cy="80" r="22" fill="#fffaf2"></circle>
               </svg>
-              <h1 class="brand">SALONIX</h1>
-              <p class="subtitle">THE SMART WAY TO RUN YOUR SALON</p>
+              <h1 class="brand">CUT HUB</h1>
+              <p class="subtitle">Your style, our passion</p>
             </section>
 
             <section class="content">
@@ -1890,8 +1890,12 @@
 
               <div class="summary">
                 <div class="summary-row">
-                  <span>${localizeText("الخصم", "Discount")}</span>
-                  <strong>${escapePrintHtml(invoice.discountAmount ? `${invoice.discountPercent || 0}% - ${formatCurrency(invoice.discountAmount)}` : "-")}</strong>
+                  <span>${localizeText("نسبة الخصم", "Discount Percent")}</span>
+                  <strong>${escapePrintHtml(`${invoice.discountPercent || 0}%`)}</strong>
+                </div>
+                <div class="summary-row">
+                  <span>${localizeText("مبلغ الخصم", "Discount Amount")}</span>
+                  <strong>${escapePrintHtml(formatCurrency(invoice.discountAmount || 0))}</strong>
                 </div>
                 <div class="summary-row">
                   <span>${localizeText("المدفوع", "Paid")}</span>
@@ -1912,7 +1916,10 @@
               </div>
             </section>
 
-            <footer class="footer">${localizeText("شكرا لزيارتكم", "Thank you for visiting us")}</footer>
+            <footer class="footer">
+              ${escapePrintHtml(localizeText("Your style, our passion", "Your style, our passion"))}<br>
+              ${escapePrintHtml(localizeText("Thank you for visiting CUT HUB", "Thank you for visiting CUT HUB"))}
+            </footer>
           </main>
         </body>
         </html>

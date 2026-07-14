@@ -2737,6 +2737,8 @@ function createInvoicePdf(data) {
   const barber = escapeHtml(data.barber || "-");
   const invoiceDate = escapeHtml(getInvoiceDateTime(data));
   const total = formatInvoiceMoney(data.total || 0);
+  const discountPercent = parseSheetAmount(data.discountPercent || 0);
+  const discountAmount = formatInvoiceMoney(data.discountAmount || 0);
 
   const servicesText = String(data.services || "").trim();
   const services = servicesText
@@ -2797,6 +2799,11 @@ function createInvoicePdf(data) {
           .services th { background: #f4ead9; color: #5b4633; font-size: 13px; text-align: left; padding: 12px; border: 1px solid #ead9bd; }
           .services td { padding: 13px 12px; border: 1px solid #ead9bd; font-size: 15px; }
           .services td:first-child, .services th:first-child { width: 70px; text-align: center; }
+          .summary { margin: 0 0 12px; border: 1px solid #ead9bd; border-radius: 12px; overflow: hidden; }
+          .summary-row { display: table; width: 100%; border-bottom: 1px solid #ead9bd; }
+          .summary-row:last-child { border-bottom: 0; }
+          .summary-label { display: table-cell; padding: 10px 12px; color: #7d6a58; font-size: 13px; font-weight: 700; }
+          .summary-value { display: table-cell; padding: 10px 12px; color: #2a2118; font-size: 14px; font-weight: 800; text-align: right; }
           .total-box { background: #19764d; color: #ffffff; border-radius: 14px; padding: 18px 20px; display: table; width: 100%; margin-top: 12px; }
           .total-label { display: table-cell; font-size: 18px; font-weight: 800; vertical-align: middle; }
           .total-value { display: table-cell; font-size: 30px; font-weight: 900; text-align: right; vertical-align: middle; }
@@ -2806,7 +2813,7 @@ function createInvoicePdf(data) {
       <body>
         <div class="invoice">
           <div class="header">
-            <h1 class="brand">SALONIX</h1>
+            <h1 class="brand">CUT HUB</h1>
             <p class="subtitle">Sales Invoice</p>
           </div>
           <div class="content">
@@ -2829,13 +2836,23 @@ function createInvoicePdf(data) {
               <thead><tr><th>#</th><th>Service</th></tr></thead>
               <tbody>${servicesRows}</tbody>
             </table>
+            <div class="summary">
+              <div class="summary-row">
+                <span class="summary-label">Discount Percent</span>
+                <span class="summary-value">${discountPercent}%</span>
+              </div>
+              <div class="summary-row">
+                <span class="summary-label">Discount Amount</span>
+                <span class="summary-value">${discountAmount}</span>
+              </div>
+            </div>
             <div class="total-box">
               <div class="total-label">Total</div>
               <div class="total-value">${total}</div>
             </div>
             <div class="footer">
-              Thank you for visiting Salonix<br>
-              The smart way to run your salon
+              Your style, our passion<br>
+              Thank you for visiting CUT HUB
             </div>
           </div>
         </div>
