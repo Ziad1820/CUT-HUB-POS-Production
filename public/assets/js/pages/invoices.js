@@ -429,7 +429,9 @@
           <td>
             <div class="invoice-actions">
               <button type="button" class="mini-btn dark" data-action="view" data-id="${escapeHtml(invoice.invoiceId)}">${localizeText("عرض", "View")}</button>
-              <button type="button" class="mini-btn" data-action="pdf" data-id="${escapeHtml(invoice.invoiceId)}" ${invoice.pdfUrl ? "" : "disabled"}>PDF</button>
+              ${invoice.pdfUrl
+                ? `<a class="mini-btn" href="${escapeHtml(invoice.pdfUrl)}" target="_blank" rel="noopener">PDF</a>`
+                : `<button type="button" class="mini-btn" disabled>PDF</button>`}
               <button type="button" class="mini-btn danger" data-action="delete" data-id="${escapeHtml(invoice.invoiceId)}">${localizeText("حذف", "Delete")}</button>
             </div>
           </td>
@@ -753,10 +755,6 @@
 
       if (button.dataset.action === "view") {
         openDetails(invoice);
-      }
-
-      if (button.dataset.action === "pdf" && invoice.pdfUrl) {
-        window.open(invoice.pdfUrl, "_blank", "noopener");
       }
 
       if (button.dataset.action === "delete") {
