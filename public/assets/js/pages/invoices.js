@@ -93,7 +93,8 @@
         localizeText("الحلاق", "Barber"),
         localizeText("طريقة الدفع", "Payment Method"),
         localizeText("الإجمالي", "Total"),
-        localizeText("الخصم", "Discount"),
+        localizeText("نسبة الخصم", "Discount %"),
+        localizeText("مبلغ الخصم", "Discount Amount"),
         localizeText("المدفوع", "Paid Amount"),
         localizeText("مبلغ التيب", "Tip Amount"),
         localizeText("الخدمات", "Services"),
@@ -235,7 +236,7 @@
         totalMatches = 0;
         selectedInvoiceIds.clear();
         updateLoadMoreUi();
-        elements.invoiceRows.innerHTML = `<tr><td colspan="13" class="status-line">${localizeText("جاري تحميل الفواتير...", "Loading invoices...")}</td></tr>`;
+        elements.invoiceRows.innerHTML = `<tr><td colspan="14" class="status-line">${localizeText("جاري تحميل الفواتير...", "Loading invoices...")}</td></tr>`;
       }
 
       try {
@@ -277,7 +278,7 @@
             "Could not read the database response. Please refresh again."
           )
           : (message || localizeText("تعذر تحميل الفواتير من الشيت.", "Could not load invoices from the sheet."));
-        elements.invoiceRows.innerHTML = `<tr><td colspan="12" class="empty-state">${escapeHtml(friendlyMessage)}</td></tr>`;
+        elements.invoiceRows.innerHTML = `<tr><td colspan="14" class="empty-state">${escapeHtml(friendlyMessage)}</td></tr>`;
         renderSummary([]);
         hasMoreInvoices = false;
         updateLoadMoreUi();
@@ -402,7 +403,7 @@
       elements.invoiceRows.innerHTML = "";
 
       if (!filteredInvoices.length) {
-        elements.invoiceRows.innerHTML = `<tr><td colspan="13" class="empty-state">${localizeText("لا توجد فواتير مطابقة للفلاتر الحالية.", "No invoices match the current filters.")}</td></tr>`;
+        elements.invoiceRows.innerHTML = `<tr><td colspan="14" class="empty-state">${localizeText("لا توجد فواتير مطابقة للفلاتر الحالية.", "No invoices match the current filters.")}</td></tr>`;
         updateSelectionUi();
         return;
       }
@@ -419,7 +420,8 @@
           <td>${escapeHtml(invoice.barber || "-")}</td>
           <td>${escapeHtml(translateDataValue(invoice.paymentMethod || invoice.payment || "-", PAYMENT_TRANSLATIONS))}</td>
           <td class="amount">${formatMoney(invoice.total)}</td>
-          <td class="amount">${invoice.discountAmount ? `${parseAmount(invoice.discountPercent)}% - ${formatMoney(invoice.discountAmount)}` : "-"}</td>
+          <td class="amount">${invoice.discountAmount ? `${parseAmount(invoice.discountPercent)}%` : "-"}</td>
+          <td class="amount">${invoice.discountAmount ? formatMoney(invoice.discountAmount) : "-"}</td>
           <td class="amount">${formatMoney(invoice.paidAmount || invoice.total || 0)}</td>
           <td class="amount">${formatMoney(invoice.tipAmount || 0)}</td>
           <td>${escapeHtml(formatServices(invoice.services || "-"))}</td>
