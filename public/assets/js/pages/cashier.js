@@ -129,6 +129,9 @@
     const cartItems = document.getElementById("cartItems");
     const totalAmount = document.getElementById("totalAmount");
     const serviceCount = document.getElementById("serviceCount");
+    const discountPercentInput = document.getElementById("discountPercent");
+    const discountSummaryRow = document.getElementById("discountSummaryRow");
+    const discountAmountText = document.getElementById("discountAmountText");
     const offerBadge = document.getElementById("offerBadge");
     const customerNameInput = document.getElementById("customerName");
     const customerPhoneInput = document.getElementById("customerPhone");
@@ -286,6 +289,8 @@
         customerPhone: String(invoice.customerPhone || "").replace(/\D/g, ""),
         services: normalizeServiceName(invoice.services || ""),
         total: numberValue(invoice.total),
+        discountPercent: numberValue(invoice.discountPercent),
+        discountAmount: numberValue(invoice.discountAmount),
         paidAmount: numberValue(invoice.paidAmount),
         tipAmount: numberValue(invoice.tipAmount),
         paymentMethod: normalizeServiceName(invoice.paymentMethod || invoice.payment || ""),
@@ -359,6 +364,8 @@
         services: invoice.services || (Array.isArray(invoice.items) ? invoice.items.map(item => item.name).join(", ") : "-"),
         paymentMethod: invoice.paymentMethod || invoice.payment || "-",
         total: numberValue(invoice.total),
+        discountPercent: numberValue(invoice.discountPercent),
+        discountAmount: numberValue(invoice.discountAmount),
         paidAmount: numberValue(invoice.paidAmount || invoice.total),
         tipAmount: numberValue(invoice.tipAmount),
         note: invoice.note || invoice.invoiceNote || "",
@@ -498,6 +505,7 @@
       const paymentLabel = localizeText("طريقة الدفع", "Payment Method");
       const paidLabel = localizeText("المدفوع", "Paid Amount");
       const tipLabel = localizeText("مبلغ التيب", "Tip Amount");
+      const discountLabel = localizeText("الخصم", "Discount");
       const servicesLabel = localizeText("الخدمات", "Services");
       const noteLabel = localizeText("الملاحظة", "Note");
 
@@ -508,6 +516,7 @@
         <div class="detail-item"><span>${phoneLabel}</span><input class="detail-input" id="latestEditCustomerPhone" type="tel" value="${escapeHtml(invoice.customerPhone || "")}"></div>
         <div class="detail-item"><span>${employeeLabel}</span><select class="detail-input" id="latestEditInvoiceBarber">${getLatestInvoiceBarberOptions(invoice.barber || "")}</select></div>
         <div class="detail-item"><span>${paymentLabel}</span><select class="detail-input" id="latestEditPaymentMethod">${getPaymentOptions(invoice.paymentMethod || "")}</select></div>
+        <div class="detail-item"><span>${discountLabel}</span><input class="detail-input" id="latestEditDiscountAmount" type="number" min="0" step="1" value="${escapeHtml(invoice.discountAmount || 0)}"></div>
         <div class="detail-item"><span>${paidLabel}</span><input class="detail-input" id="latestEditPaidAmount" type="number" min="0" step="1" value="${escapeHtml(invoice.paidAmount || invoice.total || 0)}"></div>
         <div class="detail-item"><span>${tipLabel}</span><input class="detail-input" id="latestEditTipAmount" type="number" min="0" step="1" value="${escapeHtml(invoice.tipAmount || 0)}"></div>
         <div class="detail-item full"><span>${servicesLabel}</span><textarea class="detail-input" id="latestEditInvoiceServices">${escapeHtml(invoice.services || "")}</textarea></div>
@@ -524,6 +533,7 @@
         <div class="detail-item"><span>${phoneLabel}</span><strong>${escapeHtml(invoice.customerPhone || "-")}</strong></div>
         <div class="detail-item"><span>${employeeLabel}</span><strong>${escapeHtml(invoice.barber || "-")}</strong></div>
         <div class="detail-item"><span>${paymentLabel}</span><strong>${escapeHtml(invoice.paymentMethod || "-")}</strong></div>
+        <div class="detail-item"><span>${discountLabel}</span><strong>${escapeHtml(invoice.discountAmount ? `${invoice.discountPercent || 0}% - ${formatCurrency(invoice.discountAmount)}` : "-")}</strong></div>
         <div class="detail-item"><span>${paidLabel}</span><strong>${escapeHtml(formatCurrency(invoice.paidAmount || invoice.total || 0))}</strong></div>
         <div class="detail-item"><span>${tipLabel}</span><strong>${escapeHtml(formatCurrency(invoice.tipAmount || 0))}</strong></div>
         <div class="detail-item full"><span>${servicesLabel}</span><strong>${escapeHtml(invoice.services || "-")}</strong></div>
@@ -561,6 +571,8 @@
         customerPhone: getDetailValue("latestEditCustomerPhone"),
         services: getDetailValue("latestEditInvoiceServices"),
         total: numberValue(getDetailValue("latestEditInvoiceTotal")),
+        discountPercent: numberValue(activeLatestInvoice?.discountPercent || 0),
+        discountAmount: numberValue(getDetailValue("latestEditDiscountAmount")),
         paidAmount: numberValue(getDetailValue("latestEditPaidAmount")),
         tipAmount: numberValue(getDetailValue("latestEditTipAmount")),
         payment: getDetailValue("latestEditPaymentMethod"),
@@ -904,8 +916,20 @@
     }
 
     function getTotal() {
+      return Math.max(0, getGrossTotal() - getDiscountAmount());
+    }
+
+    function getGrossTotal() {
       const baseTotal = getSubtotalBeforePremium();
       return baseTotal + getPremiumExtra();
+    }
+
+    function getDiscountPercent() {
+      return Math.min(100, Math.max(0, Number(discountPercentInput?.value) || 0));
+    }
+
+    function getDiscountAmount() {
+      return Math.round(getGrossTotal() * getDiscountPercent() / 100);
     }
 
     function getPremiumExtra() {
@@ -1528,6 +1552,11 @@
 
       const total = getTotal();
       serviceCount.textContent = cart.length;
+      const discountAmount = getDiscountAmount();
+      if (discountSummaryRow && discountAmountText) {
+        discountSummaryRow.hidden = discountAmount <= 0;
+        discountAmountText.textContent = `${getDiscountPercent()}% - ${formatCurrency(discountAmount)}`;
+      }
       totalAmount.textContent = formatCurrency(total);
       const offerType = getHairOfferType();
       const { eligibleItems, excludedItems } = splitCartByHairOfferRules();
@@ -1588,6 +1617,7 @@
       customerNameInput.value = "";
       customerPhoneInput.value = "";
       document.getElementById("barber").value = "";
+      discountPercentInput.value = "";
       paidAmountInput.value = "";
       tipAmountInput.value = "";
       invoiceNoteInput.value = "";
@@ -1860,6 +1890,10 @@
 
               <div class="summary">
                 <div class="summary-row">
+                  <span>${localizeText("الخصم", "Discount")}</span>
+                  <strong>${escapePrintHtml(invoice.discountAmount ? `${invoice.discountPercent || 0}% - ${formatCurrency(invoice.discountAmount)}` : "-")}</strong>
+                </div>
+                <div class="summary-row">
                   <span>${localizeText("المدفوع", "Paid")}</span>
                   <strong>${escapePrintHtml(formatCurrency(invoice.paidAmount))}</strong>
                 </div>
@@ -1899,6 +1933,8 @@
       const paymentMethod = getSelectedPaymentMethod() || localizeText("غير محدد", "Not specified");
       const offerType = getSelectedOfferType();
       const total = getTotal();
+      const discountPercent = getDiscountPercent();
+      const discountAmount = getDiscountAmount();
       const paidAmount = Number(paidAmountInput.value) || 0;
       const tipAmount = Number(tipAmountInput.value) || 0;
       const remainingAmount = Math.max(0, paidAmount - total - tipAmount);
@@ -1915,6 +1951,8 @@
         paymentMethod,
         offerType,
         total,
+        discountPercent,
+        discountAmount,
         paidAmount,
         tipAmount,
         remainingAmount,
@@ -1940,6 +1978,8 @@
       const total = getTotal();
       const subtotalBeforePremium = getSubtotalBeforePremium();
       const premiumExtra = getPremiumExtra();
+      const discountPercent = getDiscountPercent();
+      const discountAmount = getDiscountAmount();
       const paidAmount = Number(paidAmountInput.value) || 0;
       const tipAmount = Number(tipAmountInput.value) || 0;
       const remainingAmount = Math.max(0, paidAmount - total - tipAmount);
@@ -1990,6 +2030,8 @@
         offerType,
         subtotalBeforePremium,
         premiumExtra,
+        discountPercent,
+        discountAmount,
         barber,
         paidAmount,
         tipAmount,
@@ -2041,6 +2083,8 @@
             paymentMethod,
             offerType,
             total,
+            discountPercent,
+            discountAmount,
             paidAmount,
             tipAmount,
             remainingAmount,
@@ -2065,6 +2109,7 @@
 
     paidAmountInput.addEventListener("input", updateRemaining);
     tipAmountInput.addEventListener("input", updateRemaining);
+    discountPercentInput.addEventListener("input", renderCart);
     customerPhoneInput.addEventListener("input", handleCustomerPhoneInput);
     customerPhoneInput.addEventListener("focus", handleCustomerPhoneInput);
     customerPhoneInput.addEventListener("keydown", event => {

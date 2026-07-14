@@ -1455,6 +1455,10 @@
             <span>Ø¹Ø¯Ø¯ Ø§Ù„Ø®Ø¯Ù…Ø§Øª</span>
             <strong id="serviceCount">0</strong>
           </div>
+          <div class="summary-row" id="discountSummaryRow" hidden>
+            <span>الخصم</span>
+            <strong id="discountAmountText">0 جنيه</strong>
+          </div>
           <div class="summary-row total">
             <span>Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ</span>
             <span id="totalAmount">0 جنيه</span>
@@ -1500,6 +1504,10 @@
         </div>
 
         <div class="payment-fields">
+          <div class="field">
+            <label for="discountPercent">نسبة الخصم %</label>
+            <input id="discountPercent" type="number" min="0" max="100" step="1" placeholder="0">
+          </div>
           <div class="field">
             <label for="paidAmount">Ø§Ù„Ù…Ø¯ÙÙˆØ¹</label>
             <input id="paidAmount" type="number" min="0" step="1" placeholder="Ø§ÙƒØªØ¨ Ø§Ù„Ù…Ø¯ÙÙˆØ¹">

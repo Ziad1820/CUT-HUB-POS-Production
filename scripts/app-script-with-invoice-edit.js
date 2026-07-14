@@ -2120,13 +2120,14 @@ function getLockedDateError(value, entityLabel) {
 }
 
 function ensureDataInvoiceColumns(sheet) {
-  const requiredColumns = 11;
+  const requiredColumns = 13;
   const currentColumns = sheet.getMaxColumns();
   if (currentColumns < requiredColumns) {
     sheet.insertColumnsAfter(currentColumns, requiredColumns - currentColumns);
   }
 
   sheet.getRange(1, 6, 1, 6).setValues([["TOTAL", "paid amount", "tip amount", "PAYMENT", "BARBER", "Notes"]]);
+  sheet.getRange(1, 12, 1, 2).setValues([["discount percent", "discount amount"]]);
 }
 
 function getInvoicePaymentDetails(data) {
@@ -2153,7 +2154,9 @@ function invoiceRowAuditSnapshot(row) {
     tipAmount: parseSheetAmount(row[7]),
     paymentMethod: String(row[8] || "").trim(),
     barber: String(row[9] || "").trim(),
-    note: String(row[10] || "").trim()
+    note: String(row[10] || "").trim(),
+    discountPercent: parseSheetAmount(row[11]),
+    discountAmount: parseSheetAmount(row[12])
   };
 }
 
@@ -2184,7 +2187,9 @@ function createInvoice(data) {
     paymentDetails.tipAmount,
     data.payment || data.paymentMethod || "",
     data.barber || "",
-    data.note || data.invoiceNote || ""
+    data.note || data.invoiceNote || "",
+    parseSheetAmount(data.discountPercent || 0),
+    parseSheetAmount(data.discountAmount || 0)
   ]);
 
   logActivity(
@@ -2227,7 +2232,7 @@ function updateInvoice(data) {
     }
 
     ensureDataInvoiceColumns(sheet);
-    const currentRow = sheet.getRange(targetRowNumber, 1, 1, 12).getValues()[0];
+    const currentRow = sheet.getRange(targetRowNumber, 1, 1, 13).getValues()[0];
     const beforeUpdate = invoiceRowAuditSnapshot(currentRow);
     const currentDate = currentRow[0];
     const nextDate = getDateKey(data.date || data.dateKey || currentDate, TIME_ZONE) || currentDate;
@@ -2253,10 +2258,12 @@ function updateInvoice(data) {
       data.tipAmount || currentRow[7] || 0,
       data.payment || data.paymentMethod || "",
       data.barber || "",
-      data.note || data.invoiceNote || ""
+      data.note || data.invoiceNote || "",
+      parseSheetAmount(data.discountPercent || currentRow[11] || 0),
+      parseSheetAmount(data.discountAmount || currentRow[12] || 0)
     ];
 
-    sheet.getRange(targetRowNumber, 1, 1, 11).setValues([updatedRow]);
+    sheet.getRange(targetRowNumber, 1, 1, 13).setValues([updatedRow]);
     const afterUpdate = invoiceRowAuditSnapshot(updatedRow);
 
     logActivity(
@@ -2283,7 +2290,9 @@ function updateInvoice(data) {
         tipAmount: parseSheetAmount(updatedRow[7]),
         paymentMethod: String(updatedRow[8] || "").trim(),
         barber: String(updatedRow[9] || "").trim(),
-        note: String(updatedRow[10] || "").trim()
+        note: String(updatedRow[10] || "").trim(),
+        discountPercent: parseSheetAmount(updatedRow[11]),
+        discountAmount: parseSheetAmount(updatedRow[12])
       }
     });
   } catch (error) {
@@ -2312,7 +2321,7 @@ function getInvoices(data) {
   const limit = Math.min(Math.max(Number(data.limit) || 100, 1), 500);
   const offset = Math.max(Number(data.offset) || 0, 0);
   ensureDataInvoiceColumns(sheet);
-  const rows = sheet.getRange(2, 1, lastRow - 1, Math.min(sheet.getLastColumn(), 12)).getValues();
+  const rows = sheet.getRange(2, 1, lastRow - 1, Math.min(sheet.getLastColumn(), 13)).getValues();
   const matches = [];
   const barberOptions = {};
   const paymentOptions = {};
@@ -2332,9 +2341,11 @@ function getInvoices(data) {
       total: parseSheetAmount(row[5]),
       paidAmount: parseSheetAmount(row[6]),
       tipAmount: parseSheetAmount(row[7]),
-    paymentMethod: String(row[8] || "").trim(),
-    barber: String(row[9] || "").trim(),
-    note: String(row[10] || "").trim()
+      paymentMethod: String(row[8] || "").trim(),
+      barber: String(row[9] || "").trim(),
+      note: String(row[10] || "").trim(),
+      discountPercent: parseSheetAmount(row[11]),
+      discountAmount: parseSheetAmount(row[12])
     };
 
     const hasData =
@@ -2419,7 +2430,7 @@ function deleteInvoice(data) {
     targetRowNumber <= lastRow &&
     (!targetInvoiceId || targetInvoiceId === `DATA-${targetRowNumber}`)
   ) {
-    const row = sheet.getRange(targetRowNumber, 1, 1, 11).getValues()[0];
+    const row = sheet.getRange(targetRowNumber, 1, 1, 13).getValues()[0];
     const lockedError = getLockedDateError(row[0], "Invoice");
     if (lockedError) {
       return jsonOutput({ status: "error", message: lockedError, locked: true });

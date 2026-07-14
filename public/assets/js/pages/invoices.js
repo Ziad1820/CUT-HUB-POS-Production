@@ -93,6 +93,7 @@
         localizeText("الحلاق", "Barber"),
         localizeText("طريقة الدفع", "Payment Method"),
         localizeText("الإجمالي", "Total"),
+        localizeText("الخصم", "Discount"),
         localizeText("المدفوع", "Paid Amount"),
         localizeText("مبلغ التيب", "Tip Amount"),
         localizeText("الخدمات", "Services"),
@@ -234,7 +235,7 @@
         totalMatches = 0;
         selectedInvoiceIds.clear();
         updateLoadMoreUi();
-        elements.invoiceRows.innerHTML = `<tr><td colspan="12" class="status-line">${localizeText("جاري تحميل الفواتير...", "Loading invoices...")}</td></tr>`;
+        elements.invoiceRows.innerHTML = `<tr><td colspan="13" class="status-line">${localizeText("جاري تحميل الفواتير...", "Loading invoices...")}</td></tr>`;
       }
 
       try {
@@ -401,7 +402,7 @@
       elements.invoiceRows.innerHTML = "";
 
       if (!filteredInvoices.length) {
-        elements.invoiceRows.innerHTML = `<tr><td colspan="12" class="empty-state">${localizeText("لا توجد فواتير مطابقة للفلاتر الحالية.", "No invoices match the current filters.")}</td></tr>`;
+        elements.invoiceRows.innerHTML = `<tr><td colspan="13" class="empty-state">${localizeText("لا توجد فواتير مطابقة للفلاتر الحالية.", "No invoices match the current filters.")}</td></tr>`;
         updateSelectionUi();
         return;
       }
@@ -418,6 +419,7 @@
           <td>${escapeHtml(invoice.barber || "-")}</td>
           <td>${escapeHtml(translateDataValue(invoice.paymentMethod || invoice.payment || "-", PAYMENT_TRANSLATIONS))}</td>
           <td class="amount">${formatMoney(invoice.total)}</td>
+          <td class="amount">${invoice.discountAmount ? `${parseAmount(invoice.discountPercent)}% - ${formatMoney(invoice.discountAmount)}` : "-"}</td>
           <td class="amount">${formatMoney(invoice.paidAmount || invoice.total || 0)}</td>
           <td class="amount">${formatMoney(invoice.tipAmount || 0)}</td>
           <td>${escapeHtml(formatServices(invoice.services || "-"))}</td>
@@ -496,6 +498,7 @@
       const paymentLabel = localizeText("طريقة الدفع", "Payment Method");
       const paidLabel = localizeText("المدفوع", "Paid Amount");
       const tipLabel = localizeText("مبلغ التيب", "Tip Amount");
+      const discountLabel = localizeText("الخصم", "Discount");
       const servicesLabel = localizeText("الخدمات", "Services");
       const noteLabel = localizeText("الملاحظة", "Note");
 
@@ -506,6 +509,7 @@
         <div class="detail-item"><span>${phoneLabel}</span><input class="detail-input" id="editCustomerPhone" type="tel" value="${escapeHtml(invoice.customerPhone || "")}"></div>
         <div class="detail-item"><span>${barberLabel}</span><select class="detail-input" id="editInvoiceBarber">${getBarberEditOptions(invoice.barber || "")}</select></div>
         <div class="detail-item"><span>${paymentLabel}</span><select class="detail-input" id="editPaymentMethod">${getPaymentOptions(invoice.paymentMethod || invoice.payment || "")}</select></div>
+        <div class="detail-item"><span>${discountLabel}</span><input class="detail-input" id="editDiscountAmount" type="number" min="0" step="1" value="${escapeHtml(parseAmount(invoice.discountAmount))}"></div>
         <div class="detail-item"><span>${paidLabel}</span><input class="detail-input" id="editPaidAmount" type="number" min="0" step="1" value="${escapeHtml(parseAmount(invoice.paidAmount || invoice.total))}"></div>
         <div class="detail-item"><span>${tipLabel}</span><input class="detail-input" id="editTipAmount" type="number" min="0" step="1" value="${escapeHtml(parseAmount(invoice.tipAmount))}"></div>
         <div class="detail-item full"><span>${servicesLabel}</span><textarea class="detail-input" id="editInvoiceServices">${escapeHtml(formatServices(invoice.services || ""))}</textarea></div>
@@ -523,6 +527,7 @@
         <div class="detail-item"><span>${phoneLabel}</span><strong>${escapeHtml(invoice.customerPhone || "-")}</strong></div>
         <div class="detail-item"><span>${barberLabel}</span><strong>${escapeHtml(invoice.barber || "-")}</strong></div>
         <div class="detail-item"><span>${paymentLabel}</span><strong>${escapeHtml(payment)}</strong></div>
+        <div class="detail-item"><span>${discountLabel}</span><strong>${invoice.discountAmount ? `${parseAmount(invoice.discountPercent)}% - ${formatMoney(invoice.discountAmount)}` : "-"}</strong></div>
         <div class="detail-item"><span>${paidLabel}</span><strong>${formatMoney(invoice.paidAmount || invoice.total || 0)}</strong></div>
         <div class="detail-item"><span>${tipLabel}</span><strong>${formatMoney(invoice.tipAmount || 0)}</strong></div>
         <div class="detail-item full"><span>${servicesLabel}</span><strong>${escapeHtml(formatServices(invoice.services || "-"))}</strong></div>
@@ -562,6 +567,8 @@
         customerPhone: getDetailValue("editCustomerPhone"),
         services: getDetailValue("editInvoiceServices"),
         total: parseAmount(getDetailValue("editInvoiceTotal")),
+        discountPercent: parseAmount(invoice.discountPercent),
+        discountAmount: parseAmount(getDetailValue("editDiscountAmount")),
         paidAmount: parseAmount(getDetailValue("editPaidAmount")),
         tipAmount: parseAmount(getDetailValue("editTipAmount")),
         payment: getDetailValue("editPaymentMethod"),
