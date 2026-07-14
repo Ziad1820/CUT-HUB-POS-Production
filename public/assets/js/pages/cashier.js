@@ -45,6 +45,7 @@
 
     const API_URL = RomeoApi.API_URL;
     const SERVICES_STORAGE_KEY = "romeo-pos-services";
+    const SERVICE_USAGE_STORAGE_KEY = "romeo-pos-service-usage";
     const defaultServices = [
       { name: "Ã˜Â´Ã˜Â¹Ã˜Â±", price: 110 },
       { name: "Ã˜Â¯Ã™â€šÃ™â€ ", price: 50 },
@@ -74,6 +75,7 @@
       { name: "Ã˜Â¨Ã˜Â§Ã™Æ’Ã™Å Ã˜Â¯Ã˜Â¬ Ã˜Â¹Ã˜Â±Ã™Å Ã˜Â³ Ã˜Â®Ã˜Â§Ã˜Â±Ã˜Â¬ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â±Ã˜Â¹", price: 1500 }
     ];
     let availableServices = defaultServices.map(service => ({ ...service }));
+    let activeServiceFilter = "all";
 
     let cart = [];
     const twoServiceHairOfferPrice = 150;
@@ -124,6 +126,9 @@
 
     const servicesPanel = document.querySelector(".services-panel");
     const servicesGrid = document.getElementById("servicesGrid");
+    const serviceSearchInput = document.getElementById("serviceSearchInput");
+    const serviceFilterTabs = document.getElementById("serviceFilterTabs");
+    const servicesResultsText = document.getElementById("servicesResultsText");
     const cartPanel = document.getElementById("cartPanel");
     const reportDateInput = document.getElementById("reportDate");
     const cartItems = document.getElementById("cartItems");
@@ -1513,13 +1518,143 @@
       });
     }
 
+    function getServiceUsage() {
+      try {
+        return JSON.parse(localStorage.getItem(SERVICE_USAGE_STORAGE_KEY) || "{}") || {};
+      } catch (error) {
+        return {};
+      }
+    }
+
+    function saveServiceUsage(usage) {
+      localStorage.setItem(SERVICE_USAGE_STORAGE_KEY, JSON.stringify(usage));
+    }
+
+    function recordServiceUsage(serviceName) {
+      const normalizedName = normalizeServiceName(serviceName);
+      if (!normalizedName) return;
+
+      const usage = getServiceUsage();
+      usage[normalizedName] = (Number(usage[normalizedName]) || 0) + 1;
+      saveServiceUsage(usage);
+    }
+
+    function isPackageService(service) {
+      const name = normalizeServiceName(service?.name || "");
+      return /[+＋]/.test(name) || /باك|باكيج|باكيدج|package|pack|vip/i.test(name);
+    }
+
+    function isCareService(service) {
+      const name = normalizeServiceName(service?.name || "").toLowerCase();
+      return [
+        "حمام",
+        "ماسك",
+        "بشرة",
+        "صبغة",
+        "معالج",
+        "بروتين",
+        "جلسة",
+        "فوط",
+        "فوتة",
+        "فتلة",
+        "شمع",
+        "wax",
+        "mask",
+        "protein",
+        "dye",
+        "facial"
+      ].some(keyword => name.includes(keyword));
+    }
+
+    function normalizeSearchText(value) {
+      return normalizeServiceName(value)
+        .toLowerCase()
+        .replace(/[+＋]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function serviceMatchesSearch(service, query) {
+      const normalizedQuery = normalizeSearchText(query);
+      if (!normalizedQuery) return true;
+
+      const serviceName = normalizeSearchText(service.name);
+      return normalizedQuery
+        .split(" ")
+        .filter(Boolean)
+        .every(part => serviceName.includes(part));
+    }
+
+    function getFilteredServices() {
+      const usage = getServiceUsage();
+      const searchQuery = serviceSearchInput?.value || "";
+      let indexedServices = availableServices.map((service, index) => ({ service, index }));
+
+      if (activeServiceFilter === "popular") {
+        indexedServices = indexedServices
+          .filter(item => Number(usage[item.service.name]) > 0)
+          .sort((a, b) => (Number(usage[b.service.name]) || 0) - (Number(usage[a.service.name]) || 0));
+
+        if (!indexedServices.length) {
+          indexedServices = availableServices.slice(0, 9).map((service, index) => ({ service, index }));
+        }
+      } else if (activeServiceFilter === "single") {
+        indexedServices = indexedServices.filter(item => !isPackageService(item.service));
+      } else if (activeServiceFilter === "package") {
+        indexedServices = indexedServices.filter(item => isPackageService(item.service));
+      } else if (activeServiceFilter === "care") {
+        indexedServices = indexedServices.filter(item => isCareService(item.service));
+      }
+
+      return indexedServices.filter(item => serviceMatchesSearch(item.service, searchQuery));
+    }
+
+    function updateServiceFilterTabs() {
+      if (!serviceFilterTabs) return;
+
+      serviceFilterTabs.querySelectorAll("[data-service-filter]").forEach(tab => {
+        tab.classList.toggle("active", tab.dataset.serviceFilter === activeServiceFilter);
+      });
+    }
+
+    function updateServicesResultsText(count) {
+      if (!servicesResultsText) return;
+
+      const query = serviceSearchInput?.value.trim();
+      if (query) {
+        servicesResultsText.textContent = `${count} نتيجة بحث`;
+        return;
+      }
+
+      const labels = {
+        all: "كل الخدمات",
+        popular: "الأكثر استخدامًا",
+        single: "الخدمات الفردية",
+        package: "الباكيدجات",
+        care: "العناية"
+      };
+      servicesResultsText.textContent = `${labels[activeServiceFilter] || "الخدمات"} - ${count}`;
+    }
+
     function renderServices() {
-      servicesGrid.innerHTML = availableServices
+      const filteredServices = getFilteredServices();
+      updateServiceFilterTabs();
+      updateServicesResultsText(filteredServices.length);
+
+      if (!filteredServices.length) {
+        servicesGrid.innerHTML = `<div class="empty-state" data-no-translate="true">لا توجد خدمات مطابقة.</div>`;
+        fixArabicInNode(servicesGrid);
+        syncServicesPanelHeight();
+        return;
+      }
+
+      servicesGrid.innerHTML = filteredServices
         .map(
-          (service, index) => `
-            <button class="service-btn" type="button" onclick="addService(${index})">
-              <strong>${service.name}</strong>
-              <span>${formatCurrency(service.price)}</span>
+          ({ service, index }) => `
+            <button class="service-btn ${isPackageService(service) ? "package-service" : ""}" type="button" onclick="addService(${index})">
+              ${isPackageService(service) ? `<span class="service-badge">باكيدج</span>` : ""}
+              <strong>${escapeHtml(service.name)}</strong>
+              <span>${escapeHtml(formatCurrency(service.price))}</span>
             </button>
           `
         )
@@ -1589,8 +1724,13 @@
     }
 
     function addService(index) {
-      cart.push({ ...availableServices[index] });
+      const service = availableServices[index];
+      if (!service) return;
+
+      cart.push({ ...service });
+      recordServiceUsage(service.name);
       clearStatus();
+      renderServices();
       renderCart();
     }
 
@@ -2180,6 +2320,18 @@
     printBtn.addEventListener("click", printCurrentInvoice);
     clearBtn.addEventListener("click", resetForm);
     editPricesBtn.addEventListener("click", openPriceEditor);
+    if (serviceSearchInput) {
+      serviceSearchInput.addEventListener("input", renderServices);
+    }
+    if (serviceFilterTabs) {
+      serviceFilterTabs.addEventListener("click", event => {
+        const tab = event.target.closest("[data-service-filter]");
+        if (!tab) return;
+
+        activeServiceFilter = tab.dataset.serviceFilter || "all";
+        renderServices();
+      });
+    }
     closePriceEditorBtn.addEventListener("click", closePriceEditor);
     savePricesBtn.addEventListener("click", saveServicePrices);
     resetPricesBtn.addEventListener("click", resetServicePrices);

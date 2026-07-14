@@ -370,6 +370,10 @@
       overscroll-behavior: contain;
     }
 
+    .services-grid .empty-state {
+      grid-column: 1 / -1;
+    }
+
     .services-grid::-webkit-scrollbar {
       width: 10px;
     }
@@ -390,6 +394,67 @@
       align-items: center;
       gap: 12px;
       margin-bottom: 18px;
+    }
+
+    .services-tools {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .service-search {
+      width: 100%;
+      border: 1px solid #ead9bd;
+      border-radius: 16px;
+      padding: 14px 16px;
+      background: #fffaf2;
+      color: var(--ink);
+      font-size: 16px;
+      font-weight: 700;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .service-search:focus {
+      border-color: #b7863f;
+      box-shadow: 0 0 0 3px rgba(183,134,63,0.16);
+    }
+
+    .service-filter-tabs {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: thin;
+    }
+
+    .service-filter-tab {
+      border: 1px solid #ead9bd;
+      border-radius: 999px;
+      padding: 9px 13px;
+      background: #fffaf2;
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 800;
+      white-space: nowrap;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .service-filter-tab.active {
+      background: var(--brown);
+      border-color: var(--brown);
+      color: #fffaf2;
+    }
+
+    .services-results-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+      min-height: 20px;
     }
 
     .inline-btn {
@@ -434,6 +499,23 @@
     .service-btn:hover {
       transform: translateY(-2px);
       box-shadow: 0 12px 25px rgba(76,54,28,0.15);
+    }
+
+    .service-btn.package-service {
+      box-shadow: inset 0 0 0 1px rgba(25,118,77,0.35);
+      background: linear-gradient(135deg, #fffaf2 0%, #eef8f1 100%);
+    }
+
+    .service-badge {
+      display: inline-flex;
+      width: fit-content;
+      margin-bottom: 8px;
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: rgba(25,118,77,0.12);
+      color: #19764d;
+      font-size: 12px;
+      font-weight: 900;
     }
 
     .service-btn strong {
@@ -1439,6 +1521,20 @@
         <div class="services-toolbar">
           <p>Ø§Ø¶ØºØ· Ø¹Ù„Ù‰ Ø£ÙŠ Ø®Ø¯Ù…Ø© Ù„Ø¥Ø¶Ø§ÙØªÙ‡Ø§ Ù…Ø¨Ø§Ø´Ø±Ø© Ø¥Ù„Ù‰ Ø§Ù„Ø­Ø³Ø§Ø¨.</p>
           <button class="inline-btn" type="button" id="editPricesBtn">ØªØ¹Ø¯ÙŠÙ„ Ø§Ù„Ø£Ø³Ø¹Ø§Ø±</button>
+        </div>
+        <div class="services-tools">
+          <input class="service-search" id="serviceSearchInput" type="search" autocomplete="off" placeholder="ابحث عن خدمة أو باكيدج">
+          <div class="service-filter-tabs" id="serviceFilterTabs" aria-label="Service filters">
+            <button class="service-filter-tab active" type="button" data-service-filter="all">الكل</button>
+            <button class="service-filter-tab" type="button" data-service-filter="popular">الأكثر استخدامًا</button>
+            <button class="service-filter-tab" type="button" data-service-filter="single">خدمات</button>
+            <button class="service-filter-tab" type="button" data-service-filter="package">باكيدجات</button>
+            <button class="service-filter-tab" type="button" data-service-filter="care">عناية</button>
+          </div>
+          <div class="services-results-line">
+            <span id="servicesResultsText">كل الخدمات</span>
+            <span>اضغط على الخدمة لإضافتها مباشرة</span>
+          </div>
         </div>
         <div class="services-grid" id="servicesGrid"></div>
       </section>
