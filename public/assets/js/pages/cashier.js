@@ -75,6 +75,7 @@
       { name: "Ã˜Â¨Ã˜Â§Ã™Æ’Ã™Å Ã˜Â¯Ã˜Â¬ Ã˜Â¹Ã˜Â±Ã™Å Ã˜Â³ Ã˜Â®Ã˜Â§Ã˜Â±Ã˜Â¬ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â±Ã˜Â¹", price: 1500 }
     ];
     let availableServices = defaultServices.map(service => ({ ...service }));
+    let availableProducts = [];
     let activeServiceFilter = "all";
 
     let cart = [];
@@ -746,6 +747,7 @@
         option.textContent = staff.name;
         option.dataset.staffId = staff.id;
         option.dataset.staffCode = staff.code || "";
+        option.dataset.staffName = staff.name || "";
         barberSelect.appendChild(option);
       });
 
@@ -954,8 +956,12 @@
     }
 
     function splitCartByHairOfferRules() {
-      const eligibleItems = cart.filter(item => !hairOfferExcludedServices.has(normalizeServiceName(item.name)));
-      const excludedItems = cart.filter(item => hairOfferExcludedServices.has(normalizeServiceName(item.name)));
+      const eligibleItems = cart.filter(item =>
+        item.lineType !== "product" && !hairOfferExcludedServices.has(normalizeServiceName(item.name))
+      );
+      const excludedItems = cart.filter(item =>
+        item.lineType === "product" || hairOfferExcludedServices.has(normalizeServiceName(item.name))
+      );
       return { eligibleItems, excludedItems };
     }
 
@@ -1205,8 +1211,10 @@
 
     function normalizeServiceRecord(service) {
       return {
+        serviceId: String(service.serviceId || "").trim(),
         name: normalizeServiceName(service.name),
-        price: numberValue(service.price)
+        price: numberValue(service.price),
+        lineType: "service"
       };
     }
 
@@ -1298,6 +1306,28 @@
       }
     }
 
+    async function loadInventoryProducts() {
+      try {
+        const result = await RomeoApi.request({ action: "getSellableProducts" });
+        if (result.status !== "success" || !Array.isArray(result.products)) return;
+
+        availableProducts = result.products
+          .map(item => ({
+            itemId: String(item.itemId || "").trim(),
+            referenceId: String(item.itemId || "").trim(),
+            lineType: "product",
+            name: normalizeServiceName(item.name),
+            price: numberValue(item.salePrice),
+            sealedPacks: numberValue(item.sealedPacks)
+          }))
+          .filter(item => item.itemId && item.name);
+
+        if (activeServiceFilter === "product") renderServices();
+      } catch (error) {
+        console.warn("Inventory products are not available yet", error);
+      }
+    }
+
     function renderPriceEditor() {
       priceEditorList.innerHTML = availableServices
         .map(
@@ -1316,8 +1346,12 @@
 
     function syncCartPrices() {
       cart = cart.map(item => {
+        if (item.lineType === "product") {
+          const updatedProduct = availableProducts.find(product => product.itemId === item.referenceId);
+          return updatedProduct ? { ...item, ...updatedProduct } : item;
+        }
         const updatedService = availableServices.find(service => service.name === item.name);
-        return updatedService ? { ...updatedService } : item;
+        return updatedService ? { ...item, ...updatedService } : item;
       }).filter(Boolean);
     }
 
@@ -1631,12 +1665,38 @@
         popular: "الأكثر استخدامًا",
         single: "الخدمات الفردية",
         package: "الباكيدجات",
-        care: "العناية"
+        care: "العناية",
+        product: "المنتجات"
       };
       servicesResultsText.textContent = `${labels[activeServiceFilter] || "الخدمات"} - ${count}`;
     }
 
     function renderServices() {
+      if (activeServiceFilter === "product") {
+        const query = serviceSearchInput?.value || "";
+        const filteredProducts = availableProducts
+          .map((product, index) => ({ product, index }))
+          .filter(item => serviceMatchesSearch(item.product, query));
+        updateServiceFilterTabs();
+        updateServicesResultsText(filteredProducts.length);
+
+        if (!filteredProducts.length) {
+          servicesGrid.innerHTML = `<div class="empty-state" data-no-translate="true">لا توجد منتجات متاحة للبيع.</div>`;
+        } else {
+          servicesGrid.innerHTML = filteredProducts.map(({ product, index }) => `
+            <button class="service-btn" type="button" onclick="addProduct(${index})" ${product.sealedPacks <= 0 ? "disabled" : ""}>
+              <span class="service-badge">منتج</span>
+              <strong>${escapeHtml(product.name)}</strong>
+              <span>${escapeHtml(formatCurrency(product.price))}</span>
+              <small>المتاح: ${product.sealedPacks}</small>
+            </button>
+          `).join("");
+        }
+        fixArabicInNode(servicesGrid);
+        syncServicesPanelHeight();
+        return;
+      }
+
       const filteredServices = getFilteredServices();
       updateServiceFilterTabs();
       updateServicesResultsText(filteredServices.length);
@@ -1727,8 +1787,28 @@
       const service = availableServices[index];
       if (!service) return;
 
-      cart.push({ ...service });
+      cart.push({
+        ...service,
+        lineType: "service",
+        referenceId: service.serviceId || ""
+      });
       recordServiceUsage(service.name);
+      clearStatus();
+      renderServices();
+      renderCart();
+    }
+
+    function addProduct(index) {
+      const product = availableProducts[index];
+      if (!product) return;
+
+      const selectedCount = cart.filter(item => item.lineType === "product" && item.referenceId === product.itemId).length;
+      if (selectedCount >= product.sealedPacks) {
+        showStatus("الكمية المتاحة من هذا المنتج لا تكفي.", "error");
+        return;
+      }
+
+      cart.push({ ...product });
       clearStatus();
       renderServices();
       renderCart();
@@ -2118,7 +2198,10 @@
 
       const customerName = customerNameInput.value.trim();
       const customerPhone = customerPhoneInput.value.trim();
-      const barber = document.getElementById("barber").value;
+      const barber = barberSelect.value;
+      const selectedBarberOption = barberSelect.options[barberSelect.selectedIndex];
+      const barberId = String(selectedBarberOption?.dataset.staffCode || selectedBarberOption?.dataset.staffId || barber).trim();
+      const barberName = String(selectedBarberOption?.dataset.staffName || selectedBarberOption?.textContent || barber).trim();
       const paymentMethod = getSelectedPaymentMethod();
       const reportDate = getReportDateKey();
       const offerType = getSelectedOfferType();
@@ -2180,11 +2263,20 @@
         discountPercent,
         discountAmount,
         barber,
+        barberId,
+        barberName,
         paidAmount,
         tipAmount,
         remainingAmount,
         note: invoiceNote,
-        invoiceNote
+        invoiceNote,
+        invoiceItems: cart.map(item => ({
+          lineType: item.lineType === "product" ? "product" : "service",
+          referenceId: item.referenceId || item.serviceId || item.itemId || "",
+          itemName: item.name,
+          quantity: 1,
+          unitPrice: numberValue(item.price)
+        }))
       };
 
       if (invoiceSubmitInProgress) {
@@ -2241,6 +2333,7 @@
 
         showStatus("Ã˜ÂªÃ™â€¦ Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â§Ã˜ÂªÃ™Ë†Ã˜Â±Ã˜Â© Ã˜Â¨Ã™â€ Ã˜Â¬Ã˜Â§Ã˜Â­.", "success");
         resetForm();
+        loadInventoryProducts();
         fetchTodaySales();
         loadLatestInvoicesFromSheet();
       } catch (error) {
@@ -2293,6 +2386,7 @@
     window.addEventListener("pageshow", () => {
       renderBarberOptions();
       loadBarbersFromSheet();
+      loadInventoryProducts();
       fetchTodaySales();
       updateOnlineControls();
     });
@@ -2416,6 +2510,7 @@
     renderServices();
     renderCart();
     loadServicesFromSheet();
+    loadInventoryProducts();
     loadStoredLatestInvoices();
     loadLatestInvoicesFromSheet();
     fetchTodaySales();

@@ -301,6 +301,17 @@
       align-items: center;
     }
 
+    .history-edit-btn {
+      border: 0;
+      border-radius: 10px;
+      padding: 8px 12px;
+      margin-inline-start: 10px;
+      background: #ead9bd;
+      color: var(--ink);
+      font-weight: 800;
+      cursor: pointer;
+    }
+
     .history-amount {
       font-size: 24px;
       font-weight: 900;
@@ -330,6 +341,91 @@
       border: 1px dashed var(--line);
       border-radius: 20px;
     }
+
+    .recipe-list {
+      display: grid;
+      gap: 10px;
+      max-height: 420px;
+      overflow-y: auto;
+      margin-top: 14px;
+    }
+
+    .recipe-row {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) 160px 90px;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      background: #fffaf2;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+
+    .recipe-row input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: white;
+    }
+
+    .report-filters {
+      display: grid;
+      grid-template-columns: minmax(180px, 1.2fr) repeat(2, minmax(160px, 1fr)) auto;
+      gap: 12px;
+      align-items: end;
+      margin-top: 18px;
+    }
+
+    .report-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .report-stat {
+      padding: 16px;
+      border-top: 1px solid var(--line);
+    }
+
+    .report-stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 7px;
+    }
+
+    .report-stat strong { font-size: 24px; }
+
+    .report-table-wrap {
+      overflow-x: auto;
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+    }
+
+    .report-table {
+      width: 100%;
+      min-width: 720px;
+      border-collapse: collapse;
+    }
+
+    .report-table th,
+    .report-table td {
+      padding: 13px 14px;
+      text-align: right;
+      border-bottom: 1px solid var(--line);
+      white-space: nowrap;
+    }
+
+    .report-table th {
+      color: var(--muted);
+      background: #f8eddc;
+      font-size: 13px;
+    }
+
+    .report-table tbody tr:last-child td { border-bottom: 0; }
 
     .sidebar-overlay {
       position: fixed;
@@ -446,6 +542,9 @@
       }
 
       .app { padding: 14px; }
+      .recipe-row { grid-template-columns: 1fr; }
+      .report-filters,
+      .report-summary { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -471,7 +570,7 @@
         <section class="panel">
           <div class="action-row">
             <button type="button" class="action-btn primary" id="addItemBtn" data-i18n-ar="إضافة صنف" data-i18n-en="Add Item">إضافة صنف</button>
-            <button type="button" class="action-btn soft" id="resetBtn" data-i18n-ar="إعادة ضبط الأصناف" data-i18n-en="Reset Items">إعادة ضبط الأصناف</button>
+            <button type="button" class="action-btn soft" id="refreshBtn" data-i18n-ar="تحديث البيانات" data-i18n-en="Refresh Data">تحديث البيانات</button>
           </div>
         </section>
 
@@ -482,7 +581,7 @@
         <section class="panel hero">
           <div>
             <h2 id="itemTitle">اختر صنف</h2>
-            <p id="itemSubtitle">اختر صنف من القائمة، وعدل الكمية والحد الأدنى وسعر الشراء أو سجل حركة دخول وخروج للمخزون.</p>
+            <p id="itemSubtitle">عرّف الصنف وحجم العبوة وأسعاره، ثم سجل عمليات الشراء من النموذج بالأسفل.</p>
           </div>
           <div class="hero-badge" id="itemCode">INV</div>
         </section>
@@ -513,16 +612,32 @@
               <input id="itemName" type="text">
             </div>
             <div class="field">
-              <label for="itemCodeInput" data-i18n-ar="كود الصنف" data-i18n-en="Item Code">كود الصنف</label>
-              <input id="itemCodeInput" type="text">
+              <label for="itemBarcode" data-i18n-ar="الباركود (اختياري)" data-i18n-en="Barcode (optional)">الباركود (اختياري)</label>
+              <input id="itemBarcode" type="text">
             </div>
             <div class="field">
               <label for="itemCategory" data-i18n-ar="التصنيف" data-i18n-en="Category">التصنيف</label>
               <input id="itemCategory" type="text" placeholder="شعر / ذقن / بشرة / بيع" data-i18n-placeholder-ar="شعر / ذقن / بشرة / بيع" data-i18n-placeholder-en="Hair / Beard / Skin / Retail">
             </div>
             <div class="field">
-              <label for="itemQuantity" data-i18n-ar="الكمية الحالية" data-i18n-en="Current Quantity">الكمية الحالية</label>
-              <input id="itemQuantity" type="number" min="0">
+              <label for="itemType" data-i18n-ar="نوع الصنف" data-i18n-en="Item Type">نوع الصنف</label>
+              <select id="itemType">
+                <option value="consumable">مستهلك للخدمات</option>
+                <option value="retail">منتج للبيع</option>
+                <option value="both">استخدام وبيع</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="itemUsageUnit" data-i18n-ar="وحدة الاستخدام" data-i18n-en="Usage Unit">وحدة الاستخدام</label>
+              <select id="itemUsageUnit">
+                <option value="piece">قطعة</option>
+                <option value="g">جرام</option>
+                <option value="ml">مللي</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="itemPackageSize" data-i18n-ar="حجم العبوة" data-i18n-en="Package Size">حجم العبوة</label>
+              <input id="itemPackageSize" type="number" min="0.01" step="0.01">
             </div>
             <div class="field">
               <label for="itemMinimum" data-i18n-ar="الحد الأدنى للمخزون" data-i18n-en="Minimum Stock">الحد الأدنى للمخزون</label>
@@ -531,6 +646,16 @@
             <div class="field">
               <label for="itemBuyPrice" data-i18n-ar="سعر الشراء" data-i18n-en="Buy Price">سعر الشراء</label>
               <input id="itemBuyPrice" type="number" min="0" step="0.01">
+            </div>
+            <div class="field">
+              <label for="itemSalePrice" data-i18n-ar="سعر البيع" data-i18n-en="Sale Price">سعر البيع</label>
+              <input id="itemSalePrice" type="number" min="0" step="0.01">
+            </div>
+            <div class="field">
+              <label><input id="itemServiceEnabled" type="checkbox"> متاح للاستخدام في الخدمات</label>
+            </div>
+            <div class="field">
+              <label><input id="itemSaleEnabled" type="checkbox"> متاح للبيع في الكاشير</label>
             </div>
           </div>
         </section>
@@ -543,37 +668,91 @@
         </section>
 
         <section class="panel">
+          <h2 id="purchaseFormTitle" style="margin:0 0 16px">إضافة عملية شراء</h2>
           <div class="editor-grid">
             <div class="field">
-              <label for="movementType" data-i18n-ar="نوع الحركة" data-i18n-en="Movement Type">نوع الحركة</label>
-              <select id="movementType">
-                <option value="in" data-i18n-ar="دخول مخزون" data-i18n-en="Stock In">دخول مخزون</option>
-                <option value="out" data-i18n-ar="خروج مخزون" data-i18n-en="Stock Out">خروج مخزون</option>
-              </select>
+              <label for="purchasePacks">عدد العبوات المشتراة</label>
+              <input id="purchasePacks" type="number" min="1" step="1">
             </div>
             <div class="field">
-              <label for="movementQuantity" data-i18n-ar="الكمية" data-i18n-en="Quantity">الكمية</label>
-              <input id="movementQuantity" type="number" min="1" step="1">
+              <label for="purchasePrice">سعر شراء العبوة</label>
+              <input id="purchasePrice" type="number" min="0" step="0.01">
             </div>
             <div class="field">
-              <label for="movementDate" data-i18n-ar="التاريخ" data-i18n-en="Date">التاريخ</label>
-              <input id="movementDate" type="date">
+              <label for="purchaseDate">تاريخ الشراء</label>
+              <input id="purchaseDate" type="date">
             </div>
             <div class="field">
-              <label for="movementReason" data-i18n-ar="السبب" data-i18n-en="Reason">السبب</label>
-              <input id="movementReason" type="text" placeholder="شراء / بيع / هالك / تعديل" data-i18n-placeholder-ar="شراء / بيع / هالك / تعديل" data-i18n-placeholder-en="Purchase / Sale / Waste / Adjustment">
+              <label for="purchaseSupplier">المورد</label>
+              <input id="purchaseSupplier" type="text" placeholder="اسم المورد">
+            </div>
+            <div class="field">
+              <label for="purchaseExpiry">تاريخ الصلاحية (اختياري)</label>
+              <input id="purchaseExpiry" type="date">
             </div>
             <div class="field full">
-              <label for="movementNote" data-i18n-ar="ملاحظة" data-i18n-en="Note">ملاحظة</label>
-              <textarea id="movementNote" placeholder="اكتب ملاحظات عن الحركة" data-i18n-placeholder-ar="اكتب ملاحظات عن الحركة" data-i18n-placeholder-en="Write notes about the movement"></textarea>
+              <label for="purchaseNote">ملاحظة</label>
+              <textarea id="purchaseNote" placeholder="رقم الفاتورة أو أي ملاحظة عن الشراء"></textarea>
             </div>
           </div>
         </section>
 
         <section class="panel">
           <div class="action-row">
-            <button type="button" class="action-btn primary" id="addMovementBtn" data-i18n-ar="إضافة حركة" data-i18n-en="Add Movement">إضافة حركة</button>
-            <button type="button" class="action-btn soft" id="clearMovementBtn" data-i18n-ar="مسح الحركة" data-i18n-en="Clear Movement">مسح الحركة</button>
+            <button type="button" class="action-btn primary" id="addPurchaseBtn">إضافة عملية شراء</button>
+            <button type="button" class="action-btn soft" id="clearPurchaseBtn">مسح البيانات</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="hero">
+            <div>
+              <h2>استهلاك الخدمات</h2>
+              <p>اختر خدمة وحدد الكمية التي تستهلكها من كل صنف عند إتمام الحساب.</p>
+            </div>
+          </div>
+          <div class="field" style="margin-top:16px">
+            <label for="recipeServiceSelect">الخدمة أو الباكيدج</label>
+            <select id="recipeServiceSelect"></select>
+          </div>
+          <div class="recipe-list" id="recipeItemsList"></div>
+          <div class="action-row" style="margin-top:14px">
+            <button type="button" class="action-btn primary" id="saveRecipeBtn">حفظ استهلاك الخدمة</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="hero">
+            <div>
+              <h2>استهلاك الحلاقين</h2>
+              <p>راجع استهلاك كل حلاق من أصناف المخزون وتكلفته خلال فترة محددة.</p>
+            </div>
+          </div>
+          <div class="report-filters">
+            <div class="field">
+              <label for="barberConsumptionSelect">الحلاق</label>
+              <select id="barberConsumptionSelect"><option value="">كل الحلاقين</option></select>
+            </div>
+            <div class="field">
+              <label for="barberConsumptionFrom">من تاريخ</label>
+              <input id="barberConsumptionFrom" type="date">
+            </div>
+            <div class="field">
+              <label for="barberConsumptionTo">إلى تاريخ</label>
+              <input id="barberConsumptionTo" type="date">
+            </div>
+            <button type="button" class="action-btn primary" id="loadBarberConsumptionBtn">عرض التقرير</button>
+          </div>
+          <div class="report-summary">
+            <div class="report-stat"><span>تكلفة الاستهلاك</span><strong id="barberConsumptionCost">0 جنيه</strong></div>
+            <div class="report-stat"><span>عدد الفواتير</span><strong id="barberConsumptionInvoices">0</strong></div>
+            <div class="report-stat"><span>عدد حركات الاستهلاك</span><strong id="barberConsumptionMovements">0</strong></div>
+          </div>
+          <div class="report-table-wrap">
+            <table class="report-table">
+              <thead><tr><th>الحلاق</th><th>الصنف</th><th>الكمية المستهلكة</th><th>التكلفة</th><th>عدد الفواتير</th></tr></thead>
+              <tbody id="barberConsumptionRows"><tr><td colspan="5">لا توجد بيانات استهلاك حتى الآن.</td></tr></tbody>
+            </table>
           </div>
         </section>
 
@@ -617,7 +796,7 @@
   <script src="../assets/js/core/api.js"></script>
   <script src="../assets/js/core/auth.js"></script>
   <script src="../assets/js/utils/layout.js"></script>
-  <script>
+  <script type="text/plain" id="legacyInventoryScript">
     RomeoAuth.requireAuth("view_inventory");
 
     const elements = {
@@ -1059,6 +1238,7 @@
     clearMovement();
     renderAll();
   </script>
+  <script src="../assets/js/pages/inventory.js"></script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>
 </body>
