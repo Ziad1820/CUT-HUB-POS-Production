@@ -1529,7 +1529,7 @@
       color: #4a3018;
     }
 
-    .calculator-key.danger {
+    .calculator-key.calculator-clear {
       background: #f5ddd8;
       color: #9d2d24;
     }
@@ -1857,7 +1857,7 @@
     <div class="calculator-body">
       <div class="calculator-display" id="calculatorDisplay">0</div>
       <div class="calculator-keys" id="calculatorKeys">
-        <button class="calculator-key danger" type="button" data-calculator-action="clear">C</button>
+        <button class="calculator-key calculator-clear" type="button" data-calculator-action="clear">C</button>
         <button class="calculator-key operator" type="button" data-calculator-action="backspace">⌫</button>
         <button class="calculator-key operator" type="button" data-calculator-value="%">%</button>
         <button class="calculator-key operator" type="button" data-calculator-value="/">÷</button>
@@ -1889,13 +1889,20 @@
     (() => {
       const POSITION_KEY = "romeo-pos-calculator-position";
       const OPEN_STATE_KEY = "romeo-pos-calculator-open";
+      const EXPRESSION_KEY = "romeo-pos-calculator-expression";
       const toggle = document.getElementById("calculatorToggle");
       const panel = document.getElementById("floatingCalculator");
       const handle = document.getElementById("calculatorDragHandle");
       const closeBtn = document.getElementById("calculatorClose");
       const display = document.getElementById("calculatorDisplay");
       const keys = document.getElementById("calculatorKeys");
-      let expression = "";
+      let expression = localStorage.getItem(EXPRESSION_KEY) || "";
+      if (!/^[\d+\-*/. ()]*$/.test(expression)) expression = "";
+
+      function saveExpression() {
+        if (expression) localStorage.setItem(EXPRESSION_KEY, expression);
+        else localStorage.removeItem(EXPRESSION_KEY);
+      }
 
       if (!toggle || !panel || !handle || !display || !keys) return;
 
@@ -1927,6 +1934,7 @@
         if (!match) return;
         const numberText = match[1];
         expression = expression.slice(0, -numberText.length) + String(numberValue(numberText) / 100);
+        saveExpression();
         update();
       }
 
@@ -1947,16 +1955,19 @@
         } else {
           expression += value;
         }
+        saveExpression();
         update();
       }
 
       function clear() {
         expression = "";
+        saveExpression();
         update();
       }
 
       function backspace() {
         expression = expression.slice(0, -1);
+        saveExpression();
         update();
       }
 
@@ -1971,9 +1982,11 @@
           const result = Function(`"use strict"; return (${safeExpression});`)();
           if (!Number.isFinite(result)) throw new Error("Invalid result");
           expression = String(Math.round((result + Number.EPSILON) * 100) / 100);
+          saveExpression();
           render(expression);
         } catch (error) {
           expression = "";
+          saveExpression();
           render("Error");
         }
       }
