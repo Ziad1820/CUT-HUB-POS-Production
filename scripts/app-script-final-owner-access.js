@@ -4238,6 +4238,15 @@ function normalizePublicPhone(value) {
   return normalizeDigits(String(value || "")).replace(/[^0-9+]/g, "").trim();
 }
 
+function generatePublicBookingTrackingToken(bookings) {
+  const existingTokens = new Set((bookings || []).map((booking) => String(booking.trackingToken || "").trim().toUpperCase()));
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const token = `CH-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
+    if (!existingTokens.has(token)) return token;
+  }
+  throw new Error("Could not create a unique booking tracking code. Please try again.");
+}
+
 function createPublicBookingRequest(data) {
   const lock = LockService.getScriptLock();
   try {
@@ -4270,7 +4279,7 @@ function createPublicBookingRequest(data) {
     const now = new Date();
     const nowText = getCairoDateTime();
     const id = `BOOK-${Utilities.getUuid()}`;
-    const token = Utilities.getUuid().replace(/-/g, "") + Utilities.getUuid().replace(/-/g, "");
+    const token = generatePublicBookingTrackingToken(bookings);
     const booking = {
       id, date: dateKey, time, customerName, customerPhone, employee: barber.name,
       service: serviceName, note, status: "pending", createdAt: nowText, updatedAt: nowText,
@@ -4290,14 +4299,14 @@ function createPublicBookingRequest(data) {
 }
 
 function findBookingByTrackingToken(token) {
-  const cleanToken = String(token || "").trim();
+  const cleanToken = String(token || "").trim().toUpperCase();
   if (!cleanToken) return null;
   const sheet = getBookingsSheetV2();
   if (sheet.getLastRow() < 2) return null;
   const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, BOOKING_HEADERS_V2.length).getValues();
   for (let index = 0; index < rows.length; index++) {
     const booking = bookingFromRowV2(rows[index], index + 2);
-    if (booking.trackingToken === cleanToken) return { sheet, rowNumber: index + 2, booking };
+    if (String(booking.trackingToken || "").trim().toUpperCase() === cleanToken) return { sheet, rowNumber: index + 2, booking };
   }
   return null;
 }

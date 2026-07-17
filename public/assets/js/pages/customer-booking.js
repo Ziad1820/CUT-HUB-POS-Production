@@ -204,7 +204,7 @@
     if (!token) {
       const entered = prompt("اكتب كود متابعة الحجز:");
       if (!entered) return;
-      token = entered.trim();
+      token = entered.trim().toUpperCase();
     }
     elements.bookingWorkspace.classList.add("hidden");
     elements.trackingWorkspace.classList.remove("hidden");
@@ -230,6 +230,12 @@
     elements.trackingContent.className = "tracking-card";
     elements.trackingContent.innerHTML = `
       <div class="tracking-status">${escapeHtml(statusText(booking.status))}</div>
+      <div class="tracking-code-card">
+        <span>كود متابعة الحجز</span>
+        <strong dir="ltr">${escapeHtml(token)}</strong>
+        <button class="secondary-action" type="button" data-copy-tracking>نسخ الكود</button>
+        <small>احتفظ بالكود لمتابعة حالة طلبك في أي وقت.</small>
+      </div>
       <div class="tracking-details">
         <div><span>الخدمة</span><strong>${escapeHtml(booking.service)}</strong></div>
         <div><span>الحلاق</span><strong>${escapeHtml(booking.employee)}</strong></div>
@@ -239,8 +245,32 @@
       ${booking.rejectionReason ? `<div class="booking-summary">${escapeHtml(booking.rejectionReason)}</div>` : ""}
       ${proposal}
       <div class="form-actions"><button class="secondary-action" type="button" data-refresh-status>تحديث الحالة</button></div>`;
+    elements.trackingContent.querySelector("[data-copy-tracking]")?.addEventListener("click", (event) => copyTrackingToken(token, event.currentTarget));
     elements.trackingContent.querySelector("[data-refresh-status]")?.addEventListener("click", () => showTracking(token));
     elements.trackingContent.querySelectorAll("[data-proposal]").forEach((button) => button.addEventListener("click", () => respondToProposal(token, button.dataset.proposal)));
+  }
+
+  async function copyTrackingToken(token, button) {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(token);
+      } else {
+        const input = document.createElement("textarea");
+        input.value = token;
+        input.setAttribute("readonly", "");
+        input.style.position = "fixed";
+        input.style.opacity = "0";
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand("copy");
+        input.remove();
+      }
+      const originalText = button.textContent;
+      button.textContent = "تم النسخ";
+      setTimeout(() => { button.textContent = originalText; }, 1800);
+    } catch (error) {
+      alert(`كود المتابعة: ${token}`);
+    }
   }
 
   async function respondToProposal(token, responseValue) {
