@@ -1885,6 +1885,224 @@
   <script src="../assets/js/core/auth.js"></script>
   <script src="../assets/js/utils/layout.js"></script>
   <script src="../assets/js/pages/cashier.js?v=20260712-bulk-service-delete"></script>
+  <script>
+    (() => {
+      const POSITION_KEY = "romeo-pos-calculator-position";
+      const toggle = document.getElementById("calculatorToggle");
+      const panel = document.getElementById("floatingCalculator");
+      const handle = document.getElementById("calculatorDragHandle");
+      const closeBtn = document.getElementById("calculatorClose");
+      const display = document.getElementById("calculatorDisplay");
+      const keys = document.getElementById("calculatorKeys");
+      let expression = "";
+
+      if (!toggle || !panel || !handle || !display || !keys) return;
+
+      function numberValue(value) {
+        const parsed = parseFloat(String(value || "").replace(/[^\d.-]/g, ""));
+        return Number.isFinite(parsed) ? parsed : 0;
+      }
+
+      function displayExpression() {
+        return expression.replace(/\*/g, "×").replace(/\//g, "÷").replace(/-/g, "−");
+      }
+
+      function render(value) {
+        const text = String(value || "0");
+        display.textContent = text.length > 16 ? text.slice(-16) : text;
+        display.title = text;
+      }
+
+      function update() {
+        render(displayExpression() || "0");
+      }
+
+      function isOperator(value) {
+        return ["+", "-", "*", "/"].includes(value);
+      }
+
+      function applyPercent() {
+        const match = expression.match(/(\d+(?:\.\d+)?)$/);
+        if (!match) return;
+        const numberText = match[1];
+        expression = expression.slice(0, -numberText.length) + String(numberValue(numberText) / 100);
+        update();
+      }
+
+      function append(value) {
+        if (!value) return;
+        if (value === "%") {
+          applyPercent();
+          return;
+        }
+
+        const last = expression.slice(-1);
+        if (isOperator(value)) {
+          if (!expression && value !== "-") return;
+          expression = isOperator(last) ? expression.slice(0, -1) + value : expression + value;
+        } else if (value === ".") {
+          const currentNumber = expression.split(/[+\-*/]/).pop();
+          if (!currentNumber.includes(".")) expression += currentNumber ? "." : "0.";
+        } else {
+          expression += value;
+        }
+        update();
+      }
+
+      function clear() {
+        expression = "";
+        update();
+      }
+
+      function backspace() {
+        expression = expression.slice(0, -1);
+        update();
+      }
+
+      function calculate() {
+        if (!expression || !/^[\d+\-*/. ()]+$/.test(expression)) {
+          clear();
+          return;
+        }
+
+        try {
+          const safeExpression = expression.replace(/[+\-*/.]+$/, "");
+          const result = Function(`"use strict"; return (${safeExpression});`)();
+          if (!Number.isFinite(result)) throw new Error("Invalid result");
+          expression = String(Math.round((result + Number.EPSILON) * 100) / 100);
+          render(expression);
+        } catch (error) {
+          expression = "";
+          render("Error");
+        }
+      }
+
+      function clamp(left, top) {
+        const rect = panel.getBoundingClientRect();
+        return {
+          left: Math.min(Math.max(8, left), Math.max(8, window.innerWidth - rect.width - 8)),
+          top: Math.min(Math.max(8, top), Math.max(8, window.innerHeight - rect.height - 8))
+        };
+      }
+
+      function place(left, top) {
+        const next = clamp(left, top);
+        panel.style.left = `${next.left}px`;
+        panel.style.top = `${next.top}px`;
+        panel.style.right = "auto";
+        panel.style.bottom = "auto";
+      }
+
+      function savePosition() {
+        const rect = panel.getBoundingClientRect();
+        localStorage.setItem(POSITION_KEY, JSON.stringify({
+          left: Math.round(rect.left),
+          top: Math.round(rect.top)
+        }));
+      }
+
+      function restorePosition() {
+        try {
+          const saved = JSON.parse(localStorage.getItem(POSITION_KEY) || "null");
+          if (saved && Number.isFinite(saved.left) && Number.isFinite(saved.top)) {
+            place(saved.left, saved.top);
+          }
+        } catch (error) {
+          localStorage.removeItem(POSITION_KEY);
+        }
+      }
+
+      function open() {
+        panel.classList.add("open");
+        restorePosition();
+        update();
+      }
+
+      function close() {
+        panel.classList.remove("open");
+      }
+
+      toggle.addEventListener("click", () => {
+        panel.classList.contains("open") ? close() : open();
+      });
+
+      closeBtn?.addEventListener("click", close);
+
+      keys.addEventListener("click", event => {
+        const button = event.target.closest("button");
+        if (!button) return;
+
+        const action = button.dataset.calculatorAction;
+        if (action === "clear") clear();
+        else if (action === "backspace") backspace();
+        else if (action === "equals") calculate();
+        else append(button.dataset.calculatorValue);
+      });
+
+      let drag = null;
+      handle.addEventListener("pointerdown", event => {
+        if (event.target.closest("button")) return;
+        const rect = panel.getBoundingClientRect();
+        drag = { offsetX: event.clientX - rect.left, offsetY: event.clientY - rect.top };
+        panel.classList.add("dragging");
+        handle.setPointerCapture(event.pointerId);
+      });
+
+      handle.addEventListener("pointermove", event => {
+        if (!drag) return;
+        place(event.clientX - drag.offsetX, event.clientY - drag.offsetY);
+      });
+
+      function finishDrag(event) {
+        if (!drag) return;
+        drag = null;
+        panel.classList.remove("dragging");
+        savePosition();
+        if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+      }
+
+      handle.addEventListener("pointerup", finishDrag);
+      handle.addEventListener("pointercancel", finishDrag);
+
+      document.addEventListener("keydown", event => {
+        if (!panel.classList.contains("open")) return;
+        if (event.ctrlKey || event.altKey || event.metaKey) return;
+        if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) return;
+
+        if (/^\d$/.test(event.key) || ["+", "-", "*", "/", ".", "%"].includes(event.key)) {
+          event.preventDefault();
+          append(event.key);
+          return;
+        }
+
+        if (event.key === "Enter" || event.key === "=") {
+          event.preventDefault();
+          calculate();
+          return;
+        }
+
+        if (event.key === "Backspace") {
+          event.preventDefault();
+          backspace();
+          return;
+        }
+
+        if (event.key === "Escape") {
+          event.preventDefault();
+          clear();
+        }
+      });
+
+      window.addEventListener("resize", () => {
+        if (!panel.classList.contains("open")) return;
+        const rect = panel.getBoundingClientRect();
+        place(rect.left, rect.top);
+        savePosition();
+      });
+
+      update();
+    })();
+  </script>
 
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>
