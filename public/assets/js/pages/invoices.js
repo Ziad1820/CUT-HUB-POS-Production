@@ -352,7 +352,7 @@
       const visibleTotal = items.reduce((sum, item) => sum + parseAmount(item.total), 0);
 
       elements.visibleTotal.textContent = formatMoney(visibleTotal);
-      elements.visibleCount.textContent = totalMatches.toLocaleString("en-US");
+      elements.visibleCount.textContent = items.length.toLocaleString("en-US");
     }
 
     function pruneSelectedInvoices() {
