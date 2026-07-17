@@ -244,6 +244,17 @@
   color: var(--success);
 }
 
+.status-proposed {
+  background: #fff0d2;
+  color: #94600d;
+}
+
+.status-rejected,
+.status-expired {
+  background: #f8dfdc;
+  color: var(--danger);
+}
+
 .status-done {
   background: #e7edf7;
   color: #31527a;

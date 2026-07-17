@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="احجز موعدك في CUT HUB واختار الحلاق والخدمة والوقت المناسب.">
+  <title>حجز موعد - CUT HUB</title>
+  <link rel="stylesheet" href="../assets/css/pages/customer-booking.css">
+</head>
+<body>
+  <main class="public-booking-app">
+    <header class="public-hero">
+      <div>
+        <h1>CUT HUB</h1>
+        <p>Your style, our passion</p>
+      </div>
+    </header>
+
+    <section id="bookingWorkspace">
+      <section class="public-panel">
+        <div class="section-title">
+          <div>
+            <h2>احجز موعدك</h2>
+            <p>اختار الخدمة والتاريخ، وبعدها اختار الحلاق والميعاد المتاح.</p>
+          </div>
+          <button id="openTrackingBtn" class="secondary-action" type="button">متابعة حجز سابق</button>
+        </div>
+        <div class="selection-grid">
+          <label class="field">
+            <span>الخدمة</span>
+            <select id="publicService"><option value="">جاري تحميل الخدمات...</option></select>
+          </label>
+          <label class="field">
+            <span>التاريخ</span>
+            <input id="publicDate" type="date">
+          </label>
+        </div>
+      </section>
+
+      <section class="public-panel">
+        <div class="section-title">
+          <div>
+            <h2>اختار الحلاق والميعاد</h2>
+            <p>المواعيد المعروضة بتتحدث تلقائيًا حسب الحجوزات المؤكدة.</p>
+          </div>
+        </div>
+        <div id="barberGrid" class="barber-grid"><div class="empty-public-state">اختار الخدمة والتاريخ لعرض المواعيد.</div></div>
+      </section>
+
+      <section id="customerPanel" class="public-panel hidden">
+        <div class="section-title">
+          <div><h2>بيانات الحجز</h2><p>اكتب بياناتك علشان فريق CUT HUB يراجع الطلب ويأكد الموعد.</p></div>
+        </div>
+        <div id="bookingSummary" class="booking-summary"></div>
+        <form id="publicBookingForm" class="customer-form">
+          <label class="field"><span>الاسم</span><input id="publicCustomerName" type="text" autocomplete="name" maxlength="100" required></label>
+          <label class="field"><span>رقم التليفون</span><input id="publicCustomerPhone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="01xxxxxxxxx" required></label>
+          <label class="field full"><span>ملاحظة (اختياري)</span><textarea id="publicNote" maxlength="500" placeholder="أي تفاصيل مهمة للحجز"></textarea></label>
+          <div class="form-actions"><button id="submitPublicBooking" class="primary-action" type="submit">إرسال طلب الحجز</button></div>
+        </form>
+      </section>
+    </section>
+
+    <section id="trackingWorkspace" class="public-panel hidden">
+      <div class="section-title">
+        <div><h2>متابعة طلب الحجز</h2><p>حالة الطلب بتتحدث بمجرد ما فريق CUT HUB يراجعه.</p></div>
+        <button id="newBookingBtn" class="secondary-action" type="button">حجز جديد</button>
+      </div>
+      <div id="trackingContent" class="state-message">جاري تحميل حالة الحجز...</div>
+    </section>
+  </main>
+  <script src="../assets/js/core/api.js"></script>
+  <script src="../assets/js/pages/customer-booking.js"></script>
+</body>
+</html>

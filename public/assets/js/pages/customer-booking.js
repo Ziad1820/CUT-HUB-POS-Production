@@ -1,0 +1,230 @@
+(() => {
+  "use strict";
+
+  const elements = {
+    bookingWorkspace: document.getElementById("bookingWorkspace"),
+    trackingWorkspace: document.getElementById("trackingWorkspace"),
+    trackingContent: document.getElementById("trackingContent"),
+    openTracking: document.getElementById("openTrackingBtn"),
+    newBooking: document.getElementById("newBookingBtn"),
+    service: document.getElementById("publicService"),
+    date: document.getElementById("publicDate"),
+    barberGrid: document.getElementById("barberGrid"),
+    customerPanel: document.getElementById("customerPanel"),
+    summary: document.getElementById("bookingSummary"),
+    form: document.getElementById("publicBookingForm"),
+    name: document.getElementById("publicCustomerName"),
+    phone: document.getElementById("publicCustomerPhone"),
+    note: document.getElementById("publicNote"),
+    submit: document.getElementById("submitPublicBooking")
+  };
+
+  const state = { services: [], barbers: [], employeeId: "", employeeName: "", time: "", loading: false };
+
+  async function publicRequest(payload) {
+    const response = await fetch(RomeoApi.API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) throw new Error("تعذر الاتصال بنظام الحجز.");
+    const result = await response.json();
+    if (result?.status === "error") {
+      const error = new Error(result.message || "تعذر تنفيذ طلب الحجز.");
+      error.code = result.code || "";
+      throw error;
+    }
+    return result;
+  }
+
+  function todayKey() {
+    const date = new Date();
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  }
+
+  function selectedService() {
+    return state.services.find((service) => service.serviceId === elements.service.value) || null;
+  }
+
+  function formatDate(value) {
+    const parts = String(value || "").split("-");
+    return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : value;
+  }
+
+  function statusText(status) {
+    return ({
+      pending: "طلبك بانتظار التأكيد",
+      confirmed: "تم تأكيد الحجز",
+      proposed: "CUT HUB اقترح عليك موعدًا بديلًا",
+      rejected: "تعذر تأكيد الحجز",
+      cancelled: "تم إلغاء الحجز",
+      done: "تم تنفيذ الحجز",
+      expired: "انتهت صلاحية الطلب"
+    })[status] || "جاري مراجعة الطلب";
+  }
+
+  async function loadOptions() {
+    if (state.loading) return;
+    state.loading = true;
+    state.employeeId = "";
+    state.employeeName = "";
+    state.time = "";
+    elements.customerPanel.classList.add("hidden");
+    elements.barberGrid.innerHTML = '<div class="empty-public-state">جاري تحميل المواعيد المتاحة...</div>';
+    try {
+      const response = await publicRequest({ action: "getPublicBookingOptions", date: elements.date.value, serviceId: elements.service.value });
+      if (response?.status !== "success") throw new Error(response?.message || "تعذر تحميل المواعيد.");
+      state.services = Array.isArray(response.services) ? response.services : [];
+      state.barbers = Array.isArray(response.barbers) ? response.barbers : [];
+      const currentService = elements.service.value;
+      elements.service.innerHTML = state.services.map((service) => `<option value="${escapeHtml(service.serviceId)}">${escapeHtml(service.name)} - ${Number(service.durationMinutes) || 30} دقيقة</option>`).join("");
+      if (currentService && state.services.some((service) => service.serviceId === currentService)) elements.service.value = currentService;
+      renderBarbers();
+    } catch (error) {
+      elements.barberGrid.innerHTML = `<div class="empty-public-state">${escapeHtml(error.message || "تعذر تحميل المواعيد.")}</div>`;
+    } finally {
+      state.loading = false;
+    }
+  }
+
+  function renderBarbers() {
+    if (!state.barbers.length) {
+      elements.barberGrid.innerHTML = '<div class="empty-public-state">لا توجد مواعيد متاحة في التاريخ المحدد.</div>';
+      return;
+    }
+    const labels = { available: "متاح للحجز", unavailable: "غير متاح", not_started: "لم يبدأ الشيفت" };
+    elements.barberGrid.innerHTML = state.barbers.map((barber) => `
+      <article class="barber-card ${state.employeeId === barber.staffId ? "selected" : ""}" data-barber-id="${escapeHtml(barber.staffId)}">
+        <div class="barber-head">
+          <div><h3 class="barber-name">${escapeHtml(barber.name)}</h3><div class="barber-shift">الشيفت: ${escapeHtml(barber.shiftStart || "-")} - ${escapeHtml(barber.shiftEnd || "-")}</div></div>
+          <span class="availability-badge ${escapeHtml(barber.availability)}">${labels[barber.availability] || labels.unavailable}</span>
+        </div>
+        <div class="slots">${(barber.slots || []).map((time) => `<button class="slot-btn ${state.employeeId === barber.staffId && state.time === time ? "selected" : ""}" type="button" data-time="${escapeHtml(time)}">${escapeHtml(time)}</button>`).join("") || '<span class="barber-shift">لا توجد مواعيد فارغة</span>'}</div>
+      </article>`).join("");
+  }
+
+  function selectSlot(employeeId, time) {
+    const barber = state.barbers.find((item) => item.staffId === employeeId);
+    if (!barber || !(barber.slots || []).includes(time)) return;
+    state.employeeId = employeeId;
+    state.employeeName = barber.name;
+    state.time = time;
+    const service = selectedService();
+    elements.summary.textContent = `${service?.name || "الخدمة"} مع ${barber.name} يوم ${formatDate(elements.date.value)} الساعة ${time}`;
+    elements.customerPanel.classList.remove("hidden");
+    renderBarbers();
+    elements.customerPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function submitBooking(event) {
+    event.preventDefault();
+    const service = selectedService();
+    if (!service || !state.employeeId || !state.time) return alert("اختار الحلاق والميعاد الأول.");
+    elements.submit.disabled = true;
+    elements.submit.textContent = "جاري إرسال الطلب...";
+    try {
+      const response = await publicRequest({
+        action: "createPublicBookingRequest",
+        serviceId: service.serviceId,
+        employeeId: state.employeeId,
+        date: elements.date.value,
+        time: state.time,
+        customerName: elements.name.value.trim(),
+        customerPhone: elements.phone.value.trim(),
+        note: elements.note.value.trim()
+      });
+      if (response?.status !== "success") throw new Error(response?.message || "تعذر إرسال الطلب.");
+      const url = new URL(window.location.href);
+      url.search = "";
+      url.searchParams.set("tracking", response.trackingToken);
+      history.replaceState({}, "", url.href);
+      showTracking(response.trackingToken);
+    } catch (error) {
+      alert(error.message || "تعذر إرسال الطلب.");
+      if (error.code === "SLOT_UNAVAILABLE") await loadOptions();
+    } finally {
+      elements.submit.disabled = false;
+      elements.submit.textContent = "إرسال طلب الحجز";
+    }
+  }
+
+  async function showTracking(token) {
+    if (!token) {
+      const entered = prompt("اكتب كود متابعة الحجز:");
+      if (!entered) return;
+      token = entered.trim();
+    }
+    elements.bookingWorkspace.classList.add("hidden");
+    elements.trackingWorkspace.classList.remove("hidden");
+    elements.trackingContent.className = "state-message";
+    elements.trackingContent.textContent = "جاري تحميل حالة الحجز...";
+    try {
+      const response = await publicRequest({ action: "getPublicBookingStatus", trackingToken: token });
+      if (response?.status !== "success") throw new Error(response?.message || "تعذر تحميل الحجز.");
+      renderTracking(response.booking, token);
+    } catch (error) {
+      elements.trackingContent.className = "state-message";
+      elements.trackingContent.textContent = error.message || "تعذر تحميل الحجز.";
+    }
+  }
+
+  function renderTracking(booking, token) {
+    const proposal = booking.status === "proposed" ? `
+      <div class="booking-summary">الموعد المقترح: ${formatDate(booking.proposedDate)} الساعة ${escapeHtml(booking.proposedTime)}</div>
+      <div class="proposal-actions">
+        <button class="primary-action" type="button" data-proposal="accept">موافق على الموعد</button>
+        <button class="primary-action danger-action" type="button" data-proposal="decline">غير مناسب</button>
+      </div>` : "";
+    elements.trackingContent.className = "tracking-card";
+    elements.trackingContent.innerHTML = `
+      <div class="tracking-status">${escapeHtml(statusText(booking.status))}</div>
+      <div class="tracking-details">
+        <div><span>الخدمة</span><strong>${escapeHtml(booking.service)}</strong></div>
+        <div><span>الحلاق</span><strong>${escapeHtml(booking.employee)}</strong></div>
+        <div><span>التاريخ</span><strong>${formatDate(booking.date)}</strong></div>
+        <div><span>الوقت</span><strong>${escapeHtml(booking.time)}</strong></div>
+      </div>
+      ${booking.rejectionReason ? `<div class="booking-summary">${escapeHtml(booking.rejectionReason)}</div>` : ""}
+      ${proposal}
+      <div class="form-actions"><button class="secondary-action" type="button" data-refresh-status>تحديث الحالة</button></div>`;
+    elements.trackingContent.querySelector("[data-refresh-status]")?.addEventListener("click", () => showTracking(token));
+    elements.trackingContent.querySelectorAll("[data-proposal]").forEach((button) => button.addEventListener("click", () => respondToProposal(token, button.dataset.proposal)));
+  }
+
+  async function respondToProposal(token, responseValue) {
+    try {
+      const response = await publicRequest({ action: "respondToBookingProposal", trackingToken: token, response: responseValue });
+      if (response?.status !== "success") throw new Error(response?.message || "تعذر تحديث الطلب.");
+      renderTracking(response.booking, token);
+    } catch (error) { alert(error.message || "تعذر تحديث الطلب."); }
+  }
+
+  function showNewBooking() {
+    const url = new URL(window.location.href);
+    url.search = "";
+    history.replaceState({}, "", url.href);
+    elements.trackingWorkspace.classList.add("hidden");
+    elements.bookingWorkspace.classList.remove("hidden");
+    loadOptions();
+  }
+
+  elements.date.min = todayKey();
+  elements.date.value = todayKey();
+  elements.service.addEventListener("change", loadOptions);
+  elements.date.addEventListener("change", loadOptions);
+  elements.barberGrid.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-time]");
+    const card = event.target.closest("[data-barber-id]");
+    if (button && card) selectSlot(card.dataset.barberId, button.dataset.time);
+  });
+  elements.form.addEventListener("submit", submitBooking);
+  elements.openTracking.addEventListener("click", () => showTracking(""));
+  elements.newBooking.addEventListener("click", showNewBooking);
+
+  const trackingToken = new URLSearchParams(window.location.search).get("tracking");
+  if (trackingToken) showTracking(trackingToken); else loadOptions();
+})();

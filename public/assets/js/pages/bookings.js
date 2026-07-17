@@ -1,444 +1,288 @@
-(function () {
+(() => {
   "use strict";
 
-  if (window.RomeoAuth) {
-    RomeoAuth.requireAuth("view_bookings");
-  }
+  RomeoAuth?.requireAuth?.("view_bookings");
 
-  const STAFF_STORAGE_KEY = "romeo-pos-staff-accounting-v2";
+  const STAFF_KEY = "romeo-pos-staff-accounting-v2";
   const DEFAULT_STAFF = ["MOHAMED", "RAMDAN", "KAREEM", "KHALED"];
-  let bookingsCache = [];
-  let bookingsLoading = false;
+  let bookings = [];
+  let loading = false;
 
   const elements = {
     form: document.getElementById("bookingForm"),
     customerName: document.getElementById("customerName"),
     customerPhone: document.getElementById("customerPhone"),
-    bookingDate: document.getElementById("bookingDate"),
-    bookingTime: document.getElementById("bookingTime"),
-    bookingEmployee: document.getElementById("bookingEmployee"),
-    bookingService: document.getElementById("bookingService"),
-    bookingNote: document.getElementById("bookingNote"),
-    clearBookingBtn: document.getElementById("clearBookingBtn"),
+    date: document.getElementById("bookingDate"),
+    time: document.getElementById("bookingTime"),
+    employee: document.getElementById("bookingEmployee"),
+    service: document.getElementById("bookingService"),
+    note: document.getElementById("bookingNote"),
+    clear: document.getElementById("clearBookingBtn"),
     filterDate: document.getElementById("filterDate"),
-    statusFilter: document.getElementById("statusFilter"),
-    bookingSearch: document.getElementById("bookingSearch"),
-    bookingsList: document.getElementById("bookingsList"),
-    todayBookingsCount: document.getElementById("todayBookingsCount"),
-    confirmedBookingsCount: document.getElementById("confirmedBookingsCount"),
-    pendingBookingsCount: document.getElementById("pendingBookingsCount")
+    status: document.getElementById("statusFilter"),
+    search: document.getElementById("bookingSearch"),
+    list: document.getElementById("bookingsList"),
+    total: document.getElementById("todayBookingsCount"),
+    confirmed: document.getElementById("confirmedBookingsCount"),
+    pending: document.getElementById("pendingBookingsCount")
   };
 
-  function getLanguage() {
-    return window.RomeoLanguage?.getCurrentLanguage?.()
-      || localStorage.getItem("romeo-pos-language")
-      || document.documentElement.lang
-      || "ar";
+  function language() {
+    return RomeoLanguage?.getCurrentLanguage?.() || localStorage.getItem("romeo-pos-language") || "ar";
   }
 
-  function text(ar, en) {
-    return getLanguage() === "en" ? en : ar;
-  }
+  function text(ar, en) { return language() === "en" ? en : ar; }
 
   function todayKey() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
+    const date = new Date();
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   }
 
-  function loadBookings() {
-    return bookingsCache;
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
   }
 
-  function normalizeBooking(booking) {
+  function normalizeBooking(item) {
     return {
-      id: String(booking.id || booking.bookingId || "").trim(),
-      bookingId: String(booking.bookingId || booking.id || "").trim(),
-      rowNumber: Number(booking.rowNumber || 0),
-      customerName: String(booking.customerName || booking.customer || "").trim(),
-      customerPhone: String(booking.customerPhone || booking.phone || "").trim(),
-      date: String(booking.date || booking.bookingDate || "").trim(),
-      time: String(booking.time || booking.bookingTime || "").trim(),
-      employee: String(booking.employee || booking.barber || "").trim(),
-      service: String(booking.service || booking.services || "").trim(),
-      note: String(booking.note || "").trim(),
-      status: String(booking.status || "pending").trim() || "pending",
-      createdAt: String(booking.createdAt || "").trim(),
-      updatedAt: String(booking.updatedAt || "").trim()
+      id: String(item.id || item.bookingId || "").trim(),
+      bookingId: String(item.bookingId || item.id || "").trim(),
+      rowNumber: Number(item.rowNumber || 0),
+      customerName: String(item.customerName || item.customer || "").trim(),
+      customerPhone: String(item.customerPhone || item.phone || "").trim(),
+      date: String(item.date || item.bookingDate || "").trim(),
+      time: String(item.time || item.bookingTime || "").trim(),
+      employee: String(item.employee || item.barber || "").trim(),
+      employeeId: String(item.employeeId || "").trim(),
+      service: String(item.service || item.services || "").trim(),
+      serviceId: String(item.serviceId || "").trim(),
+      durationMinutes: Number(item.durationMinutes || 30),
+      note: String(item.note || "").trim(),
+      status: String(item.status || "pending").trim(),
+      source: String(item.source || "staff").trim(),
+      trackingToken: String(item.trackingToken || "").trim(),
+      proposedDate: String(item.proposedDate || "").trim(),
+      proposedTime: String(item.proposedTime || "").trim(),
+      rejectionReason: String(item.rejectionReason || "").trim()
     };
   }
 
   async function fetchBookings() {
-    if (!window.RomeoApi?.request || bookingsLoading) return;
-
-    bookingsLoading = true;
-    if (elements.bookingsList) {
-      elements.bookingsList.innerHTML = `<div class="empty-state">${text("جاري تحميل الحجوزات...", "Loading bookings...")}</div>`;
-    }
-
+    if (loading) return;
+    loading = true;
+    elements.list.innerHTML = `<div class="empty-state">${text("جاري تحميل الحجوزات...", "Loading bookings...")}</div>`;
     try {
       const response = await RomeoApi.request({
         action: "getBookings",
-        filters: {
-          date: elements.filterDate?.value || "",
-          status: elements.statusFilter?.value || "",
-          search: elements.bookingSearch?.value || ""
-        }
+        filters: { date: elements.filterDate.value, status: elements.status.value, search: elements.search.value.trim() }
       });
-
-      if (response?.status !== "success") {
-        throw new Error(response?.message || "Could not load bookings.");
-      }
-
-      bookingsCache = Array.isArray(response.bookings)
-        ? response.bookings.map(normalizeBooking)
-        : [];
+      if (response?.status !== "success") throw new Error(response?.message || "Could not load bookings.");
+      bookings = (response.bookings || []).map(normalizeBooking);
     } catch (error) {
-      console.error(error);
-      if (elements.bookingsList) {
-        elements.bookingsList.innerHTML = `<div class="empty-state">${escapeHtml(error.message || text("تعذر تحميل الحجوزات.", "Could not load bookings."))}</div>`;
-      }
-      bookingsCache = [];
+      bookings = [];
+      elements.list.innerHTML = `<div class="empty-state">${escapeHtml(error.message || text("تعذر تحميل الحجوزات.", "Could not load bookings."))}</div>`;
     } finally {
-      bookingsLoading = false;
-      renderBookings();
+      loading = false;
+      render();
     }
   }
 
-  function normalizeStaffMember(member, index) {
-    if (typeof member === "string") {
-      return { name: member, code: member };
-    }
-
-    const name = member?.name || member?.staffName || member?.displayName || member?.barber || `Employee ${index + 1}`;
-    const code = member?.code || member?.staffCode || name;
-    return { name, code };
+  function staffRecord(member, index) {
+    if (typeof member === "string") return { name: member, code: member, id: member };
+    return {
+      name: member?.name || member?.staffName || member?.displayName || `Employee ${index + 1}`,
+      code: member?.code || member?.staffCode || "",
+      id: member?.id || member?.staffId || ""
+    };
   }
 
-  function getLocalStaff() {
+  function localStaff() {
     try {
-      const saved = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || "[]");
-      if (Array.isArray(saved) && saved.length) {
-        return saved.map(normalizeStaffMember);
-      }
-    } catch (error) {
-      console.warn("Could not read local staff", error);
-    }
-
-    return DEFAULT_STAFF.map(normalizeStaffMember);
+      const saved = JSON.parse(localStorage.getItem(STAFF_KEY) || "[]");
+      if (Array.isArray(saved) && saved.length) return saved.map(staffRecord);
+    } catch (error) { console.warn(error); }
+    return DEFAULT_STAFF.map(staffRecord);
   }
 
-  function renderEmployeeOptions(staff = getLocalStaff()) {
-    if (!elements.bookingEmployee) return;
-
-    const currentValue = elements.bookingEmployee.value;
-    const placeholder = text("اختر الموظف", "Choose employee");
-    elements.bookingEmployee.innerHTML = `<option value="">${placeholder}</option>`;
-
-    staff.forEach(member => {
+  function renderStaff(rows = localStaff()) {
+    const current = elements.employee.value;
+    elements.employee.innerHTML = `<option value="">${text("اختر الموظف", "Choose employee")}</option>`;
+    rows.forEach((member) => {
       const option = document.createElement("option");
       option.value = member.name;
       option.textContent = member.name;
-      option.dataset.code = member.code;
-      elements.bookingEmployee.appendChild(option);
+      option.dataset.staffId = member.id || "";
+      elements.employee.appendChild(option);
     });
-
-    if (currentValue) {
-      elements.bookingEmployee.value = currentValue;
-    }
+    if (current) elements.employee.value = current;
   }
 
-  async function refreshStaffFromApi() {
-    if (!window.RomeoApi?.request) return;
-
+  async function loadStaff() {
+    renderStaff();
     try {
       const response = await RomeoApi.request({ action: "getStaff" });
-      const staffRows = response?.staff || response?.employees || response?.data || [];
-      if (Array.isArray(staffRows) && staffRows.length) {
-        localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staffRows));
-        renderEmployeeOptions(staffRows.map(normalizeStaffMember));
+      if (response?.status === "success" && Array.isArray(response.staff)) {
+        localStorage.setItem(STAFF_KEY, JSON.stringify(response.staff));
+        renderStaff(response.staff.map(staffRecord));
       }
-    } catch (error) {
-      console.warn("Could not load staff from API", error);
-    }
-  }
-
-  function applyStaticLanguage() {
-    document.querySelectorAll("[data-i18n-ar][data-i18n-en]").forEach(element => {
-      element.textContent = getLanguage() === "en" ? element.dataset.i18nEn : element.dataset.i18nAr;
-    });
-
-    document.querySelectorAll("[data-i18n-placeholder-ar][data-i18n-placeholder-en]").forEach(element => {
-      element.placeholder = getLanguage() === "en"
-        ? element.dataset.i18nPlaceholderEn
-        : element.dataset.i18nPlaceholderAr;
-    });
-
-    renderEmployeeOptions();
+    } catch (error) { console.warn("Could not load staff", error); }
   }
 
   function statusLabel(status) {
     const labels = {
-      pending: text("بانتظار التأكيد", "Pending"),
-      confirmed: text("مؤكد", "Confirmed"),
-      done: text("تم الحضور", "Completed"),
-      cancelled: text("ملغي", "Cancelled")
+      pending: text("بانتظار التأكيد", "Pending"), confirmed: text("مؤكد", "Confirmed"),
+      proposed: text("موعد بديل مقترح", "Proposed time"), rejected: text("مرفوض", "Rejected"),
+      done: text("تم الحضور", "Completed"), cancelled: text("ملغي", "Cancelled"),
+      expired: text("انتهت المهلة", "Expired")
     };
     return labels[status] || labels.pending;
   }
 
   function formatDate(value) {
-    if (!value) return "-";
-    const parts = String(value).split("-");
-    if (parts.length !== 3) return value;
-    return getLanguage() === "en" ? value : `${parts[2]} / ${parts[1]} / ${parts[0]}`;
-  }
-
-  function getFilteredBookings() {
-    const filterDate = elements.filterDate?.value || "";
-    const status = elements.statusFilter?.value || "";
-    const query = (elements.bookingSearch?.value || "").trim().toLowerCase();
-
-    return loadBookings()
-      .filter(booking => !filterDate || booking.date === filterDate)
-      .filter(booking => !status || booking.status === status)
-      .filter(booking => {
-        if (!query) return true;
-        return [
-          booking.customerName,
-          booking.customerPhone,
-          booking.employee,
-          booking.service,
-          booking.note
-        ].some(value => String(value || "").toLowerCase().includes(query));
-      })
-      .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+    const parts = String(value || "").split("-");
+    return language() === "en" || parts.length !== 3 ? value : `${parts[2]} / ${parts[1]} / ${parts[0]}`;
   }
 
   function renderStats() {
-    const selectedDate = elements.filterDate?.value || todayKey();
-    const bookings = loadBookings().filter(booking => booking.date === selectedDate);
-
-    if (elements.todayBookingsCount) elements.todayBookingsCount.textContent = bookings.length;
-    if (elements.confirmedBookingsCount) {
-      elements.confirmedBookingsCount.textContent = bookings.filter(booking => booking.status === "confirmed").length;
-    }
-    if (elements.pendingBookingsCount) {
-      elements.pendingBookingsCount.textContent = bookings.filter(booking => booking.status === "pending").length;
-    }
+    const date = elements.filterDate.value || todayKey();
+    const rows = bookings.filter((booking) => booking.date === date);
+    elements.total.textContent = rows.length;
+    elements.confirmed.textContent = rows.filter((booking) => booking.status === "confirmed").length;
+    elements.pending.textContent = rows.filter((booking) => booking.status === "pending").length;
   }
 
-  function renderBookings() {
-    if (!elements.bookingsList) return;
-
-    const bookings = getFilteredBookings();
+  function render() {
     renderStats();
-
     if (!bookings.length) {
-      elements.bookingsList.innerHTML = `<div class="empty-state">${text("لا توجد حجوزات مطابقة حاليا.", "No matching bookings yet.")}</div>`;
+      elements.list.innerHTML = `<div class="empty-state">${text("لا توجد حجوزات مطابقة حاليًا.", "No matching bookings yet.")}</div>`;
       return;
     }
-
-    elements.bookingsList.innerHTML = bookings.map(booking => `
-      <article class="booking-card" data-booking-id="${booking.id}">
+    elements.list.innerHTML = bookings.map((booking) => `
+      <article class="booking-card" data-booking-id="${escapeHtml(booking.id)}">
         <div class="booking-top">
-          <div class="booking-customer">
-            <strong>${escapeHtml(booking.customerName)}</strong>
-            <span>${escapeHtml(booking.customerPhone)}</span>
-          </div>
-          <div class="booking-time">
-            <span>${formatDate(booking.date)} - ${escapeHtml(booking.time)}</span>
-            <span class="booking-status status-${booking.status}">${statusLabel(booking.status)}</span>
-          </div>
+          <div class="booking-customer"><strong>${escapeHtml(booking.customerName)}</strong><span>${escapeHtml(booking.customerPhone)}</span></div>
+          <div class="booking-time"><span>${formatDate(booking.date)} - ${escapeHtml(booking.time)}</span><span class="booking-status status-${escapeHtml(booking.status)}">${statusLabel(booking.status)}</span></div>
         </div>
         <div class="booking-meta">
           <span>${text("الموظف", "Employee")}: <strong>${escapeHtml(booking.employee)}</strong></span>
           <span>${text("الخدمة", "Service")}: <strong>${escapeHtml(booking.service)}</strong></span>
+          <span>${text("المصدر", "Source")}: <strong>${booking.source === "public" ? text("طلب عميل", "Customer request") : text("حجز داخلي", "Staff booking")}</strong></span>
+          <span>${text("المدة", "Duration")}: <strong>${booking.durationMinutes} ${text("دقيقة", "minutes")}</strong></span>
         </div>
         ${booking.note ? `<div class="booking-note">${escapeHtml(booking.note)}</div>` : ""}
+        ${booking.status === "proposed" ? `<div class="booking-note">${text("الموعد المقترح", "Proposed appointment")}: ${formatDate(booking.proposedDate)} - ${escapeHtml(booking.proposedTime)}</div>` : ""}
+        ${booking.rejectionReason ? `<div class="booking-note">${escapeHtml(booking.rejectionReason)}</div>` : ""}
         <div class="booking-actions">
-          ${booking.status === "pending" ? `<button class="booking-action confirm" type="button" data-action="confirmed">${text("تأكيد", "Confirm")}</button>` : ""}
-          ${booking.status !== "done" && booking.status !== "cancelled" ? `<button class="booking-action done" type="button" data-action="done">${text("تم الحضور", "Complete")}</button>` : ""}
-          ${booking.status !== "cancelled" && booking.status !== "done" ? `<button class="booking-action cancel" type="button" data-action="cancelled">${text("إلغاء", "Cancel")}</button>` : ""}
+          ${booking.status === "pending" ? `<button class="booking-action confirm" type="button" data-action="confirmed">${text("تأكيد", "Confirm")}</button><button class="booking-action" type="button" data-action="propose">${text("اقتراح موعد", "Propose time")}</button>` : ""}
+          ${["pending", "proposed"].includes(booking.status) ? `<button class="booking-action cancel" type="button" data-action="reject">${text("رفض الطلب", "Reject request")}</button>` : ""}
+          ${booking.customerPhone ? '<button class="booking-action" type="button" data-action="whatsapp">WhatsApp</button>' : ""}
+          ${booking.trackingToken ? `<button class="booking-action" type="button" data-action="copy-link">${text("نسخ رابط المتابعة", "Copy tracking link")}</button>` : ""}
+          ${!["done", "cancelled", "rejected"].includes(booking.status) ? `<button class="booking-action done" type="button" data-action="done">${text("تم الحضور", "Complete")}</button>` : ""}
+          ${!["cancelled", "done", "rejected"].includes(booking.status) ? `<button class="booking-action cancel" type="button" data-action="cancelled">${text("إلغاء", "Cancel")}</button>` : ""}
           <button class="booking-action delete" type="button" data-action="delete">${text("حذف", "Delete")}</button>
         </div>
-      </article>
-    `).join("");
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
+      </article>`).join("");
   }
 
   function clearForm() {
-    elements.form?.reset();
-    if (elements.bookingDate) elements.bookingDate.value = todayKey();
+    elements.form.reset();
+    elements.date.value = todayKey();
   }
 
   async function saveBooking(event) {
     event.preventDefault();
-
-    const booking = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      customerName: elements.customerName.value.trim(),
-      customerPhone: elements.customerPhone.value.trim(),
-      date: elements.bookingDate.value,
-      time: elements.bookingTime.value,
-      employee: elements.bookingEmployee.value,
-      service: elements.bookingService.value.trim(),
-      note: elements.bookingNote.value.trim(),
-      status: "pending",
-      createdAt: new Date().toISOString()
+    const option = elements.employee.selectedOptions[0];
+    const payload = {
+      action: "createBooking", customerName: elements.customerName.value.trim(),
+      customerPhone: elements.customerPhone.value.trim(), date: elements.date.value,
+      time: elements.time.value, employee: elements.employee.value,
+      employeeId: option?.dataset.staffId || "", service: elements.service.value.trim(),
+      note: elements.note.value.trim(), status: "pending", source: "staff"
     };
-
-    if (!booking.customerName || !booking.customerPhone || !booking.date || !booking.time || !booking.employee || !booking.service) {
-      alert(text("كمل بيانات الحجز الأساسية الأول.", "Please complete the required booking details first."));
-      return;
-    }
-
     try {
-      const response = await RomeoApi.request({
-        action: "createBooking",
-        ...booking
-      });
-
-      if (response?.status !== "success") {
-        throw new Error(response?.message || "Could not save booking.");
-      }
-
+      const response = await RomeoApi.request(payload);
+      if (response?.status !== "success") throw new Error(response?.message || "Could not save booking.");
       clearForm();
-      if (elements.filterDate) elements.filterDate.value = booking.date;
+      elements.filterDate.value = payload.date;
       await fetchBookings();
-    } catch (error) {
-      alert(error.message || text("تعذر حفظ الحجز.", "Could not save booking."));
-    }
+    } catch (error) { alert(error.message || text("تعذر حفظ الحجز.", "Could not save booking.")); }
   }
 
-  async function updateBookingStatus(id, status) {
-    const booking = loadBookings().find(item => item.id === id || item.bookingId === id);
+  function findBooking(id) { return bookings.find((booking) => booking.id === id || booking.bookingId === id); }
+
+  async function updateStatus(id, status, extra = {}) {
+    const booking = findBooking(id);
     if (!booking) return;
-
-    try {
-      const response = await RomeoApi.request({
-        action: "updateBooking",
-        ...booking,
-        id: booking.id,
-        bookingId: booking.bookingId || booking.id,
-        rowNumber: booking.rowNumber,
-        status
-      });
-
-      if (response?.status !== "success") {
-        throw new Error(response?.message || "Could not update booking.");
-      }
-
-      await fetchBookings();
-    } catch (error) {
-      alert(error.message || "Could not update booking.");
-    }
+    const response = await RomeoApi.request({ action: "updateBooking", ...booking, ...extra, status });
+    if (response?.status !== "success") throw new Error(response?.message || "Could not update booking.");
+    await fetchBookings();
   }
 
-  async function deleteBooking(id) {
-    const ok = confirm(text("هل تريد حذف هذا الحجز؟", "Delete this booking?"));
-    if (!ok) return;
+  async function propose(id) {
+    const booking = findBooking(id);
+    const proposedDate = prompt(text("اكتب تاريخ الموعد البديل بالشكل YYYY-MM-DD", "Enter proposed date as YYYY-MM-DD"), booking?.date || todayKey());
+    if (!proposedDate) return;
+    const proposedTime = prompt(text("اكتب وقت الموعد البديل بالشكل HH:MM", "Enter proposed time as HH:MM"), booking?.time || "12:00");
+    if (!proposedTime) return;
+    await updateStatus(id, "proposed", { proposedDate, proposedTime });
+  }
 
-    const booking = loadBookings().find(item => item.id === id || item.bookingId === id);
+  async function reject(id) {
+    const reason = prompt(text("اكتب سبب الرفض الذي سيظهر للعميل", "Enter the rejection reason"), text("الموعد غير متاح حاليًا.", "The appointment is unavailable."));
+    if (reason === null) return;
+    await updateStatus(id, "rejected", { rejectionReason: reason });
+  }
+
+  function whatsapp(id) {
+    const booking = findBooking(id);
     if (!booking) return;
-
-    try {
-      const response = await RomeoApi.request({
-        action: "deleteBooking",
-        id: booking.id,
-        bookingId: booking.bookingId || booking.id,
-        rowNumber: booking.rowNumber
-      });
-
-      if (response?.status !== "success") {
-        throw new Error(response?.message || "Could not delete booking.");
-      }
-
-      await fetchBookings();
-    } catch (error) {
-      alert(error.message || "Could not delete booking.");
-    }
+    let phone = booking.customerPhone.replace(/\D/g, "");
+    if (phone.startsWith("0")) phone = `20${phone.slice(1)}`;
+    const message = text(`مرحبًا ${booking.customerName}، بخصوص طلب حجز ${booking.service} مع ${booking.employee} يوم ${booking.date} الساعة ${booking.time}.`, `Hello ${booking.customerName}, regarding your booking on ${booking.date} at ${booking.time}.`);
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank", "noopener");
   }
 
-  function handleListClick(event) {
+  async function copyLink(id) {
+    const booking = findBooking(id);
+    if (!booking?.trackingToken) return;
+    const url = new URL("customer-booking.html", window.location.href);
+    url.searchParams.set("tracking", booking.trackingToken);
+    try { await navigator.clipboard.writeText(url.href); alert(text("تم نسخ رابط المتابعة.", "Tracking link copied.")); }
+    catch (error) { prompt(text("انسخ رابط المتابعة", "Copy tracking link"), url.href); }
+  }
+
+  async function remove(id) {
+    if (!confirm(text("هل تريد حذف هذا الحجز؟", "Delete this booking?"))) return;
+    const booking = findBooking(id);
+    const response = await RomeoApi.request({ action: "deleteBooking", id: booking.id, rowNumber: booking.rowNumber });
+    if (response?.status !== "success") throw new Error(response?.message || "Could not delete booking.");
+    await fetchBookings();
+  }
+
+  elements.list.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-action]");
     const card = event.target.closest("[data-booking-id]");
     if (!button || !card) return;
+    try {
+      const action = button.dataset.action;
+      const id = card.dataset.bookingId;
+      if (action === "propose") await propose(id);
+      else if (action === "reject") await reject(id);
+      else if (action === "whatsapp") whatsapp(id);
+      else if (action === "copy-link") await copyLink(id);
+      else if (action === "delete") await remove(id);
+      else await updateStatus(id, action);
+    } catch (error) { alert(error.message || text("تعذر تنفيذ الإجراء.", "Could not complete the action.")); }
+  });
 
-    const action = button.dataset.action;
-    const id = card.dataset.bookingId;
-
-    if (action === "delete") {
-      deleteBooking(id);
-      return;
-    }
-
-    updateBookingStatus(id, action);
-  }
-
-  function wireSidebar() {
-    const menuToggle = document.getElementById("menuToggle");
-    const sidebar = document.getElementById("sidebar");
-    const sidebarOverlay = document.getElementById("sidebarOverlay");
-    const logoutBtn = document.getElementById("logoutBtn");
-
-    if (menuToggle && sidebar && sidebarOverlay && sidebar.dataset.bookingsReady !== "true") {
-      sidebar.dataset.bookingsReady = "true";
-      menuToggle.addEventListener("click", () => {
-        sidebar.classList.add("active");
-        sidebarOverlay.classList.add("active");
-      });
-      sidebarOverlay.addEventListener("click", () => {
-        sidebar.classList.remove("active");
-        sidebarOverlay.classList.remove("active");
-      });
-    }
-
-    document.querySelectorAll(".sidebar-link[data-href]").forEach(link => {
-      if (link.dataset.bookingsLinkReady === "true") return;
-      link.dataset.bookingsLinkReady = "true";
-      link.addEventListener("click", () => {
-        window.location.href = link.dataset.href;
-      });
-    });
-
-    if (logoutBtn && logoutBtn.dataset.bookingsLogoutReady !== "true") {
-      logoutBtn.dataset.bookingsLogoutReady = "true";
-      logoutBtn.addEventListener("click", () => window.RomeoAuth?.logout?.());
-    }
-  }
-
-  function init() {
-    if (elements.bookingDate) elements.bookingDate.value = todayKey();
-    if (elements.filterDate) elements.filterDate.value = todayKey();
-
-    applyStaticLanguage();
-    wireSidebar();
-    refreshStaffFromApi();
-    fetchBookings();
-
-    elements.form?.addEventListener("submit", saveBooking);
-    elements.clearBookingBtn?.addEventListener("click", clearForm);
-    elements.filterDate?.addEventListener("change", fetchBookings);
-    elements.statusFilter?.addEventListener("change", fetchBookings);
-    elements.bookingSearch?.addEventListener("input", renderBookings);
-    elements.bookingsList?.addEventListener("click", handleListClick);
-
-    window.addEventListener("romeo-language-change", () => {
-      applyStaticLanguage();
-      renderBookings();
-    });
-  }
-
-  init();
+  document.querySelectorAll("[data-i18n-ar][data-i18n-en]").forEach((node) => { node.textContent = language() === "en" ? node.dataset.i18nEn : node.dataset.i18nAr; });
+  elements.date.value = todayKey();
+  elements.filterDate.value = todayKey();
+  elements.form.addEventListener("submit", saveBooking);
+  elements.clear.addEventListener("click", clearForm);
+  elements.filterDate.addEventListener("change", fetchBookings);
+  elements.status.addEventListener("change", fetchBookings);
+  elements.search.addEventListener("input", render);
+  window.addEventListener("romeo-language-change", render);
+  loadStaff();
+  fetchBookings();
 })();
