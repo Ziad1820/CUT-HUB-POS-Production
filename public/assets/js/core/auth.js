@@ -50,7 +50,19 @@ const RomeoAuth = (() => {
       throw new Error("تعذر الاتصال بقاعدة بيانات المستخدمين.");
     }
 
-    return response.json();
+    const result = await response.json();
+    if (result && result.sessionExpired) {
+      localStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(SESSION_KEY);
+      const currentPage = window.location.pathname.split("/").pop() || "dashboard.html";
+      const loginUrl = new URL("login.html", window.location.href);
+      loginUrl.searchParams.set("reason", "session-expired");
+      loginUrl.searchParams.set("returnTo", currentPage);
+      window.location.replace(loginUrl.href);
+      return new Promise(() => {});
+    }
+
+    return result;
   }
 
   function isOwnerUser(user) {

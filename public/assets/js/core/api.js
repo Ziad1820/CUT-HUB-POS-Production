@@ -3,6 +3,7 @@
   const SESSION_KEY = "romeo-pos-session";
   let onlineState = navigator.onLine !== false;
   let offlineBanner = null;
+  let sessionRedirectInProgress = false;
 
   function getLanguage() {
     return localStorage.getItem("romeo-pos-language") === "en" ? "en" : "ar";
@@ -91,6 +92,22 @@
     return nextPayload;
   }
 
+  function redirectToLoginForExpiredSession() {
+    if (sessionRedirectInProgress) return;
+    sessionRedirectInProgress = true;
+
+    localStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
+
+    const currentPage = window.location.pathname.split("/").pop() || "dashboard.html";
+    if (currentPage.toLowerCase() === "login.html") return;
+
+    const loginUrl = new URL("login.html", window.location.href);
+    loginUrl.searchParams.set("reason", "session-expired");
+    loginUrl.searchParams.set("returnTo", currentPage);
+    window.location.replace(loginUrl.href);
+  }
+
   async function request(payload) {
     const bodyPayload = withCurrentSession(payload);
 
@@ -121,12 +138,19 @@
       throw new Error("تعذر الاتصال بقاعدة البيانات.");
     }
 
-    return response.json();
+    const result = await response.json();
+    if (result && result.sessionExpired) {
+      redirectToLoginForExpiredSession();
+      return new Promise(() => {});
+    }
+
+    return result;
   }
 
   window.RomeoApi = {
     API_URL,
-    request
+    request,
+    redirectToLoginForExpiredSession
   };
 
   window.RomeoConnectivity = {

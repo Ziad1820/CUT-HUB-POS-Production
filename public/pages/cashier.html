@@ -1888,6 +1888,7 @@
   <script>
     (() => {
       const POSITION_KEY = "romeo-pos-calculator-position";
+      const OPEN_STATE_KEY = "romeo-pos-calculator-open";
       const toggle = document.getElementById("calculatorToggle");
       const panel = document.getElementById("floatingCalculator");
       const handle = document.getElementById("calculatorDragHandle");
@@ -2014,12 +2015,16 @@
 
       function open() {
         panel.classList.add("open");
+        toggle.setAttribute("aria-expanded", "true");
+        localStorage.setItem(OPEN_STATE_KEY, "true");
         restorePosition();
         update();
       }
 
       function close() {
         panel.classList.remove("open");
+        toggle.setAttribute("aria-expanded", "false");
+        localStorage.removeItem(OPEN_STATE_KEY);
       }
 
       toggle.addEventListener("click", () => {
@@ -2100,7 +2105,11 @@
         savePosition();
       });
 
-      update();
+      if (localStorage.getItem(OPEN_STATE_KEY) === "true") {
+        open();
+      } else {
+        update();
+      }
     })();
   </script>
 

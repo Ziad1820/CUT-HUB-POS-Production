@@ -1,6 +1,18 @@
 function doPost(e) {
   const data = JSON.parse(e.postData.contents || "{}");
 
+  if (data.action !== "loginUser" && data.action !== "logoutUser" && data.action !== "logout") {
+    const sessionToken = getSessionToken(data);
+    if (sessionToken && !getAuthenticatedUser(data)) {
+      return jsonOutput({
+        status: "error",
+        sessionExpired: true,
+        authRequired: true,
+        message: "Your session has expired. Please sign in again."
+      });
+    }
+  }
+
   if (data.action === "invoice") return createInvoice(data);
   if (data.action === "getInvoices") return getInvoices(data);
   if (data.action === "deleteInvoice") return deleteInvoice(data);
@@ -100,7 +112,8 @@ const ALL_PERMISSIONS = [
   "manage_users"
 ];
 
-const SESSION_TTL_SECONDS = 6 * 60 * 60;
+const SESSION_TTL_SECONDS = 12 * 60 * 60;
+const SESSION_CACHE_MAX_SECONDS = 6 * 60 * 60;
 const SESSION_CACHE_PREFIX = "romeo-session-";
 
 function getCairoDateTime() {
@@ -128,36 +141,74 @@ function getSessionToken(data) {
 }
 
 function createSessionForUser(user) {
+  cleanupExpiredSessions();
   const token = `${Utilities.getUuid()}-${Utilities.getUuid()}`;
   const session = {
     username: user.username,
     createdAt: getCairoDateTime(),
     expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString()
   };
+  const serializedSession = JSON.stringify(session);
 
+  PropertiesService.getScriptProperties().setProperty(SESSION_CACHE_PREFIX + token, serializedSession);
   CacheService
     .getScriptCache()
-    .put(SESSION_CACHE_PREFIX + token, JSON.stringify(session), SESSION_TTL_SECONDS);
+    .put(SESSION_CACHE_PREFIX + token, serializedSession, SESSION_CACHE_MAX_SECONDS);
 
   return { token, expiresAt: session.expiresAt };
+}
+
+function cleanupExpiredSessions() {
+  const properties = PropertiesService.getScriptProperties();
+  const sessions = properties.getProperties();
+  const now = Date.now();
+
+  Object.keys(sessions).forEach((key) => {
+    if (key.indexOf(SESSION_CACHE_PREFIX) !== 0) return;
+    try {
+      const session = JSON.parse(sessions[key]);
+      if (Date.parse(session.expiresAt || "") > now) return;
+    } catch (error) {
+      // Invalid session records are removed below.
+    }
+    properties.deleteProperty(key);
+    CacheService.getScriptCache().remove(key);
+  });
 }
 
 function readSessionRecord(token) {
   if (!token) return null;
 
-  const raw = CacheService.getScriptCache().get(SESSION_CACHE_PREFIX + token);
+  const sessionKey = SESSION_CACHE_PREFIX + token;
+  const cache = CacheService.getScriptCache();
+  const properties = PropertiesService.getScriptProperties();
+  const raw = cache.get(sessionKey) || properties.getProperty(sessionKey);
   if (!raw) return null;
 
   try {
-    return JSON.parse(raw);
+    const session = JSON.parse(raw);
+    const expiresAt = Date.parse(session.expiresAt || "");
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      cache.remove(sessionKey);
+      properties.deleteProperty(sessionKey);
+      return null;
+    }
+
+    const remainingSeconds = Math.max(1, Math.floor((expiresAt - Date.now()) / 1000));
+    cache.put(sessionKey, raw, Math.min(remainingSeconds, SESSION_CACHE_MAX_SECONDS));
+    return session;
   } catch (error) {
+    cache.remove(sessionKey);
+    properties.deleteProperty(sessionKey);
     return null;
   }
 }
 
 function deleteSession(token) {
   if (!token) return;
-  CacheService.getScriptCache().remove(SESSION_CACHE_PREFIX + token);
+  const sessionKey = SESSION_CACHE_PREFIX + token;
+  CacheService.getScriptCache().remove(sessionKey);
+  PropertiesService.getScriptProperties().deleteProperty(sessionKey);
 }
 
 function getAuthenticatedUser(data) {
@@ -202,7 +253,19 @@ function actorHasPermission(data, permission) {
 }
 
 function requirePermission(data, permission, message) {
-  if (actorHasPermission(data || {}, permission)) {
+  const user = getAuthenticatedUser(data || {});
+  if (!user) {
+    return jsonOutput({
+      status: "error",
+      sessionExpired: true,
+      authRequired: true,
+      message: "Your session has expired. Please sign in again."
+    });
+  }
+
+  const username = String(user.username || "").trim().toLowerCase();
+  const permissions = normalizeManagedPermissions(user.username, user.permissions);
+  if (username === "owner" || permissions.indexOf(permission) !== -1) {
     return null;
   }
 

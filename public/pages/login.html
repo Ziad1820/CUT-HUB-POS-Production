@@ -296,6 +296,15 @@
     const loginForm = document.getElementById("loginForm");
     const statusBox = document.getElementById("statusBox");
     const splash = document.getElementById("loginSplash");
+    const loginReason = new URLSearchParams(window.location.search).get("reason");
+
+    if (loginReason === "session-expired") {
+      const isEnglish = localStorage.getItem("romeo-pos-language") === "en";
+      statusBox.textContent = isEnglish
+        ? "Your 12-hour session has expired. Please sign in again."
+        : "انتهت صلاحية جلسة الدخول بعد 12 ساعة. سجل دخولك مرة أخرى.";
+      statusBox.className = "status error";
+    }
 
     loginForm.addEventListener("submit", async event => {
       event.preventDefault();

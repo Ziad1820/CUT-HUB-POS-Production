@@ -4,6 +4,7 @@
   if (document.getElementById("floatingCalculator")) return;
 
   const POSITION_KEY = "romeo-pos-calculator-position";
+  const OPEN_STATE_KEY = "romeo-pos-calculator-open";
   const root = document.createElement("div");
   root.innerHTML = `
     <button class="floating-calculator-toggle" id="calculatorToggle" type="button" aria-label="Calculator" aria-expanded="false">=</button>
@@ -162,6 +163,7 @@
   function open() {
     panel.classList.add("open");
     toggle.setAttribute("aria-expanded", "true");
+    localStorage.setItem(OPEN_STATE_KEY, "true");
     restorePosition();
     update();
   }
@@ -169,6 +171,7 @@
   function close() {
     panel.classList.remove("open");
     toggle.setAttribute("aria-expanded", "false");
+    localStorage.removeItem(OPEN_STATE_KEY);
   }
 
   toggle.addEventListener("click", () => panel.classList.contains("open") ? close() : open());
@@ -234,5 +237,9 @@
     savePosition();
   });
 
-  update();
+  if (localStorage.getItem(OPEN_STATE_KEY) === "true") {
+    open();
+  } else {
+    update();
+  }
 })();
