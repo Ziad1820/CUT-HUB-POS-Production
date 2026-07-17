@@ -4034,7 +4034,28 @@ function publicBookingServices() {
     order: Number(row[3]) || index + 1,
     serviceId: String(row[4] || "").trim(),
     durationMinutes: Math.max(15, Number(row[5]) || 30)
-  })).filter((service) => service.name && service.active).sort((a, b) => a.order - b.order);
+  })).filter((service) => {
+    const name = service.name.toLowerCase();
+    const separators = (name.match(/[-–—]/g) || []).length;
+    const isPackage = /[+＋]/.test(name)
+      || /باك(?:ي)?دج|package|pack|vip/i.test(name)
+      || separators >= 2;
+    return service.name && service.active && !isPackage;
+  }).sort((a, b) => a.order - b.order);
+}
+
+function getPublicBookingServiceIds(data) {
+  let values = data && data.serviceIds;
+  if (!Array.isArray(values)) {
+    values = String(values || data.serviceId || "").split(",");
+  }
+  return values.map((value) => String(value || "").trim()).filter((value, index, list) => value && list.indexOf(value) === index);
+}
+
+function getSelectedPublicBookingServices(data, services) {
+  const ids = getPublicBookingServiceIds(data);
+  const selected = services.filter((service) => ids.indexOf(service.serviceId) !== -1);
+  return selected.length ? selected : services.slice(0, 1);
 }
 
 function publicBookingBarbers() {
@@ -4197,9 +4218,9 @@ function availableSlotsForBarber(barber, dateKey, durationMinutes, bookings) {
 function getPublicBookingOptions(data) {
   try {
     const services = publicBookingServices();
-    const selectedService = services.find((service) => service.serviceId === String(data.serviceId || "").trim()) || services[0] || null;
+    const selectedServices = getSelectedPublicBookingServices(data, services);
     const dateKey = getDateKey(data.date || "", TIME_ZONE) || Utilities.formatDate(new Date(), TIME_ZONE, "yyyy-MM-dd");
-    const durationMinutes = selectedService ? selectedService.durationMinutes : 30;
+    const durationMinutes = Math.max(15, selectedServices.reduce((total, service) => total + service.durationMinutes, 0) || 30);
     const bookings = getAllBookingsV2();
     const barbers = publicBookingBarbers().map((barber) => ({
       staffId: barber.staffId,
@@ -4207,7 +4228,7 @@ function getPublicBookingOptions(data) {
       code: barber.code,
       ...availableSlotsForBarber(barber, dateKey, durationMinutes, bookings)
     }));
-    return jsonOutput({ status: "success", date: dateKey, services, barbers });
+    return jsonOutput({ status: "success", date: dateKey, services, selectedServiceIds: selectedServices.map((service) => service.serviceId), durationMinutes, barbers });
   } catch (error) {
     return jsonOutput({ status: "error", message: error.message });
   }
@@ -4226,18 +4247,22 @@ function createPublicBookingRequest(data) {
     const dateKey = getDateKey(data.date || "", TIME_ZONE);
     const time = getBookingTimeValue(data.time);
     const employeeId = String(data.employeeId || "").trim();
-    const serviceId = String(data.serviceId || "").trim();
+    const serviceIds = getPublicBookingServiceIds(data);
     const note = String(data.note || "").trim().slice(0, 500);
-    if (customerName.length < 2 || customerPhone.replace(/\D/g, "").length < 8 || !dateKey || !time || !employeeId || !serviceId) {
+    if (customerName.length < 2 || customerPhone.replace(/\D/g, "").length < 8 || !dateKey || !time || !employeeId || !serviceIds.length) {
       return jsonOutput({ status: "error", message: "Please complete all required booking details." });
     }
 
-    const service = publicBookingServices().find((item) => item.serviceId === serviceId);
+    const publicServices = publicBookingServices();
+    const selectedServices = publicServices.filter((item) => serviceIds.indexOf(item.serviceId) !== -1);
     const barber = publicBookingBarbers().find((item) => item.staffId === employeeId);
-    if (!service || !barber) return jsonOutput({ status: "error", message: "The selected service or barber is no longer available." });
+    if (selectedServices.length !== serviceIds.length || !barber) return jsonOutput({ status: "error", message: "The selected service or barber is no longer available." });
+    const durationMinutes = Math.max(15, selectedServices.reduce((total, service) => total + service.durationMinutes, 0));
+    const serviceName = selectedServices.map((service) => service.name).join("، ");
+    const serviceId = selectedServices.map((service) => service.serviceId).join(",");
     const bookings = getAllBookingsV2();
-    const availability = availableSlotsForBarber(barber, dateKey, service.durationMinutes, bookings);
-    if (availability.slots.indexOf(time) === -1 || !bookingSlotIsFree(barber.name, dateKey, time, service.durationMinutes, "", bookings)) {
+    const availability = availableSlotsForBarber(barber, dateKey, durationMinutes, bookings);
+    if (availability.slots.indexOf(time) === -1 || !bookingSlotIsFree(barber.name, dateKey, time, durationMinutes, "", bookings)) {
       return jsonOutput({ status: "error", code: "SLOT_UNAVAILABLE", message: "This appointment is no longer available. Please choose another time." });
     }
 
@@ -4248,8 +4273,8 @@ function createPublicBookingRequest(data) {
     const token = Utilities.getUuid().replace(/-/g, "") + Utilities.getUuid().replace(/-/g, "");
     const booking = {
       id, date: dateKey, time, customerName, customerPhone, employee: barber.name,
-      service: service.name, note, status: "pending", createdAt: nowText, updatedAt: nowText,
-      serviceId, durationMinutes: service.durationMinutes, source: "public", trackingToken: token,
+      service: serviceName, note, status: "pending", createdAt: nowText, updatedAt: nowText,
+      serviceId, durationMinutes, source: "public", trackingToken: token,
       requestedAt: nowText, confirmedAt: "", confirmedBy: "", rejectionReason: "",
       proposedDate: "", proposedTime: "", holdExpiresAt: new Date(now.getTime() + (15 * 60 * 1000)).toISOString(),
       customerResponse: "pending", employeeId

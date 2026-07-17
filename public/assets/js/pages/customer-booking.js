@@ -7,7 +7,8 @@
     trackingContent: document.getElementById("trackingContent"),
     openTracking: document.getElementById("openTrackingBtn"),
     newBooking: document.getElementById("newBookingBtn"),
-    service: document.getElementById("publicService"),
+    services: document.getElementById("publicServices"),
+    serviceSummary: document.getElementById("serviceSelectionSummary"),
     date: document.getElementById("publicDate"),
     barberGrid: document.getElementById("barberGrid"),
     customerPanel: document.getElementById("customerPanel"),
@@ -19,7 +20,16 @@
     submit: document.getElementById("submitPublicBooking")
   };
 
-  const state = { services: [], barbers: [], employeeId: "", employeeName: "", time: "", loading: false };
+  const state = {
+    services: [],
+    selectedServiceIds: new Set(),
+    barbers: [],
+    employeeId: "",
+    employeeName: "",
+    time: "",
+    loading: false,
+    reloadPending: false
+  };
 
   async function publicRequest(payload) {
     const response = await fetch(RomeoApi.API_URL, {
@@ -46,8 +56,36 @@
     return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
   }
 
-  function selectedService() {
-    return state.services.find((service) => service.serviceId === elements.service.value) || null;
+  function selectedServices() {
+    return state.services.filter((service) => state.selectedServiceIds.has(service.serviceId));
+  }
+
+  function isStandaloneService(service) {
+    const name = String(service?.name || "").toLowerCase();
+    const separators = (name.match(/[-–—]/g) || []).length;
+    return name
+      && !/[+＋]/.test(name)
+      && !/باك(?:ي)?دج|package|pack|vip/i.test(name)
+      && separators < 2;
+  }
+
+  function selectedDuration() {
+    return selectedServices().reduce((total, service) => total + (Number(service.durationMinutes) || 30), 0);
+  }
+
+  function renderServicePicker() {
+    elements.services.innerHTML = state.services.map((service) => `
+      <label class="service-choice">
+        <input type="checkbox" data-service-id="${escapeHtml(service.serviceId)}" ${state.selectedServiceIds.has(service.serviceId) ? "checked" : ""}>
+        <span class="service-choice-text">
+          <span class="service-choice-name">${escapeHtml(service.name)}</span>
+          <span class="service-choice-duration">${Number(service.durationMinutes) || 30} دقيقة</span>
+        </span>
+      </label>`).join("") || '<div class="service-picker-loading">لا توجد خدمات متاحة للحجز حاليًا.</div>';
+    const count = selectedServices().length;
+    elements.serviceSummary.textContent = count
+      ? `${count} خدمة محددة - المدة الإجمالية ${selectedDuration()} دقيقة`
+      : "اختر خدمة واحدة أو أكثر";
   }
 
   function formatDate(value) {
@@ -68,7 +106,10 @@
   }
 
   async function loadOptions() {
-    if (state.loading) return;
+    if (state.loading) {
+      state.reloadPending = true;
+      return;
+    }
     state.loading = true;
     state.employeeId = "";
     state.employeeName = "";
@@ -76,18 +117,24 @@
     elements.customerPanel.classList.add("hidden");
     elements.barberGrid.innerHTML = '<div class="empty-public-state">جاري تحميل المواعيد المتاحة...</div>';
     try {
-      const response = await publicRequest({ action: "getPublicBookingOptions", date: elements.date.value, serviceId: elements.service.value });
+      const requestedServiceIds = Array.from(state.selectedServiceIds);
+      const response = await publicRequest({ action: "getPublicBookingOptions", date: elements.date.value, serviceIds: requestedServiceIds });
       if (response?.status !== "success") throw new Error(response?.message || "تعذر تحميل المواعيد.");
-      state.services = Array.isArray(response.services) ? response.services : [];
+      state.services = Array.isArray(response.services) ? response.services.filter(isStandaloneService) : [];
       state.barbers = Array.isArray(response.barbers) ? response.barbers : [];
-      const currentService = elements.service.value;
-      elements.service.innerHTML = state.services.map((service) => `<option value="${escapeHtml(service.serviceId)}">${escapeHtml(service.name)} - ${Number(service.durationMinutes) || 30} دقيقة</option>`).join("");
-      if (currentService && state.services.some((service) => service.serviceId === currentService)) elements.service.value = currentService;
+      const availableIds = new Set(state.services.map((service) => service.serviceId));
+      state.selectedServiceIds = new Set(Array.from(state.selectedServiceIds).filter((id) => availableIds.has(id)));
+      if (!state.selectedServiceIds.size && state.services[0]) state.selectedServiceIds.add(state.services[0].serviceId);
+      renderServicePicker();
       renderBarbers();
     } catch (error) {
       elements.barberGrid.innerHTML = `<div class="empty-public-state">${escapeHtml(error.message || "تعذر تحميل المواعيد.")}</div>`;
     } finally {
       state.loading = false;
+      if (state.reloadPending) {
+        state.reloadPending = false;
+        loadOptions();
+      }
     }
   }
 
@@ -113,8 +160,8 @@
     state.employeeId = employeeId;
     state.employeeName = barber.name;
     state.time = time;
-    const service = selectedService();
-    elements.summary.textContent = `${service?.name || "الخدمة"} مع ${barber.name} يوم ${formatDate(elements.date.value)} الساعة ${time}`;
+    const serviceNames = selectedServices().map((service) => service.name).join("، ");
+    elements.summary.textContent = `${serviceNames || "الخدمات"} مع ${barber.name} يوم ${formatDate(elements.date.value)} الساعة ${time} - المدة ${selectedDuration()} دقيقة`;
     elements.customerPanel.classList.remove("hidden");
     renderBarbers();
     elements.customerPanel.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -122,14 +169,15 @@
 
   async function submitBooking(event) {
     event.preventDefault();
-    const service = selectedService();
-    if (!service || !state.employeeId || !state.time) return alert("اختار الحلاق والميعاد الأول.");
+    const services = selectedServices();
+    if (!services.length || !state.employeeId || !state.time) return alert("اختار الخدمات والحلاق والميعاد الأول.");
     elements.submit.disabled = true;
     elements.submit.textContent = "جاري إرسال الطلب...";
     try {
       const response = await publicRequest({
         action: "createPublicBookingRequest",
-        serviceId: service.serviceId,
+        serviceId: services[0].serviceId,
+        serviceIds: services.map((service) => service.serviceId),
         employeeId: state.employeeId,
         date: elements.date.value,
         time: state.time,
@@ -214,7 +262,22 @@
 
   elements.date.min = todayKey();
   elements.date.value = todayKey();
-  elements.service.addEventListener("change", loadOptions);
+  elements.services.addEventListener("change", (event) => {
+    const checkbox = event.target.closest("[data-service-id]");
+    if (!checkbox) return;
+    if (checkbox.checked) state.selectedServiceIds.add(checkbox.dataset.serviceId);
+    else state.selectedServiceIds.delete(checkbox.dataset.serviceId);
+    renderServicePicker();
+    if (!state.selectedServiceIds.size) {
+      state.barbers = [];
+      state.employeeId = "";
+      state.time = "";
+      elements.customerPanel.classList.add("hidden");
+      elements.barberGrid.innerHTML = '<div class="empty-public-state">اختر خدمة واحدة على الأقل لعرض المواعيد.</div>';
+      return;
+    }
+    loadOptions();
+  });
   elements.date.addEventListener("change", loadOptions);
   elements.barberGrid.addEventListener("click", (event) => {
     const button = event.target.closest("[data-time]");

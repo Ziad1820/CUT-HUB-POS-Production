@@ -323,6 +323,14 @@
       font-size: 28px;
     }
 
+    .summary-card .summary-subvalue {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
     .summary-card.net strong {
       color: #2a2118;
     }
@@ -514,6 +522,7 @@
           <article class="summary-card">
             <span data-i18n-ar="نسبة المرتبات" data-i18n-en="Percentage Of Salaries">نسبة المرتبات</span>
             <strong id="sumPercentage">0</strong>
+            <small id="sumCommission" class="summary-subvalue">قيمة النسبة: 0 جنيه</small>
           </article>
           <article class="summary-card">
             <span>Withdrawals</span>
@@ -642,6 +651,7 @@
       sumSalary: document.getElementById("sumSalary"),
       sumSales: document.getElementById("sumSales"),
       sumPercentage: document.getElementById("sumPercentage"),
+      sumCommission: document.getElementById("sumCommission"),
       sumWithdrawals: document.getElementById("sumWithdrawals"),
       sumDedution: document.getElementById("sumDedution"),
       sumBonus: document.getElementById("sumBonus"),
@@ -880,6 +890,10 @@
       const withdrawalsTotal = getStaffWithdrawalsTotal(staff);
       elements.sumSalary.textContent = formatMoney(staff.salary);
       elements.sumPercentage.textContent = formatPercentage(staff.percentage);
+      elements.sumCommission.textContent = localizeText(
+        `قيمة النسبة: ${formatMoney(calculateCommission(staff))} جنيه`,
+        `Commission value: ${formatMoney(calculateCommission(staff))} EGP`
+      );
       elements.sumWithdrawals.textContent = formatMoney(withdrawalsTotal);
       elements.sumDedution.textContent = formatMoney(calculateDeduction(staff));
       elements.sumBonus.textContent = formatMoney(staff.bonus);
@@ -998,6 +1012,7 @@
         elements.sumSalary.textContent = "0";
         elements.sumSales.textContent = "0";
         elements.sumPercentage.textContent = "0%";
+        elements.sumCommission.textContent = localizeText("قيمة النسبة: 0 جنيه", "Commission value: 0 EGP");
         elements.sumWithdrawals.textContent = "0";
         elements.sumDedution.textContent = "0";
         elements.sumBonus.textContent = "0";
@@ -1064,7 +1079,7 @@
       const name = prompt("Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã˜Â§Ã˜Â³Ã™â€¦ Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â¸Ã™Â");
       if (!name) return;
 
-      const code = prompt("Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã™Æ’Ã™Ë†Ã˜Â¯ Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â¸Ã™Â", `R${String(staffList.length + 1).padStart(2, "0")}`);
+      const code = prompt("Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã™Æ’Ã™Ë†Ã˜Â¯ Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â¸Ã™Â", `C${String(staffList.length + 1).padStart(2, "0")}`);
       if (!code) return;
 
       const newStaff = {

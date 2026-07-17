@@ -26,10 +26,13 @@
           <button id="openTrackingBtn" class="secondary-action" type="button">متابعة حجز سابق</button>
         </div>
         <div class="selection-grid">
-          <label class="field">
-            <span>الخدمة</span>
-            <select id="publicService"><option value="">جاري تحميل الخدمات...</option></select>
-          </label>
+          <div class="field">
+            <span>الخدمات</span>
+            <div id="publicServices" class="service-picker" role="group" aria-label="اختيار الخدمات">
+              <div class="service-picker-loading">جاري تحميل الخدمات...</div>
+            </div>
+            <small id="serviceSelectionSummary" class="service-selection-summary">اختر خدمة واحدة أو أكثر</small>
+          </div>
           <label class="field">
             <span>التاريخ</span>
             <input id="publicDate" type="date">
