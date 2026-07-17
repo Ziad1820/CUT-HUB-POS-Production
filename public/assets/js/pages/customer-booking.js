@@ -93,6 +93,14 @@
     return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : value;
   }
 
+  function formatTime12(value) {
+    const match = String(value || "").trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return value || "-";
+    const hours = Number(match[1]) % 24;
+    const period = hours >= 12 ? "PM" : "AM";
+    return `${hours % 12 || 12}:${match[2]} ${period}`;
+  }
+
   function statusText(status) {
     return ({
       pending: "طلبك بانتظار التأكيد",
@@ -147,10 +155,10 @@
     elements.barberGrid.innerHTML = state.barbers.map((barber) => `
       <article class="barber-card ${state.employeeId === barber.staffId ? "selected" : ""}" data-barber-id="${escapeHtml(barber.staffId)}">
         <div class="barber-head">
-          <div><h3 class="barber-name">${escapeHtml(barber.name)}</h3><div class="barber-shift">الشيفت: ${escapeHtml(barber.shiftStart || "-")} - ${escapeHtml(barber.shiftEnd || "-")}</div></div>
+          <div><h3 class="barber-name">${escapeHtml(barber.name)}</h3><div class="barber-shift">الشيفت: ${escapeHtml(formatTime12(barber.shiftStart))} - ${escapeHtml(formatTime12(barber.shiftEnd))}</div></div>
           <span class="availability-badge ${escapeHtml(barber.availability)}">${labels[barber.availability] || labels.unavailable}</span>
         </div>
-        <div class="slots">${(barber.slots || []).map((time) => `<button class="slot-btn ${state.employeeId === barber.staffId && state.time === time ? "selected" : ""}" type="button" data-time="${escapeHtml(time)}">${escapeHtml(time)}</button>`).join("") || '<span class="barber-shift">لا توجد مواعيد فارغة</span>'}</div>
+        <div class="slots">${(barber.slots || []).map((time) => `<button class="slot-btn ${state.employeeId === barber.staffId && state.time === time ? "selected" : ""}" type="button" data-time="${escapeHtml(time)}">${escapeHtml(formatTime12(time))}</button>`).join("") || '<span class="barber-shift">لا توجد مواعيد فارغة</span>'}</div>
       </article>`).join("");
   }
 
@@ -161,7 +169,7 @@
     state.employeeName = barber.name;
     state.time = time;
     const serviceNames = selectedServices().map((service) => service.name).join("، ");
-    elements.summary.textContent = `${serviceNames || "الخدمات"} مع ${barber.name} يوم ${formatDate(elements.date.value)} الساعة ${time} - المدة ${selectedDuration()} دقيقة`;
+    elements.summary.textContent = `${serviceNames || "الخدمات"} مع ${barber.name} يوم ${formatDate(elements.date.value)} الساعة ${formatTime12(time)} - المدة ${selectedDuration()} دقيقة`;
     elements.customerPanel.classList.remove("hidden");
     renderBarbers();
     elements.customerPanel.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -222,7 +230,7 @@
 
   function renderTracking(booking, token) {
     const proposal = booking.status === "proposed" ? `
-      <div class="booking-summary">الموعد المقترح: ${formatDate(booking.proposedDate)} الساعة ${escapeHtml(booking.proposedTime)}</div>
+      <div class="booking-summary">الموعد المقترح: ${formatDate(booking.proposedDate)} الساعة ${escapeHtml(formatTime12(booking.proposedTime))}</div>
       <div class="proposal-actions">
         <button class="primary-action" type="button" data-proposal="accept">موافق على الموعد</button>
         <button class="primary-action danger-action" type="button" data-proposal="decline">غير مناسب</button>
@@ -240,7 +248,7 @@
         <div><span>الخدمة</span><strong>${escapeHtml(booking.service)}</strong></div>
         <div><span>الحلاق</span><strong>${escapeHtml(booking.employee)}</strong></div>
         <div><span>التاريخ</span><strong>${formatDate(booking.date)}</strong></div>
-        <div><span>الوقت</span><strong>${escapeHtml(booking.time)}</strong></div>
+        <div><span>الوقت</span><strong>${escapeHtml(formatTime12(booking.time))}</strong></div>
       </div>
       ${booking.rejectionReason ? `<div class="booking-summary">${escapeHtml(booking.rejectionReason)}</div>` : ""}
       ${proposal}
