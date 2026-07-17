@@ -295,7 +295,13 @@
 
     @media (max-width: 960px) {
       .app { padding: 14px; }
-      .header-menu { position: static; width: 100%; margin-bottom: 16px; }
+      .header-menu {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        width: auto;
+        margin: 0;
+      }
       .controls,
       .metrics { grid-template-columns: 1fr; }
       .closings-toolbar { align-items: stretch; }
