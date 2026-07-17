@@ -32,6 +32,25 @@ body[data-language="en"] .app,html[dir="ltr"] .app{direction:ltr;text-align:left
   max-width: 100%;
 }
 
+.attendance-form .work-field {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.attendance-form .work-field input[type="time"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  inline-size: 100% !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+}
+
 @media (max-width:700px) {
   .panel { padding: 18px 16px; }
   .attendance-form { gap: 18px; }
@@ -44,6 +63,12 @@ body[data-language="en"] .app,html[dir="ltr"] .app{direction:ltr;text-align:left
     font-size: 16px;
   }
   .attendance-form textarea { min-height: 118px; }
+  .attendance-form .work-field input[type="time"] {
+    height: 60px !important;
+    min-height: 60px !important;
+    max-height: 60px !important;
+    border-radius: 16px !important;
+  }
   .form-actions > *,
   .quick-attendance-actions button { min-height: 58px; }
 }
