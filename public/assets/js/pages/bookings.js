@@ -7,6 +7,7 @@
   const DEFAULT_STAFF = ["MOHAMED", "RAMDAN", "KAREEM", "KHALED"];
   let bookings = [];
   let loading = false;
+  let activeSource = "public";
 
   const elements = {
     form: document.getElementById("bookingForm"),
@@ -21,10 +22,13 @@
     filterDate: document.getElementById("filterDate"),
     status: document.getElementById("statusFilter"),
     search: document.getElementById("bookingSearch"),
+    sourceTabs: document.getElementById("bookingSourceTabs"),
     list: document.getElementById("bookingsList"),
     total: document.getElementById("todayBookingsCount"),
     confirmed: document.getElementById("confirmedBookingsCount"),
-    pending: document.getElementById("pendingBookingsCount")
+    pending: document.getElementById("pendingBookingsCount"),
+    publicCount: document.getElementById("publicBookingsCount"),
+    staffCount: document.getElementById("staffBookingsCount")
   };
 
   function language() {
@@ -58,7 +62,7 @@
       durationMinutes: Number(item.durationMinutes || 30),
       note: String(item.note || "").trim(),
       status: String(item.status || "pending").trim(),
-      source: String(item.source || "staff").trim(),
+      source: String(item.source || "staff").trim().toLowerCase(),
       trackingToken: String(item.trackingToken || "").trim(),
       proposedDate: String(item.proposedDate || "").trim(),
       proposedTime: String(item.proposedTime || "").trim(),
@@ -142,21 +146,44 @@
     return language() === "en" || parts.length !== 3 ? value : `${parts[2]} / ${parts[1]} / ${parts[0]}`;
   }
 
+  function bookingSource(booking) {
+    return booking.source === "public" ? "public" : "staff";
+  }
+
+  function visibleBookings() {
+    return bookings.filter((booking) => bookingSource(booking) === activeSource);
+  }
+
+  function renderSourceTabs() {
+    elements.publicCount.textContent = bookings.filter((booking) => bookingSource(booking) === "public").length;
+    elements.staffCount.textContent = bookings.filter((booking) => bookingSource(booking) === "staff").length;
+    elements.sourceTabs.querySelectorAll("[data-source]").forEach((button) => {
+      const active = button.dataset.source === activeSource;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-selected", active ? "true" : "false");
+    });
+  }
+
   function renderStats() {
     const date = elements.filterDate.value || todayKey();
-    const rows = bookings.filter((booking) => booking.date === date);
+    const rows = visibleBookings().filter((booking) => booking.date === date);
     elements.total.textContent = rows.length;
     elements.confirmed.textContent = rows.filter((booking) => booking.status === "confirmed").length;
     elements.pending.textContent = rows.filter((booking) => booking.status === "pending").length;
   }
 
   function render() {
+    renderSourceTabs();
     renderStats();
-    if (!bookings.length) {
-      elements.list.innerHTML = `<div class="empty-state">${text("لا توجد حجوزات مطابقة حاليًا.", "No matching bookings yet.")}</div>`;
+    const rows = visibleBookings();
+    if (!rows.length) {
+      const emptyMessage = activeSource === "public"
+        ? text("لا توجد طلبات حجز واردة من الموقع حاليًا.", "No website booking requests yet.")
+        : text("لا توجد حجوزات داخلية مطابقة حاليًا.", "No matching internal bookings yet.");
+      elements.list.innerHTML = `<div class="empty-state">${emptyMessage}</div>`;
       return;
     }
-    elements.list.innerHTML = bookings.map((booking) => `
+    elements.list.innerHTML = rows.map((booking) => `
       <article class="booking-card" data-booking-id="${escapeHtml(booking.id)}">
         <div class="booking-top">
           <div class="booking-customer"><strong>${escapeHtml(booking.customerName)}</strong><span>${escapeHtml(booking.customerPhone)}</span></div>
@@ -203,6 +230,7 @@
       if (response?.status !== "success") throw new Error(response?.message || "Could not save booking.");
       clearForm();
       elements.filterDate.value = payload.date;
+      activeSource = "staff";
       await fetchBookings();
     } catch (error) { alert(error.message || text("تعذر حفظ الحجز.", "Could not save booking.")); }
   }
@@ -282,6 +310,12 @@
   elements.filterDate.addEventListener("change", fetchBookings);
   elements.status.addEventListener("change", fetchBookings);
   elements.search.addEventListener("input", render);
+  elements.sourceTabs.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-source]");
+    if (!button) return;
+    activeSource = button.dataset.source === "staff" ? "staff" : "public";
+    render();
+  });
   window.addEventListener("romeo-language-change", render);
   loadStaff();
   fetchBookings();

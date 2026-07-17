@@ -126,6 +126,17 @@
           </label>
         </div>
 
+        <div class="booking-source-tabs" id="bookingSourceTabs" role="tablist" aria-label="مصدر الحجوزات">
+          <button class="booking-source-tab active" type="button" role="tab" aria-selected="true" data-source="public">
+            <span data-i18n-ar="طلبات العملاء من الموقع" data-i18n-en="Website Requests">طلبات العملاء من الموقع</span>
+            <strong id="publicBookingsCount">0</strong>
+          </button>
+          <button class="booking-source-tab" type="button" role="tab" aria-selected="false" data-source="staff">
+            <span data-i18n-ar="الحجوزات الداخلية" data-i18n-en="Internal Bookings">الحجوزات الداخلية</span>
+            <strong id="staffBookingsCount">0</strong>
+          </button>
+        </div>
+
         <div class="bookings-list" id="bookingsList"></div>
       </section>
     </main>
