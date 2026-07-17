@@ -117,6 +117,27 @@ body {
   max-width: 100%;
 }
 
+#bookingTime {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  box-sizing: border-box;
+  inline-size: 100% !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  direction: ltr;
+  text-align: center;
+}
+
+#bookingTime::-webkit-date-and-time-value {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+}
+
 .booking-form input:focus,
 .booking-form select:focus,
 .booking-form textarea:focus,
@@ -410,6 +431,13 @@ html[dir="ltr"] .header-menu {
 
   .booking-form textarea {
     min-height: 122px;
+  }
+
+  #bookingTime {
+    height: 60px !important;
+    min-height: 60px !important;
+    max-height: 60px !important;
+    border-radius: 16px !important;
   }
 
   .form-actions button {
