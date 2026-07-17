@@ -491,6 +491,14 @@ input[type="time"]::-webkit-date-and-time-value {
 }
 
 /* Shared floating calculator */
+.floating-calculator,
+.floating-calculator button,
+.floating-calculator-toggle {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .floating-calculator-toggle {
   position: fixed;
   right: 24px;

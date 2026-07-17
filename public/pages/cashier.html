@@ -1414,6 +1414,14 @@
       outline: none;
     }
 
+    .floating-calculator,
+    .floating-calculator button,
+    .floating-calculator-toggle {
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
     .floating-calculator-toggle {
       position: fixed;
       right: 24px;
@@ -1542,9 +1550,17 @@
 
     @media (max-width: 960px) {
       .header-menu {
-        position: static;
-        width: 100%;
-        margin-bottom: 16px;
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        right: auto;
+        width: auto;
+        margin: 0;
+      }
+
+      html[dir="ltr"] .header-menu {
+        left: auto;
+        right: 16px;
       }
 
       .customer-grid,
@@ -1609,7 +1625,7 @@
   <div class="app">
     <div class="header">
       <div class="header-menu">
-        <button type="button" class="menu-toggle" id="menuToggle">â‹¯</button>
+        <button type="button" class="menu-toggle" id="menuToggle">...</button>
       </div>
 
       <button type="button" class="quick-booking-link" id="quickBookingLink" data-i18n-ar="حجز" data-i18n-en="Booking">حجز</button>
