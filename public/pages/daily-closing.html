@@ -354,6 +354,7 @@
         <div class="metric"><span data-i18n-ar="إجمالي التيب" data-i18n-en="Total Tips">إجمالي التيب</span><strong id="tipTotal">0 EGP</strong></div>
         <div class="metric"><span data-i18n-ar="المصروفات" data-i18n-en="Expenses">المصروفات</span><strong id="expensesTotal">0 EGP</strong></div>
         <div class="metric"><span data-i18n-ar="السحوبات" data-i18n-en="Withdrawals">السحوبات</span><strong id="withdrawalsTotal">0 EGP</strong></div>
+        <div class="metric net" id="cashNetMetric"><span data-i18n-ar="صافي النقدي" data-i18n-en="Net Cash">صافي النقدي</span><strong id="cashNetTotal">0 EGP</strong></div>
         <div class="metric net" id="netMetric"><span data-i18n-ar="صافي الإجمالي" data-i18n-en="Net Total">صافي الإجمالي</span><strong id="netTotal">0 EGP</strong></div>
       </div>
 
@@ -416,6 +417,8 @@
       tipTotal: document.getElementById("tipTotal"),
       expensesTotal: document.getElementById("expensesTotal"),
       withdrawalsTotal: document.getElementById("withdrawalsTotal"),
+      cashNetTotal: document.getElementById("cashNetTotal"),
+      cashNetMetric: document.getElementById("cashNetMetric"),
       netTotal: document.getElementById("netTotal"),
       netMetric: document.getElementById("netMetric"),
       closingsBody: document.getElementById("closingsBody"),
@@ -510,6 +513,7 @@
       const expenses = numberValue(data.expensesTotal);
       const withdrawals = numberValue(data.withdrawalsTotal);
       const sales = rawSales;
+      const cashNet = cash - withdrawals - expenses;
       const net = sales + tips - expenses - withdrawals;
 
       return {
@@ -522,6 +526,7 @@
         vodafoneCashTotal: vodafone,
         expensesTotal: expenses,
         withdrawalsTotal: withdrawals,
+        cashNetTotal: cashNet,
         netTotal: net,
         alreadyClosed: Boolean(data.alreadyClosed),
         closedBy: data.closedBy || "",
@@ -539,6 +544,8 @@
       elements.tipTotal.textContent = formatMoney(preview.tipTotal);
       elements.expensesTotal.textContent = formatMoney(preview.expensesTotal);
       elements.withdrawalsTotal.textContent = formatMoney(preview.withdrawalsTotal);
+      elements.cashNetTotal.textContent = formatMoney(preview.cashNetTotal);
+      elements.cashNetMetric.classList.toggle("negative", preview.cashNetTotal < 0);
       elements.netTotal.textContent = formatMoney(preview.netTotal);
       elements.netMetric.classList.toggle("negative", preview.netTotal < 0);
 
