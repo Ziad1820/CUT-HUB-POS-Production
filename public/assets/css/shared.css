@@ -399,6 +399,23 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   margin: 0;
 }
 
+/* Keep native time controls inside narrow RTL forms on iOS. */
+input[type="time"] {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  direction: ltr;
+  text-align: center !important;
+}
+
+input[type="time"]::-webkit-date-and-time-value {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+}
+
 @media (max-width: 640px) {
   .app {
     padding-inline: 12px;
@@ -433,6 +450,12 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     font-size: 16px !important;
     border-radius: 16px !important;
     padding: 14px !important;
+  }
+
+  input[type="time"] {
+    min-height: 60px !important;
+    padding: 14px 16px !important;
+    font-size: 16px !important;
   }
 }
 /* Dashboard overflow guard */

@@ -14,6 +14,12 @@
   --shadow: 0 18px 40px rgba(76, 54, 28, .14);
 }
 
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 .app > .panel {
   display: none;
 }
@@ -76,6 +82,7 @@
 .booking-form label,
 .booking-filters label {
   display: grid;
+  min-width: 0;
   gap: 8px;
   color: var(--ink);
   font-size: 15px;
@@ -102,6 +109,12 @@
 .booking-form textarea {
   resize: vertical;
   min-height: 98px;
+}
+
+.booking-form > *,
+.booking-filters > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .booking-form input:focus,
@@ -375,8 +388,33 @@ html[dir="ltr"] .header-menu {
   }
 
   .booking-panel {
-    padding: 18px;
+    min-width: 0;
+    padding: 18px 16px;
     border-radius: 20px;
+  }
+
+  .booking-form,
+  .booking-filters {
+    gap: 18px;
+  }
+
+  .booking-form input,
+  .booking-form select,
+  .booking-form textarea,
+  .booking-filters input,
+  .booking-filters select {
+    min-height: 60px;
+    padding: 15px 16px;
+    font-size: 16px;
+  }
+
+  .booking-form textarea {
+    min-height: 122px;
+  }
+
+  .form-actions button {
+    min-height: 58px;
+    font-size: 16px;
   }
 
   .booking-form,
