@@ -178,7 +178,7 @@
   async function submitBooking(event) {
     event.preventDefault();
     const services = selectedServices();
-    if (!services.length || !state.employeeId || !state.time) return alert("اختار الخدمات والحلاق والميعاد الأول.");
+    if (!services.length || !state.employeeId || !state.time) return alert("اختار الخدمات والمصفف والميعاد الأول.");
     elements.submit.disabled = true;
     elements.submit.textContent = "جاري إرسال الطلب...";
     try {

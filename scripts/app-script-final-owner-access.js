@@ -4106,10 +4106,10 @@ function getScheduleForBarber(barber, dateKey) {
     }) || null;
   }
 
-  if (!matching) return { shiftStart: "12:00", shiftEnd: "22:00", scheduled: false };
+  if (!matching) return { shiftStart: "12:00", shiftEnd: "02:00", scheduled: false };
   return {
     shiftStart: getBookingTimeValue(matching[4]) || "12:00",
-    shiftEnd: getBookingTimeValue(matching[5]) || "22:00",
+    shiftEnd: getBookingTimeValue(matching[5]) || "02:00",
     scheduled: true
   };
 }
@@ -4145,7 +4145,15 @@ function bookingMinutes(value) {
 }
 
 function minutesToBookingTime(value) {
-  return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+  const normalized = ((Number(value) % (24 * 60)) + (24 * 60)) % (24 * 60);
+  return `${String(Math.floor(normalized / 60)).padStart(2, "0")}:${String(normalized % 60).padStart(2, "0")}`;
+}
+
+function bookingTimelineMinutes(value, shiftStart) {
+  let minutes = bookingMinutes(value);
+  const startMinutes = bookingMinutes(shiftStart);
+  if (minutes !== null && startMinutes !== null && minutes < startMinutes) minutes += 24 * 60;
+  return minutes;
 }
 
 function bookingHoldIsActive(booking) {
@@ -4166,14 +4174,14 @@ function getAllBookingsV2() {
     .map((row, index) => bookingFromRowV2(row, index + 2));
 }
 
-function bookingSlotIsFree(employeeName, dateKey, time, durationMinutes, excludeId, bookings) {
-  const start = bookingMinutes(time);
+function bookingSlotIsFree(employeeName, dateKey, time, durationMinutes, excludeId, bookings, shiftStart) {
+  const start = shiftStart ? bookingTimelineMinutes(time, shiftStart) : bookingMinutes(time);
   if (start === null) return false;
   const end = start + Math.max(15, Number(durationMinutes) || 30);
   const bookingRows = Array.isArray(bookings) ? bookings : getAllBookingsV2();
   return !bookingRows.some((booking) => {
     if (booking.id === excludeId || booking.date !== dateKey || normalizeLookupKey(booking.employee) !== normalizeLookupKey(employeeName) || !bookingBlocksSlot(booking)) return false;
-    const otherStart = bookingMinutes(booking.time);
+    const otherStart = shiftStart ? bookingTimelineMinutes(booking.time, shiftStart) : bookingMinutes(booking.time);
     if (otherStart === null) return false;
     const otherEnd = otherStart + Math.max(15, Number(booking.durationMinutes) || 30);
     return start < otherEnd && end > otherStart;
@@ -4192,10 +4200,11 @@ function availableSlotsForBarber(barber, dateKey, durationMinutes, bookings) {
   const shiftStart = attendance && attendance.shiftStart ? attendance.shiftStart : schedule.shiftStart;
   const shiftEnd = schedule.shiftEnd;
   const startMinutes = bookingMinutes(shiftStart);
-  const endMinutes = bookingMinutes(shiftEnd);
-  if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+  let endMinutes = bookingMinutes(shiftEnd);
+  if (startMinutes === null || endMinutes === null) {
     return { slots: [], availability: "unavailable", shiftStart, shiftEnd };
   }
+  if (endMinutes <= startMinutes) endMinutes += 24 * 60;
 
   let earliest = startMinutes;
   if (dateKey === today) {
@@ -4207,7 +4216,7 @@ function availableSlotsForBarber(barber, dateKey, durationMinutes, bookings) {
   const slots = [];
   for (let minute = startMinutes; minute + durationMinutes <= endMinutes; minute += 30) {
     const time = minutesToBookingTime(minute);
-    if (minute >= earliest && bookingSlotIsFree(barber.name, dateKey, time, durationMinutes, "", bookings)) slots.push(time);
+    if (minute >= earliest && bookingSlotIsFree(barber.name, dateKey, time, durationMinutes, "", bookings, shiftStart)) slots.push(time);
   }
 
   let availability = slots.length ? "available" : "unavailable";
@@ -4271,7 +4280,7 @@ function createPublicBookingRequest(data) {
     const serviceId = selectedServices.map((service) => service.serviceId).join(",");
     const bookings = getAllBookingsV2();
     const availability = availableSlotsForBarber(barber, dateKey, durationMinutes, bookings);
-    if (availability.slots.indexOf(time) === -1 || !bookingSlotIsFree(barber.name, dateKey, time, durationMinutes, "", bookings)) {
+    if (availability.slots.indexOf(time) === -1 || !bookingSlotIsFree(barber.name, dateKey, time, durationMinutes, "", bookings, availability.shiftStart)) {
       return jsonOutput({ status: "error", code: "SLOT_UNAVAILABLE", message: "This appointment is no longer available. Please choose another time." });
     }
 
