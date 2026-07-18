@@ -760,6 +760,38 @@
     if (elements.paymentFilter.options[0]) elements.paymentFilter.options[0].textContent = localize("كل الطرق", "All methods");
   }
 
+  async function loadAllInvoices() {
+    const pageSize = 500;
+    const allInvoices = [];
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const result = await RomeoApi.request({
+        action: "getInvoices",
+        limit: pageSize,
+        offset
+      });
+
+      if (result.status !== "success") {
+        throw new Error(result.message || "Could not load invoices.");
+      }
+
+      const pageInvoices = Array.isArray(result.invoices) ? result.invoices : [];
+      allInvoices.push(...pageInvoices);
+      hasMore = Boolean(result.hasMore);
+
+      if (!hasMore || pageInvoices.length === 0) break;
+
+      const nextOffset = Number(result.nextOffset);
+      offset = Number.isFinite(nextOffset) && nextOffset > offset
+        ? nextOffset
+        : offset + pageInvoices.length;
+    }
+
+    return allInvoices;
+  }
+
   async function loadInvoices() {
     elements.refreshBtn.disabled = true;
     elements.refreshBtn.textContent = localize("جاري التحديث...", "Refreshing...");
@@ -768,9 +800,7 @@
     elements.status.textContent = localize("جاري تحميل التحليلات...", "Loading analysis...");
 
     try {
-      const result = await RomeoApi.request({ action: "getInvoices" });
-      if (result.status !== "success") throw new Error(result.message || "Could not load invoices.");
-      invoices = Array.isArray(result.invoices) ? result.invoices : [];
+      invoices = await loadAllInvoices();
       renderFilterOptions();
       applyFilters();
       elements.status.textContent = invoices.length ? "" : localize("لا توجد فواتير للتحليل.", "No invoices to analyze.");
