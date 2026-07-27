@@ -82,6 +82,53 @@ function prepare({ items, batches, recipes, lines, allowNegativeInventory = fals
   return context.prepareInventoryCheckout({ invoiceItems: lines, allowNegativeInventory });
 }
 
+function createMemorySheet(headers, initialMaxColumns = headers.length) {
+  const rows = [[...headers]];
+  let maxColumns = initialMaxColumns;
+  let insertCalls = 0;
+  while (rows[0].length < maxColumns) rows[0].push("");
+  return {
+    getMaxColumns: () => maxColumns,
+    getLastColumn: () => rows.reduce((largest, row) => {
+      for (let index = row.length - 1; index >= 0; index -= 1) {
+        if (String(row[index] ?? "").trim()) return Math.max(largest, index + 1);
+      }
+      return largest;
+    }, 0),
+    getLastRow: () => rows.length,
+    insertColumnsAfter: (after, count) => {
+      assert.equal(after, maxColumns);
+      maxColumns += count;
+      insertCalls += 1;
+      rows.forEach(row => {
+        while (row.length < maxColumns) row.push("");
+      });
+    },
+    getRange: (startRow, startColumn, rowCount = 1, columnCount = 1) => ({
+      getValues: () => Array.from({ length: rowCount }, (_, rowOffset) => {
+        const row = rows[startRow - 1 + rowOffset] || [];
+        return Array.from({ length: columnCount }, (_, columnOffset) => row[startColumn - 1 + columnOffset] ?? "");
+      }),
+      getValue: () => rows[startRow - 1]?.[startColumn - 1] ?? "",
+      setValue: value => {
+        while (rows.length < startRow) rows.push([]);
+        rows[startRow - 1][startColumn - 1] = value;
+      },
+      setValues: values => {
+        values.forEach((valuesRow, rowOffset) => {
+          while (rows.length < startRow + rowOffset) rows.push([]);
+          valuesRow.forEach((value, columnOffset) => {
+            rows[startRow - 1 + rowOffset][startColumn - 1 + columnOffset] = value;
+          });
+        });
+      }
+    }),
+    appendRow: row => rows.push([...row]),
+    _rows: rows,
+    _insertCalls: () => insertCalls
+  };
+}
+
 const tests = [];
 function test(name, run) {
   tests.push({ name, run });
@@ -259,6 +306,98 @@ test("negative inventory filter combines with search and resets cleanly", () => 
   assert.equal(browser.RomeoInventoryFilters.filterItems(items, "", false).length, 3);
 });
 
+test("header normalization treats capitalization, spacing, underscores, and dashes as equivalent", () => {
+  const context = createContext();
+  const invoiceVariants = [
+    "invoice request id",
+    "Invoice Request ID",
+    " invoice request id ",
+    "invoice_request_id",
+    "invoice-request-id",
+    "Invoice__Request - ID"
+  ];
+  const balanceVariants = [
+    "balanceBefore",
+    "Balance Before",
+    " balanceBefore ",
+    "balance_before",
+    "balance-before"
+  ];
+  invoiceVariants.forEach(value => assert.equal(context.normalizeSheetHeader(value), "invoicerequestid"));
+  balanceVariants.forEach(value => assert.equal(context.normalizeSheetHeader(value), "balancebefore"));
+});
+
+test("invoice request id reuses a legacy header at its actual column without duplication", () => {
+  const context = createContext();
+  const headers = Array(16).fill("");
+  headers[15] = " Client Request-ID ";
+  const sheet = createMemorySheet(headers, 16);
+  const first = context.ensureDataInvoiceColumns(sheet);
+  const second = context.ensureDataInvoiceColumns(sheet);
+  assert.equal(first.invoiceRequestIdColumn, 16);
+  assert.equal(second.invoiceRequestIdColumn, 16);
+  assert.equal(sheet._insertCalls(), 0);
+
+  const invoiceRow = Array(16).fill("");
+  invoiceRow[4] = "https://example.com/invoice.pdf";
+  invoiceRow[15] = "legacy-request";
+  sheet.appendRow(invoiceRow);
+  const found = context.findInvoiceByRequestId(sheet, "legacy-request");
+  assert.equal(found.invoiceId, "DATA-2");
+  assert.equal(found.pdfUrl, "https://example.com/invoice.pdf");
+  assert.equal(sheet._rows[0].filter(value => context.normalizeSheetHeader(value) === "clientrequestid").length, 1);
+});
+
+test("repeated invoice header creation adds exactly one canonical column", () => {
+  const context = createContext();
+  const sheet = createMemorySheet(Array(13).fill(""), 13);
+  const first = context.ensureDataInvoiceColumns(sheet);
+  const second = context.ensureDataInvoiceColumns(sheet);
+  assert.equal(first.invoiceRequestIdColumn, 14);
+  assert.equal(second.invoiceRequestIdColumn, 14);
+  assert.equal(sheet._insertCalls(), 1);
+  assert.equal(sheet._rows[0].filter(value => context.normalizeSheetHeader(value) === "invoicerequestid").length, 1);
+});
+
+test("balanceBefore reuses a legacy header and writes to its actual column", () => {
+  const context = createContext();
+  const headers = Array(20).fill("");
+  headers[15] = "barberId";
+  headers[16] = "barberName";
+  headers[19] = " Previous_Balance ";
+  const sheet = createMemorySheet(headers, 20);
+  context.inventorySheet = () => sheet;
+  const first = context.ensureInventoryLogBarberColumns();
+  const second = context.ensureInventoryLogBarberColumns();
+  assert.equal(first.balanceBeforeColumn, 20);
+  assert.equal(second.balanceBeforeColumn, 20);
+  assert.equal(sheet._insertCalls(), 0);
+
+  context.appendInventoryLog({
+    transactionId: "TX-1",
+    invoiceId: "DATA-2",
+    balanceAfter: -5,
+    balanceBefore: 10
+  });
+  assert.equal(sheet._rows[1][19], 10);
+  assert.equal(sheet._rows[0].filter(value => context.normalizeSheetHeader(value) === "previousbalance").length, 1);
+});
+
+test("repeated balanceBefore creation adds exactly one canonical column", () => {
+  const context = createContext();
+  const headers = Array(17).fill("");
+  headers[15] = "barberId";
+  headers[16] = "barberName";
+  const sheet = createMemorySheet(headers, 17);
+  context.inventorySheet = () => sheet;
+  const first = context.ensureInventoryLogBarberColumns();
+  const second = context.ensureInventoryLogBarberColumns();
+  assert.equal(first.balanceBeforeColumn, 18);
+  assert.equal(second.balanceBeforeColumn, 18);
+  assert.equal(sheet._insertCalls(), 1);
+  assert.equal(sheet._rows[0].filter(value => context.normalizeSheetHeader(value) === "balancebefore").length, 1);
+});
+
 test("initial insufficient response performs no sheet, PDF, invoice, detail, movement, or cache writes", () => {
   const context = createContext();
   const writes = { schema: 0, pdf: 0, invoice: 0, inventory: 0, cache: 0 };
@@ -295,7 +434,7 @@ test("initial insufficient response performs no sheet, PDF, invoice, detail, mov
 
 test("a repeated request id returns the persisted invoice without a second PDF or deduction", () => {
   const context = createContext();
-  const rows = [["date", "name", "phone", "services", "pdf", "total", "paid", "tip", "payment", "barber", "note", "discount", "discount amount", "request"]];
+  const rows = [["date", "name", "phone", "services", "pdf", "total", "paid", "tip", "payment", "barber", "note", "discount", "discount amount", "Invoice Request ID"]];
   let pdfCalls = 0;
   let inventoryCalls = 0;
   const dataSheet = {
@@ -313,7 +452,7 @@ test("a repeated request id returns the persisted invoice without a second PDF o
   context.prepareInventoryCheckout = () => ({ enabled: true, lines: [], batchUpdates: [], newBatches: [], movements: [] });
   context.applyInventoryCheckout = () => { inventoryCalls += 1; return null; };
   context.createInvoicePdf = () => { pdfCalls += 1; return "https://drive.google.com/file/d/pdf-file-id/view"; };
-  context.ensureDataInvoiceColumns = () => {};
+  context.ensureDataInvoiceColumns = () => ({ invoiceRequestIdColumn: 14 });
   context.getInvoiceDateTime = () => "2026-07-28 12:00:00";
   context.getLockedDateError = () => "";
   context.getInvoicePaymentDetails = () => ({ paidAmount: 100, tipAmount: 0 });
@@ -362,7 +501,13 @@ test("a failure during deduction restores the full original batch row", () => {
   };
   const emptySheet = { getLastRow: () => 1, deleteRows: () => {} };
   context.inventorySheet = name => name === "INVENTORY_BATCHES" ? batchSheet : emptySheet;
-  context.ensureInventoryLogBarberColumns = () => emptySheet;
+  context.ensureInventoryLogBarberColumns = () => ({
+    sheet: emptySheet,
+    barberIdColumn: 16,
+    barberNameColumn: 17,
+    balanceBeforeColumn: 18,
+    width: 18
+  });
   const plan = {
     enabled: true,
     newBatches: [],
@@ -421,7 +566,13 @@ test("inventory writes are rolled back when a later inventory step fails", () =>
     INVENTORY_LOG: logSheet,
     INVOICE_ITEMS: invoiceItemsSheet
   })[name];
-  context.ensureInventoryLogBarberColumns = () => logSheet;
+  context.ensureInventoryLogBarberColumns = () => ({
+    sheet: logSheet,
+    barberIdColumn: 16,
+    barberNameColumn: 17,
+    balanceBeforeColumn: 18,
+    width: 18
+  });
   context.appendInventoryLog = () => logSheet.appendRow([]);
   context.getAuthenticatedUser = () => ({ username: "cashier" });
 
@@ -484,7 +635,13 @@ test("a movement write failure restores deducted stock and removes partial movem
     INVENTORY_LOG: logSheet,
     INVOICE_ITEMS: invoiceItemsSheet
   })[name];
-  context.ensureInventoryLogBarberColumns = () => logSheet;
+  context.ensureInventoryLogBarberColumns = () => ({
+    sheet: logSheet,
+    barberIdColumn: 16,
+    barberNameColumn: 17,
+    balanceBeforeColumn: 18,
+    width: 18
+  });
   context.getAuthenticatedUser = () => ({ username: "cashier" });
   const plan = {
     enabled: true,
@@ -524,7 +681,7 @@ test("invoice row and generated PDF are rolled back when inventory application f
   context.prepareInventoryCheckout = () => ({ enabled: true, lines: [], batchUpdates: [], newBatches: [], movements: [] });
   context.applyInventoryCheckout = () => { throw new Error("simulated inventory failure"); };
   context.createInvoicePdf = () => "https://drive.google.com/file/d/pdf-file-id/view?usp=sharing";
-  context.ensureDataInvoiceColumns = () => {};
+  context.ensureDataInvoiceColumns = () => ({ invoiceRequestIdColumn: 14 });
   context.getInvoiceDateTime = () => "2026-07-28 12:00:00";
   context.getLockedDateError = () => "";
   context.jsonOutput = payload => payload;
@@ -570,7 +727,7 @@ test("a failure after invoice details are complete rolls back the whole business
   context.applyInventoryCheckout = () => ({ invoiceId: "DATA-2" });
   context.rollbackInventoryCheckout = () => { inventoryRolledBack = true; };
   context.createInvoicePdf = () => "https://drive.google.com/file/d/pdf-file-id/view?usp=sharing";
-  context.ensureDataInvoiceColumns = () => {};
+  context.ensureDataInvoiceColumns = () => ({ invoiceRequestIdColumn: 14 });
   context.getInvoiceDateTime = () => "2026-07-28 12:00:00";
   context.getLockedDateError = () => "";
   context.logActivity = () => { throw new Error("simulated post-detail failure"); };
@@ -607,7 +764,7 @@ test("PDF generation failure leaves no invoice row or inventory movement", () =>
   context.prepareInventoryCheckout = () => ({ enabled: true, lines: [], batchUpdates: [], newBatches: [], movements: [] });
   context.applyInventoryCheckout = () => { inventoryCalls += 1; };
   context.createInvoicePdf = () => { throw new Error("simulated PDF failure"); };
-  context.ensureDataInvoiceColumns = () => {};
+  context.ensureDataInvoiceColumns = () => ({ invoiceRequestIdColumn: 14 });
   context.getInvoiceDateTime = () => "2026-07-28 12:00:00";
   context.getLockedDateError = () => "";
   context.jsonOutput = payload => payload;

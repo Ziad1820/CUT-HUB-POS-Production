@@ -959,6 +959,69 @@ function inventoryText(value) {
   return String(value === null || value === undefined ? "" : value).trim();
 }
 
+function normalizeSheetHeader(value) {
+  return inventoryText(value)
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[\s_-]+/g, "");
+}
+
+function findEquivalentHeaderColumn(headers, aliases) {
+  const accepted = aliases.map(normalizeSheetHeader);
+  for (let index = 0; index < headers.length; index += 1) {
+    if (accepted.indexOf(normalizeSheetHeader(headers[index])) !== -1) return index + 1;
+  }
+  return 0;
+}
+
+function findSheetHeaderColumn(sheet, aliases, minimumWidth) {
+  if (!sheet || typeof sheet.getRange !== "function") return 0;
+  const lastColumn = typeof sheet.getLastColumn === "function" ? sheet.getLastColumn() : 0;
+  const maxColumns = typeof sheet.getMaxColumns === "function" ? sheet.getMaxColumns() : 0;
+  const desiredWidth = Math.max(Number(minimumWidth) || 0, lastColumn);
+  const physicalWidth = maxColumns || lastColumn;
+  const width = physicalWidth ? Math.min(physicalWidth, desiredWidth) : desiredWidth;
+  if (width < 1) return 0;
+  return findEquivalentHeaderColumn(
+    sheet.getRange(1, 1, 1, width).getValues()[0],
+    aliases
+  );
+}
+
+function ensureSheetHeaderColumn(sheet, aliases, canonicalHeader, preferredColumn) {
+  const existingColumn = findSheetHeaderColumn(sheet, aliases, preferredColumn);
+  if (existingColumn) return existingColumn;
+
+  const lastColumn = typeof sheet.getLastColumn === "function" ? sheet.getLastColumn() : 0;
+  const targetColumn = lastColumn < preferredColumn ? preferredColumn : lastColumn + 1;
+  const maxColumns = sheet.getMaxColumns();
+  if (maxColumns < targetColumn) {
+    sheet.insertColumnsAfter(maxColumns, targetColumn - maxColumns);
+  }
+  sheet.getRange(1, targetColumn).setValue(canonicalHeader);
+  return targetColumn;
+}
+
+const INVOICE_REQUEST_ID_HEADER_ALIASES = [
+  "invoice request id",
+  "invoiceRequestId",
+  "invoice idempotency key",
+  "client request id",
+  "request id",
+  "idempotency key"
+];
+
+const BALANCE_BEFORE_HEADER_ALIASES = [
+  "balanceBefore",
+  "balance before",
+  "previous balance",
+  "stock balance before",
+  "opening balance"
+];
+
+const BARBER_ID_HEADER_ALIASES = ["barberId", "barber id"];
+const BARBER_NAME_HEADER_ALIASES = ["barberName", "barber name"];
+
 function inventoryNumber(value) {
   const number = Number(String(value === null || value === undefined ? "" : value).replace(/,/g, ""));
   return Number.isFinite(number) ? number : 0;
@@ -1028,18 +1091,26 @@ function readInventoryBatches() {
 
 function ensureInventoryLogBarberColumns() {
   const sheet = inventorySheet(INVENTORY_SHEETS.log);
-  if (sheet.getMaxColumns() < 18) {
-    sheet.insertColumnsAfter(sheet.getMaxColumns(), 18 - sheet.getMaxColumns());
-  }
-  const headers = sheet.getRange(1, 16, 1, 3).getValues()[0];
-  if (!inventoryText(headers[0])) sheet.getRange(1, 16).setValue("barberId");
-  if (!inventoryText(headers[1])) sheet.getRange(1, 17).setValue("barberName");
-  if (!inventoryText(headers[2])) sheet.getRange(1, 18).setValue("balanceBefore");
-  return sheet;
+  const barberIdColumn = ensureSheetHeaderColumn(sheet, BARBER_ID_HEADER_ALIASES, "barberId", 16);
+  const barberNameColumn = ensureSheetHeaderColumn(sheet, BARBER_NAME_HEADER_ALIASES, "barberName", 17);
+  const balanceBeforeColumn = ensureSheetHeaderColumn(
+    sheet,
+    BALANCE_BEFORE_HEADER_ALIASES,
+    "balanceBefore",
+    18
+  );
+  return {
+    sheet,
+    barberIdColumn,
+    barberNameColumn,
+    balanceBeforeColumn,
+    width: Math.max(15, barberIdColumn, barberNameColumn, balanceBeforeColumn)
+  };
 }
 
 function readInventoryLog(limit) {
-  const rows = inventoryRows(ensureInventoryLogBarberColumns(), 18)
+  const logColumns = ensureInventoryLogBarberColumns();
+  const rows = inventoryRows(logColumns.sheet, logColumns.width)
     .map((row) => ({
       transactionId: inventoryText(row[0]),
       dateTime: inventoryText(row[1]),
@@ -1056,9 +1127,11 @@ function readInventoryLog(limit) {
       balanceAfter: inventoryNumber(row[12]),
       note: inventoryText(row[13]),
       requestId: inventoryText(row[14]),
-      barberId: inventoryText(row[15]),
-      barberName: inventoryText(row[16]),
-      balanceBefore: inventoryText(row[17]) === "" ? null : inventoryNumber(row[17])
+      barberId: inventoryText(row[logColumns.barberIdColumn - 1]),
+      barberName: inventoryText(row[logColumns.barberNameColumn - 1]),
+      balanceBefore: inventoryText(row[logColumns.balanceBeforeColumn - 1]) === ""
+        ? null
+        : inventoryNumber(row[logColumns.balanceBeforeColumn - 1])
     }))
     .filter((entry) => entry.transactionId)
     .reverse();
@@ -1194,7 +1267,8 @@ function deleteInventoryItem(data) {
 }
 
 function appendInventoryLog(entry) {
-  ensureInventoryLogBarberColumns().appendRow([
+  const logColumns = ensureInventoryLogBarberColumns();
+  const row = [
     entry.transactionId || `TXN-${Utilities.getUuid()}`,
     entry.dateTime || getCairoDateTime(),
     entry.itemId || "",
@@ -1209,11 +1283,13 @@ function appendInventoryLog(entry) {
     entry.username || "",
     inventoryNumber(entry.balanceAfter),
     entry.note || "",
-    entry.requestId || "",
-    entry.barberId || "",
-    entry.barberName || "",
-    inventoryNumber(entry.balanceBefore)
-  ]);
+    entry.requestId || ""
+  ];
+  while (row.length < logColumns.width) row.push("");
+  row[logColumns.barberIdColumn - 1] = entry.barberId || "";
+  row[logColumns.barberNameColumn - 1] = entry.barberName || "";
+  row[logColumns.balanceBeforeColumn - 1] = inventoryNumber(entry.balanceBefore);
+  logColumns.sheet.appendRow(row);
 }
 
 function addInventoryPurchase(data) {
@@ -1760,7 +1836,7 @@ function rollbackInventoryCheckout(transaction) {
 function applyInventoryCheckout(plan, data, invoiceId) {
   if (!plan.enabled) return null;
   const batchSheet = inventorySheet(INVENTORY_SHEETS.batches);
-  const logSheet = ensureInventoryLogBarberColumns();
+  const logSheet = ensureInventoryLogBarberColumns().sheet;
   const invoiceItemsSheet = inventorySheet(INVENTORY_SHEETS.invoiceItems);
   const now = getCairoDateTime();
   const transaction = {
@@ -3259,25 +3335,42 @@ function getLockedDateError(value, entityLabel) {
 }
 
 function ensureDataInvoiceColumns(sheet) {
-  const requiredColumns = 14;
+  const requiredColumns = 13;
   const currentColumns = sheet.getMaxColumns();
   if (currentColumns < requiredColumns) {
     sheet.insertColumnsAfter(currentColumns, requiredColumns - currentColumns);
   }
 
   sheet.getRange(1, 6, 1, 6).setValues([["TOTAL", "paid amount", "tip amount", "PAYMENT", "BARBER", "Notes"]]);
-  sheet.getRange(1, 12, 1, 3).setValues([["discount percent", "discount amount", "invoice request id"]]);
+  sheet.getRange(1, 12, 1, 2).setValues([["discount percent", "discount amount"]]);
+  return {
+    invoiceRequestIdColumn: ensureSheetHeaderColumn(
+      sheet,
+      INVOICE_REQUEST_ID_HEADER_ALIASES,
+      "invoice request id",
+      14
+    )
+  };
 }
 
-function findInvoiceByRequestId(sheet, requestId) {
-  if (!sheet || !requestId || typeof sheet.getLastColumn !== "function" || sheet.getLastColumn() < 14) return null;
+function getInvoiceRequestIdColumn(sheet) {
+  return findSheetHeaderColumn(
+    sheet,
+    INVOICE_REQUEST_ID_HEADER_ALIASES,
+    14
+  );
+}
+
+function findInvoiceByRequestId(sheet, requestId, requestIdColumn) {
+  const actualRequestIdColumn = requestIdColumn || getInvoiceRequestIdColumn(sheet);
+  if (!sheet || !requestId || !actualRequestIdColumn || typeof sheet.getRange !== "function") return null;
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return null;
-  const requestIds = sheet.getRange(2, 14, lastRow - 1, 1).getValues();
+  const requestIds = sheet.getRange(2, actualRequestIdColumn, lastRow - 1, 1).getValues();
   for (let index = requestIds.length - 1; index >= 0; index -= 1) {
     if (inventoryText(requestIds[index][0]) !== requestId) continue;
     const rowNumber = index + 2;
-    const row = sheet.getRange(rowNumber, 1, 1, 14).getValues()[0];
+    const row = sheet.getRange(rowNumber, 1, 1, Math.max(13, actualRequestIdColumn)).getValues()[0];
     return {
       success: true,
       status: "success",
@@ -3329,6 +3422,7 @@ function createInvoice(data) {
   let inventoryTransaction = null;
   let pdfUrl = "";
   let persistedRequestId = "";
+  let invoiceRequestIdColumn = 0;
   try {
     lock.waitLock(30000);
     const invoiceCache = CacheService.getScriptCache();
@@ -3362,10 +3456,10 @@ function createInvoice(data) {
     }
 
     persistedRequestId = requestId || `invoice-server-${Utilities.getUuid()}`;
-    ensureDataInvoiceColumns(sheet);
+    invoiceRequestIdColumn = ensureDataInvoiceColumns(sheet).invoiceRequestIdColumn;
     pdfUrl = createInvoicePdf(data);
     const paymentDetails = getInvoicePaymentDetails(data);
-    sheet.appendRow([
+    const invoiceRow = [
       invoiceDateTime,
       data.customerName || "",
       data.customerPhone || "",
@@ -3378,9 +3472,11 @@ function createInvoice(data) {
       data.barber || "",
       data.note || data.invoiceNote || "",
       parseSheetAmount(data.discountPercent || 0),
-      parseSheetAmount(data.discountAmount || 0),
-      persistedRequestId
-    ]);
+      parseSheetAmount(data.discountAmount || 0)
+    ];
+    while (invoiceRow.length < invoiceRequestIdColumn) invoiceRow.push("");
+    invoiceRow[invoiceRequestIdColumn - 1] = persistedRequestId;
+    sheet.appendRow(invoiceRow);
     invoiceRowNumber = sheet.getLastRow();
     const invoiceId = `DATA-${invoiceRowNumber}`;
     inventoryTransaction = applyInventoryCheckout(
@@ -3407,10 +3503,10 @@ function createInvoice(data) {
     }
     if (sheet && invoiceRowNumber >= 2 && invoiceRowNumber <= sheet.getLastRow()) {
       try {
-        const persistedInvoice = findInvoiceByRequestId(sheet, persistedRequestId);
+        const persistedInvoice = findInvoiceByRequestId(sheet, persistedRequestId, invoiceRequestIdColumn);
         const rollbackRowNumber = persistedInvoice?.rowNumber || invoiceRowNumber;
-        const rollbackRequestId = typeof sheet.getLastColumn === "function" && sheet.getLastColumn() >= 14
-          ? inventoryText(sheet.getRange(rollbackRowNumber, 14).getValue())
+        const rollbackRequestId = invoiceRequestIdColumn && typeof sheet.getRange === "function"
+          ? inventoryText(sheet.getRange(rollbackRowNumber, invoiceRequestIdColumn).getValue())
           : persistedRequestId;
         if (rollbackRequestId === persistedRequestId) sheet.deleteRow(rollbackRowNumber);
       } catch (rollbackError) {
