@@ -115,6 +115,41 @@ body {
   box-shadow: 0 0 0 3px rgba(183,134,63,.16);
 }
 
+.negative-stock-filter {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 13px;
+  border: 1px solid rgba(186,58,44,.28);
+  border-radius: 14px;
+  background: rgba(186,58,44,.06);
+  color: var(--danger);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.negative-stock-filter strong {
+  min-width: 28px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(186,58,44,.12);
+  text-align: center;
+}
+
+.negative-stock-filter[aria-pressed="true"] {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+}
+
+.negative-stock-filter[aria-pressed="true"] strong {
+  background: rgba(255,255,255,.2);
+}
+
 .item-list {
   display: grid;
   gap: 10px;
@@ -141,6 +176,17 @@ body {
 .item-card.low {
   border-color: rgba(183,134,63,0.28);
   background: linear-gradient(135deg, rgba(183,134,63,.08), rgba(255,255,255,.96));
+}
+
+.item-card.negative {
+  border-color: rgba(186,58,44,.5);
+  background: linear-gradient(135deg, rgba(186,58,44,.12), rgba(255,255,255,.96));
+}
+
+.item-card.negative .item-meta,
+.item-card.negative .item-meta span:last-child {
+  color: var(--danger);
+  font-weight: 900;
 }
 
 .item-card strong {
@@ -217,6 +263,11 @@ body {
 .summary-card.low strong { color: #2a2118; }
 .summary-card.good strong { color: #2a2118; }
 .summary-card.value strong { color: #2a2118; }
+.summary-card.negative {
+  border-color: rgba(186,58,44,.42);
+  background: rgba(186,58,44,.07);
+}
+.summary-card.negative strong { color: var(--danger); }
 
 .editor-grid {
   display: grid;

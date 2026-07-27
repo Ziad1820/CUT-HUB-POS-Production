@@ -964,6 +964,10 @@ function inventoryNumber(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
+function inventoryQuantity(value) {
+  return Math.round((inventoryNumber(value) + Number.EPSILON) * 1000000) / 1000000;
+}
+
 function inventoryBoolean(value, fallback) {
   if (value === true || value === false) return value;
   const text = inventoryText(value).toUpperCase();
@@ -1024,14 +1028,18 @@ function readInventoryBatches() {
 
 function ensureInventoryLogBarberColumns() {
   const sheet = inventorySheet(INVENTORY_SHEETS.log);
-  const headers = sheet.getRange(1, 16, 1, 2).getValues()[0];
+  if (sheet.getMaxColumns() < 18) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), 18 - sheet.getMaxColumns());
+  }
+  const headers = sheet.getRange(1, 16, 1, 3).getValues()[0];
   if (!inventoryText(headers[0])) sheet.getRange(1, 16).setValue("barberId");
   if (!inventoryText(headers[1])) sheet.getRange(1, 17).setValue("barberName");
+  if (!inventoryText(headers[2])) sheet.getRange(1, 18).setValue("balanceBefore");
   return sheet;
 }
 
 function readInventoryLog(limit) {
-  const rows = inventoryRows(ensureInventoryLogBarberColumns(), 17)
+  const rows = inventoryRows(ensureInventoryLogBarberColumns(), 18)
     .map((row) => ({
       transactionId: inventoryText(row[0]),
       dateTime: inventoryText(row[1]),
@@ -1049,7 +1057,8 @@ function readInventoryLog(limit) {
       note: inventoryText(row[13]),
       requestId: inventoryText(row[14]),
       barberId: inventoryText(row[15]),
-      barberName: inventoryText(row[16])
+      barberName: inventoryText(row[16]),
+      balanceBefore: inventoryText(row[17]) === "" ? null : inventoryNumber(row[17])
     }))
     .filter((entry) => entry.transactionId)
     .reverse();
@@ -1202,7 +1211,8 @@ function appendInventoryLog(entry) {
     entry.note || "",
     entry.requestId || "",
     entry.barberId || "",
-    entry.barberName || ""
+    entry.barberName || "",
+    inventoryNumber(entry.balanceBefore)
   ]);
 }
 
@@ -1418,107 +1428,264 @@ function inventoryBatchSortKey(batch) {
 
 function prepareInventoryCheckout(data) {
   const lines = Array.isArray(data.invoiceItems) ? data.invoiceItems : [];
-  if (!lines.length) return { enabled: false, lines: [], batchUpdates: [], movements: [] };
+  if (!lines.length) {
+    return { enabled: false, lines: [], batchUpdates: [], newBatches: [], movements: [], insufficientItems: [] };
+  }
 
-  const items = readInventoryItems().filter((item) => item.active);
+  const allowNegativeInventory = data.allowNegativeInventory === true
+    || String(data.allowNegativeInventory || "").trim().toLowerCase() === "true";
+  const items = readInventoryItems();
   const itemsById = {};
   items.forEach((item) => { itemsById[item.itemId] = item; });
   const recipes = readActiveServiceRecipes();
   const batches = readInventoryBatches().map((batch) => ({ ...batch }));
   const stockBefore = buildInventoryStock(items, batches);
-  const requirements = {};
+  const serviceRequirements = {};
   const productRequirements = {};
 
   lines.forEach((line) => {
-    const quantity = Math.max(1, inventoryNumber(line.quantity) || 1);
+    const lineQuantity = Math.max(1, inventoryQuantity(line.quantity) || 1);
     if (inventoryText(line.lineType) === "product") {
       const itemId = inventoryText(line.referenceId || line.itemId);
-      productRequirements[itemId] = (productRequirements[itemId] || 0) + quantity;
+      if (!itemId) return;
+      productRequirements[itemId] = inventoryQuantity((productRequirements[itemId] || 0) + lineQuantity);
       return;
     }
+
     const serviceId = inventoryText(line.referenceId || line.serviceId);
+    const serviceName = inventoryText(line.itemName || line.name);
     recipes.filter((recipe) => recipe.serviceId === serviceId).forEach((recipe) => {
-      requirements[recipe.itemId] = (requirements[recipe.itemId] || 0) + (recipe.quantity * quantity);
+      const requirement = serviceRequirements[recipe.itemId] || {
+        quantity: 0,
+        serviceIds: [],
+        serviceNames: []
+      };
+      requirement.quantity = inventoryQuantity(requirement.quantity + (recipe.quantity * lineQuantity));
+      if (serviceId && requirement.serviceIds.indexOf(serviceId) === -1) requirement.serviceIds.push(serviceId);
+      if (serviceName && requirement.serviceNames.indexOf(serviceName) === -1) requirement.serviceNames.push(serviceName);
+      serviceRequirements[recipe.itemId] = requirement;
     });
   });
 
+  const insufficientItems = [];
+  const configurationItems = [];
+
+  Object.keys(productRequirements).forEach((itemId) => {
+    const item = itemsById[itemId];
+    if (!item) {
+      configurationItems.push({ itemName: "Inventory item", unit: "pack" });
+      return;
+    }
+    const availableQuantity = inventoryQuantity(stockBefore[itemId]?.sealedPacks);
+    const requiredQuantity = inventoryQuantity(productRequirements[itemId]);
+    const projectedQuantity = inventoryQuantity(availableQuantity - requiredQuantity);
+    if (!item.active || !item.saleEnabled || projectedQuantity < 0) {
+      insufficientItems.push({
+        itemId,
+        itemName: item.name,
+        unit: "pack",
+        availableQuantity,
+        requiredQuantity,
+        projectedQuantity
+      });
+    }
+  });
+
+  Object.keys(serviceRequirements).forEach((itemId) => {
+    const item = itemsById[itemId];
+    if (!item) {
+      configurationItems.push({ itemName: "Inventory item", unit: "unit" });
+      return;
+    }
+    const availableQuantity = inventoryQuantity(stockBefore[itemId]?.totalQuantity);
+    const requiredQuantity = inventoryQuantity(serviceRequirements[itemId].quantity);
+    const projectedQuantity = inventoryQuantity(availableQuantity - requiredQuantity);
+    if (!item.active || !item.serviceEnabled || projectedQuantity < 0) {
+      insufficientItems.push({
+        itemId,
+        itemName: item.name,
+        unit: item.usageUnit,
+        availableQuantity,
+        requiredQuantity,
+        projectedQuantity
+      });
+    }
+  });
+
+  if (configurationItems.length) {
+    return {
+      success: false,
+      enabled: true,
+      error: true,
+      code: "INVENTORY_CONFIGURATION_ERROR",
+      message: "A service or product has an invalid inventory setup. Please review its inventory recipe.",
+      items: configurationItems
+    };
+  }
+
+  if (insufficientItems.length && !allowNegativeInventory) {
+    return {
+      success: false,
+      enabled: true,
+      error: true,
+      inventoryError: true,
+      code: "INSUFFICIENT_INVENTORY",
+      message: "Some inventory items do not have enough stock.",
+      items: insufficientItems,
+      insufficientItems
+    };
+  }
+
   const changedRows = {};
+  const newBatches = [];
   const movements = [];
-  const missing = [];
+
+  function createDeficitBatch(item) {
+    const now = getCairoDateTime();
+    const batch = {
+      rowNumber: 0,
+      batchId: `BAT-NEG-${Utilities.getUuid()}`,
+      itemId: item.itemId,
+      purchaseDate: getCairoDateKey(),
+      supplier: "",
+      purchasedPacks: 0,
+      packageSize: item.packageSize > 0 ? item.packageSize : 1,
+      usageUnit: item.usageUnit,
+      sealedPacks: 0,
+      openedPacks: 0,
+      openedQuantity: 0,
+      purchasePrice: item.purchasePrice,
+      expiryDate: "",
+      status: "negative",
+      createdAt: now,
+      updatedAt: now
+    };
+    batches.push(batch);
+    newBatches.push(batch);
+    return batch;
+  }
 
   Object.keys(productRequirements).forEach((itemId) => {
     const item = itemsById[itemId];
     let remaining = productRequirements[itemId];
-    if (!item || !item.saleEnabled) {
-      missing.push(`${item ? item.name : itemId}: not available for sale`);
-      return;
-    }
-    const itemBatches = batches
-      .filter((batch) => batch.itemId === itemId && isInventoryBatchUsable(batch) && batch.sealedPacks > 0)
-      .sort((a, b) => inventoryBatchSortKey(a).localeCompare(inventoryBatchSortKey(b)));
-    itemBatches.forEach((batch) => {
-      if (remaining <= 0) return;
-      const used = Math.min(batch.sealedPacks, remaining);
-      if (used <= 0) return;
-      batch.sealedPacks -= used;
-      remaining -= used;
-      changedRows[batch.rowNumber] = batch;
-      movements.push({ item, batch, movementType: "product_sale", stockBucket: "sealed", quantity: -used, unit: "pack" });
-    });
-    if (remaining > 0) missing.push(`${item.name}: missing ${remaining} pack(s)`);
-  });
-
-  Object.keys(requirements).forEach((itemId) => {
-    const item = itemsById[itemId];
-    let remaining = requirements[itemId];
-    if (!item || !item.serviceEnabled) {
-      missing.push(`${item ? item.name : itemId}: not available for services`);
-      return;
-    }
     const itemBatches = batches
       .filter((batch) => batch.itemId === itemId && isInventoryBatchUsable(batch))
       .sort((a, b) => inventoryBatchSortKey(a).localeCompare(inventoryBatchSortKey(b)));
 
     itemBatches.forEach((batch) => {
+      if (remaining <= 0 || batch.sealedPacks <= 0) return;
+      const used = inventoryQuantity(Math.min(batch.sealedPacks, remaining));
+      batch.sealedPacks = inventoryQuantity(batch.sealedPacks - used);
+      remaining = inventoryQuantity(remaining - used);
+      if (batch.rowNumber) changedRows[batch.rowNumber] = batch;
+      movements.push({ item, batch, movementType: "product_sale", stockBucket: "sealed", quantity: -used, unit: "pack" });
+    });
+
+    if (remaining > 0) {
+      const deficitBatch = itemBatches[itemBatches.length - 1] || createDeficitBatch(item);
+      deficitBatch.sealedPacks = inventoryQuantity(deficitBatch.sealedPacks - remaining);
+      if (deficitBatch.rowNumber) changedRows[deficitBatch.rowNumber] = deficitBatch;
+      movements.push({ item, batch: deficitBatch, movementType: "product_sale", stockBucket: "sealed", quantity: -remaining, unit: "pack" });
+    }
+  });
+
+  Object.keys(serviceRequirements).forEach((itemId) => {
+    const item = itemsById[itemId];
+    const requirement = serviceRequirements[itemId];
+    let remaining = requirement.quantity;
+    const itemBatches = batches
+      .filter((batch) => batch.itemId === itemId && isInventoryBatchUsable(batch))
+      .sort((a, b) => inventoryBatchSortKey(a).localeCompare(inventoryBatchSortKey(b)));
+    const movementDetails = {
+      serviceId: requirement.serviceIds.join(","),
+      serviceName: requirement.serviceNames.join("، ")
+    };
+
+    itemBatches.forEach((batch) => {
       if (remaining <= 0 || batch.openedQuantity <= 0) return;
-      const used = Math.min(batch.openedQuantity, remaining);
-      batch.openedQuantity -= used;
-      remaining -= used;
+      const used = inventoryQuantity(Math.min(batch.openedQuantity, remaining));
+      batch.openedQuantity = inventoryQuantity(batch.openedQuantity - used);
+      remaining = inventoryQuantity(remaining - used);
       if (batch.openedQuantity <= 0) batch.openedPacks = 0;
-      changedRows[batch.rowNumber] = batch;
-      movements.push({ item, batch, movementType: "service_consumption", stockBucket: "opened", quantity: -used, unit: item.usageUnit });
+      if (batch.rowNumber) changedRows[batch.rowNumber] = batch;
+      movements.push({
+        item,
+        batch,
+        ...movementDetails,
+        movementType: "service_consumption",
+        stockBucket: "opened",
+        quantity: -used,
+        unit: item.usageUnit
+      });
     });
 
     itemBatches.forEach((batch) => {
       while (remaining > 0 && batch.sealedPacks > 0) {
-        batch.sealedPacks -= 1;
-        const used = Math.min(batch.packageSize, remaining);
-        const leftover = batch.packageSize - used;
-        remaining -= used;
+        batch.sealedPacks = inventoryQuantity(batch.sealedPacks - 1);
+        const used = inventoryQuantity(Math.min(batch.packageSize, remaining));
+        const leftover = inventoryQuantity(batch.packageSize - used);
+        remaining = inventoryQuantity(remaining - used);
         batch.openedPacks = leftover > 0 ? 1 : 0;
         batch.openedQuantity = leftover;
-        changedRows[batch.rowNumber] = batch;
+        if (batch.rowNumber) changedRows[batch.rowNumber] = batch;
         movements.push({ item, batch, movementType: "open_pack", stockBucket: "sealed", quantity: -1, unit: "pack" });
-        movements.push({ item, batch, movementType: "service_consumption", stockBucket: "opened", quantity: -used, unit: item.usageUnit });
+        movements.push({
+          item,
+          batch,
+          ...movementDetails,
+          movementType: "service_consumption",
+          stockBucket: "opened",
+          quantity: -used,
+          unit: item.usageUnit
+        });
       }
     });
-    if (remaining > 0) missing.push(`${item.name}: missing ${remaining} ${item.usageUnit}`);
+
+    if (remaining > 0) {
+      const deficitBatch = itemBatches[itemBatches.length - 1] || createDeficitBatch(item);
+      deficitBatch.openedPacks = 0;
+      deficitBatch.openedQuantity = inventoryQuantity(deficitBatch.openedQuantity - remaining);
+      if (deficitBatch.rowNumber) changedRows[deficitBatch.rowNumber] = deficitBatch;
+      movements.push({
+        item,
+        batch: deficitBatch,
+        ...movementDetails,
+        movementType: "service_consumption",
+        stockBucket: "opened",
+        quantity: -remaining,
+        unit: item.usageUnit
+      });
+    }
   });
 
-  if (missing.length) {
-    return { enabled: true, error: `Insufficient inventory: ${missing.join(" | ")}` };
-  }
   const balances = {};
-  items.forEach((item) => { balances[item.itemId] = inventoryNumber(stockBefore[item.itemId]?.totalQuantity); });
-  movements.forEach((movement) => {
-    if (movement.movementType === "product_sale") {
-      balances[movement.item.itemId] -= Math.abs(movement.quantity) * movement.batch.packageSize;
-    } else if (movement.movementType === "service_consumption") {
-      balances[movement.item.itemId] -= Math.abs(movement.quantity);
-    }
-    movement.balanceAfter = Math.max(0, balances[movement.item.itemId]);
+  items.forEach((item) => {
+    balances[item.itemId] = inventoryQuantity(stockBefore[item.itemId]?.totalQuantity);
   });
-  return { enabled: true, lines, batchUpdates: Object.keys(changedRows).map((key) => changedRows[key]), movements, itemsById, recipes };
+  movements.forEach((movement) => {
+    movement.balanceBefore = inventoryQuantity(balances[movement.item.itemId]);
+    if (movement.movementType === "product_sale") {
+      balances[movement.item.itemId] = inventoryQuantity(
+        balances[movement.item.itemId] - (Math.abs(movement.quantity) * movement.batch.packageSize)
+      );
+    } else if (movement.movementType === "service_consumption") {
+      balances[movement.item.itemId] = inventoryQuantity(
+        balances[movement.item.itemId] - Math.abs(movement.quantity)
+      );
+    }
+    movement.balanceAfter = inventoryQuantity(balances[movement.item.itemId]);
+  });
+
+  return {
+    enabled: true,
+    lines,
+    batchUpdates: Object.keys(changedRows).map((key) => changedRows[key]),
+    newBatches,
+    movements,
+    itemsById,
+    recipes,
+    insufficientItems
+  };
 }
 
 function estimateInvoiceLineCost(line, itemsById, recipes) {
@@ -1535,66 +1702,173 @@ function estimateInvoiceLineCost(line, itemsById, recipes) {
     }, 0);
 }
 
-function applyInventoryCheckout(plan, data, invoiceId) {
-  if (!plan.enabled) return;
+function rollbackInventoryCheckout(transaction) {
+  if (!transaction) return;
   const batchSheet = inventorySheet(INVENTORY_SHEETS.batches);
+  const logSheet = inventorySheet(INVENTORY_SHEETS.log);
+  const invoiceItemsSheet = inventorySheet(INVENTORY_SHEETS.invoiceItems);
+
+  (transaction.batchRows || []).forEach((snapshot) => {
+    batchSheet.getRange(snapshot.rowNumber, 1, 1, snapshot.values.length).setValues([snapshot.values]);
+  });
+
+  function deleteMatchingAppendedRows(sheet, previousLastRow, width, matches) {
+    const addedRows = sheet.getLastRow() - previousLastRow;
+    if (addedRows <= 0) return;
+    if (typeof sheet.getRange !== "function") {
+      sheet.deleteRows(previousLastRow + 1, addedRows);
+      return;
+    }
+    let rows;
+    try {
+      const range = sheet.getRange(previousLastRow + 1, 1, addedRows, width);
+      if (!range || typeof range.getValues !== "function") throw new Error("Range values are unavailable");
+      rows = range.getValues();
+    } catch (error) {
+      sheet.deleteRows(previousLastRow + 1, addedRows);
+      return;
+    }
+    for (let index = rows.length - 1; index >= 0; index -= 1) {
+      if (!matches(rows[index])) continue;
+      const rowNumber = previousLastRow + 1 + index;
+      if (typeof sheet.deleteRow === "function") sheet.deleteRow(rowNumber);
+      else sheet.deleteRows(rowNumber, 1);
+    }
+  }
+
+  deleteMatchingAppendedRows(
+    invoiceItemsSheet,
+    transaction.invoiceItemsLastRow,
+    14,
+    row => inventoryText(row[1]) === transaction.invoiceId
+  );
+  deleteMatchingAppendedRows(
+    logSheet,
+    transaction.logLastRow,
+    18,
+    row => inventoryText(row[9]) === transaction.invoiceId
+  );
+  const newBatchIds = transaction.newBatchIds || [];
+  deleteMatchingAppendedRows(
+    batchSheet,
+    transaction.batchLastRow,
+    15,
+    row => newBatchIds.indexOf(inventoryText(row[0])) !== -1
+  );
+}
+
+function applyInventoryCheckout(plan, data, invoiceId) {
+  if (!plan.enabled) return null;
+  const batchSheet = inventorySheet(INVENTORY_SHEETS.batches);
+  const logSheet = ensureInventoryLogBarberColumns();
+  const invoiceItemsSheet = inventorySheet(INVENTORY_SHEETS.invoiceItems);
   const now = getCairoDateTime();
-  plan.batchUpdates.forEach((batch) => {
-    batchSheet.getRange(batch.rowNumber, 8, 1, 3).setValues([[batch.sealedPacks, batch.openedPacks, batch.openedQuantity]]);
-    batchSheet.getRange(batch.rowNumber, 13).setValue(batch.sealedPacks <= 0 && batch.openedQuantity <= 0 ? "depleted" : "active");
-    batchSheet.getRange(batch.rowNumber, 15).setValue(now);
-  });
+  const transaction = {
+    batchLastRow: batchSheet.getLastRow(),
+    logLastRow: logSheet.getLastRow(),
+    invoiceItemsLastRow: invoiceItemsSheet.getLastRow(),
+    invoiceId,
+    newBatchIds: (plan.newBatches || []).map(batch => batch.batchId),
+    batchRows: (plan.batchUpdates || []).map((batch) => ({
+      rowNumber: batch.rowNumber,
+      values: batchSheet.getRange(batch.rowNumber, 1, 1, 15).getValues()[0]
+    }))
+  };
 
-  const actor = getAuthenticatedUser(data);
-  const requestId = inventoryText(data.idempotencyKey || data.clientRequestId);
-  const invoiceBarberId = inventoryText(data.barberId || data.barberCode || data.barber);
-  const invoiceBarberName = inventoryText(data.barberName || data.barber);
-  plan.movements.forEach((movement) => {
-    const isBarberConsumption = movement.movementType === "service_consumption";
-    appendInventoryLog({
-      itemId: movement.item.itemId,
-      itemName: movement.item.name,
-      batchId: movement.batch.batchId,
-      movementType: movement.movementType,
-      stockBucket: movement.stockBucket,
-      quantity: movement.quantity,
-      unit: movement.unit,
-      invoiceId,
-      username: actor ? actor.username : "",
-      balanceAfter: movement.balanceAfter,
-      note: `Automatic inventory movement for ${invoiceId}`,
-      requestId,
-      barberId: isBarberConsumption ? invoiceBarberId : "",
-      barberName: isBarberConsumption ? invoiceBarberName : ""
+  try {
+    (plan.newBatches || []).forEach((batch) => {
+      batchSheet.appendRow([
+        batch.batchId,
+        batch.itemId,
+        batch.purchaseDate,
+        batch.supplier,
+        batch.purchasedPacks,
+        batch.packageSize,
+        batch.usageUnit,
+        batch.sealedPacks,
+        batch.openedPacks,
+        batch.openedQuantity,
+        batch.purchasePrice,
+        batch.expiryDate,
+        "negative",
+        batch.createdAt || now,
+        now
+      ]);
     });
-  });
 
-  const grossInvoiceTotal = Math.max(0, inventoryNumber(data.subtotalBeforePremium) + inventoryNumber(data.premiumExtra));
-  const invoiceDiscount = inventoryNumber(data.discountAmount);
-  const itemRows = plan.lines.map((line) => {
-    const quantity = Math.max(1, inventoryNumber(line.quantity) || 1);
-    const unitPrice = inventoryNumber(line.unitPrice || line.price);
-    const grossTotal = unitPrice * quantity;
-    const allocatedDiscount = grossInvoiceTotal > 0 ? (grossTotal / grossInvoiceTotal) * invoiceDiscount : 0;
-    const unitCost = estimateInvoiceLineCost(line, plan.itemsById, plan.recipes);
-    return [
-      `INI-${Utilities.getUuid()}`,
-      invoiceId,
-      inventoryText(line.lineType) || "service",
-      inventoryText(line.referenceId || line.serviceId || line.itemId),
-      inventoryText(line.itemName || line.name),
-      quantity,
-      unitPrice,
-      grossTotal,
-      inventoryNumber(data.discountPercent),
-      allocatedDiscount,
-      Math.max(0, grossTotal - allocatedDiscount),
-      unitCost,
-      unitCost * quantity,
-      now
-    ];
-  });
-  if (itemRows.length) inventorySheet(INVENTORY_SHEETS.invoiceItems).getRange(inventorySheet(INVENTORY_SHEETS.invoiceItems).getLastRow() + 1, 1, itemRows.length, 14).setValues(itemRows);
+    plan.batchUpdates.forEach((batch) => {
+      batchSheet.getRange(batch.rowNumber, 8, 1, 3).setValues([[batch.sealedPacks, batch.openedPacks, batch.openedQuantity]]);
+      const isNegative = batch.sealedPacks < 0 || batch.openedQuantity < 0;
+      batchSheet.getRange(batch.rowNumber, 13).setValue(
+        isNegative ? "negative" : (batch.sealedPacks <= 0 && batch.openedQuantity <= 0 ? "depleted" : "active")
+      );
+      batchSheet.getRange(batch.rowNumber, 15).setValue(now);
+    });
+
+    const actor = getAuthenticatedUser(data);
+    const requestId = inventoryText(data.idempotencyKey || data.clientRequestId);
+    const invoiceBarberId = inventoryText(data.barberId || data.barberCode || data.barber);
+    const invoiceBarberName = inventoryText(data.barberName || data.barber);
+    plan.movements.forEach((movement) => {
+      const isBarberConsumption = movement.movementType === "service_consumption";
+      const serviceLabel = inventoryText(movement.serviceName);
+      appendInventoryLog({
+        itemId: movement.item.itemId,
+        itemName: movement.item.name,
+        batchId: movement.batch.batchId,
+        movementType: movement.movementType,
+        stockBucket: movement.stockBucket,
+        quantity: movement.quantity,
+        unit: movement.unit,
+        invoiceId,
+        serviceId: inventoryText(movement.serviceId),
+        username: actor ? actor.username : "",
+        balanceBefore: movement.balanceBefore,
+        balanceAfter: movement.balanceAfter,
+        note: serviceLabel
+          ? `Automatic inventory movement for ${invoiceId} | Service: ${serviceLabel}`
+          : `Automatic inventory movement for ${invoiceId}`,
+        requestId,
+        barberId: isBarberConsumption ? invoiceBarberId : "",
+        barberName: isBarberConsumption ? invoiceBarberName : ""
+      });
+    });
+
+    const grossInvoiceTotal = Math.max(0, inventoryNumber(data.subtotalBeforePremium) + inventoryNumber(data.premiumExtra));
+    const invoiceDiscount = inventoryNumber(data.discountAmount);
+    const itemRows = plan.lines.map((line) => {
+      const quantity = Math.max(1, inventoryNumber(line.quantity) || 1);
+      const unitPrice = inventoryNumber(line.unitPrice || line.price);
+      const grossTotal = unitPrice * quantity;
+      const allocatedDiscount = grossInvoiceTotal > 0 ? (grossTotal / grossInvoiceTotal) * invoiceDiscount : 0;
+      const unitCost = estimateInvoiceLineCost(line, plan.itemsById, plan.recipes);
+      return [
+        `INI-${Utilities.getUuid()}`,
+        invoiceId,
+        inventoryText(line.lineType) || "service",
+        inventoryText(line.referenceId || line.serviceId || line.itemId),
+        inventoryText(line.itemName || line.name),
+        quantity,
+        unitPrice,
+        grossTotal,
+        inventoryNumber(data.discountPercent),
+        allocatedDiscount,
+        Math.max(0, grossTotal - allocatedDiscount),
+        unitCost,
+        unitCost * quantity,
+        now
+      ];
+    });
+    if (itemRows.length) {
+      invoiceItemsSheet.getRange(invoiceItemsSheet.getLastRow() + 1, 1, itemRows.length, 14).setValues(itemRows);
+    }
+    return transaction;
+  } catch (error) {
+    try { rollbackInventoryCheckout(transaction); } catch (rollbackError) {
+      console.error("Inventory rollback failed:", rollbackError);
+    }
+    throw error;
+  }
 }
 
 function readActiveInventoryBarbers() {
@@ -2985,14 +3259,35 @@ function getLockedDateError(value, entityLabel) {
 }
 
 function ensureDataInvoiceColumns(sheet) {
-  const requiredColumns = 13;
+  const requiredColumns = 14;
   const currentColumns = sheet.getMaxColumns();
   if (currentColumns < requiredColumns) {
     sheet.insertColumnsAfter(currentColumns, requiredColumns - currentColumns);
   }
 
   sheet.getRange(1, 6, 1, 6).setValues([["TOTAL", "paid amount", "tip amount", "PAYMENT", "BARBER", "Notes"]]);
-  sheet.getRange(1, 12, 1, 2).setValues([["discount percent", "discount amount"]]);
+  sheet.getRange(1, 12, 1, 3).setValues([["discount percent", "discount amount", "invoice request id"]]);
+}
+
+function findInvoiceByRequestId(sheet, requestId) {
+  if (!sheet || !requestId || typeof sheet.getLastColumn !== "function" || sheet.getLastColumn() < 14) return null;
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+  const requestIds = sheet.getRange(2, 14, lastRow - 1, 1).getValues();
+  for (let index = requestIds.length - 1; index >= 0; index -= 1) {
+    if (inventoryText(requestIds[index][0]) !== requestId) continue;
+    const rowNumber = index + 2;
+    const row = sheet.getRange(rowNumber, 1, 1, 14).getValues()[0];
+    return {
+      success: true,
+      status: "success",
+      pdfUrl: inventoryText(row[4]),
+      invoiceId: `DATA-${rowNumber}`,
+      rowNumber,
+      duplicate: true
+    };
+  }
+  return null;
 }
 
 function getInvoicePaymentDetails(data) {
@@ -3029,6 +3324,11 @@ function createInvoice(data) {
   const permissionError = requirePermission(data, "access_cashier", "You do not have permission to create invoices.");
   if (permissionError) return permissionError;
   const lock = LockService.getScriptLock();
+  let sheet = null;
+  let invoiceRowNumber = 0;
+  let inventoryTransaction = null;
+  let pdfUrl = "";
+  let persistedRequestId = "";
   try {
     lock.waitLock(30000);
     const invoiceCache = CacheService.getScriptCache();
@@ -3042,18 +3342,28 @@ function createInvoice(data) {
     const cachedInvoice = (requestCacheKey && invoiceCache.get(requestCacheKey)) || (fingerprintCacheKey && invoiceCache.get(fingerprintCacheKey));
     if (cachedInvoice) return jsonOutput(JSON.parse(cachedInvoice));
 
-    const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
-    ensureDataInvoiceColumns(sheet);
+    sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
+    const persistedInvoice = findInvoiceByRequestId(sheet, requestId);
+    if (persistedInvoice) return jsonOutput(persistedInvoice);
     const invoiceDateTime = getInvoiceDateTime(data);
     const lockedError = getLockedDateError(invoiceDateTime, "Invoice");
-    if (lockedError) return jsonOutput({ status: "error", message: lockedError, locked: true });
+    if (lockedError) return jsonOutput({ success: false, status: "error", message: lockedError, locked: true });
 
     const inventoryPlan = prepareInventoryCheckout(data);
     if (inventoryPlan.error) {
-      return jsonOutput({ status: "error", inventoryError: true, message: inventoryPlan.error });
+      return jsonOutput({
+        success: false,
+        status: "error",
+        inventoryError: true,
+        code: inventoryPlan.code || "INVENTORY_ERROR",
+        message: inventoryPlan.message || "The inventory could not be validated.",
+        items: inventoryPlan.items || inventoryPlan.insufficientItems || []
+      });
     }
 
-    const pdfUrl = createInvoicePdf(data);
+    persistedRequestId = requestId || `invoice-server-${Utilities.getUuid()}`;
+    ensureDataInvoiceColumns(sheet);
+    pdfUrl = createInvoicePdf(data);
     const paymentDetails = getInvoicePaymentDetails(data);
     sheet.appendRow([
       invoiceDateTime,
@@ -3068,20 +3378,59 @@ function createInvoice(data) {
       data.barber || "",
       data.note || data.invoiceNote || "",
       parseSheetAmount(data.discountPercent || 0),
-      parseSheetAmount(data.discountAmount || 0)
+      parseSheetAmount(data.discountAmount || 0),
+      persistedRequestId
     ]);
-    const rowNumber = sheet.getLastRow();
-    const invoiceId = `DATA-${rowNumber}`;
-    applyInventoryCheckout(inventoryPlan, data, invoiceId);
+    invoiceRowNumber = sheet.getLastRow();
+    const invoiceId = `DATA-${invoiceRowNumber}`;
+    inventoryTransaction = applyInventoryCheckout(
+      inventoryPlan,
+      requestId ? data : { ...data, idempotencyKey: persistedRequestId },
+      invoiceId
+    );
 
     logActivity(data, "create", "invoice", invoiceId, `Created invoice for ${data.customerName || "-"} | Total: ${data.total || 0} | Barber: ${data.barber || "-"}`);
-    const response = { status: "success", pdfUrl, invoiceId, rowNumber, duplicate: false };
+    const response = { success: true, status: "success", pdfUrl, invoiceId, rowNumber: invoiceRowNumber, duplicate: false };
     const cachedResponse = JSON.stringify(response);
-    if (requestCacheKey) invoiceCache.put(requestCacheKey, cachedResponse, 21600);
-    if (fingerprintCacheKey) invoiceCache.put(fingerprintCacheKey, JSON.stringify({ ...response, duplicate: true }), 300);
+    try {
+      if (requestCacheKey) invoiceCache.put(requestCacheKey, cachedResponse, 21600);
+      if (fingerprintCacheKey) invoiceCache.put(fingerprintCacheKey, JSON.stringify({ ...response, duplicate: true }), 300);
+    } catch (cacheError) {
+      console.warn("Invoice idempotency cache could not be updated:", cacheError);
+    }
     return jsonOutput(response);
   } catch (error) {
-    return jsonOutput({ status: "error", message: error.message });
+    if (inventoryTransaction) {
+      try { rollbackInventoryCheckout(inventoryTransaction); } catch (rollbackError) {
+        console.error("Inventory rollback failed:", rollbackError);
+      }
+    }
+    if (sheet && invoiceRowNumber >= 2 && invoiceRowNumber <= sheet.getLastRow()) {
+      try {
+        const persistedInvoice = findInvoiceByRequestId(sheet, persistedRequestId);
+        const rollbackRowNumber = persistedInvoice?.rowNumber || invoiceRowNumber;
+        const rollbackRequestId = typeof sheet.getLastColumn === "function" && sheet.getLastColumn() >= 14
+          ? inventoryText(sheet.getRange(rollbackRowNumber, 14).getValue())
+          : persistedRequestId;
+        if (rollbackRequestId === persistedRequestId) sheet.deleteRow(rollbackRowNumber);
+      } catch (rollbackError) {
+        console.error("Invoice rollback failed:", rollbackError);
+      }
+    }
+    if (pdfUrl) {
+      try {
+        const fileIdMatch = String(pdfUrl).match(/\/d\/([^/]+)/);
+        if (fileIdMatch) DriveApp.getFileById(fileIdMatch[1]).setTrashed(true);
+      } catch (rollbackError) {
+        console.error("Invoice PDF rollback failed:", rollbackError);
+      }
+    }
+    return jsonOutput({
+      success: false,
+      status: "error",
+      code: "INVOICE_COMPLETION_FAILED",
+      message: "The invoice could not be completed. No invoice or inventory changes were saved."
+    });
   } finally {
     try { lock.releaseLock(); } catch (ignore) {}
   }
@@ -3748,10 +4097,19 @@ function createInvoicePdf(data) {
     .getAs("application/pdf")
     .setName(`invoice-${Date.now()}.pdf`);
 
-  const file = DriveApp.createFile(blob);
-  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-
-  return `https://drive.google.com/file/d/${file.getId()}/view?usp=sharing`;
+  let file = null;
+  try {
+    file = DriveApp.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return `https://drive.google.com/file/d/${file.getId()}/view?usp=sharing`;
+  } catch (error) {
+    if (file) {
+      try { file.setTrashed(true); } catch (cleanupError) {
+        console.error("Incomplete invoice PDF cleanup failed:", cleanupError);
+      }
+    }
+    throw error;
+  }
 }
 
 function escapeHtml(value) {

@@ -656,6 +656,10 @@
       <aside class="left-panel">
         <section class="panel">
           <input class="search-box" id="searchInput" type="text" placeholder="ابحث عن صنف" data-i18n-placeholder-ar="ابحث عن صنف" data-i18n-placeholder-en="Search item">
+          <button class="negative-stock-filter" id="negativeStockFilterBtn" type="button" aria-pressed="false">
+            <span data-negative-filter-label>الأصناف ذات الرصيد السالب</span>
+            <strong data-negative-filter-count>0</strong>
+          </button>
         </section>
 
         <section class="panel">
@@ -1329,6 +1333,7 @@
     clearMovement();
     renderAll();
   </script>
+  <script src="../assets/js/utils/inventory-filters.js"></script>
   <script src="../assets/js/pages/inventory.js"></script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>

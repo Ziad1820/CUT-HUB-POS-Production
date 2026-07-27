@@ -5,6 +5,7 @@
 
   const elements = {
     search: document.getElementById("searchInput"),
+    negativeFilter: document.getElementById("negativeStockFilterBtn"),
     list: document.getElementById("itemList"),
     title: document.getElementById("itemTitle"),
     subtitle: document.getElementById("itemSubtitle"),
@@ -60,6 +61,7 @@
     barberReport: { barbers: [], rows: [], summary: {} },
     selectedId: "",
     editingBatchId: "",
+    negativeOnly: false,
     loading: false
   };
 
@@ -115,6 +117,10 @@
     return number(stockOf(item).totalQuantity) <= number(item.minimumStock);
   }
 
+  function isNegative(item) {
+    return number(stockOf(item).totalQuantity) < 0;
+  }
+
   function setBusy(busy) {
     state.loading = busy;
     [elements.addItem, elements.refresh, elements.saveItem, elements.deleteItem, elements.addPurchase, elements.loadBarberConsumption]
@@ -140,17 +146,12 @@
 
   function renderList() {
     const query = String(elements.search?.value || "").trim().toLowerCase();
-    const items = state.items.filter(item => item.active !== false && (
-      !query ||
-      item.name.toLowerCase().includes(query) ||
-      String(item.category || "").toLowerCase().includes(query) ||
-      String(item.barcode || "").toLowerCase().includes(query)
-    ));
+    const items = window.RomeoInventoryFilters.filterItems(state.items, query, state.negativeOnly);
 
     elements.list.innerHTML = items.length ? items.map(item => {
       const stock = stockOf(item);
       return `
-        <button type="button" class="item-card${item.itemId === state.selectedId ? " active" : ""}${isLow(item) ? " low" : ""}" data-item-id="${escapeHtml(item.itemId)}">
+        <button type="button" class="item-card${item.itemId === state.selectedId ? " active" : ""}${isNegative(item) ? " negative" : (isLow(item) ? " low" : "")}" data-item-id="${escapeHtml(item.itemId)}">
           <strong>${escapeHtml(item.name)}</strong>
           <div class="item-meta">
             <span>${escapeHtml(typeLabel(item.itemType))}</span>
@@ -168,6 +169,7 @@
       elements.subtitle.textContent = "عرّف الصنف وحجم العبوة وأسعاره، ثم احفظه.";
       elements.badge.textContent = "NEW";
       elements.currentStock.textContent = "0";
+      elements.currentStock.closest(".summary-card")?.classList.remove("negative");
       elements.minimumStock.textContent = "0";
       elements.buyPrice.textContent = "0";
       clearItemForm();
@@ -180,6 +182,7 @@
     elements.subtitle.textContent = `${typeLabel(item.itemType)} · ${formatNumber(item.packageSize)} ${unitLabel(item.usageUnit)} في العبوة · ${formatNumber(stock.sealedPacks)} عبوة مقفولة`;
     elements.badge.textContent = item.itemId.replace(/^ITM-/, "").slice(0, 8).toUpperCase();
     elements.currentStock.textContent = `${formatNumber(stock.totalQuantity)} ${unitLabel(item.usageUnit)}`;
+    elements.currentStock.closest(".summary-card")?.classList.toggle("negative", isNegative(item));
     elements.minimumStock.textContent = `${formatNumber(item.minimumStock)} ${unitLabel(item.usageUnit)}`;
     elements.buyPrice.textContent = formatMoney(item.purchasePrice);
     elements.name.value = item.name || "";
@@ -199,6 +202,18 @@
 
   function renderSummary() {
     elements.lowStockCount.textContent = state.items.filter(item => item.active !== false && isLow(item)).length;
+    if (elements.negativeFilter) {
+      const negativeCount = state.items.filter(item => item.active !== false && isNegative(item)).length;
+      const english = String(document.documentElement.lang || "").toLowerCase().startsWith("en");
+      const label = elements.negativeFilter.querySelector("[data-negative-filter-label]");
+      const count = elements.negativeFilter.querySelector("[data-negative-filter-count]");
+      if (label) label.textContent = english ? "Negative Stock Items" : "الأصناف ذات الرصيد السالب";
+      if (count) count.textContent = negativeCount;
+      elements.negativeFilter.setAttribute("aria-pressed", String(state.negativeOnly));
+      elements.negativeFilter.title = state.negativeOnly
+        ? (english ? "Show all inventory" : "عرض كل المخزون")
+        : (english ? "Show negative stock only" : "عرض المخزون السالب فقط");
+    }
   }
 
   function renderHistory() {
@@ -219,6 +234,9 @@
             <span>${escapeHtml(entry.dateTime)}</span>
             <span>${escapeHtml(entry.username || "-")}</span>
             ${entry.invoiceId ? `<span>${escapeHtml(entry.invoiceId)}</span>` : ""}
+            ${entry.movementType === "service_consumption" && entry.balanceBefore !== null && entry.balanceBefore !== undefined
+              ? `<span>الرصيد: ${formatNumber(entry.balanceBefore)} ← ${formatNumber(entry.balanceAfter)} ${escapeHtml(unitLabel(entry.unit))}</span>`
+              : ""}
           </div>
           <div class="history-note">${escapeHtml(entry.note || "لا توجد ملاحظة")}</div>
         </article>
@@ -516,6 +534,12 @@
     startPurchaseEdit(button.dataset.editPurchase);
   });
   elements.search.addEventListener("input", renderList);
+  elements.negativeFilter?.addEventListener("click", () => {
+    state.negativeOnly = !state.negativeOnly;
+    renderList();
+    renderSummary();
+  });
+  window.addEventListener("romeo-language-change", renderSummary);
   elements.addItem.addEventListener("click", () => {
     state.selectedId = "";
     clearItemForm();

@@ -1337,6 +1337,65 @@
       color: var(--muted);
     }
 
+    .inventory-warning-modal {
+      width: min(620px, 100%);
+    }
+
+    .inventory-warning-list {
+      padding: 18px 20px;
+      overflow-y: auto;
+      display: grid;
+      gap: 12px;
+    }
+
+    .inventory-warning-item {
+      border: 1px solid rgba(186,58,44,.22);
+      background: rgba(186,58,44,.06);
+      border-radius: 18px;
+      padding: 15px;
+    }
+
+    .inventory-warning-item h4 {
+      margin: 0 0 12px;
+      color: var(--danger);
+      font-size: 18px;
+    }
+
+    .inventory-warning-values {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .inventory-warning-value {
+      background: #fffaf2;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+    }
+
+    .inventory-warning-value span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+
+    .inventory-warning-value strong {
+      font-size: 16px;
+    }
+
+    .inventory-warning-value.projected strong {
+      color: var(--danger);
+    }
+
+    .inventory-warning-status {
+      min-height: 22px;
+      padding: 0 20px 12px;
+      color: var(--danger);
+      font-weight: 800;
+    }
+
     .add-service-box {
       padding: 20px 20px 0;
       display: grid;
@@ -1609,6 +1668,10 @@
         grid-column: 2;
       }
 
+      .inventory-warning-values {
+        grid-template-columns: 1fr;
+      }
+
       .floating-calculator-toggle {
         right: 14px;
         bottom: 14px;
@@ -1850,6 +1913,21 @@
           <button class="secondary-btn" type="button" id="closePriceEditorBtn">Ø¥ØºÙ„Ø§Ù‚</button>
           <button class="primary-btn" type="button" id="savePricesBtn">Ø­ÙØ¸ Ø§Ù„Ø£Ø³Ø¹Ø§Ø±</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="inventoryWarningModal" role="dialog" aria-modal="true" aria-labelledby="inventoryWarningTitle">
+    <div class="modal inventory-warning-modal">
+      <div class="modal-header">
+        <h3 id="inventoryWarningTitle">المخزون غير كافٍ</h3>
+        <p id="inventoryWarningMessage">بعض الخامات المطلوبة غير متوفرة بالكميات الكافية. يمكنك إتمام الفاتورة، وسيصبح رصيد هذه الخامات سالبًا حتى يتم تسجيل عملية شراء أو إضافة مخزون جديدة.</p>
+      </div>
+      <div class="inventory-warning-list" id="inventoryWarningItems"></div>
+      <div class="inventory-warning-status" id="inventoryWarningStatus" aria-live="polite"></div>
+      <div class="modal-footer">
+        <button class="secondary-btn" type="button" id="cancelNegativeInventoryBtn">لا، رجوع</button>
+        <button class="primary-btn" type="button" id="confirmNegativeInventoryBtn">نعم، إتمام الحساب</button>
       </div>
     </div>
   </div>

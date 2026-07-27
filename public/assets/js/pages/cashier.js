@@ -183,6 +183,13 @@
     const sidebarOverlay = document.getElementById("sidebarOverlay");
     const logoutBtn = document.getElementById("logoutBtn");
     const barberSelect = document.getElementById("barber");
+    const inventoryWarningModal = document.getElementById("inventoryWarningModal");
+    const inventoryWarningTitle = document.getElementById("inventoryWarningTitle");
+    const inventoryWarningMessage = document.getElementById("inventoryWarningMessage");
+    const inventoryWarningItems = document.getElementById("inventoryWarningItems");
+    const inventoryWarningStatus = document.getElementById("inventoryWarningStatus");
+    const confirmNegativeInventoryBtn = document.getElementById("confirmNegativeInventoryBtn");
+    const cancelNegativeInventoryBtn = document.getElementById("cancelNegativeInventoryBtn");
     let customerDirectory = [];
     let customersLoaded = false;
     let customersLoading = false;
@@ -193,10 +200,12 @@
     let selectedServiceNames = new Set();
     let latestTodayWithdrawals = 0;
     let invoiceSubmitInProgress = false;
+    let pendingNegativeInventorySubmission = null;
+    let pendingPrintInvoice = null;
     const STAFF_STORAGE_KEY = "romeo-pos-staff-accounting-v2";
     const LATEST_INVOICES_STORAGE_KEY = "romeo-pos-latest-invoices";
     const INVOICE_SUBMIT_LOCK_KEY = "romeo-pos-invoice-submit-lock";
-    const INVOICE_SUBMIT_LOCK_TTL = 2 * 60 * 1000;
+    const INVOICE_SUBMIT_LOCK_TTL = 6 * 60 * 60 * 1000;
     const BARBER_NAMES_BY_CODE = {
       R01: "KAREEM",
       R02: "8AYTH",
@@ -1861,10 +1870,159 @@
       const result = await RomeoApi.request(payload);
 
       if (result.status !== "success") {
-        throw new Error(result.message || "ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„ÙØ§ØªÙˆØ±Ø©.");
+        const errorMessages = {
+          INVENTORY_CONFIGURATION_ERROR: localizeText(
+            "إعداد استهلاك المخزون لإحدى الخدمات غير صحيح. راجع وصفات المخزون.",
+            "A service has an invalid inventory recipe. Please review the inventory setup."
+          ),
+          INVOICE_COMPLETION_FAILED: localizeText(
+            "تعذر إتمام الفاتورة، ولم يتم حفظ أي تغيير في الفاتورة أو المخزون.",
+            "The invoice could not be completed. No invoice or inventory changes were saved."
+          )
+        };
+        const error = new Error(errorMessages[result.code] || result.message || localizeText("تعذر حفظ الفاتورة.", "The invoice could not be saved."));
+        error.code = String(result.code || "");
+        error.items = Array.isArray(result.items) ? result.items : [];
+        throw error;
       }
 
       return result;
+    }
+
+    function formatInventoryQuantity(value) {
+      return numberValue(value).toLocaleString("en-US", { maximumFractionDigits: 6 });
+    }
+
+    function inventoryUnitLabel(unit) {
+      const labels = {
+        g: ["جرام", "g"],
+        ml: ["مللي", "ml"],
+        piece: ["قطعة", "piece"],
+        pack: ["عبوة", "pack"],
+        unit: ["وحدة", "unit"]
+      };
+      const pair = labels[String(unit || "").toLowerCase()];
+      return pair ? pair[getCurrentPageLanguage() === "en" ? 1 : 0] : String(unit || localizeText("وحدة", "unit"));
+    }
+
+    function closeInventoryWarningModal(force = false) {
+      if (!inventoryWarningModal || (invoiceSubmitInProgress && !force)) return;
+      inventoryWarningModal.classList.remove("active");
+      inventoryWarningModal.dataset.mode = "";
+      inventoryWarningItems.hidden = false;
+      inventoryWarningStatus.textContent = "";
+      pendingNegativeInventorySubmission = null;
+      pendingPrintInvoice = null;
+    }
+
+    function openInventoryWarningModal(items, submission) {
+      if (!inventoryWarningModal) return;
+      inventoryWarningModal.dataset.mode = "inventory";
+      pendingNegativeInventorySubmission = submission;
+      pendingPrintInvoice = null;
+      inventoryWarningTitle.textContent = localizeText("المخزون غير كافٍ", "Insufficient Inventory");
+      inventoryWarningMessage.textContent = localizeText(
+        "بعض الخامات المطلوبة غير متوفرة بالكميات الكافية. يمكنك إتمام الفاتورة، وسيصبح رصيد هذه الخامات سالبًا حتى يتم تسجيل عملية شراء أو إضافة مخزون جديدة.",
+        "Some required inventory items do not have enough stock. You can still complete the invoice, and their balances will remain negative until a purchase or stock addition is recorded."
+      );
+      cancelNegativeInventoryBtn.textContent = localizeText("لا، رجوع", "Cancel");
+      confirmNegativeInventoryBtn.textContent = localizeText("نعم، إتمام الحساب", "Complete Invoice");
+      inventoryWarningStatus.textContent = "";
+      inventoryWarningItems.hidden = false;
+      inventoryWarningItems.innerHTML = (Array.isArray(items) ? items : []).map((item) => {
+        const unit = inventoryUnitLabel(item.unit);
+        return `
+          <article class="inventory-warning-item">
+            <h4>${escapeHtml(item.itemName || localizeText("صنف مخزون", "Inventory item"))}</h4>
+            <div class="inventory-warning-values">
+              <div class="inventory-warning-value">
+                <span>${localizeText("الرصيد الحالي", "Current Stock")}</span>
+                <strong>${escapeHtml(formatInventoryQuantity(item.availableQuantity))} ${escapeHtml(unit)}</strong>
+              </div>
+              <div class="inventory-warning-value">
+                <span>${localizeText("الكمية المطلوبة", "Required")}</span>
+                <strong>${escapeHtml(formatInventoryQuantity(item.requiredQuantity))} ${escapeHtml(unit)}</strong>
+              </div>
+              <div class="inventory-warning-value projected">
+                <span>${localizeText("الرصيد بعد الإتمام", "Balance After Completion")}</span>
+                <strong>${escapeHtml(formatInventoryQuantity(item.projectedQuantity))} ${escapeHtml(unit)}</strong>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join("");
+      inventoryWarningModal.classList.add("active");
+      cancelNegativeInventoryBtn.focus();
+    }
+
+    function openPrintConfirmationModal(printData) {
+      if (!inventoryWarningModal) return;
+      inventoryWarningModal.dataset.mode = "print";
+      pendingNegativeInventorySubmission = null;
+      pendingPrintInvoice = printData;
+      inventoryWarningTitle.textContent = localizeText("تم إتمام الفاتورة", "Invoice Completed");
+      inventoryWarningMessage.textContent = localizeText("هل تريد طباعة الفاتورة الآن؟", "Do you want to print the invoice now?");
+      cancelNegativeInventoryBtn.textContent = localizeText("بدون طباعة", "Not Now");
+      confirmNegativeInventoryBtn.textContent = localizeText("طباعة الفاتورة", "Print Invoice");
+      inventoryWarningItems.innerHTML = "";
+      inventoryWarningItems.hidden = true;
+      inventoryWarningStatus.textContent = "";
+      inventoryWarningModal.classList.add("active");
+      confirmNegativeInventoryBtn.focus();
+    }
+
+    async function submitPreparedInvoice(invoiceData, printData, shouldPrint, allowNegativeInventory = false) {
+      if (invoiceSubmitInProgress) {
+        showStatus(localizeText("جاري حفظ الفاتورة بالفعل. انتظر لحظات.", "Invoice is already being saved. Please wait."), "error");
+        return;
+      }
+
+      const requestPayload = { ...invoiceData, allowNegativeInventory: Boolean(allowNegativeInventory) };
+      const invoiceFingerprint = getInvoiceFingerprint(invoiceData);
+      const activeLock = getActiveInvoiceSubmitLock(invoiceFingerprint);
+      const invoiceLock = activeLock || createInvoiceSubmitLock(invoiceFingerprint);
+      invoiceSubmitInProgress = true;
+      requestPayload.clientRequestId = invoiceLock.requestId;
+      requestPayload.idempotencyKey = invoiceLock.requestId;
+      requestPayload.invoiceFingerprint = invoiceFingerprint;
+
+      try {
+        setLoadingState(true);
+        const saveResult = await saveInvoice(requestPayload);
+        clearInvoiceSubmitLock(invoiceLock);
+        closeInventoryWarningModal(true);
+        addLatestInvoice({
+          ...requestPayload,
+          ...(saveResult.invoice || saveResult.data || {}),
+          invoiceId: saveResult.invoiceId || saveResult.id || saveResult.invoice?.invoiceId || saveResult.data?.invoiceId || requestPayload.invoiceId,
+          rowNumber: saveResult.rowNumber || saveResult.invoice?.rowNumber || saveResult.data?.rowNumber || requestPayload.rowNumber,
+          pdfUrl: saveResult.pdfUrl || saveResult.invoice?.pdfUrl || saveResult.data?.pdfUrl || requestPayload.pdfUrl
+        });
+
+        showStatus(localizeText("تم حفظ الفاتورة بنجاح.", "Invoice completed successfully."), "success");
+        if (shouldPrint === true) printInvoice(printData);
+        resetForm();
+        loadInventoryProducts();
+        fetchTodaySales();
+        loadLatestInvoicesFromSheet();
+        if (shouldPrint === null) openPrintConfirmationModal(printData);
+      } catch (error) {
+        if (error.code === "INSUFFICIENT_INVENTORY" && !allowNegativeInventory) {
+          clearInvoiceSubmitLock(invoiceLock);
+          openInventoryWarningModal(error.items, { invoiceData, printData, shouldPrint });
+          return;
+        }
+
+        if (!shouldKeepInvoiceLock(error)) clearInvoiceSubmitLock(invoiceLock);
+        const message = error.message || localizeText("حدث خطأ أثناء حفظ الفاتورة.", "The invoice could not be completed.");
+        if (inventoryWarningModal?.classList.contains("active")) inventoryWarningStatus.textContent = message;
+        showStatus(message, "error");
+      } finally {
+        invoiceSubmitInProgress = false;
+        setLoadingState(false);
+        if (confirmNegativeInventoryBtn) confirmNegativeInventoryBtn.disabled = false;
+        if (cancelNegativeInventoryBtn) cancelNegativeInventoryBtn.disabled = false;
+      }
     }
 
     function escapePrintHtml(value) {
@@ -2279,73 +2437,45 @@
         }))
       };
 
-      if (invoiceSubmitInProgress) {
-        showStatus(localizeText("جاري حفظ الفاتورة بالفعل. انتظر لحظات.", "Invoice is already being saved. Please wait."), "error");
-        return;
-      }
-
-      const invoiceFingerprint = getInvoiceFingerprint(invoiceData);
-      const activeLock = getActiveInvoiceSubmitLock(invoiceFingerprint);
-      if (activeLock) {
-        showStatus(localizeText(
-          "الفاتورة دي اتبعتت للحفظ بالفعل. راجع آخر الفواتير قبل إعادة المحاولة.",
-          "This invoice was already sent for saving. Check the latest invoices before trying again."
-        ), "error");
-        return;
-      }
-
-      const invoiceLock = createInvoiceSubmitLock(invoiceFingerprint);
-      invoiceSubmitInProgress = true;
-      invoiceData.clientRequestId = invoiceLock.requestId;
-      invoiceData.idempotencyKey = invoiceLock.requestId;
-      invoiceData.invoiceFingerprint = invoiceFingerprint;
-
-      try {
-        setLoadingState(true);
-        const shouldPrint = window.confirm("Ù‡Ù„ ØªØ±ÙŠØ¯ Ø·Ø¨Ø§Ø¹Ø© Ø§Ù„ÙØ§ØªÙˆØ±Ø© Ø§Ù„Ø¢Ù†ØŸ");
-
-        const saveResult = await saveInvoice(invoiceData);
-        clearInvoiceSubmitLock(invoiceLock);
-        addLatestInvoice({
-          ...invoiceData,
-          ...(saveResult.invoice || saveResult.data || {}),
-          invoiceId: saveResult.invoiceId || saveResult.id || saveResult.invoice?.invoiceId || saveResult.data?.invoiceId || invoiceData.invoiceId,
-          rowNumber: saveResult.rowNumber || saveResult.invoice?.rowNumber || saveResult.data?.rowNumber || invoiceData.rowNumber,
-          pdfUrl: saveResult.pdfUrl || saveResult.invoice?.pdfUrl || saveResult.data?.pdfUrl || invoiceData.pdfUrl
-        });
-
-        if (shouldPrint) {
-          printInvoice({
-            customerName,
-            customerPhone,
-            barber,
-            paymentMethod,
-            offerType,
-            total,
-            discountPercent,
-            discountAmount,
-            paidAmount,
-            tipAmount,
-            remainingAmount,
-            items: [...cart]
-          });
-        }
-
-        showStatus("Ã˜ÂªÃ™â€¦ Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â§Ã˜ÂªÃ™Ë†Ã˜Â±Ã˜Â© Ã˜Â¨Ã™â€ Ã˜Â¬Ã˜Â§Ã˜Â­.", "success");
-        resetForm();
-        loadInventoryProducts();
-        fetchTodaySales();
-        loadLatestInvoicesFromSheet();
-      } catch (error) {
-        if (!shouldKeepInvoiceLock(error)) {
-          clearInvoiceSubmitLock(invoiceLock);
-        }
-        showStatus(error.message || "Ã˜Â­Ã˜Â¯Ã˜Â« Ã˜Â®Ã˜Â·Ã˜Â£ Ã˜Â£Ã˜Â«Ã™â€ Ã˜Â§Ã˜Â¡ Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ™ÂÃ˜Â§Ã˜ÂªÃ™Ë†Ã˜Â±Ã˜Â©.", "error");
-      } finally {
-        invoiceSubmitInProgress = false;
-        setLoadingState(false);
-      }
+      await submitPreparedInvoice(invoiceData, {
+        customerName,
+        customerPhone,
+        barber,
+        paymentMethod,
+        offerType,
+        total,
+        discountPercent,
+        discountAmount,
+        paidAmount,
+        tipAmount,
+        remainingAmount,
+        items: [...cart]
+      }, null);
     }
+
+    cancelNegativeInventoryBtn?.addEventListener("click", () => closeInventoryWarningModal());
+    inventoryWarningModal?.addEventListener("click", event => {
+      if (event.target === inventoryWarningModal) closeInventoryWarningModal();
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && inventoryWarningModal?.classList.contains("active")) {
+        closeInventoryWarningModal();
+      }
+    });
+    confirmNegativeInventoryBtn?.addEventListener("click", async () => {
+      if (inventoryWarningModal?.dataset.mode === "print") {
+        const printData = pendingPrintInvoice;
+        closeInventoryWarningModal(true);
+        if (printData) printInvoice(printData);
+        return;
+      }
+      const pending = pendingNegativeInventorySubmission;
+      if (!pending || invoiceSubmitInProgress) return;
+      confirmNegativeInventoryBtn.disabled = true;
+      cancelNegativeInventoryBtn.disabled = true;
+      inventoryWarningStatus.textContent = localizeText("جاري إتمام الفاتورة...", "Completing invoice...");
+      await submitPreparedInvoice(pending.invoiceData, pending.printData, pending.shouldPrint, true);
+    });
 
     paidAmountInput.addEventListener("input", updateRemaining);
     tipAmountInput.addEventListener("input", updateRemaining);
