@@ -18,6 +18,11 @@ const RomeoAuth = (() => {
     "view_staff_discount",
     "view_attendance",
     "view_bookings",
+    "create_bookings",
+    "manage_bookings",
+    "delete_bookings",
+    "view_ratings",
+    "manage_ratings",
     "manage_users"
   ];
 

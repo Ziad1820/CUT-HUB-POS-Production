@@ -36,7 +36,7 @@
     </div>
     <section class="panel">
       <h2>Bookings</h2>
-      <p>Ã˜Â§Ã™â€žÃ˜ÂµÃ™ÂÃ˜Â­Ã˜Â© Ã˜Â¬Ã˜Â§Ã™â€¡Ã˜Â²Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â¢Ã™â€ Ã˜Å’ Ã™Ë†Ã™â€ Ã™â€šÃ˜Â¯Ã˜Â± Ã™â€žÃ˜Â§Ã˜Â­Ã™â€šÃ™â€¹Ã˜Â§ Ã™â€ Ã˜Â¶Ã™Å Ã™Â Ã™ÂÃ™Å Ã™â€¡Ã˜Â§ Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â¬Ã™Ë†Ã˜Â²Ã˜Â§Ã˜Âª.</p>
+      <p>إدارة الحجوزات الداخلية وطلبات العملاء ومراجعة تقييماتهم.</p>
     </section>
 
     <main class="bookings-layout" aria-label="Bookings workspace">
@@ -60,16 +60,22 @@
             <input id="bookingDate" type="date" required>
           </label>
           <label>
-            <span data-i18n-ar="وقت الحجز" data-i18n-en="Booking Time">وقت الحجز</span>
-            <input id="bookingTime" type="time" required>
-          </label>
-          <label>
             <span data-i18n-ar="الموظف" data-i18n-en="Employee">الموظف</span>
             <select id="bookingEmployee" required></select>
           </label>
-          <label>
-            <span data-i18n-ar="الخدمة" data-i18n-en="Service">الخدمة</span>
-            <input id="bookingService" type="text" placeholder="مثال: شعر، دقن" data-i18n-placeholder-ar="مثال: شعر، دقن" data-i18n-placeholder-en="Example: Haircut, Beard" required>
+          <fieldset class="service-field full">
+            <legend data-i18n-ar="الخدمات" data-i18n-en="Services">الخدمات</legend>
+            <div id="internalServices" class="internal-services" aria-live="polite"><span class="inline-loader">جاري تحميل الخدمات...</span></div>
+            <small id="internalServiceSummary">اختر خدمة واحدة أو أكثر</small>
+          </fieldset>
+          <div id="otherServiceFields" class="other-service-fields full hidden">
+            <label><span data-i18n-ar="اسم الخدمة الأخرى" data-i18n-en="Other Service Name">اسم الخدمة الأخرى</span><input id="otherServiceName" type="text" maxlength="100"></label>
+            <label><span data-i18n-ar="المدة بالدقائق" data-i18n-en="Duration in Minutes">المدة بالدقائق</span><input id="otherServiceDuration" type="number" min="15" step="15"></label>
+          </div>
+          <label class="full">
+            <span data-i18n-ar="الموعد المتاح" data-i18n-en="Available Appointment">الموعد المتاح</span>
+            <select id="bookingTime" required disabled><option value="">اختر التاريخ والموظف والخدمات</option></select>
+            <small id="slotStatus" aria-live="polite"></small>
           </label>
           <label class="full">
             <span data-i18n-ar="ملاحظة" data-i18n-en="Note">ملاحظة</span>
@@ -118,6 +124,7 @@
               <option value="rejected" data-i18n-ar="مرفوض" data-i18n-en="Rejected">مرفوض</option>
               <option value="done" data-i18n-ar="تم الحضور" data-i18n-en="Completed">تم الحضور</option>
               <option value="cancelled" data-i18n-ar="ملغي" data-i18n-en="Cancelled">ملغي</option>
+              <option value="expired" data-i18n-ar="منتهي" data-i18n-en="Expired">منتهي</option>
             </select>
           </label>
           <label class="search-label">
@@ -126,7 +133,7 @@
           </label>
         </div>
 
-        <div class="booking-source-tabs" id="bookingSourceTabs" role="tablist" aria-label="مصدر الحجوزات">
+        <div class="booking-source-tabs" id="bookingSourceTabs" role="tablist" aria-label="أقسام الحجوزات">
           <button class="booking-source-tab active" type="button" role="tab" aria-selected="true" data-source="public">
             <span data-i18n-ar="طلبات العملاء من الموقع" data-i18n-en="Website Requests">طلبات العملاء من الموقع</span>
             <strong id="publicBookingsCount">0</strong>
@@ -135,9 +142,24 @@
             <span data-i18n-ar="الحجوزات الداخلية" data-i18n-en="Internal Bookings">الحجوزات الداخلية</span>
             <strong id="staffBookingsCount">0</strong>
           </button>
+          <button class="booking-source-tab ratings-tab" type="button" role="tab" aria-selected="false" data-source="ratings">
+            <span data-i18n-ar="التقييمات" data-i18n-en="Ratings">التقييمات</span>
+            <strong id="ratingsCount">0</strong>
+          </button>
         </div>
 
         <div class="bookings-list" id="bookingsList"></div>
+        <section id="ratingsDashboard" class="ratings-dashboard hidden" aria-live="polite">
+          <div class="ratings-summary" id="ratingsSummary"></div>
+          <div class="ratings-filters">
+            <select id="ratingEmployeeFilter" aria-label="فلترة حسب المصفف"><option value="">كل المصففين</option></select>
+            <select id="ratingStatusFilter" aria-label="فلترة حسب الحالة"><option value="">كل الحالات</option><option value="published">منشور</option><option value="hidden">مخفي</option><option value="flagged">مُعلّم للمراجعة</option></select>
+            <input id="ratingFromDate" type="date" aria-label="من تاريخ">
+            <input id="ratingToDate" type="date" aria-label="إلى تاريخ">
+          </div>
+          <div id="barberRatingSummaries" class="barber-rating-summaries"></div>
+          <div id="ratingsList" class="ratings-list"></div>
+        </section>
       </section>
     </main>
   </div>
@@ -160,6 +182,15 @@
     <button class="sidebar-link active" type="button">Bookings</button>
     <button type="button" id="logoutBtn">Logout</button>
   </aside>
+
+  <div id="bookingToast" class="booking-toast" role="status" aria-live="polite"></div>
+  <div id="bookingModal" class="booking-modal-backdrop hidden" role="presentation">
+    <div class="booking-modal" role="dialog" aria-modal="true" aria-labelledby="bookingModalTitle">
+      <h2 id="bookingModalTitle"></h2>
+      <div id="bookingModalBody"></div>
+      <div id="bookingModalActions" class="modal-actions"></div>
+    </div>
+  </div>
 
   <script src="../assets/js/utils/text-fix.js"></script>
   <script src="../assets/js/core/api.js"></script>

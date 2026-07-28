@@ -1,331 +1,553 @@
 (() => {
   "use strict";
 
+  const $ = (id) => document.getElementById(id);
   const elements = {
-    bookingWorkspace: document.getElementById("bookingWorkspace"),
-    trackingWorkspace: document.getElementById("trackingWorkspace"),
-    trackingContent: document.getElementById("trackingContent"),
-    openTracking: document.getElementById("openTrackingBtn"),
-    newBooking: document.getElementById("newBookingBtn"),
-    services: document.getElementById("publicServices"),
-    serviceSummary: document.getElementById("serviceSelectionSummary"),
-    date: document.getElementById("publicDate"),
-    barberGrid: document.getElementById("barberGrid"),
-    customerPanel: document.getElementById("customerPanel"),
-    summary: document.getElementById("bookingSummary"),
-    form: document.getElementById("publicBookingForm"),
-    name: document.getElementById("publicCustomerName"),
-    phone: document.getElementById("publicCustomerPhone"),
-    note: document.getElementById("publicNote"),
-    submit: document.getElementById("submitPublicBooking")
+    bookingWorkspace: $("bookingWorkspace"), trackingWorkspace: $("trackingWorkspace"),
+    services: $("publicServices"), serviceSummary: $("serviceSelectionSummary"),
+    date: $("publicDate"), barberGrid: $("barberGrid"), anyBarber: $("anyBarberBtn"),
+    customerPanel: $("customerPanel"), summary: $("bookingSummary"), form: $("publicBookingForm"),
+    customerName: $("publicCustomerName"), customerPhone: $("publicCustomerPhone"), note: $("publicNote"),
+    submit: $("submitPublicBooking"), trackingContent: $("trackingContent"),
+    openTracking: $("openTrackingBtn"), newBooking: $("newBookingBtn"),
+    toast: $("toastRegion"), live: $("liveStatus"), steps: $("stepIndicator"),
+    modal: $("publicModal"), modalTitle: $("publicModalTitle"), modalBody: $("publicModalBody"),
+    modalActions: $("publicModalActions"), language: $("languageToggle")
   };
 
   const state = {
-    services: [],
-    selectedServiceIds: new Set(),
-    barbers: [],
-    employeeId: "",
-    employeeName: "",
-    time: "",
-    loading: false,
-    reloadPending: false
+    services: [], selectedServiceIds: new Set(), barbers: [],
+    employeeId: "", employeeName: "", time: "", loading: false,
+    trackingToken: "", phoneLast4: "", language: "ar", lastFocus: null,
+    pendingCreateRequest: null
   };
+
+  const copy = {
+    ar: {
+      loadingServices: "جاري تحميل الخدمات...", noServices: "لا توجد خدمات متاحة حاليًا.",
+      chooseServices: "اختر خدمة واحدة أو أكثر", selected: "خدمة محددة",
+      loadingSlots: "جاري تحميل المواعيد...", noSlots: "لا توجد مواعيد متاحة للمدة المختارة.",
+      available: "متاح", unavailable: "غير متاح", notStarted: "لم يبدأ الدوام",
+      newBarber: "مصفف جديد", ratings: "تقييم", earliest: "أقرب موعد", recommended: "موصى به",
+      requiredSelection: "اختر الخدمات والمصفف والموعد أولًا.",
+      invalidPhone: "أدخل رقم موبايل مصري صحيحًا يبدأ بـ 010 أو 011 أو 012 أو 015.",
+      sending: "جاري إرسال الطلب...", sent: "تم إرسال طلب الحجز بنجاح.",
+      slotGone: "هذا الموعد لم يعد متاحًا. احتفظنا ببياناتك؛ اختر موعدًا آخر.",
+      error: "تعذر تنفيذ الطلب. حاول مرة أخرى.", verifyTitle: "التحقق من الحجز",
+      verifyHelp: "أدخل كود المتابعة وآخر أربعة أرقام من رقم الهاتف.",
+      open: "فتح الحجز", cancel: "إلغاء", expired: "انتهت مهلة الاحتفاظ بطلب الحجز.",
+      expiredAgain: "يمكنك إرسال طلب حجز جديد.", newBooking: "ابدأ حجزًا جديدًا",
+      requestPending: "هذا طلب حجز ويحتاج إلى تأكيد من الصالون.",
+      thankYou: "شكرًا لمشاركتنا رأيك.", ratingQuestion: "كيف كانت تجربتك مع",
+      submitRating: "إرسال التقييم", optionalComment: "تعليق اختياري", copyDone: "تم النسخ.",
+      statuses: { pending: "بانتظار التأكيد", proposed: "موعد بديل مقترح", confirmed: "تم تأكيد الحجز", rejected: "تم رفض الطلب", done: "اكتمل الحجز", cancelled: "تم إلغاء الحجز", expired: "انتهت مهلة الطلب" }
+    },
+    en: {
+      loadingServices: "Loading services...", noServices: "No services are currently available.",
+      chooseServices: "Choose one or more services", selected: "selected services",
+      loadingSlots: "Loading appointments...", noSlots: "No available appointments for the selected duration.",
+      available: "Available", unavailable: "Unavailable", notStarted: "Shift not started",
+      newBarber: "New Barber", ratings: "ratings", earliest: "Earliest appointment", recommended: "Recommended",
+      requiredSelection: "Choose services, a barber, and an appointment first.",
+      invalidPhone: "Enter a valid Egyptian mobile number starting with 010, 011, 012, or 015.",
+      sending: "Sending booking request...", sent: "Booking request sent successfully.",
+      slotGone: "That appointment is no longer available. Your details were kept; choose another time.",
+      error: "The request could not be completed. Please try again.", verifyTitle: "Verify booking",
+      verifyHelp: "Enter the tracking code and the last four phone digits.",
+      open: "Open booking", cancel: "Cancel", expired: "The booking request hold has expired.",
+      expiredAgain: "You can submit a new booking request.", newBooking: "Start a new booking",
+      requestPending: "This is a booking request and requires confirmation from the salon.",
+      thankYou: "Thank you for your feedback.", ratingQuestion: "How was your experience with",
+      submitRating: "Submit rating", optionalComment: "Optional comment", copyDone: "Copied.",
+      statuses: { pending: "Pending confirmation", proposed: "New appointment proposed", confirmed: "Booking confirmed", rejected: "Request rejected", done: "Booking completed", cancelled: "Booking cancelled", expired: "Request hold expired" }
+    }
+  };
+
+  const tr = (key) => copy[state.language][key] || key;
+  const newClientRequestId = () => globalThis.crypto?.randomUUID
+    ? `public-${globalThis.crypto.randomUUID()}`
+    : `public-${Date.now()}-${Math.random().toString(36).slice(2, 14)}`;
+  const attachClientRequestId = (payload) => {
+    const fingerprint = JSON.stringify(payload);
+    if (!state.pendingCreateRequest || state.pendingCreateRequest.fingerprint !== fingerprint) {
+      state.pendingCreateRequest = { fingerprint, id: newClientRequestId() };
+    }
+    return { ...payload, clientRequestId: state.pendingCreateRequest.id };
+  };
+  function applyLanguage() {
+    document.documentElement.lang = state.language;
+    document.documentElement.dir = state.language === "ar" ? "rtl" : "ltr";
+    elements.language.textContent = state.language === "ar" ? "English" : "العربية";
+    document.querySelectorAll("[data-ui-ar][data-ui-en]").forEach((node) => {
+      node.textContent = node.dataset[state.language === "ar" ? "uiAr" : "uiEn"];
+    });
+    elements.note.placeholder = state.language === "ar" ? "أي تفاصيل مهمة للحجز" : "Any important booking details";
+    elements.customerPhone.placeholder = state.language === "ar" ? "010xxxxxxxx أو +2010xxxxxxxx" : "010xxxxxxxx or +2010xxxxxxxx";
+  }
+  const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[char]);
+  const todayKey = () => {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+    const part = (type) => parts.find((item) => item.type === type)?.value;
+    return `${part("year")}-${part("month")}-${part("day")}`;
+  };
+  const formatDate = (value) => value ? new Intl.DateTimeFormat(state.language === "ar" ? "ar-EG" : "en-GB", {
+    timeZone: "Africa/Cairo", weekday: "short", year: "numeric", month: "short", day: "numeric"
+  }).format(new Date(`${value}T12:00:00`)) : "";
+  const formatTime = (value) => {
+    if (!value) return "";
+    const [hours, minutes] = value.split(":").map(Number);
+    return new Intl.DateTimeFormat(state.language === "ar" ? "ar-EG" : "en-US", { hour: "numeric", minute: "2-digit" })
+      .format(new Date(2020, 0, 1, hours, minutes));
+  };
+  const money = (value) => new Intl.NumberFormat(state.language === "ar" ? "ar-EG" : "en-EG", {
+    style: "currency", currency: "EGP", maximumFractionDigits: 0
+  }).format(Number(value) || 0);
 
   async function publicRequest(payload) {
     const response = await fetch(RomeoApi.API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify(payload)
     });
-    if (!response.ok) throw new Error("تعذر الاتصال بنظام الحجز.");
-    const result = await response.json();
-    if (result?.status === "error") {
-      const error = new Error(result.message || "تعذر تنفيذ طلب الحجز.");
-      error.code = result.code || "";
-      throw error;
-    }
-    return result;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
   }
 
-  function todayKey() {
-    const date = new Date();
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  function notify(message, kind = "info") {
+    elements.toast.textContent = message;
+    elements.toast.dataset.kind = kind;
+    elements.toast.classList.add("visible");
+    elements.live.textContent = message;
+    clearTimeout(notify.timer);
+    notify.timer = setTimeout(() => elements.toast.classList.remove("visible"), 4200);
   }
 
-  function escapeHtml(value) {
-    return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  function setStep(step) {
+    elements.steps.querySelectorAll("[data-step]").forEach((item) => {
+      const number = Number(item.dataset.step);
+      item.classList.toggle("active", number === step);
+      item.classList.toggle("complete", number < step);
+    });
+  }
+
+  function showModal({ title, body, confirmText = tr("open"), cancelText = tr("cancel"), onConfirm, onOpen }) {
+    state.lastFocus = document.activeElement;
+    elements.modalTitle.textContent = title;
+    elements.modalBody.innerHTML = body;
+    elements.modalActions.innerHTML = `
+      <button class="secondary-action" type="button" data-modal-cancel>${escapeHtml(cancelText)}</button>
+      <button class="primary-action" type="button" data-modal-confirm>${escapeHtml(confirmText)}</button>`;
+    elements.modal.classList.remove("hidden");
+    document.body.classList.add("modal-open");
+    const close = () => {
+      elements.modal.classList.add("hidden");
+      document.body.classList.remove("modal-open");
+      state.lastFocus?.focus();
+    };
+    elements.modal.querySelector("[data-modal-cancel]").onclick = close;
+    elements.modal.querySelector("[data-modal-confirm]").onclick = async () => {
+      const shouldClose = await onConfirm?.(elements.modalBody);
+      if (shouldClose !== false) close();
+    };
+    elements.modal.onclick = (event) => { if (event.target === elements.modal) close(); };
+    requestAnimationFrame(() => {
+      const first = elements.modalBody.querySelector("input, textarea, button") || elements.modal.querySelector("button");
+      first?.focus();
+      onOpen?.(elements.modalBody);
+    });
   }
 
   function selectedServices() {
-    return state.services.filter((service) => state.selectedServiceIds.has(service.serviceId));
+    return state.services.filter((service) => state.selectedServiceIds.has(String(service.serviceId)));
   }
-
+  function selectedDuration() {
+    return selectedServices().reduce((sum, service) => sum + (Number(service.durationMinutes) || 30), 0);
+  }
+  function selectedPrice() {
+    return selectedServices().reduce((sum, service) => sum + (Number(service.price) || 0), 0);
+  }
   function isStandaloneService(service) {
     const name = String(service?.name || "").toLowerCase();
-    const separators = (name.match(/[-–—]/g) || []).length;
-    return name
-      && !/[+＋]/.test(name)
-      && !/باك(?:ي)?دج|package|pack|vip/i.test(name)
-      && separators < 2;
+    return !/[+＋]/.test(name) && !/package|pack|vip|باكدج|بكدج/i.test(name);
   }
 
-  function selectedDuration() {
-    return selectedServices().reduce((total, service) => total + (Number(service.durationMinutes) || 30), 0);
-  }
-
-  function renderServicePicker() {
+  function renderServices() {
+    elements.services.setAttribute("aria-busy", "false");
     elements.services.innerHTML = state.services.map((service) => `
       <label class="service-choice">
-        <input type="checkbox" data-service-id="${escapeHtml(service.serviceId)}" ${state.selectedServiceIds.has(service.serviceId) ? "checked" : ""}>
+        <input type="checkbox" data-service-id="${escapeHtml(service.serviceId)}" ${state.selectedServiceIds.has(String(service.serviceId)) ? "checked" : ""}>
         <span class="service-choice-text">
           <span class="service-choice-name">${escapeHtml(service.name)}</span>
-          <span class="service-choice-duration">${Number(service.durationMinutes) || 30} دقيقة</span>
+          <span class="service-choice-duration">${Number(service.durationMinutes) || 30} ${state.language === "ar" ? "دقيقة" : "min"} · ${escapeHtml(money(service.price))}</span>
         </span>
-      </label>`).join("") || '<div class="service-picker-loading">لا توجد خدمات متاحة للحجز حاليًا.</div>';
+      </label>`).join("") || `<div class="service-picker-loading">${tr("noServices")}</div>`;
     const count = selectedServices().length;
     elements.serviceSummary.textContent = count
-      ? `${count} خدمة محددة - المدة الإجمالية ${selectedDuration()} دقيقة`
-      : "اختر خدمة واحدة أو أكثر";
+      ? `${count} ${tr("selected")} · ${selectedDuration()} ${state.language === "ar" ? "دقيقة" : "min"} · ${money(selectedPrice())}`
+      : tr("chooseServices");
   }
 
-  function formatDate(value) {
-    const parts = String(value || "").split("-");
-    return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : value;
+  function slotSortValue(time) {
+    const [hour, minute] = String(time).split(":").map(Number);
+    return ((hour < 6 ? hour + 24 : hour) * 60) + minute;
   }
 
-  function formatTime12(value) {
-    const match = String(value || "").trim().match(/^(\d{1,2}):(\d{2})$/);
-    if (!match) return value || "-";
-    const hours = Number(match[1]) % 24;
-    const period = hours >= 12 ? "PM" : "AM";
-    return `${hours % 12 || 12}:${match[2]} ${period}`;
-  }
-
-  function statusText(status) {
-    return ({
-      pending: "طلبك بانتظار التأكيد",
-      confirmed: "تم تأكيد الحجز",
-      proposed: "CUT HUB اقترح عليك موعدًا بديلًا",
-      rejected: "تعذر تأكيد الحجز",
-      cancelled: "تم إلغاء الحجز",
-      done: "تم تنفيذ الحجز",
-      expired: "انتهت صلاحية الطلب"
-    })[status] || "جاري مراجعة الطلب";
-  }
-
-  async function loadOptions() {
-    if (state.loading) {
-      state.reloadPending = true;
-      return;
-    }
-    state.loading = true;
-    state.employeeId = "";
-    state.employeeName = "";
-    state.time = "";
-    elements.customerPanel.classList.add("hidden");
-    elements.barberGrid.innerHTML = '<div class="empty-public-state">جاري تحميل المواعيد المتاحة...</div>';
-    try {
-      const requestedServiceIds = Array.from(state.selectedServiceIds);
-      const response = await publicRequest({ action: "getPublicBookingOptions", date: elements.date.value, serviceIds: requestedServiceIds });
-      if (response?.status !== "success") throw new Error(response?.message || "تعذر تحميل المواعيد.");
-      state.services = Array.isArray(response.services) ? response.services.filter(isStandaloneService) : [];
-      state.barbers = Array.isArray(response.barbers) ? response.barbers : [];
-      const availableIds = new Set(state.services.map((service) => service.serviceId));
-      state.selectedServiceIds = new Set(Array.from(state.selectedServiceIds).filter((id) => availableIds.has(id)));
-      if (!state.selectedServiceIds.size && state.services[0]) state.selectedServiceIds.add(state.services[0].serviceId);
-      renderServicePicker();
-      renderBarbers();
-    } catch (error) {
-      elements.barberGrid.innerHTML = `<div class="empty-public-state">${escapeHtml(error.message || "تعذر تحميل المواعيد.")}</div>`;
-    } finally {
-      state.loading = false;
-      if (state.reloadPending) {
-        state.reloadPending = false;
-        loadOptions();
-      }
-    }
+  function earliestSlot() {
+    return state.barbers.flatMap((barber) => (barber.slots || []).map((time) => ({ barber, time })))
+      .sort((a, b) => slotSortValue(a.time) - slotSortValue(b.time))[0] || null;
   }
 
   function renderBarbers() {
-    if (!state.barbers.length) {
-      elements.barberGrid.innerHTML = '<div class="empty-public-state">لا توجد مواعيد متاحة في التاريخ المحدد.</div>';
+    const earliest = earliestSlot();
+    if (!state.barbers.length || !earliest) {
+      elements.barberGrid.innerHTML = `<div class="empty-public-state">${tr("noSlots")}</div>`;
       return;
     }
-    const labels = { available: "متاح للحجز", unavailable: "غير متاح", not_started: "لم يبدأ الشيفت" };
-    elements.barberGrid.innerHTML = state.barbers.map((barber) => `
-      <article class="barber-card ${state.employeeId === barber.staffId ? "selected" : ""}" data-barber-id="${escapeHtml(barber.staffId)}">
-        <div class="barber-head">
-          <div><h3 class="barber-name">${escapeHtml(barber.name)}</h3><div class="barber-shift">الشيفت: ${escapeHtml(formatTime12(barber.shiftStart))} - ${escapeHtml(formatTime12(barber.shiftEnd))}</div></div>
-          <span class="availability-badge ${escapeHtml(barber.availability)}">${labels[barber.availability] || labels.unavailable}</span>
+    elements.barberGrid.innerHTML = state.barbers.map((barber) => {
+      const rating = Number(barber.ratingsCount) >= 5
+        ? `<span class="barber-rating" aria-label="${barber.averageRating} out of 5">★ ${Number(barber.averageRating).toFixed(1)} · ${barber.ratingsCount} ${tr("ratings")}</span>`
+        : `<span class="barber-rating new">${tr("newBarber")}</span>`;
+      const slots = (barber.slots || []).map((time) => {
+        const recommended = earliest.barber.staffId === barber.staffId && earliest.time === time;
+        return `<button class="slot-btn ${state.employeeId === barber.staffId && state.time === time ? "selected" : ""} ${recommended ? "recommended" : ""}"
+          type="button" data-staff-id="${escapeHtml(barber.staffId)}" data-time="${escapeHtml(time)}"
+          aria-label="${escapeHtml(formatTime(time))}${recommended ? `, ${tr("earliest")}` : ""}">
+          ${escapeHtml(formatTime(time))}${recommended ? `<small>${tr("earliest")}</small>` : ""}
+        </button>`;
+      }).join("");
+      return `<article class="barber-card ${state.employeeId === barber.staffId ? "selected" : ""}">
+        <div class="barber-head"><div><h3 class="barber-name">${escapeHtml(barber.name)}</h3>${rating}</div>
+          <span class="availability-badge ${escapeHtml(barber.availability)}">${barber.slots?.length ? tr("available") : tr(barber.availability === "not_started" ? "notStarted" : "unavailable")}</span>
         </div>
-        <div class="slots">${(barber.slots || []).map((time) => `<button class="slot-btn ${state.employeeId === barber.staffId && state.time === time ? "selected" : ""}" type="button" data-time="${escapeHtml(time)}">${escapeHtml(formatTime12(time))}</button>`).join("") || '<span class="barber-shift">لا توجد مواعيد فارغة</span>'}</div>
-      </article>`).join("");
+        <div class="slots">${slots || `<span class="barber-shift">${tr("noSlots")}</span>`}</div>
+      </article>`;
+    }).join("");
   }
 
-  function selectSlot(employeeId, time) {
-    const barber = state.barbers.find((item) => item.staffId === employeeId);
+  function selectSlot(staffId, time) {
+    const barber = state.barbers.find((item) => String(item.staffId) === String(staffId));
     if (!barber || !(barber.slots || []).includes(time)) return;
-    state.employeeId = employeeId;
+    state.employeeId = barber.staffId;
     state.employeeName = barber.name;
     state.time = time;
-    const serviceNames = selectedServices().map((service) => service.name).join("، ");
-    elements.summary.textContent = `${serviceNames || "الخدمات"} مع ${barber.name} يوم ${formatDate(elements.date.value)} الساعة ${formatTime12(time)} - المدة ${selectedDuration()} دقيقة`;
     elements.customerPanel.classList.remove("hidden");
+    elements.summary.innerHTML = `
+      <dl class="summary-grid">
+        <div><dt>${state.language === "ar" ? "الخدمات" : "Services"}</dt><dd>${escapeHtml(selectedServices().map((service) => service.name).join("، "))}</dd></div>
+        <div><dt>${state.language === "ar" ? "المصفف" : "Barber"}</dt><dd>${escapeHtml(barber.name)}</dd></div>
+        <div><dt>${state.language === "ar" ? "التاريخ والوقت" : "Date & time"}</dt><dd>${escapeHtml(formatDate(elements.date.value))} · ${escapeHtml(formatTime(time))}</dd></div>
+        <div><dt>${state.language === "ar" ? "الإجمالي" : "Total"}</dt><dd>${selectedDuration()} ${state.language === "ar" ? "دقيقة" : "min"} · ${escapeHtml(money(selectedPrice()))}</dd></div>
+      </dl>`;
+    setStep(3);
     renderBarbers();
     elements.customerPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function loadOptions({ initial = false } = {}) {
+    if (state.loading) return;
+    state.loading = true;
+    elements.barberGrid.setAttribute("aria-busy", "true");
+    elements.barberGrid.innerHTML = `<div class="loading-state"><span class="spinner"></span>${tr("loadingSlots")}</div>`;
+    try {
+      const requested = [...state.selectedServiceIds];
+      const result = await publicRequest({ action: "getPublicBookingOptions", date: elements.date.value, serviceIds: requested });
+      if (result?.status !== "success") throw new Error(result?.message || tr("error"));
+      state.services = (Array.isArray(result.services) ? result.services : []).filter(isStandaloneService);
+      const valid = new Set(state.services.map((service) => String(service.serviceId)));
+      state.selectedServiceIds = new Set([...state.selectedServiceIds].filter((id) => valid.has(id)));
+      if (initial && !state.selectedServiceIds.size && state.services[0]) state.selectedServiceIds.add(String(state.services[0].serviceId));
+      state.barbers = Array.isArray(result.barbers) ? result.barbers : [];
+      if (!state.barbers.some((barber) => barber.staffId === state.employeeId && barber.slots?.includes(state.time))) {
+        state.employeeId = ""; state.employeeName = ""; state.time = "";
+        elements.customerPanel.classList.add("hidden");
+      }
+      renderServices();
+      renderBarbers();
+      setStep(state.selectedServiceIds.size ? 2 : 1);
+    } catch (error) {
+      elements.barberGrid.innerHTML = `<div class="empty-public-state">${escapeHtml(error.message || tr("error"))}</div>`;
+      notify(error.message || tr("error"), "error");
+    } finally {
+      state.loading = false;
+      elements.barberGrid.setAttribute("aria-busy", "false");
+    }
+  }
+
+  function normalizedEgyptianPhone(value) {
+    let digits = String(value || "").replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit))).replace(/\D/g, "");
+    if (digits.startsWith("0020")) digits = digits.slice(4);
+    else if (digits.startsWith("20") && digits.length === 12) digits = digits.slice(2);
+    if (digits.length === 10 && digits.startsWith("1")) digits = `0${digits}`;
+    return digits;
+  }
+
+  function phoneLast4Key(token) {
+    return `cut-hub-booking-phone-last4:${String(token || "").toUpperCase()}`;
   }
 
   async function submitBooking(event) {
     event.preventDefault();
     const services = selectedServices();
-    if (!services.length || !state.employeeId || !state.time) return alert("اختار الخدمات والمصفف والميعاد الأول.");
+    if (!services.length || !state.employeeId || !state.time) return notify(tr("requiredSelection"), "error");
+    const phone = normalizedEgyptianPhone(elements.customerPhone.value);
+    if (!/^01(?:0|1|2|5)\d{8}$/.test(phone)) return notify(tr("invalidPhone"), "error");
     elements.submit.disabled = true;
-    elements.submit.textContent = "جاري إرسال الطلب...";
+    elements.submit.classList.add("loading");
+    elements.submit.textContent = tr("sending");
     try {
-      const response = await publicRequest({
+      const result = await publicRequest(attachClientRequestId({
         action: "createPublicBookingRequest",
-        serviceId: services[0].serviceId,
-        serviceIds: services.map((service) => service.serviceId),
-        employeeId: state.employeeId,
-        date: elements.date.value,
-        time: state.time,
-        customerName: elements.name.value.trim(),
-        customerPhone: elements.phone.value.trim(),
-        note: elements.note.value.trim()
-      });
-      if (response?.status !== "success") throw new Error(response?.message || "تعذر إرسال الطلب.");
-      const url = new URL(window.location.href);
-      url.search = "";
-      url.searchParams.set("tracking", response.trackingToken);
-      history.replaceState({}, "", url.href);
-      showTracking(response.trackingToken);
+        serviceId: services[0].serviceId, serviceIds: services.map((service) => service.serviceId),
+        employeeId: state.employeeId, employee: state.employeeName, date: elements.date.value, time: state.time,
+        customerName: elements.customerName.value.trim(), customerPhone: phone, note: elements.note.value.trim()
+      }));
+      if (result?.status !== "success") {
+        if (result?.code === "SLOT_UNAVAILABLE") {
+          state.employeeId = ""; state.employeeName = ""; state.time = "";
+          elements.customerPanel.classList.add("hidden");
+          await loadOptions();
+          setStep(2);
+          notify(tr("slotGone"), "error");
+          return;
+        }
+        throw new Error(result?.message || tr("error"));
+      }
+      state.pendingCreateRequest = null;
+      state.trackingToken = result.trackingToken;
+      state.phoneLast4 = phone.slice(-4);
+      sessionStorage.setItem(phoneLast4Key(state.trackingToken), state.phoneLast4);
+      notify(tr("sent"), "success");
+      showSuccess(result.trackingToken);
     } catch (error) {
-      alert(error.message || "تعذر إرسال الطلب.");
-      if (error.code === "SLOT_UNAVAILABLE") await loadOptions();
+      notify(error.message || tr("error"), "error");
     } finally {
       elements.submit.disabled = false;
-      elements.submit.textContent = "إرسال طلب الحجز";
+      elements.submit.classList.remove("loading");
+      elements.submit.textContent = state.language === "ar" ? "إرسال طلب الحجز" : "Submit booking request";
     }
   }
 
-  async function showTracking(token) {
-    if (!token) {
-      const entered = prompt("اكتب كود متابعة الحجز:");
-      if (!entered) return;
-      token = entered.trim().toUpperCase();
+  function showSuccess(token) {
+    setStep(4);
+    elements.bookingWorkspace.classList.add("hidden");
+    elements.trackingWorkspace.classList.remove("hidden");
+    elements.trackingContent.className = "tracking-card success-card";
+    elements.trackingContent.innerHTML = `
+      <div class="success-mark" aria-hidden="true">✓</div>
+      <h2>${escapeHtml(tr("sent"))}</h2>
+      <p>${escapeHtml(tr("requestPending"))}</p>
+      <div class="tracking-code-card"><span>${state.language === "ar" ? "كود المتابعة" : "Tracking code"}</span>
+        <strong>${escapeHtml(token)}</strong><button class="secondary-action" type="button" data-copy-token>${state.language === "ar" ? "نسخ" : "Copy"}</button>
+      </div>
+      <div class="form-actions">
+        <button class="primary-action" type="button" data-open-status>${state.language === "ar" ? "فتح صفحة المتابعة" : "Open tracking page"}</button>
+        <button class="secondary-action" type="button" data-start-new>${tr("newBooking")}</button>
+      </div>`;
+    elements.trackingContent.querySelector("[data-copy-token]").onclick = () => copyText(token);
+    elements.trackingContent.querySelector("[data-open-status]").onclick = () => {
+      const url = new URL(location.href); url.search = ""; url.searchParams.set("tracking", token);
+      history.replaceState({}, "", url); showTracking(token, state.phoneLast4);
+    };
+    elements.trackingContent.querySelector("[data-start-new]").onclick = resetBooking;
+  }
+
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(String(text));
+      notify(tr("copyDone"), "success");
+    } catch (_) {
+      notify(String(text));
     }
+  }
+
+  function requestTrackingVerification(token = "") {
+    showModal({
+      title: tr("verifyTitle"),
+      body: `<p>${tr("verifyHelp")}</p>
+        <label class="field"><span>${state.language === "ar" ? "كود المتابعة" : "Tracking code"}</span><input id="trackingTokenInput" autocomplete="off" value="${escapeHtml(token)}"></label>
+        <label class="field"><span>${state.language === "ar" ? "آخر 4 أرقام من الهاتف" : "Last 4 phone digits"}</span><input id="phoneLast4Input" inputmode="numeric" maxlength="4" pattern="\\d{4}" autocomplete="off"></label>`,
+      onConfirm: async (body) => {
+        const enteredToken = body.querySelector("#trackingTokenInput").value.trim().toUpperCase();
+        const last4 = body.querySelector("#phoneLast4Input").value.replace(/\D/g, "");
+        if (!enteredToken || last4.length !== 4) {
+          notify(tr("verifyHelp"), "error"); return false;
+        }
+        sessionStorage.setItem(phoneLast4Key(enteredToken), last4);
+        const url = new URL(location.href); url.search = ""; url.searchParams.set("tracking", enteredToken);
+        history.replaceState({}, "", url);
+        await showTracking(enteredToken, last4);
+        return true;
+      }
+    });
+  }
+
+  async function showTracking(token, phoneLast4) {
+    state.trackingToken = String(token || "").trim().toUpperCase();
+    state.phoneLast4 = phoneLast4 || sessionStorage.getItem(phoneLast4Key(state.trackingToken)) || "";
+    if (state.phoneLast4.length !== 4) return requestTrackingVerification(state.trackingToken);
     elements.bookingWorkspace.classList.add("hidden");
     elements.trackingWorkspace.classList.remove("hidden");
     elements.trackingContent.className = "state-message";
-    elements.trackingContent.textContent = "جاري تحميل حالة الحجز...";
+    elements.trackingContent.textContent = state.language === "ar" ? "جاري تحميل حالة الحجز..." : "Loading booking status...";
     try {
-      const response = await publicRequest({ action: "getPublicBookingStatus", trackingToken: token });
-      if (response?.status !== "success") throw new Error(response?.message || "تعذر تحميل الحجز.");
-      renderTracking(response.booking, token);
+      const result = await publicRequest({ action: "getPublicBookingStatus", trackingToken: state.trackingToken, phoneLast4: state.phoneLast4 });
+      if (result?.status !== "success") {
+        if (result?.code === "TRACKING_VERIFICATION_FAILED") sessionStorage.removeItem(phoneLast4Key(state.trackingToken));
+        throw new Error(result?.message || tr("error"));
+      }
+      renderTracking(result.booking);
+      if (result.booking.status === "done") await renderRating(result.booking);
     } catch (error) {
-      elements.trackingContent.className = "state-message";
-      elements.trackingContent.textContent = error.message || "تعذر تحميل الحجز.";
+      elements.trackingContent.className = "state-message error-state";
+      elements.trackingContent.innerHTML = `${escapeHtml(error.message || tr("error"))}<div class="form-actions"><button class="secondary-action" type="button" data-retry-verification>${tr("verifyTitle")}</button></div>`;
+      elements.trackingContent.querySelector("[data-retry-verification]").onclick = () => requestTrackingVerification(state.trackingToken);
     }
   }
 
-  function renderTracking(booking, token) {
+  function renderTracking(booking) {
+    const expired = booking.status === "expired";
     const proposal = booking.status === "proposed" ? `
-      <div class="booking-summary">الموعد المقترح: ${formatDate(booking.proposedDate)} الساعة ${escapeHtml(formatTime12(booking.proposedTime))}</div>
-      <div class="proposal-actions">
-        <button class="primary-action" type="button" data-proposal="accept">موافق على الموعد</button>
-        <button class="primary-action danger-action" type="button" data-proposal="decline">غير مناسب</button>
+      <div class="proposal-card"><strong>${state.language === "ar" ? "الموعد المقترح" : "Proposed appointment"}</strong>
+        <p>${escapeHtml(formatDate(booking.proposedDate))} · ${escapeHtml(formatTime(booking.proposedTime))}</p>
+        <div class="proposal-actions"><button class="primary-action" type="button" data-proposal="accept">${state.language === "ar" ? "موافق" : "Accept"}</button>
+        <button class="danger-action primary-action" type="button" data-proposal="decline">${state.language === "ar" ? "غير مناسب" : "Decline"}</button></div>
       </div>` : "";
     elements.trackingContent.className = "tracking-card";
     elements.trackingContent.innerHTML = `
-      <div class="tracking-status">${escapeHtml(statusText(booking.status))}</div>
-      <div class="tracking-code-card">
-        <span>كود متابعة الحجز</span>
-        <strong dir="ltr">${escapeHtml(token)}</strong>
-        <button class="secondary-action" type="button" data-copy-tracking>نسخ الكود</button>
-        <small>احتفظ بالكود لمتابعة حالة طلبك في أي وقت.</small>
-      </div>
+      <div class="tracking-status status-${escapeHtml(booking.status)}">${escapeHtml(copy[state.language].statuses[booking.status] || booking.status)}</div>
+      ${expired ? `<div class="expired-message"><strong>${tr("expired")}</strong><span>${tr("expiredAgain")}</span><button class="primary-action" type="button" data-start-new>${tr("newBooking")}</button></div>` : ""}
+      <div class="tracking-code-card"><span>${state.language === "ar" ? "كود المتابعة" : "Tracking code"}</span><strong>${escapeHtml(state.trackingToken)}</strong><button class="secondary-action" type="button" data-copy-token>${state.language === "ar" ? "نسخ" : "Copy"}</button></div>
       <div class="tracking-details">
-        <div><span>الخدمة</span><strong>${escapeHtml(booking.service)}</strong></div>
-        <div><span>الحلاق</span><strong>${escapeHtml(booking.employee)}</strong></div>
-        <div><span>التاريخ</span><strong>${formatDate(booking.date)}</strong></div>
-        <div><span>الوقت</span><strong>${escapeHtml(formatTime12(booking.time))}</strong></div>
+        <div><span>${state.language === "ar" ? "الخدمة" : "Service"}</span><strong>${escapeHtml(booking.service)}</strong></div>
+        <div><span>${state.language === "ar" ? "المصفف" : "Barber"}</span><strong>${escapeHtml(booking.employee)}</strong></div>
+        <div><span>${state.language === "ar" ? "التاريخ" : "Date"}</span><strong>${escapeHtml(formatDate(booking.date))}</strong></div>
+        <div><span>${state.language === "ar" ? "الوقت والمدة" : "Time & duration"}</span><strong>${escapeHtml(formatTime(booking.time))} · ${Number(booking.durationMinutes) || 30} ${state.language === "ar" ? "دقيقة" : "min"}</strong></div>
       </div>
       ${booking.rejectionReason ? `<div class="booking-summary">${escapeHtml(booking.rejectionReason)}</div>` : ""}
       ${proposal}
-      <div class="form-actions"><button class="secondary-action" type="button" data-refresh-status>تحديث الحالة</button></div>`;
-    elements.trackingContent.querySelector("[data-copy-tracking]")?.addEventListener("click", (event) => copyTrackingToken(token, event.currentTarget));
-    elements.trackingContent.querySelector("[data-refresh-status]")?.addEventListener("click", () => showTracking(token));
-    elements.trackingContent.querySelectorAll("[data-proposal]").forEach((button) => button.addEventListener("click", () => respondToProposal(token, button.dataset.proposal)));
+      <div id="ratingMount"></div>
+      <div class="form-actions"><button class="secondary-action" type="button" data-refresh-status>${state.language === "ar" ? "تحديث الحالة" : "Refresh status"}</button></div>`;
+    elements.trackingContent.querySelector("[data-copy-token]").onclick = () => copyText(state.trackingToken);
+    elements.trackingContent.querySelector("[data-refresh-status]").onclick = () => showTracking(state.trackingToken, state.phoneLast4);
+    elements.trackingContent.querySelector("[data-start-new]")?.addEventListener("click", resetBooking);
+    elements.trackingContent.querySelectorAll("[data-proposal]").forEach((button) => button.onclick = () => respondProposal(button.dataset.proposal, button));
   }
 
-  async function copyTrackingToken(token, button) {
+  async function respondProposal(response, button) {
+    button.disabled = true;
+    button.classList.add("loading");
     try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(token);
-      } else {
-        const input = document.createElement("textarea");
-        input.value = token;
-        input.setAttribute("readonly", "");
-        input.style.position = "fixed";
-        input.style.opacity = "0";
-        document.body.appendChild(input);
-        input.select();
-        document.execCommand("copy");
-        input.remove();
-      }
-      const originalText = button.textContent;
-      button.textContent = "تم النسخ";
-      setTimeout(() => { button.textContent = originalText; }, 1800);
+      const result = await publicRequest({ action: "respondToBookingProposal", trackingToken: state.trackingToken, phoneLast4: state.phoneLast4, response });
+      if (result?.status !== "success") throw new Error(result?.message || tr("error"));
+      notify(state.language === "ar" ? "تم تحديث الطلب." : "Booking updated.", "success");
+      await showTracking(state.trackingToken, state.phoneLast4);
     } catch (error) {
-      alert(`كود المتابعة: ${token}`);
+      notify(error.message || tr("error"), "error");
+      button.disabled = false; button.classList.remove("loading");
     }
   }
 
-  async function respondToProposal(token, responseValue) {
-    try {
-      const response = await publicRequest({ action: "respondToBookingProposal", trackingToken: token, response: responseValue });
-      if (response?.status !== "success") throw new Error(response?.message || "تعذر تحديث الطلب.");
-      renderTracking(response.booking, token);
-    } catch (error) { alert(error.message || "تعذر تحديث الطلب."); }
+  const ratingLabels = {
+    ar: ["", "سيئ جدًا", "سيئ", "جيد", "جيد جدًا", "ممتاز"],
+    en: ["", "Very Poor", "Poor", "Good", "Very Good", "Excellent"]
+  };
+
+  async function renderRating(booking) {
+    const mount = $("ratingMount");
+    if (!mount) return;
+    const result = await publicRequest({ action: "getBookingRating", trackingToken: state.trackingToken, phoneLast4: state.phoneLast4 });
+    if (result?.status !== "success") return;
+    if (result.rating) {
+      mount.innerHTML = `<section class="rating-card read-only"><h3>${tr("thankYou")}</h3>
+        <div class="stars readonly" aria-label="${result.rating.rating} out of 5">${"★".repeat(result.rating.rating)}${"☆".repeat(5 - result.rating.rating)}</div>
+        <strong>${escapeHtml(ratingLabels[state.language][result.rating.rating])}</strong>
+        ${result.rating.comment ? `<p>${escapeHtml(result.rating.comment)}</p>` : ""}</section>`;
+      return;
+    }
+    mount.innerHTML = `<section class="rating-card"><h3>${tr("ratingQuestion")} ${escapeHtml(booking.employee)}?</h3>
+      <div class="stars" role="radiogroup" aria-label="${state.language === "ar" ? "اختر تقييمًا" : "Choose a rating"}">
+        ${[1, 2, 3, 4, 5].map((value) => `<button type="button" role="radio" aria-checked="false" data-rating="${value}" aria-label="${value} ${ratingLabels[state.language][value]}">☆</button>`).join("")}
+      </div>
+      <output id="ratingLabel"></output>
+      <label class="field"><span>${tr("optionalComment")}</span><textarea id="ratingComment" maxlength="500"></textarea></label>
+      <button class="primary-action" type="button" id="submitRatingBtn" disabled>${tr("submitRating")}</button>
+    </section>`;
+    let selected = 0;
+    mount.querySelectorAll("[data-rating]").forEach((button) => button.onclick = () => {
+      selected = Number(button.dataset.rating);
+      mount.querySelectorAll("[data-rating]").forEach((star) => {
+        const active = Number(star.dataset.rating) <= selected;
+        star.textContent = active ? "★" : "☆";
+        star.setAttribute("aria-checked", String(Number(star.dataset.rating) === selected));
+      });
+      $("ratingLabel").textContent = ratingLabels[state.language][selected];
+      $("submitRatingBtn").disabled = false;
+    });
+    $("submitRatingBtn").onclick = async () => {
+      const button = $("submitRatingBtn"); button.disabled = true; button.classList.add("loading");
+      const response = await publicRequest({
+        action: "submitBookingRating", trackingToken: state.trackingToken, phoneLast4: state.phoneLast4,
+        rating: selected, comment: $("ratingComment").value.trim()
+      });
+      if (response?.status !== "success") {
+        notify(response?.message || tr("error"), "error"); button.disabled = false; button.classList.remove("loading"); return;
+      }
+      notify(tr("thankYou"), "success");
+      await renderRating(booking);
+    };
   }
 
-  function showNewBooking() {
-    const url = new URL(window.location.href);
-    url.search = "";
-    history.replaceState({}, "", url.href);
-    elements.trackingWorkspace.classList.add("hidden");
-    elements.bookingWorkspace.classList.remove("hidden");
-    loadOptions();
+  function resetBooking() {
+    const url = new URL(location.href); url.search = ""; history.replaceState({}, "", url);
+    state.trackingToken = ""; state.phoneLast4 = ""; state.employeeId = ""; state.employeeName = ""; state.time = "";
+    elements.form.reset(); elements.date.value = todayKey();
+    elements.bookingWorkspace.classList.remove("hidden"); elements.trackingWorkspace.classList.add("hidden");
+    elements.customerPanel.classList.add("hidden"); setStep(1); loadOptions({ initial: true });
+    scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  elements.date.min = todayKey();
-  elements.date.value = todayKey();
   elements.services.addEventListener("change", (event) => {
     const checkbox = event.target.closest("[data-service-id]");
     if (!checkbox) return;
     if (checkbox.checked) state.selectedServiceIds.add(checkbox.dataset.serviceId);
     else state.selectedServiceIds.delete(checkbox.dataset.serviceId);
-    renderServicePicker();
-    if (!state.selectedServiceIds.size) {
-      state.barbers = [];
-      state.employeeId = "";
-      state.time = "";
-      elements.customerPanel.classList.add("hidden");
-      elements.barberGrid.innerHTML = '<div class="empty-public-state">اختر خدمة واحدة على الأقل لعرض المواعيد.</div>';
-      return;
-    }
-    loadOptions();
+    state.employeeId = ""; state.time = ""; renderServices(); loadOptions();
   });
-  elements.date.addEventListener("change", loadOptions);
+  elements.date.addEventListener("change", () => { state.employeeId = ""; state.time = ""; loadOptions(); });
   elements.barberGrid.addEventListener("click", (event) => {
     const button = event.target.closest("[data-time]");
-    const card = event.target.closest("[data-barber-id]");
-    if (button && card) selectSlot(card.dataset.barberId, button.dataset.time);
+    if (button) selectSlot(button.dataset.staffId, button.dataset.time);
+  });
+  elements.anyBarber.addEventListener("click", () => {
+    const earliest = earliestSlot();
+    if (!earliest) return notify(tr("noSlots"), "error");
+    selectSlot(earliest.barber.staffId, earliest.time);
   });
   elements.form.addEventListener("submit", submitBooking);
-  elements.openTracking.addEventListener("click", () => showTracking(""));
-  elements.newBooking.addEventListener("click", showNewBooking);
+  elements.openTracking.addEventListener("click", () => requestTrackingVerification());
+  elements.newBooking.addEventListener("click", resetBooking);
+  elements.language.addEventListener("click", () => {
+    state.language = state.language === "ar" ? "en" : "ar";
+    applyLanguage();
+    renderServices(); renderBarbers();
+    if (state.employeeId && state.time) selectSlot(state.employeeId, state.time);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !elements.modal.classList.contains("hidden")) elements.modal.querySelector("[data-modal-cancel]")?.click();
+    if (event.key === "Tab" && !elements.modal.classList.contains("hidden")) {
+      const focusable = [...elements.modal.querySelectorAll("button, input, textarea, select, [tabindex]:not([tabindex='-1'])")].filter((node) => !node.disabled);
+      if (!focusable.length) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+  });
 
-  const trackingToken = new URLSearchParams(window.location.search).get("tracking");
-  if (trackingToken) showTracking(trackingToken); else loadOptions();
+  elements.date.min = todayKey();
+  elements.date.value = todayKey();
+  applyLanguage();
+  const trackingToken = new URLSearchParams(location.search).get("tracking");
+  if (trackingToken) showTracking(trackingToken);
+  else loadOptions({ initial: true });
 })();

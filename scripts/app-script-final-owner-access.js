@@ -1,5 +1,110 @@
+const CUT_HUB_ENVIRONMENT_PROPERTY = "CUT_HUB_ENVIRONMENT";
+const CUT_HUB_SPREADSHEET_ID_PROPERTY = "CUT_HUB_SPREADSHEET_ID";
+const CUT_HUB_BACKEND_VERSION_PROPERTY = "CUT_HUB_BACKEND_VERSION";
+const CUT_HUB_STAGING_SPREADSHEET_ID = "1tSMYYSNivpNTOJOuKMBVCoE7NKdr3VCzpCgOulcIsoI";
+const STAGING_CONFIGURATION_ERROR = "STAGING_CONFIGURATION_INVALID";
+
+function getCutHubEnvironmentConfig() {
+  const properties = PropertiesService.getScriptProperties();
+  return {
+    environment: String(properties.getProperty(CUT_HUB_ENVIRONMENT_PROPERTY) || "").trim().toLowerCase(),
+    spreadsheetId: String(properties.getProperty(CUT_HUB_SPREADSHEET_ID_PROPERTY) || "").trim(),
+    backendVersion: String(properties.getProperty(CUT_HUB_BACKEND_VERSION_PROPERTY) || "").trim()
+  };
+}
+
+function assertStagingEnvironment() {
+  try {
+    const config = getCutHubEnvironmentConfig();
+    const spreadsheet = SpreadsheetApp.getActive();
+    if (
+      config.environment !== "staging" ||
+      !config.spreadsheetId ||
+      !spreadsheet ||
+      spreadsheet.getId() !== config.spreadsheetId ||
+      config.spreadsheetId !== CUT_HUB_STAGING_SPREADSHEET_ID
+    ) {
+      throw new Error(STAGING_CONFIGURATION_ERROR);
+    }
+    return { config, spreadsheet };
+  } catch (error) {
+    throw new Error(STAGING_CONFIGURATION_ERROR);
+  }
+}
+
+function validateCutHubRequestEnvironment() {
+  const config = getCutHubEnvironmentConfig();
+  if (config.environment === "staging") assertStagingEnvironment();
+  return config;
+}
+
+function getStagingIdentityValues() {
+  const staging = assertStagingEnvironment();
+  return {
+    environment: staging.config.environment,
+    spreadsheetName: staging.spreadsheet.getName(),
+    spreadsheetId: staging.spreadsheet.getId(),
+    timezone: staging.spreadsheet.getSpreadsheetTimeZone(),
+    backendVersion: staging.config.backendVersion
+  };
+}
+
+function verifyStagingEnvironment() {
+  const identity = getStagingIdentityValues();
+  Logger.log(JSON.stringify(identity));
+  return identity;
+}
+
+function stagingIdentity() {
+  const config = getCutHubEnvironmentConfig();
+  if (config.environment !== "staging") {
+    return jsonOutput({
+      status: "error",
+      code: "PERMISSION_DENIED",
+      message: "This action is available only in staging."
+    });
+  }
+  return jsonOutput(getStagingIdentityValues());
+}
+
+function parsePostRequestData(e) {
+  const contents = e && e.postData ? e.postData.contents : "";
+  let raw = String(contents == null ? "" : contents).replace(/^\uFEFF/, "").trim();
+  if (!raw) return {};
+  let data = JSON.parse(raw);
+  if (typeof data === "string") {
+    raw = data.replace(/^\uFEFF/, "").trim();
+    data = JSON.parse(raw);
+  }
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error("INVALID_JSON_REQUEST");
+  }
+  return data;
+}
+
 function doPost(e) {
-  const data = JSON.parse(e.postData.contents || "{}");
+  try {
+    validateCutHubRequestEnvironment();
+  } catch (error) {
+    return jsonOutput({
+      status: "error",
+      code: STAGING_CONFIGURATION_ERROR,
+      message: STAGING_CONFIGURATION_ERROR
+    });
+  }
+
+  let data;
+  try {
+    data = parsePostRequestData(e);
+  } catch (error) {
+    return jsonOutput({
+      status: "error",
+      code: "INVALID_JSON_REQUEST",
+      message: "The request body must be a valid JSON object."
+    });
+  }
+
+  if (data.action === "stagingIdentity") return stagingIdentity();
 
   if (data.action !== "loginUser" && data.action !== "logoutUser" && data.action !== "logout") {
     const sessionToken = getSessionToken(data);
@@ -66,6 +171,11 @@ function doPost(e) {
   if (data.action === "getBookings") return getBookingsV2(data);
   if (data.action === "updateBooking") return updateBookingV2(data);
   if (data.action === "deleteBooking") return deleteBooking(data);
+  if (data.action === "submitBookingRating") return submitBookingRating(data);
+  if (data.action === "getBookingRating") return getBookingRating(data);
+  if (data.action === "getBarberRatings") return getBarberRatings(data);
+  if (data.action === "getRatingsAdmin") return getRatingsAdmin(data);
+  if (data.action === "updateRatingStatus") return updateRatingStatus(data);
 
   if (data.action === "getDailyClosingPreview") return getDailyClosingPreview(data);
   if (data.action === "dashboardTodayStats") return dashboardTodayStats(data);
@@ -113,6 +223,11 @@ const ALL_PERMISSIONS = [
   "view_staff_discount",
   "view_attendance",
   "view_bookings",
+  "create_bookings",
+  "manage_bookings",
+  "delete_bookings",
+  "view_ratings",
+  "manage_ratings",
   "manage_users"
 ];
 
@@ -275,6 +390,7 @@ function requirePermission(data, permission, message) {
 
   return jsonOutput({
     status: "error",
+    code: "PERMISSION_DENIED",
     permissionDenied: true,
     message: message || "You do not have permission to perform this action."
   });
@@ -864,7 +980,7 @@ function getServices() {
     .map((row, index) => ({
       name: String(row[0] || "").trim(),
       price: parseSheetAmount(row[1]),
-      active: String(row[2] || "TRUE").trim().toUpperCase() !== "FALSE",
+      active: parseServiceActiveFlag(row[2]),
       order: Number(row[3]) || index + 1,
       serviceId: String(row[4] || "").trim(),
       durationMinutes: Math.max(15, Number(row[5]) || 30)
@@ -4371,22 +4487,199 @@ const BOOKING_HEADERS_V2 = [
   "ID", "DATE", "TIME", "CUSTOMER", "PHONE", "EMPLOYEE", "SERVICE", "NOTE", "STATUS",
   "CREATED_AT", "UPDATED_AT", "SERVICE_ID", "DURATION_MINUTES", "SOURCE", "TRACKING_TOKEN",
   "REQUESTED_AT", "CONFIRMED_AT", "CONFIRMED_BY", "REJECTION_REASON", "PROPOSED_DATE",
-  "PROPOSED_TIME", "HOLD_EXPIRES_AT", "CUSTOMER_RESPONSE", "EMPLOYEE_ID"
+  "PROPOSED_TIME", "HOLD_EXPIRES_AT", "CUSTOMER_RESPONSE", "EMPLOYEE_ID",
+  "CANCELLED_AT", "CANCELLED_BY", "CANCELLATION_REASON", "COMPLETED_AT", "COMPLETED_BY",
+  "DELETED", "DELETED_AT", "DELETED_BY", "SERVICE_IDS", "TOTAL_PRICE", "DELETION_REASON",
+  "CLIENT_REQUEST_ID", "CLIENT_REQUEST_FINGERPRINT"
 ];
+
+const BOOKING_SLOT_INTERVAL_MINUTES = 30;
+const MAX_BOOKING_DURATION_MINUTES = 12 * 60;
+const MAX_BOOKING_TOTAL_PRICE = 1000000;
+const BOOKING_LOCK_WAIT_MS = 10000;
+const PUBLIC_RATING_MINIMUM_COUNT = 5;
+
+// Canonical policy for user/operator-controlled booking and rating free text:
+// trim only the outer whitespace boundary, preserve meaningful whitespace inside,
+// and leave formula safety to the explicit stringValue sheet writer.
+function normalizeProtectedText(value, maxLength) {
+  let text = String(value == null ? "" : value).trim();
+  if (Number.isFinite(Number(maxLength)) && Number(maxLength) >= 0) {
+    text = text.slice(0, Number(maxLength)).replace(/\s+$/, "");
+  }
+  return text;
+}
+
+function parseServiceActiveFlag(value) {
+  if (value === null || value === undefined || String(value).trim() === "") return true;
+  if (value === false || value === 0) return false;
+  if (value === true || value === 1) return true;
+  const normalized = String(value).trim().toUpperCase();
+  if (normalized === "FALSE" || normalized === "0") return false;
+  if (normalized === "TRUE" || normalized === "1") return true;
+  return false;
+}
+
+function bookingApiError(code, message) {
+  return jsonOutput({ status: "error", code, message });
+}
+
+function bookingMutationDiagnostic(event, details) {
+  const safeDetails = details || {};
+  const payload = {
+    event,
+    executionId: safeDetails.executionId || "",
+    lockRequestedAt: safeDetails.lockRequestedAt || "",
+    lockAcquiredAt: safeDetails.lockAcquiredAt || "",
+    lockReleasedAt: safeDetails.lockReleasedAt || "",
+    bookingRequestId: safeDetails.bookingRequestId || "",
+    employeeId: safeDetails.employeeId || "",
+    date: safeDetails.date || "",
+    time: safeDetails.time || "",
+    durationMinutes: Number(safeDetails.durationMinutes) || 0
+  };
+  try { Logger.log(JSON.stringify(payload)); } catch (ignore) {}
+}
+
+function withBookingMutationLock(details, callback) {
+  const lock = LockService.getScriptLock();
+  const diagnostic = {
+    executionId: `EXEC-${Utilities.getUuid()}`,
+    lockRequestedAt: new Date().toISOString(),
+    bookingRequestId: String((details && details.bookingRequestId) || "").trim(),
+    employeeId: String((details && details.employeeId) || "").trim(),
+    date: String((details && details.date) || "").trim(),
+    time: String((details && details.time) || "").trim(),
+    durationMinutes: Number(details && details.durationMinutes) || 0
+  };
+  let acquired = false;
+  bookingMutationDiagnostic("booking_lock_requested", diagnostic);
+  try {
+    if (typeof lock.tryLock === "function") {
+      acquired = lock.tryLock(BOOKING_LOCK_WAIT_MS);
+    } else {
+      lock.waitLock(BOOKING_LOCK_WAIT_MS);
+      acquired = true;
+    }
+    if (!acquired) {
+      bookingMutationDiagnostic("booking_lock_timeout", diagnostic);
+      return bookingApiError("BOOKING_LOCK_TIMEOUT", "The booking system is busy. Please retry this request.");
+    }
+    diagnostic.lockAcquiredAt = new Date().toISOString();
+    bookingMutationDiagnostic("booking_lock_acquired", diagnostic);
+    return callback(diagnostic);
+  } catch (error) {
+    if (!acquired && /lock|timeout/i.test(String(error && error.message || error))) {
+      bookingMutationDiagnostic("booking_lock_timeout", diagnostic);
+      return bookingApiError("BOOKING_LOCK_TIMEOUT", "The booking system is busy. Please retry this request.");
+    }
+    throw error;
+  } finally {
+    if (acquired) {
+      diagnostic.lockReleasedAt = new Date().toISOString();
+      try { lock.releaseLock(); } finally {
+        bookingMutationDiagnostic("booking_lock_released", diagnostic);
+      }
+    }
+  }
+}
+
+function isStrictBookingTime(value) {
+  return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(normalizeDigits(String(value || "").trim()));
+}
+
+function isValidBookingDateKey(value) {
+  const text = normalizeDigits(String(value || "").trim());
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year < 2000 || month < 1 || month > 12 || day < 1) return false;
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return day <= daysInMonth;
+}
+
+function isValidBookingDuration(value) {
+  const duration = Number(value);
+  return Number.isFinite(duration) && Number.isInteger(duration) &&
+    duration >= 15 && duration <= MAX_BOOKING_DURATION_MINUTES;
+}
+
+function isValidBookingPrice(value) {
+  const price = Number(value);
+  return Number.isFinite(price) && price >= 0 && price <= MAX_BOOKING_TOTAL_PRICE;
+}
+
+function generateUniqueBookingIdV2(bookings) {
+  const existingIds = new Set((bookings || []).map((booking) => String(booking.id || "").trim()));
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const id = `BOOK-${Utilities.getUuid()}`;
+    if (!existingIds.has(id)) return id;
+  }
+  throw new Error("Could not create a unique booking ID. Please try again.");
+}
 
 const BARBER_SCHEDULE_HEADERS = [
   "SCHEDULE_ID", "STAFF_ID", "STAFF_NAME", "WEEKDAY", "SHIFT_START", "SHIFT_END", "ACTIVE", "UPDATED_AT"
 ];
 
 function ensureBookingHeadersV2(sheet) {
-  const width = BOOKING_HEADERS_V2.length;
-  if (sheet.getMaxColumns() < width) {
-    sheet.insertColumnsAfter(sheet.getMaxColumns(), width - sheet.getMaxColumns());
+  const existingWidth = Math.max(1, sheet.getLastColumn());
+  const current = sheet.getRange(1, 1, 1, existingWidth).getValues()[0];
+  const existingKeys = {};
+  current.forEach((header) => { if (header) existingKeys[canonicalBookingHeaderKey(header)] = true; });
+  const missing = BOOKING_HEADERS_V2.filter((header) => !existingKeys[canonicalBookingHeaderKey(header)]);
+  if (!missing.length) return;
+  const hasHeaders = current.some((header) => String(header || "").trim());
+  const startColumn = hasHeaders ? existingWidth + 1 : 1;
+  const neededWidth = startColumn + missing.length - 1;
+  if (sheet.getMaxColumns() < neededWidth) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), neededWidth - sheet.getMaxColumns());
   }
+  sheet.getRange(1, startColumn, 1, missing.length).setValues([missing]);
+}
 
-  const current = sheet.getRange(1, 1, 1, width).getValues()[0];
-  const next = BOOKING_HEADERS_V2.map((header, index) => String(current[index] || "").trim() || header);
-  sheet.getRange(1, 1, 1, width).setValues([next]);
+function normalizeBookingHeader(value) {
+  return String(value || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+function canonicalBookingHeaderKey(value) {
+  const key = normalizeBookingHeader(value);
+  return ({
+    bookingid: "id",
+    bookingdate: "date",
+    bookingtime: "time",
+    customername: "customer",
+    customerphone: "phone",
+    barber: "employee",
+    employeename: "employee",
+    services: "service",
+    notes: "note",
+    duration: "durationminutes",
+    trackingcode: "trackingtoken",
+    staffid: "employeeid"
+  })[key] || key;
+}
+
+function getBookingHeadersV2(sheet) {
+  const width = Math.max(1, sheet.getLastColumn());
+  return sheet.getRange(1, 1, 1, width).getValues()[0].map((header) => String(header || "").trim());
+}
+
+function bookingHeaderIndexV2(headers, name, aliases) {
+  const keys = [name].concat(aliases || []).map(canonicalBookingHeaderKey);
+  return headers.findIndex((header) => keys.indexOf(canonicalBookingHeaderKey(header)) !== -1);
+}
+
+function bookingRowValueV2(row, headers, name, aliases) {
+  const index = bookingHeaderIndexV2(headers, name, aliases);
+  return index >= 0 ? row[index] : "";
+}
+
+function setBookingRowValueV2(row, headers, name, value, aliases) {
+  const index = bookingHeaderIndexV2(headers, name, aliases);
+  if (index >= 0) row[index] = value;
 }
 
 function getBookingsSheetV2() {
@@ -4413,52 +4706,191 @@ function getBarberScheduleSheet() {
 
 function normalizeBookingStatusV2(value) {
   const status = String(value || "pending").trim().toLowerCase();
+  if (status === "completed") return "done";
   return ["pending", "confirmed", "proposed", "rejected", "done", "cancelled", "expired"].indexOf(status) !== -1
     ? status
     : "pending";
 }
 
-function bookingFromRowV2(row, rowNumber) {
-  const id = String(row[0] || "").trim() || `BOOK-${rowNumber}`;
+function isRecognizedBookingStatusV2(value) {
+  return ["pending", "confirmed", "proposed", "rejected", "done", "completed", "cancelled", "expired"]
+    .indexOf(String(value || "").trim().toLowerCase()) !== -1;
+}
+
+function bookingFromRowV2(row, rowNumber, headers) {
+  headers = headers || BOOKING_HEADERS_V2;
+  const value = (name, aliases) => bookingRowValueV2(row, headers, name, aliases);
+  const id = String(value("ID", ["BOOKING_ID"]) || "").trim() || `BOOK-${rowNumber}`;
   return {
     id,
     bookingId: id,
     rowNumber,
-    date: getDateKey(row[1], TIME_ZONE) || String(row[1] || "").trim(),
-    time: getBookingTimeValue(row[2]),
-    customerName: String(row[3] || "").trim(),
-    customerPhone: String(row[4] || "").trim(),
-    employee: String(row[5] || "").trim(),
-    service: String(row[6] || "").trim(),
-    note: String(row[7] || "").trim(),
-    status: normalizeBookingStatusV2(row[8]),
-    createdAt: getDisplayDateTime(row[9]),
-    updatedAt: getDisplayDateTime(row[10]),
-    serviceId: String(row[11] || "").trim(),
-    durationMinutes: Math.max(15, Number(row[12]) || 30),
-    source: String(row[13] || "staff").trim(),
-    trackingToken: String(row[14] || "").trim(),
-    requestedAt: getDisplayDateTime(row[15]),
-    confirmedAt: getDisplayDateTime(row[16]),
-    confirmedBy: String(row[17] || "").trim(),
-    rejectionReason: String(row[18] || "").trim(),
-    proposedDate: getDateKey(row[19], TIME_ZONE) || String(row[19] || "").trim(),
-    proposedTime: getBookingTimeValue(row[20]),
-    holdExpiresAt: String(row[21] || "").trim(),
-    customerResponse: String(row[22] || "").trim(),
-    employeeId: String(row[23] || "").trim()
+    date: getDateKey(value("DATE", ["BOOKING_DATE"]), TIME_ZONE) || String(value("DATE", ["BOOKING_DATE"]) || "").trim(),
+    time: getBookingTimeValue(value("TIME", ["BOOKING_TIME"])),
+    customerName: normalizeProtectedText(value("CUSTOMER", ["CUSTOMER_NAME"]), 100),
+    customerPhone: String(value("PHONE", ["CUSTOMER_PHONE"]) || "").trim(),
+    employee: normalizeProtectedText(value("EMPLOYEE", ["BARBER", "EMPLOYEE_NAME"]), 100),
+    service: normalizeProtectedText(value("SERVICE", ["SERVICES"]), 500),
+    note: normalizeProtectedText(value("NOTE", ["NOTES"]), 500),
+    status: normalizeBookingStatusV2(value("STATUS")),
+    createdAt: getDisplayDateTime(value("CREATED_AT")),
+    updatedAt: getDisplayDateTime(value("UPDATED_AT")),
+    serviceId: String(value("SERVICE_ID") || "").trim(),
+    serviceIds: String(value("SERVICE_IDS") || value("SERVICE_ID") || "").split(",").map((item) => item.trim()).filter(Boolean),
+    durationMinutes: Math.max(15, Number(value("DURATION_MINUTES", ["DURATION"])) || 30),
+    totalPrice: Number(value("TOTAL_PRICE")) || 0,
+    source: String(value("SOURCE") || "staff").trim(),
+    trackingToken: String(value("TRACKING_TOKEN", ["TRACKING_CODE"]) || "").trim(),
+    requestedAt: getDisplayDateTime(value("REQUESTED_AT")),
+    confirmedAt: getDisplayDateTime(value("CONFIRMED_AT")),
+    confirmedBy: normalizeProtectedText(value("CONFIRMED_BY"), 100),
+    rejectionReason: normalizeProtectedText(value("REJECTION_REASON"), 500),
+    proposedDate: getDateKey(value("PROPOSED_DATE"), TIME_ZONE) || String(value("PROPOSED_DATE") || "").trim(),
+    proposedTime: getBookingTimeValue(value("PROPOSED_TIME")),
+    holdExpiresAt: String(value("HOLD_EXPIRES_AT") || "").trim(),
+    customerResponse: String(value("CUSTOMER_RESPONSE") || "").trim(),
+    employeeId: String(value("EMPLOYEE_ID", ["STAFF_ID"]) || "").trim(),
+    cancelledAt: getDisplayDateTime(value("CANCELLED_AT")),
+    cancelledBy: normalizeProtectedText(value("CANCELLED_BY"), 100),
+    cancellationReason: normalizeProtectedText(value("CANCELLATION_REASON"), 500),
+    completedAt: getDisplayDateTime(value("COMPLETED_AT")),
+    completedBy: normalizeProtectedText(value("COMPLETED_BY"), 100),
+    deleted: parseSheetBoolean(value("DELETED"), false),
+    deletedAt: getDisplayDateTime(value("DELETED_AT")),
+    deletedBy: normalizeProtectedText(value("DELETED_BY"), 100),
+    deletionReason: normalizeProtectedText(value("DELETION_REASON"), 500),
+    clientRequestId: String(value("CLIENT_REQUEST_ID") || "").trim(),
+    clientRequestFingerprint: String(value("CLIENT_REQUEST_FINGERPRINT") || "").trim()
   };
 }
 
-function bookingToRowV2(booking) {
-  return [
-    booking.id, booking.date, booking.time, booking.customerName, booking.customerPhone,
-    booking.employee, booking.service, booking.note, booking.status, booking.createdAt,
-    booking.updatedAt, booking.serviceId, booking.durationMinutes, booking.source,
-    booking.trackingToken, booking.requestedAt, booking.confirmedAt, booking.confirmedBy,
-    booking.rejectionReason, booking.proposedDate, booking.proposedTime, booking.holdExpiresAt,
-    booking.customerResponse, booking.employeeId
-  ];
+function bookingToRowV2(booking, headers, existingRow) {
+  headers = headers || BOOKING_HEADERS_V2;
+  const row = existingRow ? existingRow.slice() : new Array(headers.length).fill("");
+  const values = {
+    ID: booking.id, DATE: booking.date, TIME: booking.time,
+    CUSTOMER: normalizeProtectedText(booking.customerName, 100),
+    PHONE: booking.customerPhone,
+    EMPLOYEE: normalizeProtectedText(booking.employee, 100),
+    SERVICE: normalizeProtectedText(booking.service, 500),
+    NOTE: normalizeProtectedText(booking.note, 500),
+    STATUS: booking.status, CREATED_AT: booking.createdAt, UPDATED_AT: booking.updatedAt,
+    SERVICE_ID: booking.serviceId, DURATION_MINUTES: booking.durationMinutes, SOURCE: booking.source,
+    TRACKING_TOKEN: booking.trackingToken, REQUESTED_AT: booking.requestedAt, CONFIRMED_AT: booking.confirmedAt,
+    CONFIRMED_BY: normalizeProtectedText(booking.confirmedBy, 100),
+    REJECTION_REASON: normalizeProtectedText(booking.rejectionReason, 500),
+    PROPOSED_DATE: booking.proposedDate,
+    PROPOSED_TIME: booking.proposedTime, HOLD_EXPIRES_AT: booking.holdExpiresAt, CUSTOMER_RESPONSE: booking.customerResponse,
+    EMPLOYEE_ID: booking.employeeId, CANCELLED_AT: booking.cancelledAt,
+    CANCELLED_BY: normalizeProtectedText(booking.cancelledBy, 100),
+    CANCELLATION_REASON: normalizeProtectedText(booking.cancellationReason, 500),
+    COMPLETED_AT: booking.completedAt,
+    COMPLETED_BY: normalizeProtectedText(booking.completedBy, 100),
+    DELETED: booking.deleted === true, DELETED_AT: booking.deletedAt,
+    DELETED_BY: normalizeProtectedText(booking.deletedBy, 100),
+    SERVICE_IDS: Array.isArray(booking.serviceIds) ? booking.serviceIds.join(",") : (booking.serviceIds || booking.serviceId || ""),
+    TOTAL_PRICE: Number(booking.totalPrice) || 0,
+    DELETION_REASON: normalizeProtectedText(booking.deletionReason, 500),
+    CLIENT_REQUEST_ID: booking.clientRequestId, CLIENT_REQUEST_FINGERPRINT: booking.clientRequestFingerprint
+  };
+  Object.keys(values).forEach((name) => setBookingRowValueV2(row, headers, name, values[name]));
+  return row;
+}
+
+function writeBookingRowV2(sheet, rowNumber, booking, existingRow) {
+  const headers = getBookingHeadersV2(sheet);
+  const row = bookingToRowV2(booking, headers, existingRow);
+  writeSheetRowWithExplicitValues(sheet, rowNumber, row);
+  return row;
+}
+
+function appendBookingRowV2(sheet, booking) {
+  const rowNumber = sheet.getLastRow() + 1;
+  return { rowNumber, row: writeBookingRowV2(sheet, rowNumber, booking) };
+}
+
+function sheetExtendedValue(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return { numberValue: (value.getTime() / 86400000) + 25569 };
+  }
+  if (typeof value === "boolean") return { boolValue: value };
+  if (typeof value === "number" && Number.isFinite(value)) return { numberValue: value };
+  return { stringValue: String(value == null ? "" : value) };
+}
+
+function writeSheetRowWithExplicitValues(sheet, rowNumber, row) {
+  if (!sheet || typeof sheet.getSheetId !== "function" ||
+      typeof Sheets === "undefined" || !Sheets.Spreadsheets ||
+      typeof Sheets.Spreadsheets.batchUpdate !== "function") {
+    throw new Error("SAFE_SHEET_WRITE_UNAVAILABLE");
+  }
+  const spreadsheet = SpreadsheetApp.getActive();
+  if (!spreadsheet || typeof spreadsheet.getId !== "function") {
+    throw new Error("SAFE_SHEET_WRITE_UNAVAILABLE");
+  }
+  Sheets.Spreadsheets.batchUpdate({
+    requests: [{
+      updateCells: {
+        start: {
+          sheetId: sheet.getSheetId(),
+          rowIndex: Number(rowNumber) - 1,
+          columnIndex: 0
+        },
+        rows: [{
+          values: (row || []).map((value) => ({
+            userEnteredValue: sheetExtendedValue(value)
+          }))
+        }],
+        fields: "userEnteredValue"
+      }
+    }]
+  }, spreadsheet.getId());
+}
+
+function validateClientRequestId(value) {
+  const requestId = String(value || "").trim();
+  if (!requestId) return { ok: true, value: "" };
+  if (requestId.length < 8 || requestId.length > 128 ||
+      !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(requestId)) {
+    return { ok: false, value: "", code: "INVALID_CLIENT_REQUEST_ID" };
+  }
+  return { ok: true, value: requestId };
+}
+
+function bookingRequestFingerprint(kind, values) {
+  const canonical = JSON.stringify({
+    kind: String(kind || ""),
+    customerName: normalizeProtectedText(values.customerName, 100),
+    customerPhone: normalizePublicPhone(values.customerPhone),
+    employeeId: String(values.employeeId || "").trim(),
+    date: normalizeDigits(String(values.date || "").trim()),
+    time: normalizeDigits(String(values.time || "").trim()),
+    serviceIds: (values.serviceIds || []).map((item) => String(item || "").trim()).sort(),
+    manualService: normalizeProtectedText(values.manualService, 100),
+    manualDuration: Number(values.manualDuration) || 0,
+    note: normalizeProtectedText(values.note, 500)
+  });
+  const digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    canonical,
+    Utilities.Charset.UTF_8
+  );
+  return digest.map((byte) => (`0${(byte < 0 ? byte + 256 : byte).toString(16)}`).slice(-2)).join("");
+}
+
+function findBookingByClientRequestId(bookings, requestId) {
+  const target = String(requestId || "").trim();
+  return target
+    ? (bookings || []).find((booking) => String(booking.clientRequestId || "").trim() === target) || null
+    : null;
+}
+
+function bookingIdempotencyResult(existing, fingerprint, responseBuilder) {
+  if (!existing) return null;
+  if (!existing.clientRequestFingerprint || existing.clientRequestFingerprint !== fingerprint) {
+    return bookingApiError("IDEMPOTENCY_KEY_REUSED", "This client request ID was already used for a different booking request.");
+  }
+  return responseBuilder(existing);
 }
 
 function findBookingRowV2(sheet, data) {
@@ -4466,11 +4898,16 @@ function findBookingRowV2(sheet, data) {
   if (lastRow < 2) return null;
   const targetRow = Number(data.rowNumber || 0);
   const targetId = String(data.id || data.bookingId || "").trim();
-  const rows = sheet.getRange(2, 1, lastRow - 1, BOOKING_HEADERS_V2.length).getValues();
+  if (!targetId) return null;
+  const headers = getBookingHeadersV2(sheet);
+  const rows = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
   for (let index = 0; index < rows.length; index++) {
     const rowNumber = index + 2;
-    const booking = bookingFromRowV2(rows[index], rowNumber);
-    if ((targetRow && targetRow === rowNumber) || (targetId && (booking.id === targetId || targetId === `BOOK-${rowNumber}`))) {
+    const storedId = String(bookingRowValueV2(rows[index], headers, "ID", ["BOOKING_ID"]) || "").trim();
+    const booking = bookingFromRowV2(rows[index], rowNumber, headers);
+    const idMatches = storedId && storedId === targetId;
+    const rowMatches = targetRow && targetRow === rowNumber;
+    if ((rowMatches && idMatches) || (!targetRow && idMatches)) {
       return { rowNumber, booking, row: rows[index] };
     }
   }
@@ -4481,14 +4918,17 @@ function publicBookingServices() {
   const sheet = SpreadsheetApp.getActive().getSheetByName("SERVICES");
   if (!sheet || sheet.getLastRow() < 2) return [];
   const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).getValues();
-  return rows.map((row, index) => ({
-    name: String(row[0] || "").trim(),
-    price: parseSheetAmount(row[1]),
-    active: String(row[2] || "TRUE").trim().toUpperCase() !== "FALSE",
-    order: Number(row[3]) || index + 1,
-    serviceId: String(row[4] || "").trim(),
-    durationMinutes: Math.max(15, Number(row[5]) || 30)
-  })).filter((service) => {
+  return rows.map((row, index) => {
+    const rawDuration = String(row[5] == null ? "" : row[5]).trim();
+    return {
+      name: String(row[0] || "").trim(),
+      price: parseSheetAmount(row[1]),
+      active: parseServiceActiveFlag(row[2]),
+      order: Number(row[3]) || index + 1,
+      serviceId: String(row[4] || "").trim(),
+      durationMinutes: rawDuration ? Number(row[5]) : 30
+    };
+  }).filter((service) => {
     const name = service.name.toLowerCase();
     const separators = (name.match(/[-–—]/g) || []).length;
     const isPackage = /[+＋]/.test(name)
@@ -4499,17 +4939,57 @@ function publicBookingServices() {
 }
 
 function getPublicBookingServiceIds(data) {
-  let values = data && data.serviceIds;
-  if (!Array.isArray(values)) {
-    values = String(values || data.serviceId || "").split(",");
-  }
-  return values.map((value) => String(value || "").trim()).filter((value, index, list) => value && list.indexOf(value) === index);
+  const values = data && Array.isArray(data.serviceIds)
+    ? data.serviceIds
+    : String((data && data.serviceId) || "").split(",");
+  return values.map((value) => String(value || "").trim()).filter(Boolean);
+}
+
+function bookingServiceIdsInputIsValid(data) {
+  return !data || !Object.prototype.hasOwnProperty.call(data, "serviceIds") ||
+    Array.isArray(data.serviceIds);
+}
+
+function bookingServiceIdsHaveDuplicates(serviceIds) {
+  const ids = Array.isArray(serviceIds) ? serviceIds : [];
+  return new Set(ids).size !== ids.length;
 }
 
 function getSelectedPublicBookingServices(data, services) {
   const ids = getPublicBookingServiceIds(data);
   const selected = services.filter((service) => ids.indexOf(service.serviceId) !== -1);
   return selected.length ? selected : services.slice(0, 1);
+}
+
+function resolveTrustedBookingServiceTotals(booking, services) {
+  const ids = Array.isArray(booking.serviceIds) ? booking.serviceIds : [];
+  if (!ids.length) {
+    if (!booking.service || !isValidBookingDuration(booking.durationMinutes) ||
+        !isValidBookingPrice(booking.totalPrice)) {
+      return bookingAppointmentValidationError("INVALID_SERVICES", "The booking service configuration is invalid.");
+    }
+    return {
+      ok: true,
+      durationMinutes: Number(booking.durationMinutes),
+      totalPrice: Number(booking.totalPrice) || 0
+    };
+  }
+  if (bookingServiceIdsHaveDuplicates(ids)) {
+    return bookingAppointmentValidationError("INVALID_SERVICES", "Duplicate service IDs are not allowed.");
+  }
+  const available = Array.isArray(services) ? services : publicBookingServices();
+  const selected = available.filter((service) => ids.indexOf(service.serviceId) !== -1);
+  if (selected.length !== ids.length || !selected.length ||
+      !selected.every((service) =>
+        isValidBookingDuration(service.durationMinutes) && isValidBookingPrice(service.price))) {
+    return bookingAppointmentValidationError("INVALID_SERVICES", "One or more booking services are unavailable.");
+  }
+  const durationMinutes = selected.reduce((sum, service) => sum + Number(service.durationMinutes), 0);
+  const totalPrice = selected.reduce((sum, service) => sum + Number(service.price), 0);
+  if (!isValidBookingDuration(durationMinutes) || !isValidBookingPrice(totalPrice)) {
+    return bookingAppointmentValidationError("INVALID_SERVICES", "The booking service configuration is invalid.");
+  }
+  return { ok: true, durationMinutes, totalPrice };
 }
 
 function publicBookingBarbers() {
@@ -4524,6 +5004,14 @@ function publicBookingBarbers() {
       isBarber: parseSheetBoolean(row[10], true)
     }))
     .filter((barber) => barber.staffId && barber.name && barber.active && barber.isBarber);
+}
+
+function getUniqueActiveBarberByNameV2(employeeName, barbers) {
+  const employeeKey = normalizeLookupKey(employeeName);
+  if (!employeeKey) return null;
+  const activeBarbers = Array.isArray(barbers) ? barbers : publicBookingBarbers();
+  const matches = activeBarbers.filter((barber) => normalizeLookupKey(barber.name) === employeeKey);
+  return matches.length === 1 ? matches[0] : null;
 }
 
 function bookingWeekday(dateKey) {
@@ -4545,7 +5033,7 @@ function normalizeScheduleWeekday(value) {
   return aliases[key] || key;
 }
 
-function getScheduleForBarber(barber, dateKey) {
+function getScheduleForBarber(barber, dateKey, barbers) {
   const sheet = getBarberScheduleSheet();
   const weekday = bookingWeekday(dateKey);
   let matching = null;
@@ -4556,7 +5044,10 @@ function getScheduleForBarber(barber, dateKey) {
       const rowStaffName = normalizeLookupKey(row[2]);
       const rowDay = normalizeScheduleWeekday(row[3]);
       const active = parseSheetBoolean(row[6], true);
-      return active && rowDay === weekday && (rowStaffId === barber.staffId || rowStaffName === normalizeLookupKey(barber.name));
+      const employeeMatches = rowStaffId
+        ? rowStaffId === barber.staffId
+        : String((getUniqueActiveBarberByNameV2(rowStaffName, barbers) || {}).staffId || "") === barber.staffId;
+      return active && rowDay === weekday && employeeMatches;
     }) || null;
   }
 
@@ -4568,7 +5059,7 @@ function getScheduleForBarber(barber, dateKey) {
   };
 }
 
-function getAttendanceOverride(barber, dateKey) {
+function getAttendanceOverride(barber, dateKey, barbers) {
   const sheet = getAttendanceSheet();
   if (sheet.getLastRow() < 2) return null;
   const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, ATTENDANCE_HEADERS.length).getValues();
@@ -4576,7 +5067,10 @@ function getAttendanceOverride(barber, dateKey) {
     const rowDate = getDateKey(row[1], TIME_ZONE);
     const staffId = String(row[2] || "").trim();
     const staffName = normalizeLookupKey(row[3]);
-    return rowDate === dateKey && (staffId === barber.staffId || staffName === normalizeLookupKey(barber.name));
+    const employeeMatches = staffId
+      ? staffId === barber.staffId
+      : String((getUniqueActiveBarberByNameV2(staffName, barbers) || {}).staffId || "") === barber.staffId;
+    return rowDate === dateKey && employeeMatches;
   });
   if (!matches.length) return null;
   const absent = matches.find((row) => String(row[4] || "").trim().toLowerCase() === "absent");
@@ -4618,41 +5112,173 @@ function bookingHoldIsActive(booking) {
 }
 
 function bookingBlocksSlot(booking) {
-  return booking.status === "confirmed" || booking.status === "proposed" || bookingHoldIsActive(booking);
+  return !booking.deleted && (booking.status === "confirmed" || booking.status === "proposed" || bookingHoldIsActive(booking));
+}
+
+function isBookingStatusTransitionAllowed(currentStatus, nextStatus) {
+  const allowed = {
+    pending: ["confirmed", "proposed", "rejected", "cancelled", "expired"],
+    proposed: ["confirmed", "rejected", "cancelled", "expired"],
+    confirmed: ["done", "cancelled"],
+    done: [],
+    rejected: [],
+    cancelled: [],
+    expired: []
+  };
+  const current = normalizeBookingStatusV2(currentStatus);
+  const next = normalizeBookingStatusV2(nextStatus);
+  return current !== next && (allowed[current] || []).indexOf(next) !== -1;
+}
+
+function bookingStatusIsTerminal(status) {
+  return ["done", "cancelled", "rejected", "expired"].indexOf(normalizeBookingStatusV2(status)) !== -1;
+}
+
+function expirePendingBookingsUnderLock() {
+  const sheet = getBookingsSheetV2();
+  if (sheet.getLastRow() < 2) return 0;
+  const headers = getBookingHeadersV2(sheet);
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
+  const now = new Date();
+  const nowText = getCairoDateTime();
+  let expiredCount = 0;
+  rows.forEach((row, index) => {
+    const booking = bookingFromRowV2(row, index + 2, headers);
+    if (booking.deleted || booking.status !== "pending" || !booking.holdExpiresAt) return;
+    const expiresAt = new Date(booking.holdExpiresAt);
+    if (isNaN(expiresAt.getTime()) || expiresAt.getTime() > now.getTime()) return;
+    booking.status = "expired";
+    booking.customerResponse = "hold_expired";
+    booking.updatedAt = nowText;
+    writeBookingRowV2(sheet, index + 2, booking, row);
+    expiredCount++;
+  });
+  if (expiredCount) SpreadsheetApp.flush();
+  return expiredCount;
+}
+
+function expirePendingBookings() {
+  return withBookingMutationLock({}, () => expirePendingBookingsUnderLock());
 }
 
 function getAllBookingsV2() {
   const sheet = getBookingsSheetV2();
   if (sheet.getLastRow() < 2) return [];
-  return sheet.getRange(2, 1, sheet.getLastRow() - 1, BOOKING_HEADERS_V2.length).getValues()
-    .map((row, index) => bookingFromRowV2(row, index + 2));
+  const headers = getBookingHeadersV2(sheet);
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues()
+    .map((row, index) => bookingFromRowV2(row, index + 2, headers));
 }
 
-function bookingSlotIsFree(employeeName, dateKey, time, durationMinutes, excludeId, bookings, shiftStart) {
+function bookingEmployeeMatchesV2(booking, employeeId, employeeName, barbers) {
+  const bookingEmployeeId = String(booking.employeeId || "").trim();
+  const requestedEmployeeId = String(employeeId || "").trim();
+  if (bookingEmployeeId && requestedEmployeeId) return bookingEmployeeId === requestedEmployeeId;
+  if (bookingEmployeeId) return false;
+  const bookingEmployeeName = normalizeLookupKey(booking.employee);
+  if (!bookingEmployeeName) return false;
+  const uniqueBarber = getUniqueActiveBarberByNameV2(bookingEmployeeName, barbers);
+  if (!uniqueBarber) return false;
+  if (requestedEmployeeId) {
+    return String(uniqueBarber.staffId || "").trim() === requestedEmployeeId;
+  }
+  return bookingEmployeeName === normalizeLookupKey(employeeName);
+}
+
+function bookingSlotIsFree(employeeId, employeeName, dateKey, time, durationMinutes, excludeId, bookings, shiftStart, barbers) {
   const start = shiftStart ? bookingTimelineMinutes(time, shiftStart) : bookingMinutes(time);
   if (start === null) return false;
   const end = start + Math.max(15, Number(durationMinutes) || 30);
   const bookingRows = Array.isArray(bookings) ? bookings : getAllBookingsV2();
   return !bookingRows.some((booking) => {
-    if (booking.id === excludeId || booking.date !== dateKey || normalizeLookupKey(booking.employee) !== normalizeLookupKey(employeeName) || !bookingBlocksSlot(booking)) return false;
-    const otherStart = shiftStart ? bookingTimelineMinutes(booking.time, shiftStart) : bookingMinutes(booking.time);
+    const occupiedDate = booking.status === "proposed" && booking.proposedDate ? booking.proposedDate : booking.date;
+    const occupiedTime = booking.status === "proposed" && booking.proposedTime ? booking.proposedTime : booking.time;
+    if (booking.id === excludeId || occupiedDate !== dateKey ||
+        !bookingEmployeeMatchesV2(booking, employeeId, employeeName, barbers) ||
+        !bookingBlocksSlot(booking)) return false;
+    const otherStart = shiftStart ? bookingTimelineMinutes(occupiedTime, shiftStart) : bookingMinutes(occupiedTime);
     if (otherStart === null) return false;
     const otherEnd = otherStart + Math.max(15, Number(booking.durationMinutes) || 30);
     return start < otherEnd && end > otherStart;
   });
 }
 
-function availableSlotsForBarber(barber, dateKey, durationMinutes, bookings) {
+function resolveBookingBarberV2(employeeId, employeeName, barbers) {
+  const rows = Array.isArray(barbers) ? barbers : publicBookingBarbers();
+  const cleanId = String(employeeId || "").trim();
+  if (cleanId) return rows.find((barber) => String(barber.staffId || "").trim() === cleanId) || null;
+  const nameMatches = rows.filter((barber) => normalizeLookupKey(barber.name) === normalizeLookupKey(employeeName));
+  return nameMatches.length === 1 ? nameMatches[0] : null;
+}
+
+function bookingAppointmentValidationError(code, message) {
+  return { ok: false, code: code || "SLOT_UNAVAILABLE", message };
+}
+
+function validateBookingAppointmentV2(options) {
+  const dateKey = String(options.date || "").trim();
+  const time = normalizeDigits(String(options.time || "").trim());
+  const durationMinutes = Number(options.durationMinutes);
+  if (!isValidBookingDateKey(dateKey) || !isStrictBookingTime(time) || !isValidBookingDuration(durationMinutes)) {
+    return bookingAppointmentValidationError("INVALID_APPOINTMENT", "The appointment date, time, or duration is invalid.");
+  }
+  const barber = resolveBookingBarberV2(options.employeeId, options.employeeName, options.barbers);
+  if (!barber) return bookingAppointmentValidationError("EMPLOYEE_UNAVAILABLE", "The selected employee does not exist or is inactive.");
+  const schedule = getScheduleForBarber(barber, dateKey, options.barbers);
+  if (!schedule.scheduled) return bookingAppointmentValidationError("EMPLOYEE_UNAVAILABLE", "The selected employee is not scheduled to work on this date.");
+  const attendance = getAttendanceOverride(barber, dateKey, options.barbers);
+  if (attendance && attendance.unavailable) {
+    return bookingAppointmentValidationError("EMPLOYEE_UNAVAILABLE", "The selected employee is absent or unavailable.");
+  }
+  const shiftStart = attendance && attendance.shiftStart ? attendance.shiftStart : schedule.shiftStart;
+  const shiftEnd = attendance && attendance.checkOut ? attendance.checkOut : schedule.shiftEnd;
+  if (!isStrictBookingTime(shiftStart) || !isStrictBookingTime(shiftEnd)) {
+    return bookingAppointmentValidationError("INVALID_APPOINTMENT", "The employee schedule contains an invalid time.");
+  }
+  const shiftStartMinutes = bookingMinutes(shiftStart);
+  let shiftEndMinutes = bookingMinutes(shiftEnd);
+  const appointmentStart = bookingTimelineMinutes(time, shiftStart);
+  if (shiftStartMinutes === null || shiftEndMinutes === null || appointmentStart === null) {
+    return bookingAppointmentValidationError("INVALID_APPOINTMENT", "The employee schedule contains an invalid time.");
+  }
+  if (shiftEndMinutes <= shiftStartMinutes) shiftEndMinutes += 24 * 60;
+  const appointmentEnd = appointmentStart + durationMinutes;
+  if (appointmentStart < shiftStartMinutes || appointmentEnd > shiftEndMinutes ||
+      (appointmentStart - shiftStartMinutes) % BOOKING_SLOT_INTERVAL_MINUTES !== 0) {
+    return bookingAppointmentValidationError("SLOT_UNAVAILABLE", "The appointment is outside the employee shift or does not align with booking slots.");
+  }
+  const today = Utilities.formatDate(new Date(), TIME_ZONE, "yyyy-MM-dd");
+  if (dateKey < today) return bookingAppointmentValidationError("SLOT_UNAVAILABLE", "Appointments cannot be created in the past.");
+  if (dateKey === today) {
+    const nowMinutes = bookingMinutes(Utilities.formatDate(new Date(), TIME_ZONE, "HH:mm"));
+    if (appointmentStart < Math.ceil((nowMinutes + 15) / BOOKING_SLOT_INTERVAL_MINUTES) * BOOKING_SLOT_INTERVAL_MINUTES) {
+      return bookingAppointmentValidationError("SLOT_UNAVAILABLE", "The appointment time is in the past.");
+    }
+  }
+  const bookings = Array.isArray(options.bookings) ? options.bookings : getAllBookingsV2();
+  if (!bookingSlotIsFree(
+    barber.staffId, barber.name, dateKey, time, durationMinutes,
+    options.excludeId || "", bookings, shiftStart, options.barbers
+  )) {
+    return bookingAppointmentValidationError("SLOT_UNAVAILABLE", "This appointment overlaps another active booking.");
+  }
+  return { ok: true, barber, date: dateKey, time, durationMinutes, shiftStart, shiftEnd };
+}
+
+function availableSlotsForBarber(barber, dateKey, durationMinutes, bookings, barbers) {
   const today = Utilities.formatDate(new Date(), TIME_ZONE, "yyyy-MM-dd");
   if (!dateKey || dateKey < today) return { slots: [], availability: "unavailable", shiftStart: "", shiftEnd: "" };
-  const schedule = getScheduleForBarber(barber, dateKey);
-  const attendance = getAttendanceOverride(barber, dateKey);
+  const schedule = getScheduleForBarber(barber, dateKey, barbers);
+  if (!schedule.scheduled) return { slots: [], availability: "unavailable", shiftStart: "", shiftEnd: "" };
+  const attendance = getAttendanceOverride(barber, dateKey, barbers);
   if (attendance && attendance.unavailable) {
     return { slots: [], availability: "unavailable", shiftStart: schedule.shiftStart, shiftEnd: schedule.shiftEnd };
   }
 
   const shiftStart = attendance && attendance.shiftStart ? attendance.shiftStart : schedule.shiftStart;
-  const shiftEnd = schedule.shiftEnd;
+  const shiftEnd = attendance && attendance.checkOut ? attendance.checkOut : schedule.shiftEnd;
+  if (!isStrictBookingTime(shiftStart) || !isStrictBookingTime(shiftEnd)) {
+    return { slots: [], availability: "unavailable", shiftStart, shiftEnd };
+  }
   const startMinutes = bookingMinutes(shiftStart);
   let endMinutes = bookingMinutes(shiftEnd);
   if (startMinutes === null || endMinutes === null) {
@@ -4668,9 +5294,12 @@ function availableSlotsForBarber(barber, dateKey, durationMinutes, bookings) {
   }
 
   const slots = [];
-  for (let minute = startMinutes; minute + durationMinutes <= endMinutes; minute += 30) {
+  for (let minute = startMinutes; minute + durationMinutes <= endMinutes; minute += BOOKING_SLOT_INTERVAL_MINUTES) {
     const time = minutesToBookingTime(minute);
-    if (minute >= earliest && bookingSlotIsFree(barber.name, dateKey, time, durationMinutes, "", bookings, shiftStart)) slots.push(time);
+    if (minute >= earliest && bookingSlotIsFree(
+      barber.staffId, barber.name, dateKey, time, durationMinutes,
+      "", bookings, shiftStart, barbers
+    )) slots.push(time);
   }
 
   let availability = slots.length ? "available" : "unavailable";
@@ -4680,17 +5309,40 @@ function availableSlotsForBarber(barber, dateKey, durationMinutes, bookings) {
 
 function getPublicBookingOptions(data) {
   try {
+    expirePendingBookings();
+    if (!bookingServiceIdsInputIsValid(data)) {
+      return bookingApiError("INVALID_SERVICES", "serviceIds must be an array.");
+    }
     const services = publicBookingServices();
     const selectedServices = getSelectedPublicBookingServices(data, services);
     const dateKey = getDateKey(data.date || "", TIME_ZONE) || Utilities.formatDate(new Date(), TIME_ZONE, "yyyy-MM-dd");
-    const durationMinutes = Math.max(15, selectedServices.reduce((total, service) => total + service.durationMinutes, 0) || 30);
+    const requestedServiceIds = getPublicBookingServiceIds(data);
+    if (bookingServiceIdsHaveDuplicates(requestedServiceIds)) {
+      return jsonOutput({ status: "error", code: "INVALID_SERVICES", message: "Duplicate service IDs are not allowed." });
+    }
+    const hasDurationOverride = !requestedServiceIds.length && data.durationMinutes !== undefined && data.durationMinutes !== "";
+    if (hasDurationOverride && !isValidBookingDuration(Number(data.durationMinutes))) {
+      return jsonOutput({ status: "error", code: "INVALID_APPOINTMENT", message: "The requested booking duration is invalid." });
+    }
+    const durationOverride = hasDurationOverride ? Number(data.durationMinutes) : 0;
+    const durationMinutes = Math.max(15, durationOverride || selectedServices.reduce((total, service) => total + service.durationMinutes, 0) || 30);
+    if (!isValidBookingDuration(durationMinutes)) {
+      return jsonOutput({ status: "error", code: "INVALID_APPOINTMENT", message: "The requested booking duration is invalid." });
+    }
     const bookings = getAllBookingsV2();
-    const barbers = publicBookingBarbers().map((barber) => ({
-      staffId: barber.staffId,
-      name: barber.name,
-      code: barber.code,
-      ...availableSlotsForBarber(barber, dateKey, durationMinutes, bookings)
-    }));
+    const ratings = getAllBookingRatings();
+    const activeBarbers = publicBookingBarbers();
+    const barbers = activeBarbers.map((barber) => {
+      const summary = calculatePublicBarberRatingSummary(barber.staffId, ratings, bookings);
+      return {
+        staffId: barber.staffId,
+        name: barber.name,
+        code: barber.code,
+        averageRating: summary.averageRating,
+        ratingsCount: summary.ratingsCount,
+        ...availableSlotsForBarber(barber, dateKey, durationMinutes, bookings, activeBarbers)
+      };
+    });
     return jsonOutput({ status: "success", date: dateKey, services, selectedServiceIds: selectedServices.map((service) => service.serviceId), durationMinutes, barbers });
   } catch (error) {
     return jsonOutput({ status: "error", message: error.message });
@@ -4698,7 +5350,29 @@ function getPublicBookingOptions(data) {
 }
 
 function normalizePublicPhone(value) {
-  return normalizeDigits(String(value || "")).replace(/[^0-9+]/g, "").trim();
+  let digits = normalizeDigits(String(value || "")).replace(/\D/g, "");
+  if (digits.indexOf("0020") === 0) digits = digits.slice(4);
+  else if (digits.indexOf("20") === 0 && digits.length === 12) digits = digits.slice(2);
+  if (digits.length === 10 && digits.charAt(0) === "1") digits = `0${digits}`;
+  return digits;
+}
+
+function isValidEgyptianMobile(value) {
+  return /^01(?:0|1|2|5)\d{8}$/.test(normalizePublicPhone(value));
+}
+
+function verifyBookingTrackingPhone(booking, phoneLast4) {
+  const expected = normalizePublicPhone(booking.customerPhone).slice(-4);
+  const supplied = normalizeDigits(String(phoneLast4 || "")).replace(/\D/g, "");
+  return supplied.length === 4 && expected && supplied === expected;
+}
+
+function trackingVerificationError() {
+  return jsonOutput({
+    status: "error",
+    code: "TRACKING_VERIFICATION_FAILED",
+    message: "The tracking code or phone verification digits are incorrect."
+  });
 }
 
 function generatePublicBookingTrackingToken(bookings) {
@@ -4710,54 +5384,105 @@ function generatePublicBookingTrackingToken(bookings) {
   throw new Error("Could not create a unique booking tracking code. Please try again.");
 }
 
+function publicBookingCreationResponse(booking) {
+  return jsonOutput({
+    status: "success",
+    bookingId: booking.id,
+    trackingToken: booking.trackingToken,
+    trackingPath: `customer-booking.html?tracking=${booking.trackingToken}`,
+    booking: publicBookingView(booking)
+  });
+}
+
+function internalBookingCreationResponse(booking) {
+  return jsonOutput({ status: "success", booking });
+}
+
 function createPublicBookingRequest(data) {
-  const lock = LockService.getScriptLock();
   try {
-    lock.waitLock(10000);
-    const customerName = String(data.customerName || "").trim().slice(0, 100);
-    const customerPhone = normalizePublicPhone(data.customerPhone).slice(0, 20);
-    const dateKey = getDateKey(data.date || "", TIME_ZONE);
-    const time = getBookingTimeValue(data.time);
+    if (!bookingServiceIdsInputIsValid(data)) {
+      return bookingApiError("INVALID_SERVICES", "serviceIds must be an array.");
+    }
+    const customerName = normalizeProtectedText(data.customerName, 100);
+    const customerPhone = normalizePublicPhone(data.customerPhone);
+    const rawDate = normalizeDigits(String(data.date || "").trim());
+    const rawTime = normalizeDigits(String(data.time || "").trim());
+    const dateKey = getDateKey(rawDate, TIME_ZONE);
+    const time = getBookingTimeValue(rawTime);
     const employeeId = String(data.employeeId || "").trim();
     const serviceIds = getPublicBookingServiceIds(data);
-    const note = String(data.note || "").trim().slice(0, 500);
-    if (customerName.length < 2 || customerPhone.replace(/\D/g, "").length < 8 || !dateKey || !time || !employeeId || !serviceIds.length) {
+    const requestIdValidation = validateClientRequestId(data.clientRequestId);
+    if (!requestIdValidation.ok) {
+      return bookingApiError("INVALID_CLIENT_REQUEST_ID", "clientRequestId must be 8-128 safe identifier characters.");
+    }
+    const clientRequestId = requestIdValidation.value;
+    if (bookingServiceIdsHaveDuplicates(serviceIds)) {
+      return jsonOutput({ status: "error", code: "INVALID_SERVICES", message: "Duplicate service IDs are not allowed." });
+    }
+    const note = normalizeProtectedText(data.note, 500);
+    if (customerName.length < 2 || !isValidEgyptianMobile(customerPhone) ||
+        !isValidBookingDateKey(rawDate) || !isStrictBookingTime(rawTime) ||
+        !dateKey || !time || !employeeId || !serviceIds.length) {
       return jsonOutput({ status: "error", message: "Please complete all required booking details." });
     }
+    const fingerprint = bookingRequestFingerprint("public", {
+      customerName, customerPhone, employeeId, date: rawDate, time: rawTime, serviceIds, note
+    });
+    return withBookingMutationLock({
+      bookingRequestId: clientRequestId, employeeId, date: dateKey, time
+    }, (diagnostic) => {
+      expirePendingBookingsUnderLock();
+      const sheet = getBookingsSheetV2();
+      const bookings = getAllBookingsV2();
+      const existing = findBookingByClientRequestId(bookings, clientRequestId);
+      const retry = bookingIdempotencyResult(existing, fingerprint, publicBookingCreationResponse);
+      if (retry) return retry;
 
     const publicServices = publicBookingServices();
     const selectedServices = publicServices.filter((item) => serviceIds.indexOf(item.serviceId) !== -1);
-    const barber = publicBookingBarbers().find((item) => item.staffId === employeeId);
-    if (selectedServices.length !== serviceIds.length || !barber) return jsonOutput({ status: "error", message: "The selected service or barber is no longer available." });
-    const durationMinutes = Math.max(15, selectedServices.reduce((total, service) => total + service.durationMinutes, 0));
+    if (selectedServices.length !== serviceIds.length || !selectedServices.length) {
+      return jsonOutput({ status: "error", message: "The selected service is no longer available." });
+    }
+    if (!selectedServices.every((service) =>
+      isValidBookingDuration(service.durationMinutes) && isValidBookingPrice(service.price))) {
+      return jsonOutput({ status: "error", message: "The selected service configuration is invalid." });
+    }
+    const durationMinutes = selectedServices.reduce((total, service) => total + Number(service.durationMinutes), 0);
+    const totalPrice = selectedServices.reduce((sum, service) => sum + Number(service.price), 0);
+    diagnostic.durationMinutes = durationMinutes;
+    if (!isValidBookingDuration(durationMinutes) || !isValidBookingPrice(totalPrice)) {
+      return jsonOutput({ status: "error", message: "The selected service configuration is invalid." });
+    }
     const serviceName = selectedServices.map((service) => service.name).join("، ");
     const serviceId = selectedServices.map((service) => service.serviceId).join(",");
-    const bookings = getAllBookingsV2();
-    const availability = availableSlotsForBarber(barber, dateKey, durationMinutes, bookings);
-    if (availability.slots.indexOf(time) === -1 || !bookingSlotIsFree(barber.name, dateKey, time, durationMinutes, "", bookings, availability.shiftStart)) {
-      return jsonOutput({ status: "error", code: "SLOT_UNAVAILABLE", message: "This appointment is no longer available. Please choose another time." });
-    }
+    const barbers = publicBookingBarbers();
+    const appointment = validateBookingAppointmentV2({ employeeId, date: dateKey, time, durationMinutes, bookings, barbers });
+    if (!appointment.ok) return jsonOutput({ status: "error", code: appointment.code, message: appointment.message });
+    const barber = appointment.barber;
 
-    const sheet = getBookingsSheetV2();
     const now = new Date();
     const nowText = getCairoDateTime();
-    const id = `BOOK-${Utilities.getUuid()}`;
+    const id = generateUniqueBookingIdV2(bookings);
     const token = generatePublicBookingTrackingToken(bookings);
     const booking = {
       id, date: dateKey, time, customerName, customerPhone, employee: barber.name,
       service: serviceName, note, status: "pending", createdAt: nowText, updatedAt: nowText,
-      serviceId, durationMinutes, source: "public", trackingToken: token,
+      serviceId, serviceIds, durationMinutes,
+      totalPrice,
+      source: "public", trackingToken: token,
       requestedAt: nowText, confirmedAt: "", confirmedBy: "", rejectionReason: "",
       proposedDate: "", proposedTime: "", holdExpiresAt: new Date(now.getTime() + (15 * 60 * 1000)).toISOString(),
-      customerResponse: "pending", employeeId
+      customerResponse: "pending", employeeId, cancelledAt: "", cancelledBy: "",
+      cancellationReason: "", completedAt: "", completedBy: "", deleted: false, deletedAt: "", deletedBy: "",
+      deletionReason: "", clientRequestId, clientRequestFingerprint: fingerprint
     };
-    sheet.appendRow(bookingToRowV2(booking));
+    appendBookingRowV2(sheet, booking);
     SpreadsheetApp.flush();
-    return jsonOutput({ status: "success", bookingId: id, trackingToken: token, trackingPath: `customer-booking.html?tracking=${token}` });
+    logActivity({}, "create", "booking", id, `Created public booking | Employee: ${barber.name}`);
+    return publicBookingCreationResponse(booking);
+    });
   } catch (error) {
     return jsonOutput({ status: "error", message: error.message });
-  } finally {
-    try { lock.releaseLock(); } catch (ignore) {}
   }
 }
 
@@ -4766,10 +5491,13 @@ function findBookingByTrackingToken(token) {
   if (!cleanToken) return null;
   const sheet = getBookingsSheetV2();
   if (sheet.getLastRow() < 2) return null;
-  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, BOOKING_HEADERS_V2.length).getValues();
+  const headers = getBookingHeadersV2(sheet);
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
   for (let index = 0; index < rows.length; index++) {
-    const booking = bookingFromRowV2(rows[index], index + 2);
-    if (String(booking.trackingToken || "").trim().toUpperCase() === cleanToken) return { sheet, rowNumber: index + 2, booking };
+    const booking = bookingFromRowV2(rows[index], index + 2, headers);
+    if (!booking.deleted && String(booking.trackingToken || "").trim().toUpperCase() === cleanToken) {
+      return { sheet, rowNumber: index + 2, booking, row: rows[index], headers };
+    }
   }
   return null;
 }
@@ -4793,8 +5521,10 @@ function publicBookingView(booking) {
 
 function getPublicBookingStatus(data) {
   try {
+    expirePendingBookings();
     const found = findBookingByTrackingToken(data.trackingToken);
     if (!found) return jsonOutput({ status: "error", message: "Booking request not found." });
+    if (!verifyBookingTrackingPhone(found.booking, data.phoneLast4)) return trackingVerificationError();
     return jsonOutput({ status: "success", booking: publicBookingView(found.booking) });
   } catch (error) {
     return jsonOutput({ status: "error", message: error.message });
@@ -4802,67 +5532,169 @@ function getPublicBookingStatus(data) {
 }
 
 function respondToBookingProposal(data) {
-  const lock = LockService.getScriptLock();
   try {
-    lock.waitLock(10000);
+    return withBookingMutationLock({
+      bookingRequestId: String(data.trackingToken || "").trim()
+    }, () => {
+    expirePendingBookingsUnderLock();
     const found = findBookingByTrackingToken(data.trackingToken);
     if (!found || found.booking.status !== "proposed") return jsonOutput({ status: "error", message: "There is no active appointment proposal." });
-    const accepted = String(data.response || "").trim().toLowerCase() === "accept";
+    if (!verifyBookingTrackingPhone(found.booking, data.phoneLast4)) return trackingVerificationError();
+    const response = String(data.response || "").trim().toLowerCase();
+    if (["accept", "reject"].indexOf(response) === -1) {
+      return jsonOutput({ status: "error", code: "INVALID_RESPONSE", message: "The proposal response must be accept or reject." });
+    }
+    const accepted = response === "accept";
     const booking = found.booking;
+    const responseStatus = accepted ? "confirmed" : "rejected";
+    if (!isBookingStatusTransitionAllowed(booking.status, responseStatus)) {
+      return jsonOutput({ status: "error", code: "INVALID_STATUS_TRANSITION", message: "The booking proposal can no longer be changed." });
+    }
     booking.updatedAt = getCairoDateTime();
     if (!accepted) {
       booking.status = "rejected";
       booking.customerResponse = "declined";
       booking.rejectionReason = "Customer declined the proposed appointment.";
     } else {
-      if (!bookingSlotIsFree(booking.employee, booking.proposedDate, booking.proposedTime, booking.durationMinutes, booking.id)) {
-        return jsonOutput({ status: "error", code: "SLOT_UNAVAILABLE", message: "The proposed appointment is no longer available." });
+      const trustedServices = resolveTrustedBookingServiceTotals(booking, publicBookingServices());
+      if (!trustedServices.ok) {
+        return jsonOutput({ status: "error", code: trustedServices.code, message: trustedServices.message });
       }
+      const bookings = getAllBookingsV2();
+      const appointment = validateBookingAppointmentV2({
+        employeeId: booking.employeeId, employeeName: booking.employee,
+        date: booking.proposedDate, time: booking.proposedTime,
+        durationMinutes: trustedServices.durationMinutes, excludeId: booking.id, bookings,
+        barbers: publicBookingBarbers()
+      });
+      if (!appointment.ok) return jsonOutput({ status: "error", code: appointment.code, message: appointment.message });
       booking.date = booking.proposedDate;
       booking.time = booking.proposedTime;
+      booking.employeeId = appointment.barber.staffId;
+      booking.employee = appointment.barber.name;
+      booking.durationMinutes = trustedServices.durationMinutes;
+      booking.totalPrice = trustedServices.totalPrice;
       booking.status = "confirmed";
       booking.customerResponse = "accepted";
       booking.confirmedAt = booking.updatedAt;
+      booking.confirmedBy = "customer";
     }
-    found.sheet.getRange(found.rowNumber, 1, 1, BOOKING_HEADERS_V2.length).setValues([bookingToRowV2(booking)]);
+    writeBookingRowV2(found.sheet, found.rowNumber, booking, found.row);
+    SpreadsheetApp.flush();
+    logActivity({}, accepted ? "confirm" : "reject", "booking", booking.id, `Public proposal response | Previous: proposed | Next: ${booking.status} | Employee: ${booking.employee}`);
     return jsonOutput({ status: "success", booking: publicBookingView(booking) });
+    });
   } catch (error) {
     return jsonOutput({ status: "error", message: error.message });
-  } finally {
-    try { lock.releaseLock(); } catch (ignore) {}
   }
 }
 
 function createBookingV2(data) {
   try {
-    const permissionError = requirePermission(data, "view_bookings", "You do not have permission to create bookings.");
+    const permissionError = requirePermission(data, "create_bookings", "You do not have permission to create bookings.");
     if (permissionError) return permissionError;
+    if (!bookingServiceIdsInputIsValid(data)) {
+      return bookingApiError("INVALID_SERVICES", "serviceIds must be an array.");
+    }
+    const requestIdValidation = validateClientRequestId(data.clientRequestId);
+    if (!requestIdValidation.ok) {
+      return bookingApiError("INVALID_CLIENT_REQUEST_ID", "clientRequestId must be 8-128 safe identifier characters.");
+    }
+    const clientRequestId = requestIdValidation.value;
+    const requestedServiceIds = getPublicBookingServiceIds(data);
+    const rawDate = normalizeDigits(String(data.date || data.bookingDate || "").trim());
+    const rawTime = normalizeDigits(String(data.time || data.bookingTime || "").trim());
+    const fingerprint = bookingRequestFingerprint("internal", {
+      customerName: data.customerName || data.customer,
+      customerPhone: data.customerPhone || data.phone,
+      employeeId: data.employeeId,
+      date: rawDate,
+      time: rawTime,
+      serviceIds: requestedServiceIds,
+      manualService: data.service || data.services,
+      manualDuration: data.durationMinutes,
+      note: data.note
+    });
+    return withBookingMutationLock({
+      bookingRequestId: clientRequestId,
+      employeeId: data.employeeId,
+      date: rawDate,
+      time: rawTime,
+      durationMinutes: data.durationMinutes
+    }, (diagnostic) => {
+    expirePendingBookingsUnderLock();
     const sheet = getBookingsSheetV2();
     const now = getCairoDateTime();
+    const bookings = getAllBookingsV2();
+    const existing = findBookingByClientRequestId(bookings, clientRequestId);
+    const retry = bookingIdempotencyResult(existing, fingerprint, internalBookingCreationResponse);
+    if (retry) return retry;
+    if (bookingServiceIdsHaveDuplicates(requestedServiceIds)) {
+      return jsonOutput({ status: "error", code: "INVALID_SERVICES", message: "Duplicate service IDs are not allowed." });
+    }
+    const knownServices = publicBookingServices();
+    const selectedServices = knownServices.filter((service) => requestedServiceIds.indexOf(service.serviceId) !== -1);
+    const otherService = requestedServiceIds.length === 0;
+    const manualServiceName = normalizeProtectedText(data.service || data.services, 100);
+    const manualDuration = Number(data.durationMinutes);
+    if (otherService && (!manualServiceName || !isValidBookingDuration(manualDuration))) {
+      return jsonOutput({ status: "error", message: "Other Service requires a service name and duration." });
+    }
+    if (!otherService && selectedServices.length !== requestedServiceIds.length) {
+      return jsonOutput({ status: "error", message: "One or more selected services are unavailable." });
+    }
+    if (!otherService && !selectedServices.every((service) =>
+      isValidBookingDuration(service.durationMinutes) && isValidBookingPrice(service.price))) {
+      return jsonOutput({ status: "error", message: "The selected service configuration is invalid." });
+    }
+    const durationMinutes = otherService
+      ? manualDuration
+      : selectedServices.reduce((sum, service) => sum + Number(service.durationMinutes), 0);
+    const totalPrice = otherService ? 0 : selectedServices.reduce((sum, service) => sum + Number(service.price), 0);
+    diagnostic.durationMinutes = durationMinutes;
+    if (!isValidBookingDuration(durationMinutes) || !isValidBookingPrice(totalPrice)) {
+      return jsonOutput({ status: "error", message: "The selected service configuration is invalid." });
+    }
+    const barbers = publicBookingBarbers();
+    if (!isValidBookingDateKey(rawDate) || !isStrictBookingTime(rawTime)) {
+      return jsonOutput({ status: "error", code: "INVALID_APPOINTMENT", message: "The appointment date or time is invalid." });
+    }
+    const appointment = validateBookingAppointmentV2({
+      employeeId: String(data.employeeId || "").trim(),
+      date: getDateKey(rawDate, TIME_ZONE),
+      time: getBookingTimeValue(rawTime),
+      durationMinutes, bookings, barbers
+    });
+    if (!appointment.ok) return jsonOutput({ status: "error", code: appointment.code, message: appointment.message });
+    const barber = appointment.barber;
     const booking = {
-      id: String(data.id || data.bookingId || `BOOK-${Utilities.getUuid()}`).trim(),
-      date: getDateKey(data.date || data.bookingDate || "", TIME_ZONE),
-      time: getBookingTimeValue(data.time || data.bookingTime),
-      customerName: String(data.customerName || data.customer || "").trim(),
+      id: generateUniqueBookingIdV2(bookings),
+      date: appointment.date,
+      time: appointment.time,
+      customerName: normalizeProtectedText(data.customerName || data.customer, 100),
       customerPhone: normalizePublicPhone(data.customerPhone || data.phone),
-      employee: String(data.employee || data.barber || "").trim(),
-      service: String(data.service || data.services || "").trim(),
-      note: String(data.note || "").trim(), status: normalizeBookingStatusV2(data.status),
-      createdAt: now, updatedAt: now, serviceId: String(data.serviceId || "").trim(),
-      durationMinutes: Math.max(15, Number(data.durationMinutes) || 30), source: String(data.source || "staff").trim(),
-      trackingToken: String(data.trackingToken || "").trim(), requestedAt: now, confirmedAt: "", confirmedBy: "",
+      employee: barber.name,
+      service: otherService ? manualServiceName : selectedServices.map((service) => service.name).join(", "),
+      note: normalizeProtectedText(data.note, 500), status: "pending",
+      createdAt: now, updatedAt: now, serviceId: otherService ? "" : requestedServiceIds.join(","),
+      serviceIds: otherService ? [] : requestedServiceIds,
+      durationMinutes, totalPrice, source: "staff",
+      trackingToken: "", requestedAt: now, confirmedAt: "", confirmedBy: "",
       rejectionReason: "", proposedDate: "", proposedTime: "", holdExpiresAt: "", customerResponse: "",
-      employeeId: String(data.employeeId || "").trim()
+      employeeId: barber.staffId, cancelledAt: "", cancelledBy: "", cancellationReason: "",
+      completedAt: "", completedBy: "", deleted: false, deletedAt: "", deletedBy: "",
+      deletionReason: "", clientRequestId, clientRequestFingerprint: fingerprint
     };
-    if (!booking.date || !booking.time || !booking.customerName || !booking.customerPhone || !booking.employee || !booking.service) {
+    if (!booking.date || !booking.time || !booking.customerName || !isValidEgyptianMobile(booking.customerPhone) || !booking.employee || !booking.service) {
       return jsonOutput({ status: "error", message: "Missing required booking fields." });
     }
-    if (!bookingSlotIsFree(booking.employee, booking.date, booking.time, booking.durationMinutes, "")) {
-      return jsonOutput({ status: "error", code: "SLOT_UNAVAILABLE", message: "This appointment overlaps another active booking." });
-    }
-    sheet.appendRow(bookingToRowV2(booking));
+    const appended = appendBookingRowV2(sheet, booking);
     SpreadsheetApp.flush();
-    return jsonOutput({ status: "success", booking: bookingFromRowV2(bookingToRowV2(booking), sheet.getLastRow()) });
+    logActivity(data, "create", "booking", booking.id, `Created booking | Employee: ${booking.employee}`);
+    return internalBookingCreationResponse(
+      bookingFromRowV2(appended.row, appended.rowNumber, getBookingHeadersV2(sheet))
+    );
+    });
   } catch (error) {
     return jsonOutput({ status: "error", message: error.message });
   }
@@ -4870,15 +5702,19 @@ function createBookingV2(data) {
 
 function getBookingsV2(data) {
   try {
+    expirePendingBookings();
     const permissionError = requirePermission(data, "view_bookings", "You do not have permission to view bookings.");
     if (permissionError) return permissionError;
     const filters = data.filters || {};
     const targetDate = getDateKey(filters.date || data.date || "", TIME_ZONE);
     const targetStatus = String(filters.status || data.status || "").trim().toLowerCase();
     const search = String(filters.search || data.search || "").trim().toLowerCase();
-    const bookings = getAllBookingsV2().filter((booking) => !targetDate || booking.date === targetDate)
+    const includeDeleted = parseSheetBoolean(filters.includeDeleted || data.includeDeleted, false) &&
+      (actorHasPermission(data, "manage_bookings") || actorHasPermission(data, "delete_bookings"));
+    const bookings = getAllBookingsV2().filter((booking) => includeDeleted || !booking.deleted)
+      .filter((booking) => !targetDate || booking.date === targetDate)
       .filter((booking) => !targetStatus || booking.status === targetStatus)
-      .filter((booking) => !search || `${booking.customerName} ${booking.customerPhone} ${booking.employee} ${booking.service} ${booking.note}`.toLowerCase().indexOf(search) !== -1)
+      .filter((booking) => !search || `${booking.customerName} ${booking.customerPhone} ${booking.employee} ${booking.service} ${booking.note} ${booking.trackingToken}`.toLowerCase().indexOf(search) !== -1)
       .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
     return jsonOutput({ status: "success", bookings });
   } catch (error) {
@@ -4887,43 +5723,466 @@ function getBookingsV2(data) {
 }
 
 function updateBookingV2(data) {
-  const lock = LockService.getScriptLock();
   try {
-    const permissionError = requirePermission(data, "view_bookings", "You do not have permission to edit bookings.");
+    const permissionError = requirePermission(data, "manage_bookings", "You do not have permission to edit bookings.");
     if (permissionError) return permissionError;
-    lock.waitLock(10000);
+    return withBookingMutationLock({
+      bookingRequestId: String(data.id || data.bookingId || "").trim(),
+      employeeId: data.employeeId,
+      date: data.date || data.bookingDate || data.proposedDate,
+      time: data.time || data.bookingTime || data.proposedTime,
+      durationMinutes: data.durationMinutes
+    }, () => {
+    expirePendingBookingsUnderLock();
     const sheet = getBookingsSheetV2();
     const found = findBookingRowV2(sheet, data);
     if (!found) return jsonOutput({ status: "error", message: "Booking not found" });
     const booking = found.booking;
-    const nextStatus = normalizeBookingStatusV2(data.status || booking.status);
-    const nextDate = getDateKey(data.date || data.bookingDate || booking.date, TIME_ZONE);
-    const nextTime = getBookingTimeValue(data.time || data.bookingTime || booking.time);
+    if (booking.deleted) {
+      return jsonOutput({ status: "error", code: "BOOKING_DELETED", message: "Deleted bookings cannot be updated." });
+    }
+    if (bookingStatusIsTerminal(booking.status)) {
+      return jsonOutput({ status: "error", code: "BOOKING_IMMUTABLE", message: "Terminal bookings cannot be updated." });
+    }
+    const requestedStatus = String(data.status || "").trim();
+    if (requestedStatus && !isRecognizedBookingStatusV2(requestedStatus)) {
+      return jsonOutput({ status: "error", code: "INVALID_STATUS", message: "The requested booking status is invalid." });
+    }
+    const nextStatus = requestedStatus ? normalizeBookingStatusV2(requestedStatus) : booking.status;
+    const statusChanged = nextStatus !== booking.status;
+    const hasDateInput = data.date !== undefined || data.bookingDate !== undefined;
+    const hasTimeInput = data.time !== undefined || data.bookingTime !== undefined;
+    const hasProposedDateInput = data.proposedDate !== undefined;
+    const hasProposedTimeInput = data.proposedTime !== undefined;
+    const hasRejectionReasonInput = data.rejectionReason !== undefined;
+    if (hasRejectionReasonInput && !(statusChanged && nextStatus === "rejected")) {
+      return jsonOutput({
+        status: "error",
+        code: "INVALID_LIFECYCLE_METADATA",
+        message: "A rejection reason can only be supplied while rejecting a booking."
+      });
+    }
+    if ((hasDateInput && !isValidBookingDateKey(data.date !== undefined ? data.date : data.bookingDate)) ||
+        (hasTimeInput && !isStrictBookingTime(data.time !== undefined ? data.time : data.bookingTime)) ||
+        (hasProposedDateInput && !isValidBookingDateKey(data.proposedDate)) ||
+        (hasProposedTimeInput && !isStrictBookingTime(data.proposedTime))) {
+      return jsonOutput({ status: "error", code: "INVALID_APPOINTMENT", message: "The appointment date or time is invalid." });
+    }
+    if (statusChanged && (hasDateInput || hasTimeInput) && nextStatus !== "confirmed") {
+      return jsonOutput({ status: "error", code: "INVALID_UPDATE", message: "Appointment edits must be submitted separately from this status change." });
+    }
+    if ((hasProposedDateInput || hasProposedTimeInput) && nextStatus !== "proposed") {
+      return jsonOutput({ status: "error", code: "INVALID_UPDATE", message: "Proposal times can only be set while proposing an appointment." });
+    }
+    if ((hasDateInput || hasTimeInput) && nextStatus === "proposed") {
+      return jsonOutput({ status: "error", code: "INVALID_UPDATE", message: "Original appointment edits and proposal edits must be submitted separately." });
+    }
+    let nextDate = getDateKey(data.date || data.bookingDate || booking.date, TIME_ZONE);
+    let nextTime = getBookingTimeValue(data.time || data.bookingTime || booking.time);
     const proposedDate = getDateKey(data.proposedDate || booking.proposedDate, TIME_ZONE);
     const proposedTime = getBookingTimeValue(data.proposedTime || booking.proposedTime);
-    if (nextStatus === "confirmed" && !bookingSlotIsFree(booking.employee, nextDate, nextTime, booking.durationMinutes, booking.id)) {
-      return jsonOutput({ status: "error", code: "SLOT_UNAVAILABLE", message: "This appointment overlaps another active booking." });
+    if (statusChanged && !isBookingStatusTransitionAllowed(booking.status, nextStatus)) {
+      return jsonOutput({
+        status: "error",
+        code: "INVALID_STATUS_TRANSITION",
+        message: `Booking status cannot change from ${booking.status} to ${nextStatus}.`
+      });
     }
-    if (nextStatus === "proposed" && (!proposedDate || !proposedTime || !bookingSlotIsFree(booking.employee, proposedDate, proposedTime, booking.durationMinutes, booking.id))) {
-      return jsonOutput({ status: "error", code: "SLOT_UNAVAILABLE", message: "The proposed appointment is not available." });
+    const rejectionReason = statusChanged && nextStatus === "rejected"
+      ? normalizeProtectedText(data.rejectionReason, 500)
+      : booking.rejectionReason;
+    if (statusChanged && nextStatus === "rejected" && booking.source === "public" && !rejectionReason) {
+      return jsonOutput({ status: "error", message: "A rejection reason is required for public bookings." });
+    }
+    if (statusChanged && booking.status === "proposed" && nextStatus === "confirmed" && proposedDate && proposedTime) {
+      nextDate = proposedDate;
+      nextTime = proposedTime;
+    }
+    const timeChanged = nextDate !== booking.date || nextTime !== booking.time;
+    const proposalChanged = proposedDate !== booking.proposedDate || proposedTime !== booking.proposedTime;
+    const needsAppointmentValidation =
+      (statusChanged && (nextStatus === "confirmed" || nextStatus === "proposed")) ||
+      (!statusChanged && (timeChanged || (nextStatus === "proposed" && proposalChanged)));
+    let appointment = null;
+    let trustedServices = null;
+    if (needsAppointmentValidation) {
+      trustedServices = resolveTrustedBookingServiceTotals(booking, publicBookingServices());
+      if (!trustedServices.ok) {
+        return jsonOutput({ status: "error", code: trustedServices.code, message: trustedServices.message });
+      }
+      const appointmentDate = nextStatus === "proposed" ? proposedDate : nextDate;
+      const appointmentTime = nextStatus === "proposed" ? proposedTime : nextTime;
+      appointment = validateBookingAppointmentV2({
+        employeeId: booking.employeeId, employeeName: booking.employee,
+        date: appointmentDate, time: appointmentTime, durationMinutes: trustedServices.durationMinutes,
+        excludeId: booking.id, bookings: getAllBookingsV2(), barbers: publicBookingBarbers()
+      });
+      if (!appointment.ok) return jsonOutput({ status: "error", code: appointment.code, message: appointment.message });
+    }
+    const nextNote = data.note !== undefined ? normalizeProtectedText(data.note, 500) : booking.note;
+    if (!statusChanged && !timeChanged && !proposalChanged && nextNote === booking.note) {
+      return jsonOutput({ status: "success", booking, unchanged: true });
     }
     booking.date = nextDate;
     booking.time = nextTime;
     booking.status = nextStatus;
-    booking.note = data.note !== undefined ? String(data.note || "").trim() : booking.note;
+    booking.note = nextNote;
     booking.updatedAt = getCairoDateTime();
-    booking.rejectionReason = data.rejectionReason !== undefined ? String(data.rejectionReason || "").trim() : booking.rejectionReason;
+    booking.rejectionReason = rejectionReason;
     booking.proposedDate = proposedDate;
     booking.proposedTime = proposedTime;
-    if (nextStatus === "confirmed") {
+    if (appointment && appointment.barber) {
+      booking.employeeId = appointment.barber.staffId;
+      booking.employee = appointment.barber.name;
+      booking.durationMinutes = trustedServices.durationMinutes;
+      booking.totalPrice = trustedServices.totalPrice;
+    }
+    const actor = getActor(data);
+    if (statusChanged && nextStatus === "confirmed") {
       booking.confirmedAt = booking.updatedAt;
-      booking.confirmedBy = getAuthenticatedUser(data)?.displayName || getAuthenticatedUser(data)?.username || "system";
+      booking.confirmedBy = actor.displayName;
       booking.customerResponse = booking.customerResponse || "confirmed_by_staff";
     }
-    if (nextStatus === "rejected") booking.customerResponse = "rejected_by_staff";
-    sheet.getRange(found.rowNumber, 1, 1, BOOKING_HEADERS_V2.length).setValues([bookingToRowV2(booking)]);
-    logActivity(data, "update", "booking", booking.id, `Updated booking status to ${nextStatus}`);
+    if (statusChanged && nextStatus === "rejected") booking.customerResponse = "rejected_by_staff";
+    if (statusChanged && nextStatus === "cancelled") {
+      booking.cancellationReason = normalizeProtectedText(data.cancellationReason, 500);
+      booking.cancelledAt = booking.updatedAt;
+      booking.cancelledBy = actor.displayName;
+    }
+    if (statusChanged && nextStatus === "done") {
+      booking.completedAt = booking.updatedAt;
+      booking.completedBy = actor.displayName;
+    }
+    writeBookingRowV2(sheet, found.rowNumber, booking, found.row);
+    SpreadsheetApp.flush();
+    const action = statusChanged
+      ? (({ confirmed: "confirm", proposed: "propose", rejected: "reject", cancelled: "cancel", done: "complete" })[nextStatus] || "update")
+      : "update";
+    logActivity(data, action, "booking", booking.id, `Booking status | Previous: ${found.booking.status} | Next: ${nextStatus} | Employee: ${booking.employee} | Customer: ${booking.customerName}`);
     return jsonOutput({ status: "success", booking });
+    });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
+}
+
+const BOOKING_RATING_HEADERS = [
+  "RATING_ID", "BOOKING_ID", "TRACKING_TOKEN", "EMPLOYEE_ID", "EMPLOYEE_NAME",
+  "RATING", "COMMENT", "SERVICE", "BOOKING_DATE", "CREATED_AT", "STATUS",
+  "CUSTOMER_PHONE_HASH", "UPDATED_AT"
+];
+
+function getBookingRatingsSheet() {
+  const spreadsheet = SpreadsheetApp.getActive();
+  let sheet = spreadsheet.getSheetByName("BOOKING_RATINGS");
+  if (!sheet) sheet = spreadsheet.insertSheet("BOOKING_RATINGS");
+  const width = Math.max(1, sheet.getLastColumn());
+  const headers = sheet.getRange(1, 1, 1, width).getValues()[0];
+  const existing = {};
+  headers.forEach((header) => { if (header) existing[normalizeBookingHeader(header)] = true; });
+  const missing = BOOKING_RATING_HEADERS.filter((header) => !existing[normalizeBookingHeader(header)]);
+  if (missing.length) {
+    const start = headers.some((header) => String(header || "").trim()) ? width + 1 : 1;
+    const needed = start + missing.length - 1;
+    if (sheet.getMaxColumns() < needed) sheet.insertColumnsAfter(sheet.getMaxColumns(), needed - sheet.getMaxColumns());
+    sheet.getRange(1, start, 1, missing.length).setValues([missing]);
+  }
+  return sheet;
+}
+
+function initializeBookingStagingEnvironment() {
+  assertStagingEnvironment();
+  const sheets = [
+    getBookingsSheetV2(),
+    getBookingRatingsSheet(),
+    getBarberScheduleSheet()
+  ];
+  return {
+    environment: "staging",
+    spreadsheetId: CUT_HUB_STAGING_SPREADSHEET_ID,
+    sheets: sheets.map((sheet) => ({
+      name: sheet.getName(),
+      headerCount: Math.max(0, sheet.getLastColumn())
+    }))
+  };
+}
+
+function getRatingHeaders(sheet) {
+  return sheet.getRange(1, 1, 1, Math.max(1, sheet.getLastColumn())).getValues()[0]
+    .map((header) => String(header || "").trim());
+}
+
+function ratingFromRow(row, headers, rowNumber) {
+  const value = (name) => bookingRowValueV2(row, headers, name);
+  return {
+    rowNumber,
+    ratingId: String(value("RATING_ID") || "").trim(),
+    bookingId: String(value("BOOKING_ID") || "").trim(),
+    trackingToken: String(value("TRACKING_TOKEN") || "").trim(),
+    employeeId: String(value("EMPLOYEE_ID") || "").trim(),
+    employeeName: normalizeProtectedText(value("EMPLOYEE_NAME"), 100),
+    rating: Number(value("RATING")) || 0,
+    comment: normalizeProtectedText(value("COMMENT"), 500),
+    service: normalizeProtectedText(value("SERVICE"), 500),
+    bookingDate: getDateKey(value("BOOKING_DATE"), TIME_ZONE) || String(value("BOOKING_DATE") || "").trim(),
+    createdAt: getDisplayDateTime(value("CREATED_AT")),
+    status: String(value("STATUS") || "published").trim().toLowerCase(),
+    customerPhoneHash: String(value("CUSTOMER_PHONE_HASH") || "").trim(),
+    updatedAt: getDisplayDateTime(value("UPDATED_AT"))
+  };
+}
+
+function ratingToRow(rating, headers, existingRow) {
+  const row = existingRow ? existingRow.slice() : new Array(headers.length).fill("");
+  const values = {
+    RATING_ID: rating.ratingId, BOOKING_ID: rating.bookingId, TRACKING_TOKEN: rating.trackingToken,
+    EMPLOYEE_ID: rating.employeeId,
+    EMPLOYEE_NAME: normalizeProtectedText(rating.employeeName, 100),
+    RATING: rating.rating,
+    COMMENT: normalizeProtectedText(rating.comment, 500),
+    SERVICE: normalizeProtectedText(rating.service, 500),
+    BOOKING_DATE: rating.bookingDate,
+    CREATED_AT: rating.createdAt, STATUS: rating.status, CUSTOMER_PHONE_HASH: rating.customerPhoneHash,
+    UPDATED_AT: rating.updatedAt
+  };
+  Object.keys(values).forEach((name) => setBookingRowValueV2(row, headers, name, values[name]));
+  return row;
+}
+
+function writeBookingRatingRow(sheet, rowNumber, rating, existingRow) {
+  const headers = getRatingHeaders(sheet);
+  const row = ratingToRow(rating, headers, existingRow);
+  writeSheetRowWithExplicitValues(sheet, rowNumber, row);
+  return row;
+}
+
+function appendBookingRatingRow(sheet, rating) {
+  const rowNumber = sheet.getLastRow() + 1;
+  return { rowNumber, row: writeBookingRatingRow(sheet, rowNumber, rating) };
+}
+
+function getAllBookingRatings() {
+  const sheet = getBookingRatingsSheet();
+  if (sheet.getLastRow() < 2) return [];
+  const headers = getRatingHeaders(sheet);
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues()
+    .map((row, index) => ratingFromRow(row, headers, index + 2));
+}
+
+function getActiveBookingRatings(ratings, bookings) {
+  const ratingRows = Array.isArray(ratings) ? ratings : getAllBookingRatings();
+  const bookingRows = Array.isArray(bookings) ? bookings : getAllBookingsV2();
+  const activeBookingIds = new Set(
+    bookingRows.filter((booking) => !booking.deleted).map((booking) => String(booking.id || "").trim())
+  );
+  return ratingRows.filter((rating) => activeBookingIds.has(String(rating.bookingId || "").trim()));
+}
+
+function publicRatingView(rating) {
+  return {
+    ratingId: rating.ratingId,
+    bookingId: rating.bookingId,
+    employeeId: rating.employeeId,
+    employeeName: rating.employeeName,
+    rating: rating.rating,
+    comment: rating.comment,
+    service: rating.service,
+    bookingDate: rating.bookingDate,
+    createdAt: rating.createdAt,
+    status: rating.status
+  };
+}
+
+function bookingRatingStatusForComment(comment) {
+  const text = normalizeProtectedText(comment, 500);
+  const blocked = /(fuck|shit|كس\s*م|شرموط|زبال)/i.test(text);
+  const repeated = /(.)\1{9,}/i.test(text);
+  const suspiciousUrl = /(?:https?:\/\/|www\.|bit\.ly|t\.me\/)/i.test(text);
+  return blocked || repeated || suspiciousUrl ? "flagged" : "published";
+}
+
+function getRatingSalt() {
+  const properties = PropertiesService.getScriptProperties();
+  let salt = properties.getProperty("BOOKING_RATING_PHONE_SALT");
+  if (!salt) {
+    salt = Utilities.getUuid() + Utilities.getUuid();
+    properties.setProperty("BOOKING_RATING_PHONE_SALT", salt);
+  }
+  return salt;
+}
+
+function hashBookingPhone(phone) {
+  const digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    `${getRatingSalt()}:${normalizePublicPhone(phone)}`,
+    Utilities.Charset.UTF_8
+  );
+  return digest.map((byte) => (`0${(byte < 0 ? byte + 256 : byte).toString(16)}`).slice(-2)).join("");
+}
+
+function submitBookingRating(data) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+    const found = findBookingByTrackingToken(data.trackingToken);
+    if (!found || !verifyBookingTrackingPhone(found.booking, data.phoneLast4)) return trackingVerificationError();
+    if (found.booking.status !== "done") {
+      return jsonOutput({ status: "error", code: "BOOKING_NOT_COMPLETED", message: "Only completed bookings can be rated." });
+    }
+    const ratingValue = Number(data.rating);
+    if (!Number.isInteger(ratingValue) || ratingValue < 1 || ratingValue > 5) {
+      return jsonOutput({ status: "error", code: "INVALID_RATING", message: "Rating must be an integer from 1 to 5." });
+    }
+    const rawComment = normalizeProtectedText(data.comment);
+    if (rawComment.length > 500) return jsonOutput({ status: "error", code: "INVALID_RATING", message: "Comment cannot exceed 500 characters." });
+    const comment = normalizeProtectedText(rawComment, 500);
+    const sheet = getBookingRatingsSheet();
+    const headers = getRatingHeaders(sheet);
+    const ratings = getAllBookingRatings();
+    if (ratings.some((item) => item.bookingId === found.booking.id)) {
+      return jsonOutput({ status: "error", code: "RATING_ALREADY_SUBMITTED", message: "A rating was already submitted for this booking." });
+    }
+    const now = getCairoDateTime();
+    const rating = {
+      ratingId: `RATE-${Utilities.getUuid()}`, bookingId: found.booking.id,
+      trackingToken: found.booking.trackingToken, employeeId: found.booking.employeeId,
+      employeeName: found.booking.employee, rating: ratingValue, comment,
+      service: found.booking.service, bookingDate: found.booking.date, createdAt: now,
+      status: bookingRatingStatusForComment(comment), customerPhoneHash: hashBookingPhone(found.booking.customerPhone),
+      updatedAt: now
+    };
+    appendBookingRatingRow(sheet, rating);
+    SpreadsheetApp.flush();
+    logActivity({}, "submit", "booking_rating", rating.ratingId, `Submitted rating | Booking: ${rating.bookingId} | Employee: ${rating.employeeName} | Rating ID: ${rating.ratingId}`);
+    return jsonOutput({ status: "success", rating: publicRatingView(rating) });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  } finally {
+    try { lock.releaseLock(); } catch (ignore) {}
+  }
+}
+
+function getBookingRating(data) {
+  try {
+    const found = findBookingByTrackingToken(data.trackingToken);
+    if (!found || !verifyBookingTrackingPhone(found.booking, data.phoneLast4)) return trackingVerificationError();
+    const rating = getAllBookingRatings().find((item) => item.bookingId === found.booking.id);
+    return jsonOutput({ status: "success", rating: rating ? publicRatingView(rating) : null });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
+}
+
+function calculateBarberRatingSummary(employeeId, ratings, bookings, includeHistorical) {
+  const ratingRows = Array.isArray(ratings) ? ratings : getAllBookingRatings();
+  const activeRatings = includeHistorical ? ratingRows : getActiveBookingRatings(ratingRows, bookings);
+  const rows = activeRatings.filter((item) =>
+    item.status === "published" && (!employeeId || item.employeeId === employeeId)
+  );
+  const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  rows.forEach((item) => { if (distribution[item.rating] !== undefined) distribution[item.rating]++; });
+  const total = rows.reduce((sum, item) => sum + item.rating, 0);
+  return {
+    averageRating: rows.length ? Math.round((total / rows.length) * 10) / 10 : 0,
+    ratingsCount: rows.length,
+    distribution
+  };
+}
+
+function calculatePublicBarberRatingSummary(employeeId, ratings, bookings) {
+  const summary = calculateBarberRatingSummary(employeeId, ratings, bookings, false);
+  return {
+    ...summary,
+    averageRating: summary.ratingsCount >= PUBLIC_RATING_MINIMUM_COUNT
+      ? summary.averageRating
+      : null
+  };
+}
+
+function getBarberRatings(data) {
+  try {
+    const employeeId = String(data.employeeId || "").trim();
+    if (!employeeId) return jsonOutput({ status: "error", message: "employeeId is required." });
+    return jsonOutput({ status: "success", ...calculatePublicBarberRatingSummary(employeeId) });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
+}
+
+function getRatingsAdmin(data) {
+  try {
+    const permissionError = requirePermission(data, "view_ratings", "You do not have permission to view ratings.");
+    if (permissionError) return permissionError;
+    const filters = data.filters || {};
+    const employeeId = String(filters.employeeId || data.employeeId || "").trim();
+    const status = String(filters.status || data.ratingStatus || "").trim().toLowerCase();
+    const fromDate = getDateKey(filters.fromDate || data.fromDate || "", TIME_ZONE);
+    const toDate = getDateKey(filters.toDate || data.toDate || "", TIME_ZONE);
+    const search = String(filters.search || data.search || "").trim().toLowerCase();
+    const page = Math.max(1, Number(filters.page || data.page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(filters.pageSize || data.pageSize) || 25));
+    const includeHistorical = parseSheetBoolean(filters.includeHistorical || data.includeHistorical, false);
+    const bookings = getAllBookingsV2();
+    const storedRatings = getAllBookingRatings();
+    const allRatings = includeHistorical ? storedRatings : getActiveBookingRatings(storedRatings, bookings);
+    const filtered = allRatings.filter((item) => !employeeId || item.employeeId === employeeId)
+      .filter((item) => !status || item.status === status)
+      .filter((item) => !fromDate || item.bookingDate >= fromDate)
+      .filter((item) => !toDate || item.bookingDate <= toDate)
+      .filter((item) => !search || `${item.employeeName} ${item.service} ${item.comment} ${item.bookingId}`.toLowerCase().indexOf(search) !== -1)
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    const monthKey = Utilities.formatDate(new Date(), TIME_ZONE, "yyyy-MM");
+    const previousDate = new Date();
+    previousDate.setMonth(previousDate.getMonth() - 1);
+    const previousMonthKey = Utilities.formatDate(previousDate, TIME_ZONE, "yyyy-MM");
+    const monthSummary = (key) => {
+      const rows = allRatings.filter((item) => item.status === "published" && item.bookingDate.indexOf(key) === 0);
+      return rows.length ? Math.round((rows.reduce((sum, item) => sum + item.rating, 0) / rows.length) * 10) / 10 : 0;
+    };
+    const employeeIds = {};
+    allRatings.forEach((item) => { if (item.employeeId) employeeIds[item.employeeId] = item.employeeName; });
+    const barberSummaries = Object.keys(employeeIds).map((id) => ({
+      employeeId: id, employeeName: employeeIds[id],
+      ...calculateBarberRatingSummary(id, allRatings, bookings, includeHistorical)
+    }));
+    return jsonOutput({
+      status: "success",
+      ratings: filtered.slice((page - 1) * pageSize, page * pageSize).map(publicRatingView),
+      total: filtered.length, page, pageSize, barberSummaries, includeHistorical,
+      currentMonthAverage: monthSummary(monthKey),
+      previousMonthAverage: monthSummary(previousMonthKey),
+      lowestRatings: allRatings.filter((item) => item.rating <= 2).slice(-10).reverse().map(publicRatingView)
+    });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
+}
+
+function updateRatingStatus(data) {
+  const lock = LockService.getScriptLock();
+  try {
+    const permissionError = requirePermission(data, "manage_ratings", "You do not have permission to moderate ratings.");
+    if (permissionError) return permissionError;
+    const nextStatus = String(data.ratingStatus || data.status || "").trim().toLowerCase();
+    if (["published", "hidden", "flagged"].indexOf(nextStatus) === -1) {
+      return jsonOutput({ status: "error", message: "Invalid rating status." });
+    }
+    lock.waitLock(10000);
+    const sheet = getBookingRatingsSheet();
+    const headers = getRatingHeaders(sheet);
+    if (sheet.getLastRow() < 2) return jsonOutput({ status: "error", message: "Rating not found." });
+    const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
+    const targetId = String(data.ratingId || "").trim();
+    const index = rows.findIndex((row, rowIndex) => ratingFromRow(row, headers, rowIndex + 2).ratingId === targetId);
+    if (index < 0) return jsonOutput({ status: "error", message: "Rating not found." });
+    const rating = ratingFromRow(rows[index], headers, index + 2);
+    const previousStatus = rating.status;
+    rating.status = nextStatus;
+    rating.updatedAt = getCairoDateTime();
+    writeBookingRatingRow(sheet, index + 2, rating, rows[index]);
+    SpreadsheetApp.flush();
+    logActivity(data, "moderate", "booking_rating", rating.ratingId, `Rating moderation | Rating ID: ${rating.ratingId} | Previous: ${previousStatus} | Next: ${nextStatus} | Booking: ${rating.bookingId}`);
+    return jsonOutput({ status: "success", rating: publicRatingView(rating) });
   } catch (error) {
     return jsonOutput({ status: "error", message: error.message });
   } finally {
@@ -5193,26 +6452,36 @@ function updateBooking(data) {
 
 function deleteBooking(data) {
   try {
-    const permissionError = requirePermission(data, "view_bookings", "You do not have permission to delete bookings.");
+    const permissionError = requirePermission(data, "delete_bookings", "You do not have permission to delete bookings.");
     if (permissionError) return permissionError;
-
-    const sheet = getBookingsSheet();
-    const found = findBookingRow(sheet, data);
+    return withBookingMutationLock({
+      bookingRequestId: String(data.id || data.bookingId || "").trim()
+    }, () => {
+    const sheet = getBookingsSheetV2();
+    const found = findBookingRowV2(sheet, data);
     if (!found) {
       return jsonOutput({ status: "error", message: "Booking not found" });
     }
-
-    sheet.deleteRow(found.rowNumber);
-
+    if (found.booking.deleted) return jsonOutput({ status: "success", booking: found.booking });
+    const deletionReason = normalizeProtectedText(data.reason || data.deletionReason, 500);
+    if (!deletionReason) return jsonOutput({ status: "error", message: "A deletion reason is required." });
+    const actor = getActor(data);
+    found.booking.deleted = true;
+    found.booking.deletedAt = getCairoDateTime();
+    found.booking.deletedBy = actor.displayName;
+    found.booking.deletionReason = deletionReason;
+    found.booking.updatedAt = found.booking.deletedAt;
+    writeBookingRowV2(sheet, found.rowNumber, found.booking, found.row);
+    SpreadsheetApp.flush();
     logActivity(
       data,
-      "delete",
+      "soft_delete",
       "booking",
       found.booking.id,
-      `Deleted booking | Customer: ${found.booking.customerName || "-"} | Phone: ${found.booking.customerPhone || "-"} | Date: ${found.booking.date || "-"} ${found.booking.time || "-"} | Employee: ${found.booking.employee || "-"}`
+      `Soft deleted booking | Customer: ${found.booking.customerName || "-"} | Date: ${found.booking.date || "-"} ${found.booking.time || "-"} | Employee: ${found.booking.employee || "-"} | Reason: ${found.booking.deletionReason || "-"}`
     );
-
-    return jsonOutput({ status: "success" });
+    return jsonOutput({ status: "success", booking: found.booking });
+    });
   } catch (error) {
     return jsonOutput({ status: "error", message: error.message });
   }

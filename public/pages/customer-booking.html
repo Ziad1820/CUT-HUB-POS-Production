@@ -3,39 +3,48 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="احجز موعدك في CUT HUB واختار المصفف والخدمة والوقت المناسب.">
+  <meta name="description" content="احجز موعدك في CUT HUB واختر المصفف والخدمات والوقت المناسب.">
   <title>حجز موعد - CUT HUB</title>
   <link rel="stylesheet" href="../assets/css/pages/customer-booking.css">
 </head>
 <body>
+  <a class="skip-link" href="#bookingWorkspace">تخطى إلى نموذج الحجز</a>
   <main class="public-booking-app">
     <header class="public-hero">
       <div>
         <h1>CUT HUB</h1>
         <p>Your style, our passion</p>
       </div>
+      <button id="languageToggle" class="language-toggle" type="button" aria-label="Switch language">English</button>
     </header>
+
+    <nav id="stepIndicator" class="step-indicator" aria-label="خطوات الحجز">
+      <span class="active" data-step="1"><b>1</b><em data-ui-ar="الخدمات" data-ui-en="Services">الخدمات</em></span>
+      <span data-step="2"><b>2</b><em data-ui-ar="الموعد" data-ui-en="Appointment">الموعد</em></span>
+      <span data-step="3"><b>3</b><em data-ui-ar="بيانات العميل" data-ui-en="Customer Details">بيانات العميل</em></span>
+      <span data-step="4"><b>4</b><em data-ui-ar="التأكيد" data-ui-en="Confirmation">التأكيد</em></span>
+    </nav>
 
     <section id="bookingWorkspace">
       <section class="public-panel">
         <div class="section-title">
           <div>
-            <h2>احجز موعدك</h2>
-            <p>اختار الخدمة والتاريخ، وبعدها اختار المصفف والميعاد المتاح.</p>
+            <h2 data-ui-ar="احجز موعدك" data-ui-en="Book Your Appointment">احجز موعدك</h2>
+            <p data-ui-ar="اختر خدمة واحدة أو أكثر، ثم اختر المصفف والموعد المناسب." data-ui-en="Choose one or more services, then select your barber and appointment.">اختر خدمة واحدة أو أكثر، ثم اختر المصفف والموعد المناسب.</p>
           </div>
-          <button id="openTrackingBtn" class="secondary-action" type="button">متابعة حجز سابق</button>
+          <button id="openTrackingBtn" class="secondary-action" type="button" data-ui-ar="متابعة حجز سابق" data-ui-en="Track Existing Booking">متابعة حجز سابق</button>
         </div>
         <div class="selection-grid">
           <div class="field">
-            <span>الخدمات</span>
-            <div id="publicServices" class="service-picker" role="group" aria-label="اختيار الخدمات">
-              <div class="service-picker-loading">جاري تحميل الخدمات...</div>
+            <span id="servicesLabel" data-ui-ar="الخدمات" data-ui-en="Services">الخدمات</span>
+            <div id="publicServices" class="service-picker" role="group" aria-labelledby="servicesLabel" aria-busy="true">
+              <div class="skeleton-list" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
             </div>
             <small id="serviceSelectionSummary" class="service-selection-summary">اختر خدمة واحدة أو أكثر</small>
           </div>
           <label class="field">
-            <span>التاريخ</span>
-            <input id="publicDate" type="date">
+            <span data-ui-ar="التاريخ" data-ui-en="Date">التاريخ</span>
+            <input id="publicDate" type="date" required>
           </label>
         </div>
       </section>
@@ -43,35 +52,55 @@
       <section class="public-panel">
         <div class="section-title">
           <div>
-            <h2>اختار المصفف والميعاد</h2>
-            <p>المواعيد المعروضة بتتحدث تلقائيًا حسب الحجوزات المؤكدة.</p>
+            <h2 data-ui-ar="اختر المصفف والموعد" data-ui-en="Choose a Barber and Time">اختر المصفف والموعد</h2>
+            <p data-ui-ar="يمكنك اختيار مصفف بعينه أو أقرب موعد متاح لدى أي مصفف." data-ui-en="Choose a specific barber or the earliest appointment with any available barber.">يمكنك اختيار مصفف بعينه أو أقرب موعد متاح لدى أي مصفف.</p>
           </div>
+          <button id="anyBarberBtn" class="secondary-action recommended-control" type="button" data-ui-ar="أي مصفف متاح" data-ui-en="Any Available Barber">أي مصفف متاح</button>
         </div>
-        <div id="barberGrid" class="barber-grid"><div class="empty-public-state">اختار الخدمة والتاريخ لعرض المواعيد.</div></div>
+        <div id="barberGrid" class="barber-grid" aria-live="polite">
+          <div class="empty-public-state">اختر الخدمات والتاريخ لعرض المواعيد.</div>
+        </div>
       </section>
 
       <section id="customerPanel" class="public-panel hidden">
         <div class="section-title">
-          <div><h2>بيانات الحجز</h2><p>اكتب بياناتك علشان فريق CUT HUB يراجع الطلب ويأكد الموعد.</p></div>
+          <div>
+            <h2 data-ui-ar="بيانات الحجز" data-ui-en="Booking Details">بيانات الحجز</h2>
+            <p data-ui-ar="اكتب بياناتك حتى يراجع فريق CUT HUB الطلب ويؤكد الموعد." data-ui-en="Enter your details so the CUT HUB team can review and confirm the request.">اكتب بياناتك حتى يراجع فريق CUT HUB الطلب ويؤكد الموعد.</p>
+          </div>
         </div>
         <div id="bookingSummary" class="booking-summary"></div>
-        <form id="publicBookingForm" class="customer-form">
-          <label class="field"><span>الاسم</span><input id="publicCustomerName" type="text" autocomplete="name" maxlength="100" required></label>
-          <label class="field"><span>رقم التليفون</span><input id="publicCustomerPhone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="01xxxxxxxxx" required></label>
-          <label class="field full"><span>ملاحظة (اختياري)</span><textarea id="publicNote" maxlength="500" placeholder="أي تفاصيل مهمة للحجز"></textarea></label>
-          <div class="form-actions"><button id="submitPublicBooking" class="primary-action" type="submit">إرسال طلب الحجز</button></div>
+        <p class="request-notice" data-ui-ar="هذا طلب حجز ويحتاج إلى تأكيد من الصالون." data-ui-en="This is a booking request and requires confirmation from the salon.">هذا طلب حجز ويحتاج إلى تأكيد من الصالون.</p>
+        <form id="publicBookingForm" class="customer-form" novalidate>
+          <label class="field"><span data-ui-ar="الاسم" data-ui-en="Name">الاسم</span><input id="publicCustomerName" type="text" autocomplete="name" maxlength="100" required></label>
+          <label class="field"><span data-ui-ar="رقم الهاتف المصري" data-ui-en="Egyptian Mobile Number">رقم الهاتف المصري</span><input id="publicCustomerPhone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="010xxxxxxxx أو +2010xxxxxxxx" required aria-describedby="phoneHint"><small id="phoneHint" data-ui-ar="11 رقمًا يبدأ بـ 010 أو 011 أو 012 أو 015." data-ui-en="11 digits starting with 010, 011, 012, or 015.">11 رقمًا يبدأ بـ 010 أو 011 أو 012 أو 015.</small></label>
+          <label class="field full"><span data-ui-ar="ملاحظة (اختياري)" data-ui-en="Note (optional)">ملاحظة (اختياري)</span><textarea id="publicNote" maxlength="500" placeholder="أي تفاصيل مهمة للحجز"></textarea></label>
+          <div class="form-actions">
+            <button id="submitPublicBooking" class="primary-action" type="submit" data-ui-ar="إرسال طلب الحجز" data-ui-en="Submit Booking Request">إرسال طلب الحجز</button>
+          </div>
         </form>
       </section>
     </section>
 
     <section id="trackingWorkspace" class="public-panel hidden">
       <div class="section-title">
-        <div><h2>متابعة طلب الحجز</h2><p>حالة الطلب بتتحدث بمجرد ما فريق CUT HUB يراجعه.</p></div>
-        <button id="newBookingBtn" class="secondary-action" type="button">حجز جديد</button>
+        <div><h2 data-ui-ar="متابعة طلب الحجز" data-ui-en="Track Booking Request">متابعة طلب الحجز</h2><p data-ui-ar="أدخل آخر أربعة أرقام من الهاتف لحماية تفاصيل الحجز." data-ui-en="Enter the last four phone digits to protect your booking details.">أدخل آخر أربعة أرقام من الهاتف لحماية تفاصيل الحجز.</p></div>
+        <button id="newBookingBtn" class="secondary-action" type="button" data-ui-ar="حجز جديد" data-ui-en="New Booking">حجز جديد</button>
       </div>
-      <div id="trackingContent" class="state-message">جاري تحميل حالة الحجز...</div>
+      <div id="trackingContent" class="state-message" aria-live="polite">جاري تحميل حالة الحجز...</div>
     </section>
   </main>
+
+  <div id="toastRegion" class="toast-region" role="status" aria-live="polite"></div>
+  <div id="publicModal" class="modal-backdrop hidden" role="presentation">
+    <div class="public-modal" role="dialog" aria-modal="true" aria-labelledby="publicModalTitle">
+      <h2 id="publicModalTitle"></h2>
+      <div id="publicModalBody"></div>
+      <div id="publicModalActions" class="modal-actions"></div>
+    </div>
+  </div>
+  <div id="liveStatus" class="sr-only" aria-live="assertive"></div>
+
   <script src="../assets/js/core/api.js"></script>
   <script src="../assets/js/pages/customer-booking.js"></script>
 </body>
