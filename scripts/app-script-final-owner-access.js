@@ -3539,8 +3539,13 @@ function createInvoice(data) {
   let pdfUrl = "";
   let persistedRequestId = "";
   let invoiceRequestIdColumn = 0;
+  let committed = false;
   try {
-    lock.waitLock(30000);
+    try {
+      lock.waitLock(30000);
+    } catch (error) {
+      return jsonOutput({ success: false, status: "error", code: "LOCK_BUSY", message: "The system is busy. Please try again shortly." });
+    }
     const invoiceCache = CacheService.getScriptCache();
     const requestId = inventoryText(data.idempotencyKey || data.clientRequestId);
     const fingerprint = inventoryText(data.invoiceFingerprint);
@@ -3610,8 +3615,13 @@ function createInvoice(data) {
     } catch (cacheError) {
       console.warn("Invoice idempotency cache could not be updated:", cacheError);
     }
+    committed = true;
     return jsonOutput(response);
   } catch (error) {
+    if (committed) {
+      console.error("Invoice committed but response serialization failed:", error);
+      throw error;
+    }
     if (inventoryTransaction) {
       try { rollbackInventoryCheckout(inventoryTransaction); } catch (rollbackError) {
         console.error("Inventory rollback failed:", rollbackError);
