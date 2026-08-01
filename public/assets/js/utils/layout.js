@@ -13,7 +13,10 @@
     "expenses.html",
     "enventory.html",
     "attendance.html",
+    "schedule-management.html",
+    "payroll-attendance.html",
     "bookings.html",
+    "booking-availability-admin.html",
     "language",
     "logout"
   ];
@@ -31,8 +34,11 @@
     "withdrawals.html": "view_withdrawals",
     "expenses.html": "view_expenses",
     "enventory.html": "view_inventory",
-    "attendance.html": "view_attendance",
-    "bookings.html": "view_bookings"
+    "attendance.html": "attendance.view",
+    "schedule-management.html": "schedule.view",
+    "payroll-attendance.html": "payroll_attendance.view",
+    "bookings.html": "view_bookings",
+    "booking-availability-admin.html": "booking_availability.view"
   };
 
   function getSidebarItemKey(item) {
@@ -57,7 +63,9 @@
     if (text.includes("withdrawal") || text.includes("Ø§Ù„Ø³Ø­ÙˆØ¨Ø§Øª")) return "withdrawals.html";
     if (text.includes("expense") || text.includes("Ø§Ù„Ù…ØµØ±ÙˆÙØ§Øª")) return "expenses.html";
     if (text.includes("inventory") || text.includes("enventory") || text.includes("Ø§Ù„Ù…Ø®Ø²ÙˆÙ†")) return "enventory.html";
+    if (text.includes("payroll attendance") || text.includes("تسويات الحضور")) return "payroll-attendance.html";
     if (text.includes("attendance") || text.includes("Ø§Ù„Ø­Ø¶ÙˆØ±")) return "attendance.html";
+    if (text.includes("schedule") || text.includes("الجداول")) return "schedule-management.html";
     if (text.includes("booking") || text.includes("Ø§Ù„Ø­Ø¬ÙˆØ²Ø§Øª")) return "bookings.html";
     if (text.includes("logout") || text.includes("ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø®Ø±ÙˆØ¬")) return "logout";
     if (text.includes("language") || text.includes("Ø§Ù„Ù„ØºØ©")) return "language";
@@ -90,6 +98,43 @@
     } else {
       sidebar.appendChild(link);
     }
+  }
+
+  function ensureScheduleLink() {
+    const sidebar = document.getElementById("sidebar");
+    if (!sidebar || sidebar.querySelector('[data-href="schedule-management.html"]')) return;
+
+    const link = document.createElement("button");
+    link.type = "button";
+    link.className = "sidebar-link";
+    link.dataset.href = "schedule-management.html";
+    link.dataset.permission = SIDEBAR_PERMISSIONS["schedule-management.html"];
+    link.textContent = getLanguage() === "en" ? "Staff Scheduling" : "جداول الموظفين";
+    sidebar.appendChild(link);
+  }
+
+  function ensurePayrollAttendanceLink() {
+    const sidebar = document.getElementById("sidebar");
+    if (!sidebar || sidebar.querySelector('[data-href="payroll-attendance.html"]')) return;
+    const link = document.createElement("button");
+    link.type = "button";
+    link.className = "sidebar-link";
+    link.dataset.href = "payroll-attendance.html";
+    link.dataset.permission = SIDEBAR_PERMISSIONS["payroll-attendance.html"];
+    link.textContent = getLanguage() === "en" ? "Payroll Attendance" : "تسويات الحضور";
+    sidebar.appendChild(link);
+  }
+
+  function ensureBookingAvailabilityLink() {
+    const sidebar = document.getElementById("sidebar");
+    if (!sidebar || sidebar.querySelector('[data-href="booking-availability-admin.html"]')) return;
+    const link = document.createElement("button");
+    link.type = "button";
+    link.className = "sidebar-link";
+    link.dataset.href = "booking-availability-admin.html";
+    link.dataset.permission = SIDEBAR_PERMISSIONS["booking-availability-admin.html"];
+    link.textContent = getLanguage() === "en" ? "Booking Availability" : "إتاحة الحجوزات";
+    sidebar.appendChild(link);
   }
 
   function normalizeSidebarOrder() {
@@ -149,6 +194,9 @@
 
     protectCurrentPage();
     ensureDashboardLink();
+    ensureScheduleLink();
+    ensurePayrollAttendanceLink();
+    ensureBookingAvailabilityLink();
     normalizeSidebarOrder();
 
     if (!menuToggle || !sidebar || !sidebarOverlay || sidebar.dataset.layoutReady === "true") {
