@@ -68,6 +68,26 @@
       : "تعذر الاتصال بقاعدة البيانات. حاول مرة أخرى.";
   }
 
+  const API_TIMEOUT_MS = 45000;
+
+  function apiError(code, message) {
+    const error = new Error(message);
+    error.code = code;
+    return error;
+  }
+
+  function responseError(response, result) {
+    const code = String(result && result.code || "");
+    if (code) return apiError(code, result.message || "Request failed.");
+    if (response.status === 401) return apiError("SESSION_EXPIRED", "انتهت جلسة الدخول. سجّل الدخول مرة أخرى.");
+    if (response.status === 403) return apiError("PERMISSION_DENIED", "ليس لديك صلاحية لتنفيذ هذه العملية.");
+    if (response.status === 409) return apiError("CONFLICT", "تعذر تنفيذ العملية بسبب تعارض. حاول مرة أخرى.");
+    if (response.status === 429) return apiError("RATE_LIMITED", "الخادم مشغول مؤقتًا. حاول مرة أخرى بعد لحظات.");
+    if (response.status === 503) return apiError("SERVER_ERROR", "تعذر إتمام العملية بسبب خطأ مؤقت في الخادم.");
+    if (response.status >= 500) return apiError("SERVER_ERROR", "تعذر إتمام العملية بسبب خطأ مؤقت في الخادم.");
+    return apiError("VALIDATION_FAILED", result && result.message || "تعذر تنفيذ الطلب.");
+  }
+
   function getCurrentSessionToken() {
     try {
       const stored = sessionStorage.getItem(SESSION_KEY);
@@ -108,8 +128,9 @@
     window.location.replace(loginUrl.href);
   }
 
-  async function request(payload) {
+  async function request(payload, options) {
     const bodyPayload = withCurrentSession(payload);
+    const timeoutMs = Number(options && options.timeoutMs) || API_TIMEOUT_MS;
 
     if (browserReportsOffline()) {
       setOnlineState(false);
@@ -117,32 +138,51 @@
     }
 
     let response;
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    let timedOut = false;
+    const abortFromCaller = () => controller && controller.abort();
+    const callerSignal = options && options.signal;
+    if (callerSignal && controller) callerSignal.addEventListener("abort", abortFromCaller, { once: true });
+    const timer = controller ? setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs) : null;
     try {
       response = await fetch(API_URL, {
         method: "POST",
         keepalive: true,
         headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify(bodyPayload)
+        body: JSON.stringify(bodyPayload),
+        signal: controller && controller.signal
       });
       setOnlineState(true);
     } catch (error) {
+      if (controller && controller.signal.aborted && timedOut) {
+        throw apiError("REQUEST_TIMEOUT", "استغرقت العملية وقتًا أطول من المتوقع، ولم يتم تأكيد نتيجتها بعد. تحقق من السجل قبل إعادة المحاولة.");
+      }
+      if (controller && controller.signal.aborted) throw apiError("REQUEST_ABORTED", "تم إلغاء الطلب.");
       if (browserReportsOffline()) {
         setOnlineState(false);
         throw new Error(getOfflineMessage());
       }
       setOnlineState(true);
-      throw new Error(getApiErrorMessage());
+      throw apiError("NETWORK_ERROR", getApiErrorMessage());
+    } finally {
+      if (timer) clearTimeout(timer);
+      if (callerSignal && controller) callerSignal.removeEventListener("abort", abortFromCaller);
     }
 
-    if (!response.ok) {
-      throw new Error("تعذر الاتصال بقاعدة البيانات.");
+    let result;
+    try {
+      result = await response.json();
+    } catch (error) {
+      throw apiError("INVALID_SERVER_RESPONSE", "تعذر قراءة استجابة الخادم. لم يتم تأكيد نتيجة العملية.");
     }
 
-    const result = await response.json();
+    if (!response.ok) throw responseError(response, result);
     if (result && result.sessionExpired) {
       redirectToLoginForExpiredSession();
-      return new Promise(() => {});
+      throw apiError("SESSION_EXPIRED", "انتهت جلسة الدخول. سجّل الدخول مرة أخرى.");
     }
+
+    if (result && (result.status === "error" || result.success === false)) throw responseError(response, result);
 
     return result;
   }
