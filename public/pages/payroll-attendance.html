@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>تسويات الحضور والرواتب - SALONIX</title>
+  <link rel="stylesheet" href="../assets/css/shared.css">
+  <link rel="stylesheet" href="../assets/css/pages/payroll-attendance.css">
+</head>
+<body>
+  <div class="payroll-app">
+    <header class="payroll-header">
+      <button type="button" class="menu-toggle" id="menuToggle" aria-label="فتح القائمة">☰</button>
+      <div>
+        <p class="eyebrow">SALONIX · PAYROLL ATTENDANCE</p>
+        <h1>تسويات الحضور والرواتب</h1>
+        <p>تسوية دورية مبنية فقط على نتائج الحضور اليومية المعتمدة.</p>
+      </div>
+      <div id="syncState" class="sync-state" role="status" aria-live="polite">جارٍ التحميل…</div>
+    </header>
+
+    <main>
+      <section class="panel period-toolbar" aria-label="اختيار فترة الرواتب">
+        <label>الفترة
+          <select id="periodSelect"><option value="">اختر فترة</option></select>
+        </label>
+        <label>الفرع
+          <select id="branchFilter"><option value="">كل الفروع</option></select>
+        </label>
+        <label>الموظف
+          <select id="staffFilter"><option value="">كل الموظفين</option></select>
+        </label>
+        <label>الحالة
+          <select id="statusFilter">
+            <option value="">كل الحالات</option>
+            <option value="CALCULATED">محسوبة</option>
+            <option value="REVIEW_REQUIRED">تحتاج مراجعة</option>
+            <option value="LOCKED">مقفلة</option>
+          </select>
+        </label>
+        <button id="refreshBtn" type="button" class="secondary">تحديث</button>
+        <button id="createPeriodBtn" type="button" class="primary" hidden>فترة جديدة</button>
+        <button id="migrationPreviewBtn" type="button" class="secondary" hidden>معاينة تهيئة Phase 4</button>
+      </section>
+
+      <section class="summary-grid" aria-label="ملخص التسوية">
+        <article><span>الموظفون</span><strong id="employeeCount">0</strong></article>
+        <article><span>دقائق العجز</span><strong id="deficitMinutes">0</strong></article>
+        <article><span>إضافي معتمد</span><strong id="overtimeMinutes">0</strong></article>
+        <article><span>إجمالي الخصومات</span><strong id="deductionAmount">0.00 ج.م</strong></article>
+        <article><span>تعويض الإضافي</span><strong id="overtimeAmount">0.00 ج.م</strong></article>
+        <article><span>حالات غير محلولة</span><strong id="blockerCount">0</strong></article>
+      </section>
+
+      <section class="panel lifecycle-panel" aria-label="إجراءات الفترة">
+        <div>
+          <strong id="periodStatus">—</strong>
+          <span id="periodDates">—</span>
+        </div>
+        <div class="action-row">
+          <button id="calculateBtn" type="button" data-action="calculatePayrollPeriod" hidden>حساب الفترة</button>
+          <button id="reviewBtn" type="button" data-action="submitPayrollPeriodForReview" hidden>إرسال للمراجعة</button>
+          <button id="approveBtn" type="button" data-action="approvePayrollPeriod" hidden>اعتماد الفترة</button>
+          <button id="lockBtn" type="button" data-action="lockPayrollPeriod" hidden>قفل الفترة</button>
+          <button id="reopenBtn" type="button" data-action="reopenPayrollPeriod" hidden>إعادة فتح</button>
+          <button id="exportPreviewBtn" type="button" hidden>معاينة التصدير</button>
+          <button id="exportBtn" type="button" hidden>تصدير CSV</button>
+        </div>
+      </section>
+
+      <div id="pageMessage" class="page-message" role="alert" aria-live="assertive" hidden></div>
+      <section class="panel table-panel" aria-label="تسويات الموظفين">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>الموظف</th><th>الحالة</th><th>المطلوب</th><th>العمل</th>
+                <th>العجز</th><th>الإضافي</th><th>الخصومات</th><th>تعويض الإضافي</th>
+                <th>صافي تعديل الحضور</th><th>إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="settlementRows" aria-busy="true"></tbody>
+          </table>
+        </div>
+        <div id="emptyState" class="empty-state" hidden>لا توجد تسويات مطابقة.</div>
+      </section>
+    </main>
+  </div>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar" id="sidebar" aria-label="القائمة الرئيسية">
+    <h3>القائمة</h3>
+    <button class="sidebar-link active" type="button">تسويات الحضور</button>
+    <button class="sidebar-link" type="button" data-href="attendance.html">الحضور</button>
+    <button class="sidebar-link" type="button" data-href="dashboard.html">لوحة التحكم</button>
+    <button type="button" id="logoutBtn">تسجيل الخروج</button>
+  </aside>
+
+  <dialog id="periodDialog" aria-labelledby="periodDialogTitle">
+    <form id="periodForm">
+      <div class="dialog-head">
+        <h2 id="periodDialogTitle">إنشاء فترة رواتب</h2>
+        <button type="button" data-close-dialog aria-label="إغلاق">×</button>
+      </div>
+      <label>من <input id="periodStart" type="date" required></label>
+      <label>إلى <input id="periodEnd" type="date" required></label>
+      <label>الفرع <input id="periodBranch" type="text" autocomplete="off"></label>
+      <label>ملاحظات <textarea id="periodNotes" rows="2"></textarea></label>
+      <label>سبب الإنشاء <textarea id="periodReason" rows="2" required></textarea></label>
+      <div class="dialog-actions">
+        <button type="button" data-close-dialog>إلغاء</button>
+        <button type="submit" class="primary">إنشاء</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="actionDialog" aria-labelledby="actionDialogTitle">
+    <form id="actionForm">
+      <div class="dialog-head">
+        <h2 id="actionDialogTitle">تأكيد الإجراء</h2>
+        <button type="button" data-close-dialog aria-label="إغلاق">×</button>
+      </div>
+      <label>السبب <textarea id="actionReason" rows="3" required></textarea></label>
+      <div class="dialog-actions">
+        <button type="button" data-close-dialog>إلغاء</button>
+        <button id="confirmActionBtn" type="submit" class="primary">تأكيد</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="detailsDialog" aria-labelledby="detailsDialogTitle">
+    <div class="dialog-head">
+      <h2 id="detailsDialogTitle">تفاصيل التسوية</h2>
+      <button type="button" data-close-dialog aria-label="إغلاق">×</button>
+    </div>
+    <div id="detailsContent"></div>
+  </dialog>
+
+  <dialog id="adjustmentDialog" aria-labelledby="adjustmentDialogTitle">
+    <form id="adjustmentForm">
+      <div class="dialog-head">
+        <h2 id="adjustmentDialogTitle">طلب تعديل يدوي</h2>
+        <button type="button" data-close-dialog aria-label="إغلاق">×</button>
+      </div>
+      <label>الاتجاه
+        <select id="adjustmentDirection"><option value="CREDIT">إضافة</option><option value="DEBIT">خصم</option></select>
+      </label>
+      <label>المبلغ بالجنيه <input id="adjustmentAmount" type="number" min="0.01" step="0.01" required></label>
+      <label>التصنيف <input id="adjustmentCategory" type="text" maxlength="80" required></label>
+      <label>السبب <textarea id="adjustmentReason" rows="3" required></textarea></label>
+      <div class="dialog-actions">
+        <button type="button" data-close-dialog>إلغاء</button>
+        <button type="submit" class="primary">إرسال</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="../assets/js/utils/text-fix.js"></script>
+  <script src="../assets/js/core/runtime-config.js"></script>
+  <script src="../assets/js/core/api.js"></script>
+  <script src="../assets/js/core/auth.js"></script>
+  <script src="../assets/js/utils/layout.js"></script>
+  <script src="../assets/js/utils/keyboard-navigation.js"></script>
+  <script src="../assets/js/pages/payroll-attendance.js"></script>
+</body>
+</html>
