@@ -19,7 +19,7 @@ test("every entry uses an allowed classification and required generated files na
   const allowed = new Set(manifest.ALLOWED_CLASSIFICATIONS);
   for (const entry of entries) {
     assert.ok(allowed.has(entry.classification), `${entry.path}: ${entry.classification}`);
-    assert.match(entry.state, /^(tracked modified|tracked unchanged|untracked|deleted|renamed)$/);
+    assert.match(entry.state, /^(tracked|tracked modified|tracked unchanged|untracked|deleted|renamed)$/);
     if (entry.required && entry.generated) assert.notEqual(entry.authority, "—", entry.path);
   }
 });
@@ -28,7 +28,9 @@ test("all required untracked files are explicitly listed in the document", () =>
   const generated = manifest.generate({ write: false });
   const requiredUntracked = generated.entries.filter(entry =>
     entry.required && entry.state === "untracked");
-  assert.ok(requiredUntracked.length > 0);
+  if (requiredUntracked.length === 0) {
+    assert.match(generated.document, /## Required untracked files\s+\n- None/);
+  }
   for (const entry of requiredUntracked) {
     assert.match(generated.document, new RegExp(`- \\\`${entry.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\\``));
   }

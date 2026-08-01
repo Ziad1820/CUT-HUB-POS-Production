@@ -115,11 +115,11 @@ function renderInventory(plan) {
     .map(record => `- \`${record.path}\` — ${record.sha256}`).join("\n");
   return `# Local Release Candidate inventory\n\n` +
     `**LOCAL RELEASE CANDIDATE — NOT APPROVED FOR DEPLOYMENT**\n\n` +
-    `Release Candidate: \`${plan.rcId}\`  \nPayload SHA-256: \`${plan.packageSha256}\`  \n` +
-    `Git branch: \`${plan.git.branch}\`  \nHEAD: \`${plan.git.head}\`  \n` +
-    `Dirty tree: **yes** — this candidate is not reproducible from Git alone.  \n` +
-    `Required tracked: **${plan.requiredTracked}**  \nRequired untracked: **${plan.requiredUntracked}**  \n` +
-    `Tracked modified: **${plan.trackedModified}**  \nExcluded entries: **${plan.excludedCount}**\n\n` +
+    `Release Candidate: \`${plan.rcId}\`\nPayload SHA-256: \`${plan.packageSha256}\`\n` +
+    `Git branch: \`${plan.git.branch}\`\nHEAD: \`${plan.git.head}\`\n` +
+    `Dirty tree: **yes** — this candidate is not reproducible from Git alone.\n` +
+    `Required tracked: **${plan.requiredTracked}**\nRequired untracked: **${plan.requiredUntracked}**\n` +
+    `Tracked modified: **${plan.trackedModified}**\nExcluded entries: **${plan.excludedCount}**\n\n` +
     `## Required untracked files, individually identified\n\n${untracked || "None."}\n\n${sections}\n`;
 }
 

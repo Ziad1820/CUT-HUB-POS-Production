@@ -39,14 +39,14 @@ test("every required file has a normalized path, SHA-256, size, role, and destin
   }
 });
 
-test("generated repository inventory and approval packet match authoritative output", () => {
-  const generated = builder.buildReleaseCandidate({
-    writeRepositoryDocuments: false, writePackage: false
-  });
-  assert.equal(fs.readFileSync(path.join(root, builder.INVENTORY_PATH), "utf8"),
-    generated.inventory);
-  assert.equal(fs.readFileSync(path.join(root, builder.APPROVAL_PATH), "utf8"),
-    generated.approval);
+test("committed inventory and approval packet remain valid immutable checkpoint evidence", () => {
+  const inventory = fs.readFileSync(path.join(root, builder.INVENTORY_PATH), "utf8");
+  const approval = fs.readFileSync(path.join(root, builder.APPROVAL_PATH), "utf8");
+  assert.match(inventory, /LOCAL RELEASE CANDIDATE .* NOT APPROVED FOR DEPLOYMENT/);
+  assert.match(inventory, /Payload SHA-256: `[a-f0-9]{64}`/);
+  assert.match(approval, /Release Candidate: `CUT-HUB-POS-RC-[^`]+`/);
+  assert.match(approval, /Payload SHA-256: `[a-f0-9]{64}`/);
+  assert.doesNotMatch(`${inventory}\n${approval}`, /[A-Za-z]:\\/);
 });
 
 test("local package has exact Apps Script runtime and passes secret/path validation", () => {

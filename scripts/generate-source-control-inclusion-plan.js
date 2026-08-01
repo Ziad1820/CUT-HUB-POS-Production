@@ -11,7 +11,6 @@ const BASELINE_SNAPSHOT = "docs/release/original-rc-required-untracked-baseline.
 
 function actionFor(entry) {
   if (!entry.required) return "intentionally exclude";
-  if (entry.state === "tracked unchanged") return "requires human review";
   if (entry.classification === "test") return "include in tests/release tooling commit";
   if (["migration source", "migration preview"].includes(entry.classification) ||
       /booking-rating-(?:production-migration|standalone-migration-runner)/.test(entry.path)) {
@@ -90,8 +89,8 @@ function render() {
     8: "docs(release): add runbooks and Staging controls"
   };
   const commits = Object.entries(titles).map(([number, title]) => {
-    const files = records.filter(item => item.required && item.commit === Number(number) &&
-      item.state !== "tracked unchanged").map(item => `\`${item.path}\``);
+    const files = records.filter(item => item.required && item.commit === Number(number))
+      .map(item => `\`${item.path}\``);
     const generated = records.filter(item => item.required && item.commit === Number(number) &&
       item.generated).map(item => item.path);
     const dependency = Number(number) === 4
@@ -101,7 +100,7 @@ function render() {
   }).join("\n");
   const required = records.filter(item => item.required);
   const currentUntracked = required.filter(item => item.state === "untracked");
-  return `# Source-control release inclusion plan\n\nNo files are staged or committed by this plan. Human approval is required before any Git mutation.\n\n## Accounting\n\n- Original immutable RC required-untracked entries: **${baseline.length}/60 accounted individually below**.\n- Current manifest required entries: **${required.length}**; current required untracked: **${currentUntracked.length}**.\n- Tracked-unchanged dependencies are marked \`requires human review\`; they need no new diff but remain release dependencies.\n- Excluded entries remain excluded and must not be silently added.\n\n## Proposed commits\n\n${commits}\n## Complete current classification\n\n| Path | Git state | Manifest classification | Git action | Proposed commit | Reproducibility |\n|---|---|---|---|---:|---|\n${rows}\n\n## Original 60 required untracked files\n\n${baselineRows}\n`;
+  return `# Source-control release inclusion plan\n\nNo files are staged or committed by this plan. Human approval is required before any Git mutation.\n\n## Accounting\n\n- Original immutable RC required-untracked entries: **${baseline.length}/60 accounted individually below**.\n- Current manifest required entries: **${required.length}**; current required untracked: **${currentUntracked.length}**.\n- Every required path retains its approved commit assignment after commit, independent of transient working-tree state.\n- Excluded entries remain excluded and must not be silently added.\n\n## Proposed commits\n\n${commits}\n## Complete current classification\n\n| Path | Git state | Manifest classification | Git action | Proposed commit | Reproducibility |\n|---|---|---|---|---:|---|\n${rows}\n\n## Original 60 required untracked files\n\n${baselineRows}\n`;
 }
 
 function generate() {

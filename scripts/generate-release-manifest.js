@@ -308,8 +308,8 @@ function buildEntries() {
       "docs/release/release-candidate-inventory.md",
       "docs/release/human-approval-packet.md"
     ].includes(normalized) || fs.existsSync(path.join(ROOT, normalized));
-    const state = states.get(normalized) || (tracked.has(normalized)
-      ? "tracked unchanged" : "untracked");
+    const state = tracked.has(normalized) ? "tracked" :
+      (states.get(normalized) || "untracked");
     const description = describe(normalized, sourceOrder);
     return {
       path: normalized, state, phase: phaseFor(normalized),
