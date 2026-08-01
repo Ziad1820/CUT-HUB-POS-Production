@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "packageName": "CUT-HUB-POS Phase 1-5 aggregate",
+  "filesInReviewOrder": [
+    "scripts/app-script-final-owner-access.js",
+    "scripts/booking-availability-phase5-apps-script-bundle.gs"
+  ],
+  "router": "scripts/app-script-final-owner-access.js",
+  "aggregateBundle": "scripts/booking-availability-phase5-apps-script-bundle.gs",
+  "aggregateBundleGenerator": "scripts/build-booking-availability-phase5-bundle.js",
+  "excludedOverlappingSources": [
+    "scripts/staff-attendance-schema.js",
+    "scripts/staff-attendance-core.js",
+    "scripts/staff-scheduling-phase2.js",
+    "scripts/staff-scheduling-phase2-gas.js",
+    "scripts/staff-attendance-phase3.js",
+    "scripts/staff-attendance-phase3-gas.js",
+    "scripts/staff-payroll-attendance-phase4.js",
+    "scripts/staff-payroll-attendance-phase4-gas.js",
+    "scripts/booking-availability-phase5.js",
+    "scripts/booking-availability-phase5-gas.js",
+    "scripts/staff-scheduling-phase2-apps-script-bundle.gs",
+    "scripts/staff-attendance-phase3-apps-script-bundle.gs",
+    "scripts/staff-payroll-attendance-phase4-apps-script-bundle.gs"
+  ],
+  "excludedMigrationRunners": [
+    "scripts/booking-rating-production-migration.js",
+    "scripts/booking-rating-standalone-migration-runner/appsscript.json",
+    "scripts/booking-rating-standalone-migration-runner/booking-rating-production-migration-core.js",
+    "scripts/booking-rating-standalone-migration-runner/standalone-migration-adapter.js"
+  ],
+  "notes": [
+    "Review the router first because it owns doPost, authentication, authorization, environment identity, and legacy/V2 routing.",
+    "Upload the aggregate bundle as one file; never upload any excluded overlapping source or earlier aggregate bundle with it.",
+    "Apps Script resolves global declarations project-wide, but the aggregate bundle's internal source order remains schema, shared core, Phase 2, Phase 3, Phase 4, then Phase 5.",
+    "Migration runners are separate, preview-controlled artifacts and are not part of the application deployment package."
+  ]
+}

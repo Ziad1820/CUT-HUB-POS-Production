@@ -1,28 +1,50 @@
 const CUT_HUB_ENVIRONMENT_PROPERTY = "CUT_HUB_ENVIRONMENT";
 const CUT_HUB_SPREADSHEET_ID_PROPERTY = "CUT_HUB_SPREADSHEET_ID";
 const CUT_HUB_BACKEND_VERSION_PROPERTY = "CUT_HUB_BACKEND_VERSION";
-const CUT_HUB_STAGING_SPREADSHEET_ID = "1tSMYYSNivpNTOJOuKMBVCoE7NKdr3VCzpCgOulcIsoI";
+const CUT_HUB_STAGING_SPREADSHEET_ID_PROPERTY = "CUT_HUB_STAGING_SPREADSHEET_ID";
 const STAGING_CONFIGURATION_ERROR = "STAGING_CONFIGURATION_INVALID";
+const CUT_HUB_SPREADSHEET_ID_PATTERN = /^[A-Za-z0-9_-]{20,128}$/;
 
 function getCutHubEnvironmentConfig() {
   const properties = PropertiesService.getScriptProperties();
   return {
     environment: String(properties.getProperty(CUT_HUB_ENVIRONMENT_PROPERTY) || "").trim().toLowerCase(),
     spreadsheetId: String(properties.getProperty(CUT_HUB_SPREADSHEET_ID_PROPERTY) || "").trim(),
+    stagingSpreadsheetId: String(
+      properties.getProperty(CUT_HUB_STAGING_SPREADSHEET_ID_PROPERTY) || "").trim(),
     backendVersion: String(properties.getProperty(CUT_HUB_BACKEND_VERSION_PROPERTY) || "").trim()
   };
 }
 
 function assertStagingEnvironment() {
   try {
-    const config = getCutHubEnvironmentConfig();
-    const spreadsheet = SpreadsheetApp.getActive();
+    const identity = assertCutHubSpreadsheetIdentity();
+    const config = identity.config;
+    const spreadsheet = identity.spreadsheet;
     if (
       config.environment !== "staging" ||
-      !config.spreadsheetId ||
+      !CUT_HUB_SPREADSHEET_ID_PATTERN.test(config.stagingSpreadsheetId) ||
+      config.spreadsheetId !== config.stagingSpreadsheetId
+    ) {
+      throw new Error(STAGING_CONFIGURATION_ERROR);
+    }
+    return { config, spreadsheet };
+  } catch (error) {
+    throw new Error(STAGING_CONFIGURATION_ERROR);
+  }
+}
+
+function assertCutHubSpreadsheetIdentity() {
+  try {
+    const config = getCutHubEnvironmentConfig();
+    const spreadsheet = SpreadsheetApp.getActive();
+    const activeSpreadsheetId = spreadsheet && String(spreadsheet.getId() || "").trim();
+    if (
+      ["development", "test", "staging", "production"].indexOf(config.environment) === -1 ||
+      !CUT_HUB_SPREADSHEET_ID_PATTERN.test(config.spreadsheetId) ||
       !spreadsheet ||
-      spreadsheet.getId() !== config.spreadsheetId ||
-      config.spreadsheetId !== CUT_HUB_STAGING_SPREADSHEET_ID
+      !CUT_HUB_SPREADSHEET_ID_PATTERN.test(activeSpreadsheetId) ||
+      activeSpreadsheetId !== config.spreadsheetId
     ) {
       throw new Error(STAGING_CONFIGURATION_ERROR);
     }
@@ -33,9 +55,9 @@ function assertStagingEnvironment() {
 }
 
 function validateCutHubRequestEnvironment() {
-  const config = getCutHubEnvironmentConfig();
-  if (config.environment === "staging") assertStagingEnvironment();
-  return config;
+  const identity = assertCutHubSpreadsheetIdentity();
+  if (identity.config.environment === "staging") return assertStagingEnvironment().config;
+  return identity.config;
 }
 
 function getStagingIdentityValues() {
@@ -157,11 +179,44 @@ function doPost(e) {
   if (data.action === "deleteActivityLog") return deleteActivityLog(data);
   if (data.action === "deleteActivityLogs") return deleteActivityLogs(data);
 
-  if (data.action === "createAttendanceRecord") return createAttendanceRecord(data);
-  if (data.action === "getAttendanceRecords") return getAttendanceRecords(data);
-  if (data.action === "updateAttendanceStep") return updateAttendanceStep(data);
-  if (data.action === "approveAttendanceDeduction") return approveAttendanceDeduction(data);
-  if (data.action === "deleteAttendanceRecord") return deleteAttendanceRecord(data);
+  if ([
+    "createAttendanceRecord", "getAttendanceRecords", "updateAttendanceStep",
+    "approveAttendanceDeduction", "deleteAttendanceRecord"
+  ].includes(data.action)) {
+    return jsonOutput({
+      status: "error",
+      code: "ATTENDANCE_LEGACY_PATH_DISABLED",
+      message: "Legacy Attendance API is disabled. Use the reviewed Phase 3 attendance workflow."
+    });
+  }
+
+  if (typeof StaffPayrollAttendancePhase4 !== "undefined" &&
+      StaffPayrollAttendancePhase4.ACTIONS.indexOf(data.action) !== -1) {
+    return handleStaffPayrollAttendancePhase4Action(data);
+  }
+
+  if (typeof StaffAttendancePhase3 !== "undefined" &&
+      StaffAttendancePhase3.ACTIONS.indexOf(data.action) !== -1) {
+    return handleStaffAttendancePhase3Action(data);
+  }
+
+  if (typeof StaffSchedulingPhase2 !== "undefined" &&
+      StaffSchedulingPhase2.ACTIONS.indexOf(data.action) !== -1) {
+    return handleStaffSchedulingPhase2Action(data);
+  }
+
+  if ([
+    "previewBookingAvailabilityMigration", "getBookingAvailabilityFlags",
+    "listPublicBookingBranches", "listBookingBranches", "saveBookingBranchHours",
+    "saveBookingBranchConfiguration",
+    "previewBookingNoCheckInTriggerInstallation", "runBookingNoCheckInDetector",
+    "createBookingOperationalOverride", "revokeBookingOperationalOverride",
+    "listBookingOperationalOverrides", "listBookingAvailabilityConflicts",
+    "listBookingAvailabilityAudit",
+    "transitionBookingAvailabilityConflict"
+  ].includes(data.action)) {
+    return handleBookingAvailabilityPhase5Action(data);
+  }
 
   if (data.action === "getPublicBookingOptions") return getPublicBookingOptions(data);
   if (data.action === "createPublicBookingRequest") return createPublicBookingRequest(data);
@@ -222,10 +277,35 @@ const ALL_PERMISSIONS = [
   "view_inventory",
   "view_staff_discount",
   "view_attendance",
+  "attendance.view",
+  "attendance.self_action",
+  "attendance.manage",
+  "attendance.correct",
+  "attendance.approve_adjustment",
+  "attendance.approve_overtime",
+  "schedule.view",
+  "schedule.manage",
+  "leave.request",
+  "leave.approve",
+  "payroll_attendance.view",
+  "payroll_attendance.calculate",
+  "payroll_attendance.review",
+  "payroll_attendance.approve",
+  "payroll_attendance.lock",
+  "payroll_attendance.reopen",
+  "payroll_attendance.adjust",
+  "payroll_attendance.export",
   "view_bookings",
   "create_bookings",
   "manage_bookings",
   "delete_bookings",
+  "booking_availability.view",
+  "booking_availability.view_operational",
+  "booking_availability.view_restrictions",
+  "booking_availability.manage_override",
+  "booking_availability.resolve_conflict",
+  "booking_availability.override_internal",
+  "booking_availability.view_audit",
   "view_ratings",
   "manage_ratings",
   "manage_users"
@@ -625,9 +705,13 @@ function normalizeManagedPermissions(username, permissions) {
     return ALL_PERMISSIONS;
   }
 
-  return (Array.isArray(permissions) ? permissions : [])
+  const normalized = (Array.isArray(permissions) ? permissions : [])
     .map(permission => String(permission || "").trim())
     .filter(permission => permission && permission !== "manage_users");
+  if (normalized.includes("view_attendance") && !normalized.includes("attendance.view")) {
+    normalized.push("attendance.view");
+  }
+  return normalized;
 }
 
 function sanitizeUser(user) {
@@ -694,7 +778,12 @@ function readUsersFromSheet() {
 
   if (lastRow < 2) return [];
 
-  const rows = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+  const width = Math.max(6, sheet.getLastColumn());
+  const headers = sheet.getRange(1, 1, 1, width).getValues()[0].map((value) =>
+    String(value || "").trim().toUpperCase().replace(/[\s-]+/g, "_"));
+  const preparationIndex = headers.indexOf("PREPARATION_MINUTES");
+  const cleanupIndex = headers.indexOf("CLEANUP_MINUTES");
+  const rows = sheet.getRange(2, 1, lastRow - 1, width).getValues();
 
   return rows
     .map((row, index) => ({
@@ -962,19 +1051,12 @@ function getServices() {
     return jsonOutput({ status: "success", services: [] });
   }
 
-  const rows = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
-  let generatedIds = false;
-
-  rows.forEach((row) => {
-    if (String(row[0] || "").trim() && !String(row[4] || "").trim()) {
-      row[4] = `SRV-${Utilities.getUuid()}`;
-      generatedIds = true;
-    }
-  });
-
-  if (generatedIds) {
-    sheet.getRange(2, 1, rows.length, 6).setValues(rows);
-  }
+  const width = Math.max(6, sheet.getLastColumn());
+  const headers = sheet.getRange(1, 1, 1, width).getValues()[0].map((value) =>
+    String(value || "").trim().toUpperCase().replace(/[\s-]+/g, "_"));
+  const preparationIndex = headers.indexOf("PREPARATION_MINUTES");
+  const cleanupIndex = headers.indexOf("CLEANUP_MINUTES");
+  const rows = sheet.getRange(2, 1, lastRow - 1, width).getValues();
 
   const services = rows
     .map((row, index) => ({
@@ -983,7 +1065,9 @@ function getServices() {
       active: parseServiceActiveFlag(row[2]),
       order: Number(row[3]) || index + 1,
       serviceId: String(row[4] || "").trim(),
-      durationMinutes: Math.max(15, Number(row[5]) || 30)
+      durationMinutes: Math.max(15, Number(row[5]) || 30),
+      preparationMinutes: preparationIndex >= 0 ? Math.max(0, Number(row[preparationIndex]) || 0) : 0,
+      cleanupMinutes: cleanupIndex >= 0 ? Math.max(0, Number(row[cleanupIndex]) || 0) : 0
     }))
     .filter(service => service.name && service.active)
     .sort((a, b) => a.order - b.order)
@@ -991,7 +1075,9 @@ function getServices() {
       name: service.name,
       price: service.price,
       serviceId: service.serviceId,
-      durationMinutes: service.durationMinutes
+      durationMinutes: service.durationMinutes,
+      preparationMinutes: service.preparationMinutes,
+      cleanupMinutes: service.cleanupMinutes
     }));
 
   return jsonOutput({ status: "success", services });
@@ -1000,6 +1086,9 @@ function getServices() {
 function saveServices(data) {
   const permissionError = requirePermission(data, "edit_prices", "You do not have permission to edit prices.");
   if (permissionError) return permissionError;
+  return withBookingMutationLock({
+    bookingRequestId: String(data.clientRequestId || "SERVICES").trim()
+  }, () => {
 
   const sheet = SpreadsheetApp.getActive().getSheetByName("SERVICES");
   if (!sheet) {
@@ -1008,52 +1097,110 @@ function saveServices(data) {
 
   const services = Array.isArray(data.services) ? data.services : [];
   const lastRow = sheet.getLastRow();
+  const width = Math.max(6, sheet.getLastColumn());
+  const headers = sheet.getRange(1, 1, 1, width).getValues()[0].map((value) =>
+    String(value || "").trim().toUpperCase().replace(/[\s-]+/g, "_"));
+  const preparationIndex = headers.indexOf("PREPARATION_MINUTES");
+  const cleanupIndex = headers.indexOf("CLEANUP_MINUTES");
   const existingRows = lastRow > 1
-    ? sheet.getRange(2, 1, lastRow - 1, 6).getValues()
+    ? sheet.getRange(2, 1, lastRow - 1, width).getValues()
     : [];
   const existingIds = {};
 
   existingRows.forEach((row) => {
     const name = String(row[0] || "").trim().toLowerCase();
     const serviceId = String(row[4] || "").trim();
-    if (name && serviceId) existingIds[name] = { serviceId, durationMinutes: Math.max(15, Number(row[5]) || 30) };
+    if (name && serviceId) existingIds[name] = {
+      serviceId,
+      durationMinutes: Math.max(15, Number(row[5]) || 30),
+      preparationMinutes: preparationIndex >= 0 ? Math.max(0, Number(row[preparationIndex]) || 0) : 0,
+      cleanupMinutes: cleanupIndex >= 0 ? Math.max(0, Number(row[cleanupIndex]) || 0) : 0
+    };
   });
 
   if (lastRow > 1) {
-    sheet.getRange(2, 1, lastRow - 1, 6).clearContent();
+    sheet.getRange(2, 1, lastRow - 1, width).clearContent();
   }
 
   const rows = services
     .filter(service => String(service.name || "").trim())
-    .map((service, index) => [
-      String(service.name || "").trim(),
-      parseSheetAmount(service.price),
-      "TRUE",
-      index + 1,
-      String(service.serviceId || existingIds[String(service.name || "").trim().toLowerCase()]?.serviceId || `SRV-${Utilities.getUuid()}`).trim(),
-      Math.max(15, Number(service.durationMinutes) || existingIds[String(service.name || "").trim().toLowerCase()]?.durationMinutes || 30)
-    ]);
+    .map((service, index) => {
+      const name = String(service.name || "").trim();
+      const existing = existingIds[name.toLowerCase()] || {};
+      const row = new Array(width).fill("");
+      row[0] = name;
+      row[1] = parseSheetAmount(service.price);
+      row[2] = "TRUE";
+      row[3] = index + 1;
+      row[4] = String(service.serviceId || existing.serviceId || `SRV-${Utilities.getUuid()}`).trim();
+      row[5] = Math.max(15, Number(service.durationMinutes) || existing.durationMinutes || 30);
+      if (preparationIndex >= 0) {
+        row[preparationIndex] = Math.max(0,
+          service.preparationMinutes === undefined
+            ? Number(existing.preparationMinutes) || 0 : Number(service.preparationMinutes) || 0);
+      }
+      if (cleanupIndex >= 0) {
+        row[cleanupIndex] = Math.max(0,
+          service.cleanupMinutes === undefined
+            ? Number(existing.cleanupMinutes) || 0 : Number(service.cleanupMinutes) || 0);
+      }
+      return row;
+    });
 
-  if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, 6).setValues(rows);
-  }
-
-  logActivity(
-    data,
-    "update",
-    "services",
-    "SERVICES",
-    `Saved services list. Total services: ${rows.length}`
-  );
-
-  return jsonOutput({
-    status: "success",
-    services: rows.map(row => ({
+  const responseServices = rows.map(row => ({
       name: row[0],
       price: row[1],
       serviceId: row[4],
-      durationMinutes: row[5]
-    }))
+      durationMinutes: row[5],
+      preparationMinutes: preparationIndex >= 0 ? Number(row[preparationIndex]) || 0 : 0,
+      cleanupMinutes: cleanupIndex >= 0 ? Number(row[cleanupIndex]) || 0 : 0
+    }));
+  const writeServices = () => {
+    if (rows.length > 0) sheet.getRange(2, 1, rows.length, width).setValues(rows);
+  };
+  if (typeof bookingAvailabilityPhase5RunTransaction === "function" &&
+      bookingAvailabilityEngineMode() === "PHASE5") {
+    const requestId = String(data.clientRequestId || "SERVICES-SAVE").trim();
+    const actor = bookingAvailabilityPhase5Actor(data, true);
+    const result = bookingAvailabilityPhase5RunTransaction({
+      data, requestId, action: "SERVICE_CONFIGURATION_SAVE",
+      entityType: "SERVICES", entityId: "SERVICES", actor,
+      beforeState: { rows: existingRows },
+      business: () => { writeServices(); SpreadsheetApp.flush(); return { services: responseServices }; },
+      version: () => bookingAvailabilityPhase5IncrementGeneration(
+        "service", "GLOBAL", "GLOBAL", actor, requestId),
+      audit: () => bookingAvailabilityPhase5AppendAudit({
+        action: "SERVICE_CONFIGURATION_SAVED", entityType: "SERVICES",
+        entityId: "SERVICES", actorId: actor ? actor.actorId : "system",
+        actorRole: actor ? actor.role : "SYSTEM", reasonCode: "SERVICE_CONFIGURATION",
+        beforeState: { count: existingRows.length }, afterState: { count: rows.length },
+        requestId
+      }),
+      compensateBusiness: () => {
+        if (existingRows.length) {
+          sheet.getRange(2, 1, existingRows.length, width).setValues(existingRows);
+        }
+        if (rows.length > existingRows.length) {
+          const surplus = rows.slice(existingRows.length).map(row => {
+            const copy = row.slice(); copy[2] = "FALSE"; return copy;
+          });
+          sheet.getRange(2 + existingRows.length, 1, surplus.length, width).setValues(surplus);
+        }
+        SpreadsheetApp.flush();
+      },
+      response: value => value
+    });
+    logActivity(data, "update", "services", "SERVICES",
+      `Saved services list. Total services: ${rows.length}`);
+    return jsonOutput({ status: "success", services: result.services });
+  }
+  writeServices();
+  logActivity(data, "update", "services", "SERVICES",
+    `Saved services list. Total services: ${rows.length}`);
+  if (typeof bookingAvailabilityPhase5AfterGlobalServiceMutationUnderLock === "function") {
+    bookingAvailabilityPhase5AfterGlobalServiceMutationUnderLock(data);
+  }
+  return jsonOutput({ status: "success", services: responseServices });
   });
 }
 
@@ -2265,10 +2412,8 @@ function saveStaff(data) {
     const staffList = Array.isArray(data.staff) ? data.staff : [];
     const lastRow = sheet.getLastRow();
     const now = getCairoDateTime();
-
-    if (lastRow > 1) {
-      sheet.getRange(2, 1, lastRow - 1, 11).clearContent();
-    }
+    const beforeRows = lastRow > 1
+      ? sheet.getRange(2, 1, lastRow - 1, 11).getValues() : [];
 
     const rows = staffList
       .map(normalizeStaffForSheet)
@@ -2287,9 +2432,49 @@ function saveStaff(data) {
         staff.isBarber ? "TRUE" : "FALSE"
       ]);
 
-    if (rows.length > 0) {
-      sheet.getRange(2, 1, rows.length, 11).setValues(rows);
+    const responseStaff = rows.map(row => ({
+      name: row[0], code: row[1], salary: row[2], percentage: row[3],
+      id: row[4], bonus: row[5], deduction: row[6], isBarber: row[10] !== "FALSE"
+    }));
+    const writeStaff = () => {
+      if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, 11).clearContent();
+      if (rows.length > 0) sheet.getRange(2, 1, rows.length, 11).setValues(rows);
+    };
+    if (typeof bookingAvailabilityPhase5RunTransaction === "function" &&
+        bookingAvailabilityEngineMode() === "PHASE5") {
+      return withBookingMutationLock({
+        bookingRequestId: String(data.clientRequestId || "STAFF-SAVE").trim()
+      }, () => {
+        const requestId = String(data.clientRequestId || "STAFF-SAVE").trim();
+        const actor = bookingAvailabilityPhase5Actor(data, true);
+        const result = bookingAvailabilityPhase5RunTransaction({
+          data, requestId, action: "STAFF_MEMBERSHIP_SAVE",
+          entityType: "STAFF_MEMBERSHIP", entityId: "STAFF", actor,
+          beforeState: { rows: beforeRows },
+          business: () => { writeStaff(); SpreadsheetApp.flush(); return { staff: responseStaff }; },
+          version: () => bookingAvailabilityPhase5IncrementGeneration(
+            "staffMembership", "GLOBAL", "GLOBAL", actor, requestId),
+          audit: () => bookingAvailabilityPhase5AppendAudit({
+            action: "STAFF_MEMBERSHIP_SAVED", entityType: "STAFF_MEMBERSHIP",
+            entityId: "STAFF", actorId: actor ? actor.actorId : "system",
+            actorRole: actor ? actor.role : "SYSTEM", reasonCode: "STAFF_MEMBERSHIP",
+            beforeState: { count: beforeRows.length }, afterState: { count: rows.length },
+            requestId
+          }),
+          compensateBusiness: () => {
+            const affected = Math.max(beforeRows.length, rows.length);
+            if (affected) sheet.getRange(2, 1, affected, 11).clearContent();
+            if (beforeRows.length) sheet.getRange(2, 1, beforeRows.length, 11).setValues(beforeRows);
+            SpreadsheetApp.flush();
+          },
+          response: value => value
+        });
+        logActivity(data, "update", "staff", "STAFF",
+          `Saved staff list. Total staff: ${rows.length}`);
+        return jsonOutput({ status: "success", staff: result.staff });
+      });
     }
+    writeStaff();
 
     logActivity(
       data,
@@ -2301,16 +2486,7 @@ function saveStaff(data) {
 
     return jsonOutput({
       status: "success",
-      staff: rows.map(row => ({
-        name: row[0],
-        code: row[1],
-        salary: row[2],
-        percentage: row[3],
-        id: row[4],
-        bonus: row[5],
-        deduction: row[6],
-        isBarber: row[10] !== "FALSE"
-      }))
+      staff: responseStaff
     });
   } catch (error) {
     return jsonOutput({ status: "error", message: error.message });
@@ -4490,7 +4666,12 @@ const BOOKING_HEADERS_V2 = [
   "PROPOSED_TIME", "HOLD_EXPIRES_AT", "CUSTOMER_RESPONSE", "EMPLOYEE_ID",
   "CANCELLED_AT", "CANCELLED_BY", "CANCELLATION_REASON", "COMPLETED_AT", "COMPLETED_BY",
   "DELETED", "DELETED_AT", "DELETED_BY", "SERVICE_IDS", "TOTAL_PRICE", "DELETION_REASON",
-  "CLIENT_REQUEST_ID", "CLIENT_REQUEST_FINGERPRINT"
+  "CLIENT_REQUEST_ID", "CLIENT_REQUEST_FINGERPRINT",
+  "BRANCH_ID", "AVAILABILITY_TOKEN", "SCHEDULE_VERSION",
+  "ATTENDANCE_OPERATIONAL_VERSION", "OPERATIONAL_OVERRIDE_ID",
+  "VALIDATED_AT", "VALIDATION_SOURCE_VERSION", "SERVICE_DURATION_SNAPSHOT",
+  "PREPARATION_MINUTES_SNAPSHOT", "CLEANUP_MINUTES_SNAPSHOT",
+  "OCCUPIED_START_TIME", "OCCUPIED_END_TIME", "SERVICE_CONFIGURATION_VERSION"
 ];
 
 const BOOKING_SLOT_INTERVAL_MINUTES = 30;
@@ -4522,6 +4703,23 @@ function parseServiceActiveFlag(value) {
 
 function bookingApiError(code, message) {
   return jsonOutput({ status: "error", code, message });
+}
+
+function bookingErrorResponse(error, fallbackCode) {
+  return jsonOutput({
+    status: "error",
+    code: (error && error.code) || fallbackCode || "BOOKING_INTERNAL_ERROR",
+    message: (error && error.message) || "Booking request failed.",
+    ...((error && error.details) ? { details: error.details } : {})
+  });
+}
+
+function bookingPublicErrorResponse(error, fallbackCode) {
+  return jsonOutput({
+    status: "error",
+    code: (error && error.code) || fallbackCode || "BOOKING_PUBLIC_ERROR",
+    message: (error && error.message) || "Booking request failed."
+  });
 }
 
 function bookingMutationDiagnostic(event, details) {
@@ -4760,7 +4958,21 @@ function bookingFromRowV2(row, rowNumber, headers) {
     deletedBy: normalizeProtectedText(value("DELETED_BY"), 100),
     deletionReason: normalizeProtectedText(value("DELETION_REASON"), 500),
     clientRequestId: String(value("CLIENT_REQUEST_ID") || "").trim(),
-    clientRequestFingerprint: String(value("CLIENT_REQUEST_FINGERPRINT") || "").trim()
+    clientRequestFingerprint: String(value("CLIENT_REQUEST_FINGERPRINT") || "").trim(),
+    branchId: String(value("BRANCH_ID") || "").trim(),
+    availabilityToken: String(value("AVAILABILITY_TOKEN") || "").trim(),
+    scheduleVersion: Number(value("SCHEDULE_VERSION")) || 0,
+    attendanceOperationalVersion: Number(value("ATTENDANCE_OPERATIONAL_VERSION")) || 0,
+    operationalOverrideId: String(value("OPERATIONAL_OVERRIDE_ID") || "").trim(),
+    validatedAt: String(value("VALIDATED_AT") || "").trim(),
+    validationSourceVersion: String(value("VALIDATION_SOURCE_VERSION") || "").trim(),
+    serviceDurationSnapshot: Number(value("SERVICE_DURATION_SNAPSHOT")) ||
+      Math.max(15, Number(value("DURATION_MINUTES", ["DURATION"])) || 30),
+    preparationMinutesSnapshot: Math.max(0, Number(value("PREPARATION_MINUTES_SNAPSHOT")) || 0),
+    cleanupMinutesSnapshot: Math.max(0, Number(value("CLEANUP_MINUTES_SNAPSHOT")) || 0),
+    occupiedStartTime: String(value("OCCUPIED_START_TIME") || "").trim(),
+    occupiedEndTime: String(value("OCCUPIED_END_TIME") || "").trim(),
+    serviceConfigurationVersion: String(value("SERVICE_CONFIGURATION_VERSION") || "").trim()
   };
 }
 
@@ -4791,7 +5003,19 @@ function bookingToRowV2(booking, headers, existingRow) {
     SERVICE_IDS: Array.isArray(booking.serviceIds) ? booking.serviceIds.join(",") : (booking.serviceIds || booking.serviceId || ""),
     TOTAL_PRICE: Number(booking.totalPrice) || 0,
     DELETION_REASON: normalizeProtectedText(booking.deletionReason, 500),
-    CLIENT_REQUEST_ID: booking.clientRequestId, CLIENT_REQUEST_FINGERPRINT: booking.clientRequestFingerprint
+    CLIENT_REQUEST_ID: booking.clientRequestId, CLIENT_REQUEST_FINGERPRINT: booking.clientRequestFingerprint,
+    BRANCH_ID: booking.branchId, AVAILABILITY_TOKEN: booking.availabilityToken,
+    SCHEDULE_VERSION: booking.scheduleVersion,
+    ATTENDANCE_OPERATIONAL_VERSION: booking.attendanceOperationalVersion,
+    OPERATIONAL_OVERRIDE_ID: booking.operationalOverrideId,
+    VALIDATED_AT: booking.validatedAt,
+    VALIDATION_SOURCE_VERSION: booking.validationSourceVersion,
+    SERVICE_DURATION_SNAPSHOT: booking.serviceDurationSnapshot,
+    PREPARATION_MINUTES_SNAPSHOT: booking.preparationMinutesSnapshot,
+    CLEANUP_MINUTES_SNAPSHOT: booking.cleanupMinutesSnapshot,
+    OCCUPIED_START_TIME: booking.occupiedStartTime,
+    OCCUPIED_END_TIME: booking.occupiedEndTime,
+    SERVICE_CONFIGURATION_VERSION: booking.serviceConfigurationVersion
   };
   Object.keys(values).forEach((name) => setBookingRowValueV2(row, headers, name, values[name]));
   return row;
@@ -4917,7 +5141,14 @@ function findBookingRowV2(sheet, data) {
 function publicBookingServices() {
   const sheet = SpreadsheetApp.getActive().getSheetByName("SERVICES");
   if (!sheet || sheet.getLastRow() < 2) return [];
-  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).getValues();
+  const width = typeof sheet.getLastColumn === "function" ? Math.max(6, sheet.getLastColumn()) : 6;
+  const headers = width > 6
+    ? sheet.getRange(1, 1, 1, width).getValues()[0].map((value) =>
+      String(value || "").trim().toUpperCase().replace(/[\s-]+/g, "_"))
+    : [];
+  const preparationIndex = headers.indexOf("PREPARATION_MINUTES");
+  const cleanupIndex = headers.indexOf("CLEANUP_MINUTES");
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, width).getValues();
   return rows.map((row, index) => {
     const rawDuration = String(row[5] == null ? "" : row[5]).trim();
     return {
@@ -4925,8 +5156,11 @@ function publicBookingServices() {
       price: parseSheetAmount(row[1]),
       active: parseServiceActiveFlag(row[2]),
       order: Number(row[3]) || index + 1,
+      // Missing legacy IDs are reported, never generated by this read action.
       serviceId: String(row[4] || "").trim(),
-      durationMinutes: rawDuration ? Number(row[5]) : 30
+      durationMinutes: rawDuration ? Number(row[5]) : 30,
+      preparationMinutes: preparationIndex >= 0 ? Math.max(0, Number(row[preparationIndex]) || 0) : 0,
+      cleanupMinutes: cleanupIndex >= 0 ? Math.max(0, Number(row[cleanupIndex]) || 0) : 0
     };
   }).filter((service) => {
     const name = service.name.toLowerCase();
@@ -4934,7 +5168,7 @@ function publicBookingServices() {
     const isPackage = /[+＋]/.test(name)
       || /باك(?:ي)?دج|package|pack|vip/i.test(name)
       || separators >= 2;
-    return service.name && service.active && !isPackage;
+    return service.name && service.serviceId && service.active && !isPackage;
   }).sort((a, b) => a.order - b.order);
 }
 
@@ -4961,6 +5195,99 @@ function getSelectedPublicBookingServices(data, services) {
   return selected.length ? selected : services.slice(0, 1);
 }
 
+function applyBookingOccupancySnapshot(booking, preparationMinutes, cleanupMinutes, configurationVersion, occupiedTime) {
+  const start = bookingMinutes(occupiedTime || booking.time);
+  const duration = Math.max(15, Number(booking.durationMinutes) || 30);
+  const preparation = Math.max(0, Number(preparationMinutes) || 0);
+  const cleanup = Math.max(0, Number(cleanupMinutes) || 0);
+  booking.serviceDurationSnapshot = duration;
+  booking.preparationMinutesSnapshot = preparation;
+  booking.cleanupMinutesSnapshot = cleanup;
+  booking.occupiedStartTime = start === null ? "" : minutesToBookingTime(start - preparation);
+  booking.occupiedEndTime = start === null ? "" : minutesToBookingTime(start + duration + cleanup);
+  booking.serviceConfigurationVersion = String(configurationVersion || "").trim();
+  return booking;
+}
+
+function commitBookingPhase5UnderCurrentLock(options) {
+  const data = options.data || {};
+  const booking = options.booking;
+  const fallbackHash = typeof BookingAvailabilityPhase5 !== "undefined"
+    ? BookingAvailabilityPhase5.hash({
+      action: options.action, bookingId: booking.id, updatedAt: booking.updatedAt,
+      status: booking.status, date: booking.date, time: booking.time
+    })
+    : String(booking.id || "").replace(/[^A-Za-z0-9]/g, "").slice(-24);
+  const requestId = String(options.requestId || data.clientRequestId ||
+    `BOOKING-${fallbackHash}`).trim();
+  if (typeof bookingAvailabilityPhase5RunTransaction !== "function" ||
+      bookingAvailabilityEngineMode() === "LEGACY") {
+    options.business();
+    if (typeof bookingAvailabilityPhase5AfterBookingMutationUnderLock === "function") {
+      bookingAvailabilityPhase5AfterBookingMutationUnderLock(data, booking);
+    }
+    return booking;
+  }
+  const actor = typeof bookingAvailabilityPhase5Actor === "function"
+    ? bookingAvailabilityPhase5Actor(data, true) : null;
+  return bookingAvailabilityPhase5RunTransaction({
+    data,
+    requestId,
+    action: options.action,
+    entityType: "BOOKING",
+    entityId: booking.id,
+    branchId: booking.branchId,
+    date: booking.date,
+    actor,
+    beforeState: options.beforeState || {},
+    business: () => {
+      options.business();
+      return booking;
+    },
+    version: () => bookingAvailabilityPhase5IncrementVersion(
+      "booking", booking.branchId, booking.date, actor),
+    audit: () => bookingAvailabilityPhase5AppendAudit({
+      action: options.action,
+      entityType: "BOOKING",
+      entityId: booking.id,
+      branchId: booking.branchId,
+      staffId: booking.employeeId,
+      date: booking.date,
+      actorId: actor ? actor.actorId : "public",
+      actorRole: actor ? actor.role : "PUBLIC",
+      reasonCode: options.reasonCode || options.action,
+      beforeState: options.beforeState || {},
+      afterState: {
+        status: booking.status, date: booking.date, time: booking.time,
+        staffId: booking.employeeId,
+        serviceConfigurationVersion: booking.serviceConfigurationVersion
+      },
+      requestId
+    }),
+    compensateBusiness: () => options.compensate()
+  });
+}
+
+function committedBookingMutationRetry(data) {
+  if (typeof bookingAvailabilityPhase5CommittedResultForRequest !== "function" ||
+      bookingAvailabilityEngineMode() !== "PHASE5") return null;
+  const requestId = String((data && data.clientRequestId) || "").trim();
+  return bookingAvailabilityPhase5CommittedResultForRequest(requestId);
+}
+
+function bookingServiceSetHash(services, fallbackIds) {
+  const configuration = (services || []).map((service) => ({
+    serviceId: String(service.serviceId || "").trim(),
+    durationMinutes: Number(service.durationMinutes) || 0,
+    preparationMinutes: Number(service.preparationMinutes) || 0,
+    cleanupMinutes: Number(service.cleanupMinutes) || 0
+  })).sort((left, right) => left.serviceId.localeCompare(right.serviceId));
+  const value = configuration.length ? configuration :
+    (fallbackIds || []).map((serviceId) => ({ serviceId: String(serviceId || "").trim() }));
+  return typeof BookingAvailabilityPhase5 !== "undefined"
+    ? BookingAvailabilityPhase5.hash(value) : JSON.stringify(value);
+}
+
 function resolveTrustedBookingServiceTotals(booking, services) {
   const ids = Array.isArray(booking.serviceIds) ? booking.serviceIds : [];
   if (!ids.length) {
@@ -4971,7 +5298,10 @@ function resolveTrustedBookingServiceTotals(booking, services) {
     return {
       ok: true,
       durationMinutes: Number(booking.durationMinutes),
-      totalPrice: Number(booking.totalPrice) || 0
+      totalPrice: Number(booking.totalPrice) || 0,
+      preparationMinutes: Number(booking.preparationMinutes) || 0,
+      cleanupMinutes: Number(booking.cleanupMinutes) || 0,
+      serviceSetHash: bookingServiceSetHash([], booking.serviceIds || [])
     };
   }
   if (bookingServiceIdsHaveDuplicates(ids)) {
@@ -4986,22 +5316,36 @@ function resolveTrustedBookingServiceTotals(booking, services) {
   }
   const durationMinutes = selected.reduce((sum, service) => sum + Number(service.durationMinutes), 0);
   const totalPrice = selected.reduce((sum, service) => sum + Number(service.price), 0);
+  const preparationMinutes = selected.reduce((sum, service) =>
+    sum + Math.max(0, Number(service.preparationMinutes) || 0), 0);
+  const cleanupMinutes = selected.reduce((sum, service) =>
+    sum + Math.max(0, Number(service.cleanupMinutes) || 0), 0);
   if (!isValidBookingDuration(durationMinutes) || !isValidBookingPrice(totalPrice)) {
     return bookingAppointmentValidationError("INVALID_SERVICES", "The booking service configuration is invalid.");
   }
-  return { ok: true, durationMinutes, totalPrice };
+  return {
+    ok: true, durationMinutes, totalPrice, preparationMinutes, cleanupMinutes,
+    serviceSetHash: bookingServiceSetHash(selected, ids)
+  };
 }
 
 function publicBookingBarbers() {
   const sheet = getStaffSheet();
   if (sheet.getLastRow() < 2) return [];
-  return sheet.getRange(2, 1, sheet.getLastRow() - 1, 11).getValues()
+  const width = typeof sheet.getLastColumn === "function" ? Math.max(11, sheet.getLastColumn()) : 11;
+  const headers = width > 11
+    ? sheet.getRange(1, 1, 1, width).getValues()[0].map((value) =>
+      String(value || "").trim().toUpperCase().replace(/[\s-]+/g, "_"))
+    : [];
+  const branchIndex = headers.indexOf("BRANCH_ID");
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, width).getValues()
     .map((row, index) => ({
       staffId: String(row[4] || buildStaffId(index + 1)).trim(),
       name: String(row[0] || "").trim(),
       code: String(row[1] || "").trim(),
       active: parseSheetBoolean(row[7], true),
-      isBarber: parseSheetBoolean(row[10], true)
+      isBarber: parseSheetBoolean(row[10], true),
+      branchId: branchIndex >= 0 ? String(row[branchIndex] || "").trim() : ""
     }))
     .filter((barber) => barber.staffId && barber.name && barber.active && barber.isBarber);
 }
@@ -5134,33 +5478,6 @@ function bookingStatusIsTerminal(status) {
   return ["done", "cancelled", "rejected", "expired"].indexOf(normalizeBookingStatusV2(status)) !== -1;
 }
 
-function expirePendingBookingsUnderLock() {
-  const sheet = getBookingsSheetV2();
-  if (sheet.getLastRow() < 2) return 0;
-  const headers = getBookingHeadersV2(sheet);
-  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
-  const now = new Date();
-  const nowText = getCairoDateTime();
-  let expiredCount = 0;
-  rows.forEach((row, index) => {
-    const booking = bookingFromRowV2(row, index + 2, headers);
-    if (booking.deleted || booking.status !== "pending" || !booking.holdExpiresAt) return;
-    const expiresAt = new Date(booking.holdExpiresAt);
-    if (isNaN(expiresAt.getTime()) || expiresAt.getTime() > now.getTime()) return;
-    booking.status = "expired";
-    booking.customerResponse = "hold_expired";
-    booking.updatedAt = nowText;
-    writeBookingRowV2(sheet, index + 2, booking, row);
-    expiredCount++;
-  });
-  if (expiredCount) SpreadsheetApp.flush();
-  return expiredCount;
-}
-
-function expirePendingBookings() {
-  return withBookingMutationLock({}, () => expirePendingBookingsUnderLock());
-}
-
 function getAllBookingsV2() {
   const sheet = getBookingsSheetV2();
   if (sheet.getLastRow() < 2) return [];
@@ -5214,7 +5531,7 @@ function bookingAppointmentValidationError(code, message) {
   return { ok: false, code: code || "SLOT_UNAVAILABLE", message };
 }
 
-function validateBookingAppointmentV2(options) {
+function validateBookingAppointmentLegacyV2(options) {
   const dateKey = String(options.date || "").trim();
   const time = normalizeDigits(String(options.time || "").trim());
   const durationMinutes = Number(options.durationMinutes);
@@ -5264,7 +5581,86 @@ function validateBookingAppointmentV2(options) {
   return { ok: true, barber, date: dateKey, time, durationMinutes, shiftStart, shiftEnd };
 }
 
-function availableSlotsForBarber(barber, dateKey, durationMinutes, bookings, barbers) {
+function bookingEffectiveStatusV2(booking, nowMs) {
+  const status = normalizeBookingStatusV2(booking && booking.status);
+  if (status !== "pending" || !booking.holdExpiresAt) return status;
+  const expiry = Date.parse(booking.holdExpiresAt);
+  return Number.isFinite(expiry) && expiry <= (Number(nowMs) || Date.now())
+    ? "expired" : status;
+}
+
+function bookingAvailabilityEngineMode() {
+  if (typeof bookingAvailabilityPhase5Flags === "function") {
+    return bookingAvailabilityPhase5Flags().engine;
+  }
+  return "LEGACY";
+}
+
+function bookingAvailabilityLiveRefreshEnabled(audience) {
+  if (typeof bookingAvailabilityPhase5Flags !== "function") return false;
+  const flags = bookingAvailabilityPhase5Flags();
+  return audience === "internal"
+    ? flags.internalLiveRefreshEnabled === true
+    : flags.customerLiveRefreshEnabled === true;
+}
+
+function runBookingAvailabilityAuthority(legacyCallback, phase5Callback, context) {
+  const mode = bookingAvailabilityEngineMode();
+  if (typeof BookingAvailabilityPhase5 !== "undefined" &&
+      typeof BookingAvailabilityPhase5.executeAuthoritativeEngine === "function") {
+    return BookingAvailabilityPhase5.executeAuthoritativeEngine({
+      mode,
+      legacy: legacyCallback,
+      phase5: phase5Callback,
+      onComparison: (comparison) => {
+        try {
+          Logger.log(JSON.stringify({
+            event: "booking_availability_shadow_comparison",
+            context: context || {},
+            comparison
+          }));
+        } catch (ignore) {}
+      }
+    }).result;
+  }
+  if (mode === "PHASE5") {
+    const error = new Error("Booking Availability Phase 5 runtime is unavailable.");
+    error.code = "PHASE5_AVAILABILITY_FAILED_CLOSED";
+    throw error;
+  }
+  return legacyCallback();
+}
+
+function validateBookingAppointmentV2(options) {
+  return runBookingAvailabilityAuthority(
+    () => validateBookingAppointmentLegacyV2(options),
+    () => {
+      if (typeof bookingAvailabilityPhase5ValidateAppointment !== "function") {
+        throw new Error("Booking Availability Phase 5 adapter is unavailable.");
+      }
+      const barber = resolveBookingBarberV2(options.employeeId, options.employeeName, options.barbers);
+      if (!barber) {
+        return bookingAppointmentValidationError(
+          "EMPLOYEE_UNAVAILABLE", "The selected employee does not exist or is inactive.");
+      }
+      return bookingAvailabilityPhase5ValidateAppointment({
+        ...options,
+        barber,
+        employeeId: barber.staffId,
+        audience: options.audience || "public",
+        requestData: options.requestData || {}
+      });
+    },
+    {
+      operation: "final_validation",
+      employeeId: options.employeeId,
+      date: options.date,
+      time: options.time
+    }
+  );
+}
+
+function availableSlotsForBarberLegacy(barber, dateKey, durationMinutes, bookings, barbers) {
   const today = Utilities.formatDate(new Date(), TIME_ZONE, "yyyy-MM-dd");
   if (!dateKey || dateKey < today) return { slots: [], availability: "unavailable", shiftStart: "", shiftEnd: "" };
   const schedule = getScheduleForBarber(barber, dateKey, barbers);
@@ -5307,9 +5703,90 @@ function availableSlotsForBarber(barber, dateKey, durationMinutes, bookings, bar
   return { slots, availability, shiftStart, shiftEnd };
 }
 
+function availableSlotsForBarber(barber, dateKey, durationMinutes, bookings, barbers, options) {
+  const data = options || {};
+  return runBookingAvailabilityAuthority(
+    () => availableSlotsForBarberLegacy(barber, dateKey, durationMinutes, bookings, barbers),
+    () => {
+      if (typeof bookingAvailabilityPhase5Evaluate !== "function") {
+        throw new Error("Booking Availability Phase 5 adapter is unavailable.");
+      }
+      const result = bookingAvailabilityPhase5Evaluate({
+        employeeId: barber.staffId,
+        branchId: data.branchId || barber.branchId,
+        date: dateKey,
+        audience: data.audience === "internal" ? "internal" : "public",
+        requestData: data,
+        durationMinutes,
+        preparationMinutes: data.preparationMinutes || 0,
+        cleanupMinutes: data.cleanupMinutes || 0,
+        serviceSetHash: data.serviceSetHash || "",
+        snapshot: data.availabilitySnapshot,
+        bookings
+      });
+      const internalActor = data.audience === "internal" &&
+          typeof schedulePhase2Actor === "function" ? schedulePhase2Actor(data) : null;
+      const dtoPermissions = internalActor && internalActor.owner
+        ? BookingAvailabilityPhase5.PERMISSIONS : ((internalActor && internalActor.permissions) || []);
+      const safeResult = typeof BookingAvailabilityPhase5 !== "undefined" &&
+          data.audience === "internal" &&
+          typeof BookingAvailabilityPhase5.internalDto === "function"
+        ? BookingAvailabilityPhase5.internalDto(result, dtoPermissions)
+        : typeof BookingAvailabilityPhase5 !== "undefined" &&
+            typeof BookingAvailabilityPhase5.publicDto === "function"
+          ? BookingAvailabilityPhase5.publicDto(result)
+        : { reasonCode: "UNAVAILABLE", availabilityToken: result.availabilityToken,
+            generatedAt: result.generatedAt };
+      return {
+        slots: (result.slots || []).map((slot) => slot.start),
+        availability: String(result.availability || "").toLowerCase(),
+        shiftStart: "",
+        shiftEnd: "",
+        reasonCode: safeResult.reasonCode,
+        availabilityToken: safeResult.availabilityToken,
+        generatedAt: safeResult.generatedAt,
+        ...(safeResult.scheduleSource ? { scheduleSource: safeResult.scheduleSource } : {}),
+        ...(safeResult.operationalRestriction
+          ? { operationalRestriction: safeResult.operationalRestriction } : {}),
+        ...(safeResult.scheduleSourceIds ? { scheduleSourceIds: safeResult.scheduleSourceIds } : {}),
+        ...(safeResult.versions ? { versions: safeResult.versions } : {}),
+        ...(safeResult.managerOverrideAllowed
+          ? { managerOverrideAllowed: true } : {})
+      };
+    },
+    { operation: "slot_generation", employeeId: barber.staffId, date: dateKey }
+  );
+}
+
+function bookingAvailabilityResponseCacheKey(token, context) {
+  if (!token || typeof BookingAvailabilityPhase5 === "undefined") return "";
+  return `BA5RESP:${BookingAvailabilityPhase5.hash({
+    token: String(token), audience: context.audience, date: context.date,
+    serviceSetHash: context.serviceSetHash
+  })}`;
+}
+
+function bookingAvailabilityCacheResponseSnapshot(token, context, barbers) {
+  const key = bookingAvailabilityResponseCacheKey(token, context);
+  if (!key) return;
+  try {
+    CacheService.getScriptCache().put(key, JSON.stringify({ barbers }), 120);
+  } catch (ignore) {}
+}
+
+function bookingAvailabilityReadResponseSnapshot(token, context) {
+  const key = bookingAvailabilityResponseCacheKey(token, context);
+  if (!key) return null;
+  try {
+    const parsed = JSON.parse(CacheService.getScriptCache().get(key) || "null");
+    return parsed && Array.isArray(parsed.barbers) ? parsed : null;
+  } catch (ignore) {
+    return null;
+  }
+}
+
 function getPublicBookingOptions(data) {
   try {
-    expirePendingBookings();
     if (!bookingServiceIdsInputIsValid(data)) {
       return bookingApiError("INVALID_SERVICES", "serviceIds must be an array.");
     }
@@ -5326,12 +5803,25 @@ function getPublicBookingOptions(data) {
     }
     const durationOverride = hasDurationOverride ? Number(data.durationMinutes) : 0;
     const durationMinutes = Math.max(15, durationOverride || selectedServices.reduce((total, service) => total + service.durationMinutes, 0) || 30);
+    const preparationMinutes = selectedServices.reduce((total, service) =>
+      total + Math.max(0, Number(service.preparationMinutes) || 0), 0);
+    const cleanupMinutes = selectedServices.reduce((total, service) =>
+      total + Math.max(0, Number(service.cleanupMinutes) || 0), 0);
     if (!isValidBookingDuration(durationMinutes)) {
       return jsonOutput({ status: "error", code: "INVALID_APPOINTMENT", message: "The requested booking duration is invalid." });
     }
     const bookings = getAllBookingsV2();
     const ratings = getAllBookingRatings();
-    const activeBarbers = publicBookingBarbers();
+    const availabilitySnapshot = typeof bookingAvailabilityPhase5RequestSnapshot === "function"
+      && bookingAvailabilityEngineMode() === "PHASE5"
+      ? bookingAvailabilityPhase5RequestSnapshot() : null;
+    const selectedBranchId = String(data.branchId || "").trim();
+    if (availabilitySnapshot) {
+      bookingAvailabilityPhase5Branch(
+        selectedBranchId, { publicAudience: true }, availabilitySnapshot.branches);
+    }
+    const activeBarbers = publicBookingBarbers().filter((barber) =>
+      !availabilitySnapshot || barber.branchId === selectedBranchId);
     const barbers = activeBarbers.map((barber) => {
       const summary = calculatePublicBarberRatingSummary(barber.staffId, ratings, bookings);
       return {
@@ -5340,12 +5830,67 @@ function getPublicBookingOptions(data) {
         code: barber.code,
         averageRating: summary.averageRating,
         ratingsCount: summary.ratingsCount,
-        ...availableSlotsForBarber(barber, dateKey, durationMinutes, bookings, activeBarbers)
+        ...availableSlotsForBarber(barber, dateKey, durationMinutes, bookings, activeBarbers, {
+          ...data,
+          audience: "public",
+          branchId: selectedBranchId,
+          availabilitySnapshot,
+          preparationMinutes,
+          cleanupMinutes,
+          serviceSetHash: bookingServiceSetHash(selectedServices, requestedServiceIds)
+        })
       };
     });
-    return jsonOutput({ status: "success", date: dateKey, services, selectedServiceIds: selectedServices.map((service) => service.serviceId), durationMinutes, barbers });
+    const responseToken = typeof BookingAvailabilityPhase5 !== "undefined"
+      ? BookingAvailabilityPhase5.hash(barbers.map((barber) => ({
+        staffId: barber.staffId, token: barber.availabilityToken || "", slots: barber.slots || []
+      })))
+      : "";
+    const responseContext = {
+      audience: "public",
+      date: dateKey,
+      serviceSetHash: bookingServiceSetHash(selectedServices, requestedServiceIds)
+    };
+    if (data.ifNoneMatch && responseToken && data.ifNoneMatch === responseToken) {
+      return jsonOutput({
+        status: "success", unchanged: true, availabilityToken: responseToken,
+        generatedAt: getCairoDateTime(), retryAfterSeconds: 30,
+        liveRefreshEnabled: bookingAvailabilityLiveRefreshEnabled("public")
+      });
+    }
+    if (data.ifNoneMatch && responseToken) {
+      const previous = bookingAvailabilityReadResponseSnapshot(data.ifNoneMatch, responseContext);
+      if (previous) {
+        const currentByStaff = new Map(barbers.map((barber) => [String(barber.staffId), barber]));
+        const previousByStaff = new Map(previous.barbers.map((barber) => [String(barber.staffId), barber]));
+        const changedBarbers = barbers.filter((barber) =>
+          JSON.stringify(barber) !== JSON.stringify(previousByStaff.get(String(barber.staffId)) || null));
+        const removedStaffIds = previous.barbers
+          .map((barber) => String(barber.staffId))
+          .filter((staffId) => !currentByStaff.has(staffId));
+        bookingAvailabilityCacheResponseSnapshot(responseToken, responseContext, barbers);
+        return jsonOutput({
+          status: "success", unchanged: false, delta: true, date: dateKey, services,
+          selectedServiceIds: selectedServices.map((service) => service.serviceId),
+          durationMinutes, preparationMinutes, cleanupMinutes,
+          changedBarbers, removedStaffIds, availabilityToken: responseToken,
+          generatedAt: getCairoDateTime(),
+          retryAfterSeconds: 30,
+          liveRefreshEnabled: bookingAvailabilityLiveRefreshEnabled("public")
+        });
+      }
+    }
+    bookingAvailabilityCacheResponseSnapshot(responseToken, responseContext, barbers);
+    return jsonOutput({
+      status: "success", date: dateKey, services,
+      selectedServiceIds: selectedServices.map((service) => service.serviceId),
+      durationMinutes, preparationMinutes, cleanupMinutes, barbers,
+      availabilityToken: responseToken, generatedAt: getCairoDateTime(),
+      retryAfterSeconds: 30,
+      liveRefreshEnabled: bookingAvailabilityLiveRefreshEnabled("public")
+    });
   } catch (error) {
-    return jsonOutput({ status: "error", message: error.message });
+    return bookingPublicErrorResponse(error, "AVAILABILITY_OPTIONS_FAILED");
   }
 }
 
@@ -5431,7 +5976,6 @@ function createPublicBookingRequest(data) {
     return withBookingMutationLock({
       bookingRequestId: clientRequestId, employeeId, date: dateKey, time
     }, (diagnostic) => {
-      expirePendingBookingsUnderLock();
       const sheet = getBookingsSheetV2();
       const bookings = getAllBookingsV2();
       const existing = findBookingByClientRequestId(bookings, clientRequestId);
@@ -5449,6 +5993,10 @@ function createPublicBookingRequest(data) {
     }
     const durationMinutes = selectedServices.reduce((total, service) => total + Number(service.durationMinutes), 0);
     const totalPrice = selectedServices.reduce((sum, service) => sum + Number(service.price), 0);
+    const preparationMinutes = selectedServices.reduce((sum, service) =>
+      sum + Math.max(0, Number(service.preparationMinutes) || 0), 0);
+    const cleanupMinutes = selectedServices.reduce((sum, service) =>
+      sum + Math.max(0, Number(service.cleanupMinutes) || 0), 0);
     diagnostic.durationMinutes = durationMinutes;
     if (!isValidBookingDuration(durationMinutes) || !isValidBookingPrice(totalPrice)) {
       return jsonOutput({ status: "error", message: "The selected service configuration is invalid." });
@@ -5456,7 +6004,11 @@ function createPublicBookingRequest(data) {
     const serviceName = selectedServices.map((service) => service.name).join("، ");
     const serviceId = selectedServices.map((service) => service.serviceId).join(",");
     const barbers = publicBookingBarbers();
-    const appointment = validateBookingAppointmentV2({ employeeId, date: dateKey, time, durationMinutes, bookings, barbers });
+    const appointment = validateBookingAppointmentV2({
+      employeeId, branchId: data.branchId, date: dateKey, time, durationMinutes, preparationMinutes,
+      cleanupMinutes, serviceSetHash: bookingServiceSetHash(selectedServices, serviceIds),
+      bookings, barbers, audience: "public", requestData: data
+    });
     if (!appointment.ok) return jsonOutput({ status: "error", code: appointment.code, message: appointment.message });
     const barber = appointment.barber;
 
@@ -5474,15 +6026,42 @@ function createPublicBookingRequest(data) {
       proposedDate: "", proposedTime: "", holdExpiresAt: new Date(now.getTime() + (15 * 60 * 1000)).toISOString(),
       customerResponse: "pending", employeeId, cancelledAt: "", cancelledBy: "",
       cancellationReason: "", completedAt: "", completedBy: "", deleted: false, deletedAt: "", deletedBy: "",
-      deletionReason: "", clientRequestId, clientRequestFingerprint: fingerprint
+      deletionReason: "", clientRequestId, clientRequestFingerprint: fingerprint,
+      branchId: appointment.branchId || barber.branchId || "",
+      availabilityToken: appointment.availabilityToken || "",
+      scheduleVersion: Number(appointment.versions && appointment.versions.scheduleVersion) || 0,
+      attendanceOperationalVersion:
+        Number(appointment.versions && appointment.versions.attendanceOperationalVersion) || 0,
+      operationalOverrideId: appointment.operationalOverrideId || "",
+      validatedAt: nowText,
+      validationSourceVersion: typeof BookingAvailabilityPhase5 !== "undefined"
+        ? BookingAvailabilityPhase5.VERSION : "LEGACY"
     };
-    appendBookingRowV2(sheet, booking);
-    SpreadsheetApp.flush();
+    applyBookingOccupancySnapshot(
+      booking, preparationMinutes, cleanupMinutes,
+      bookingServiceSetHash(selectedServices, serviceIds));
+    let appended = null;
+    commitBookingPhase5UnderCurrentLock({
+      data, requestId: clientRequestId, action: "PUBLIC_BOOKING_CREATED",
+      booking, beforeState: {},
+      business: () => {
+        appended = appendBookingRowV2(sheet, booking);
+        SpreadsheetApp.flush();
+      },
+      compensate: () => {
+        booking.deleted = true;
+        booking.deletedAt = getCairoDateTime();
+        booking.deletedBy = "transaction-compensation";
+        booking.deletionReason = "COMPENSATED_UNCOMMITTED_BOOKING";
+        writeBookingRowV2(sheet, appended.rowNumber, booking, appended.row);
+        SpreadsheetApp.flush();
+      }
+    });
     logActivity({}, "create", "booking", id, `Created public booking | Employee: ${barber.name}`);
     return publicBookingCreationResponse(booking);
     });
   } catch (error) {
-    return jsonOutput({ status: "error", message: error.message });
+    return bookingPublicErrorResponse(error, "BOOKING_CREATE_FAILED");
   }
 }
 
@@ -5510,7 +6089,7 @@ function publicBookingView(booking) {
     employee: booking.employee,
     service: booking.service,
     durationMinutes: booking.durationMinutes,
-    status: booking.status,
+    status: bookingEffectiveStatusV2(booking),
     proposedDate: booking.proposedDate,
     proposedTime: booking.proposedTime,
     rejectionReason: booking.rejectionReason,
@@ -5521,13 +6100,12 @@ function publicBookingView(booking) {
 
 function getPublicBookingStatus(data) {
   try {
-    expirePendingBookings();
     const found = findBookingByTrackingToken(data.trackingToken);
     if (!found) return jsonOutput({ status: "error", message: "Booking request not found." });
     if (!verifyBookingTrackingPhone(found.booking, data.phoneLast4)) return trackingVerificationError();
     return jsonOutput({ status: "success", booking: publicBookingView(found.booking) });
   } catch (error) {
-    return jsonOutput({ status: "error", message: error.message });
+    return bookingPublicErrorResponse(error, "BOOKING_STATUS_FAILED");
   }
 }
 
@@ -5536,7 +6114,10 @@ function respondToBookingProposal(data) {
     return withBookingMutationLock({
       bookingRequestId: String(data.trackingToken || "").trim()
     }, () => {
-    expirePendingBookingsUnderLock();
+    const committedRetry = committedBookingMutationRetry(data);
+    if (committedRetry) {
+      return jsonOutput({ status: "success", booking: publicBookingView(committedRetry) });
+    }
     const found = findBookingByTrackingToken(data.trackingToken);
     if (!found || found.booking.status !== "proposed") return jsonOutput({ status: "error", message: "There is no active appointment proposal." });
     if (!verifyBookingTrackingPhone(found.booking, data.phoneLast4)) return trackingVerificationError();
@@ -5546,6 +6127,7 @@ function respondToBookingProposal(data) {
     }
     const accepted = response === "accept";
     const booking = found.booking;
+    const beforeBooking = JSON.parse(JSON.stringify(booking));
     const responseStatus = accepted ? "confirmed" : "rejected";
     if (!isBookingStatusTransitionAllowed(booking.status, responseStatus)) {
       return jsonOutput({ status: "error", code: "INVALID_STATUS_TRANSITION", message: "The booking proposal can no longer be changed." });
@@ -5563,9 +6145,14 @@ function respondToBookingProposal(data) {
       const bookings = getAllBookingsV2();
       const appointment = validateBookingAppointmentV2({
         employeeId: booking.employeeId, employeeName: booking.employee,
+        branchId: booking.branchId,
         date: booking.proposedDate, time: booking.proposedTime,
-        durationMinutes: trustedServices.durationMinutes, excludeId: booking.id, bookings,
-        barbers: publicBookingBarbers()
+        durationMinutes: trustedServices.durationMinutes,
+        preparationMinutes: trustedServices.preparationMinutes,
+        cleanupMinutes: trustedServices.cleanupMinutes,
+        serviceSetHash: trustedServices.serviceSetHash,
+        excludeId: booking.id, bookings, barbers: publicBookingBarbers(),
+        audience: "public", requestData: data
       });
       if (!appointment.ok) return jsonOutput({ status: "error", code: appointment.code, message: appointment.message });
       booking.date = booking.proposedDate;
@@ -5574,18 +6161,44 @@ function respondToBookingProposal(data) {
       booking.employee = appointment.barber.name;
       booking.durationMinutes = trustedServices.durationMinutes;
       booking.totalPrice = trustedServices.totalPrice;
+      booking.branchId = appointment.branchId || booking.branchId;
+      booking.availabilityToken = appointment.availabilityToken || booking.availabilityToken;
+      booking.scheduleVersion = Number(appointment.versions && appointment.versions.scheduleVersion) ||
+        booking.scheduleVersion;
+      booking.attendanceOperationalVersion =
+        Number(appointment.versions && appointment.versions.attendanceOperationalVersion) ||
+        booking.attendanceOperationalVersion;
+      booking.validatedAt = booking.updatedAt;
+      booking.validationSourceVersion = typeof BookingAvailabilityPhase5 !== "undefined"
+        ? BookingAvailabilityPhase5.VERSION : "LEGACY";
+      applyBookingOccupancySnapshot(
+        booking, trustedServices.preparationMinutes, trustedServices.cleanupMinutes,
+        trustedServices.serviceSetHash);
       booking.status = "confirmed";
       booking.customerResponse = "accepted";
       booking.confirmedAt = booking.updatedAt;
       booking.confirmedBy = "customer";
     }
-    writeBookingRowV2(found.sheet, found.rowNumber, booking, found.row);
-    SpreadsheetApp.flush();
+    commitBookingPhase5UnderCurrentLock({
+      data,
+      requestId: data.clientRequestId ||
+        `PROPOSAL-${String(data.trackingToken || "").replace(/[^A-Za-z0-9]/g, "")}-${response}`,
+      action: accepted ? "BOOKING_PROPOSAL_ACCEPTED" : "BOOKING_PROPOSAL_REJECTED",
+      booking, beforeState: beforeBooking,
+      business: () => {
+        writeBookingRowV2(found.sheet, found.rowNumber, booking, found.row);
+        SpreadsheetApp.flush();
+      },
+      compensate: () => {
+        writeBookingRowV2(found.sheet, found.rowNumber, beforeBooking, found.row);
+        SpreadsheetApp.flush();
+      }
+    });
     logActivity({}, accepted ? "confirm" : "reject", "booking", booking.id, `Public proposal response | Previous: proposed | Next: ${booking.status} | Employee: ${booking.employee}`);
     return jsonOutput({ status: "success", booking: publicBookingView(booking) });
     });
   } catch (error) {
-    return jsonOutput({ status: "error", message: error.message });
+    return bookingPublicErrorResponse(error, "BOOKING_PROPOSAL_RESPONSE_FAILED");
   }
 }
 
@@ -5622,7 +6235,6 @@ function createBookingV2(data) {
       time: rawTime,
       durationMinutes: data.durationMinutes
     }, (diagnostic) => {
-    expirePendingBookingsUnderLock();
     const sheet = getBookingsSheetV2();
     const now = getCairoDateTime();
     const bookings = getAllBookingsV2();
@@ -5651,6 +6263,10 @@ function createBookingV2(data) {
       ? manualDuration
       : selectedServices.reduce((sum, service) => sum + Number(service.durationMinutes), 0);
     const totalPrice = otherService ? 0 : selectedServices.reduce((sum, service) => sum + Number(service.price), 0);
+    const preparationMinutes = otherService ? 0 : selectedServices.reduce((sum, service) =>
+      sum + Math.max(0, Number(service.preparationMinutes) || 0), 0);
+    const cleanupMinutes = otherService ? 0 : selectedServices.reduce((sum, service) =>
+      sum + Math.max(0, Number(service.cleanupMinutes) || 0), 0);
     diagnostic.durationMinutes = durationMinutes;
     if (!isValidBookingDuration(durationMinutes) || !isValidBookingPrice(totalPrice)) {
       return jsonOutput({ status: "error", message: "The selected service configuration is invalid." });
@@ -5661,9 +6277,13 @@ function createBookingV2(data) {
     }
     const appointment = validateBookingAppointmentV2({
       employeeId: String(data.employeeId || "").trim(),
+      branchId: data.branchId || ((barbers.find((item) =>
+        item.staffId === String(data.employeeId || "").trim()) || {}).branchId),
       date: getDateKey(rawDate, TIME_ZONE),
       time: getBookingTimeValue(rawTime),
-      durationMinutes, bookings, barbers
+      durationMinutes, preparationMinutes, cleanupMinutes,
+      serviceSetHash: bookingServiceSetHash(selectedServices, requestedServiceIds),
+      bookings, barbers, audience: "internal", requestData: data
     });
     if (!appointment.ok) return jsonOutput({ status: "error", code: appointment.code, message: appointment.message });
     const barber = appointment.barber;
@@ -5683,26 +6303,52 @@ function createBookingV2(data) {
       rejectionReason: "", proposedDate: "", proposedTime: "", holdExpiresAt: "", customerResponse: "",
       employeeId: barber.staffId, cancelledAt: "", cancelledBy: "", cancellationReason: "",
       completedAt: "", completedBy: "", deleted: false, deletedAt: "", deletedBy: "",
-      deletionReason: "", clientRequestId, clientRequestFingerprint: fingerprint
+      deletionReason: "", clientRequestId, clientRequestFingerprint: fingerprint,
+      branchId: appointment.branchId || barber.branchId || "",
+      availabilityToken: appointment.availabilityToken || "",
+      scheduleVersion: Number(appointment.versions && appointment.versions.scheduleVersion) || 0,
+      attendanceOperationalVersion:
+        Number(appointment.versions && appointment.versions.attendanceOperationalVersion) || 0,
+      operationalOverrideId: appointment.operationalOverrideId || "",
+      validatedAt: now,
+      validationSourceVersion: typeof BookingAvailabilityPhase5 !== "undefined"
+        ? BookingAvailabilityPhase5.VERSION : "LEGACY"
     };
+    applyBookingOccupancySnapshot(
+      booking, preparationMinutes, cleanupMinutes,
+      bookingServiceSetHash(selectedServices, requestedServiceIds));
     if (!booking.date || !booking.time || !booking.customerName || !isValidEgyptianMobile(booking.customerPhone) || !booking.employee || !booking.service) {
       return jsonOutput({ status: "error", message: "Missing required booking fields." });
     }
-    const appended = appendBookingRowV2(sheet, booking);
-    SpreadsheetApp.flush();
+    let appended = null;
+    commitBookingPhase5UnderCurrentLock({
+      data, requestId: clientRequestId, action: "INTERNAL_BOOKING_CREATED",
+      booking, beforeState: {},
+      business: () => {
+        appended = appendBookingRowV2(sheet, booking);
+        SpreadsheetApp.flush();
+      },
+      compensate: () => {
+        booking.deleted = true;
+        booking.deletedAt = getCairoDateTime();
+        booking.deletedBy = "transaction-compensation";
+        booking.deletionReason = "COMPENSATED_UNCOMMITTED_BOOKING";
+        writeBookingRowV2(sheet, appended.rowNumber, booking, appended.row);
+        SpreadsheetApp.flush();
+      }
+    });
     logActivity(data, "create", "booking", booking.id, `Created booking | Employee: ${booking.employee}`);
     return internalBookingCreationResponse(
       bookingFromRowV2(appended.row, appended.rowNumber, getBookingHeadersV2(sheet))
     );
     });
   } catch (error) {
-    return jsonOutput({ status: "error", message: error.message });
+    return bookingErrorResponse(error, "BOOKING_CREATE_FAILED");
   }
 }
 
 function getBookingsV2(data) {
   try {
-    expirePendingBookings();
     const permissionError = requirePermission(data, "view_bookings", "You do not have permission to view bookings.");
     if (permissionError) return permissionError;
     const filters = data.filters || {};
@@ -5711,14 +6357,16 @@ function getBookingsV2(data) {
     const search = String(filters.search || data.search || "").trim().toLowerCase();
     const includeDeleted = parseSheetBoolean(filters.includeDeleted || data.includeDeleted, false) &&
       (actorHasPermission(data, "manage_bookings") || actorHasPermission(data, "delete_bookings"));
-    const bookings = getAllBookingsV2().filter((booking) => includeDeleted || !booking.deleted)
+    const bookings = getAllBookingsV2().map((booking) => ({
+      ...booking, status: bookingEffectiveStatusV2(booking)
+    })).filter((booking) => includeDeleted || !booking.deleted)
       .filter((booking) => !targetDate || booking.date === targetDate)
       .filter((booking) => !targetStatus || booking.status === targetStatus)
       .filter((booking) => !search || `${booking.customerName} ${booking.customerPhone} ${booking.employee} ${booking.service} ${booking.note} ${booking.trackingToken}`.toLowerCase().indexOf(search) !== -1)
       .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
     return jsonOutput({ status: "success", bookings });
   } catch (error) {
-    return jsonOutput({ status: "error", message: error.message });
+    return bookingErrorResponse(error, "BOOKING_LIST_FAILED");
   }
 }
 
@@ -5733,15 +6381,17 @@ function updateBookingV2(data) {
       time: data.time || data.bookingTime || data.proposedTime,
       durationMinutes: data.durationMinutes
     }, () => {
-    expirePendingBookingsUnderLock();
+    const committedRetry = committedBookingMutationRetry(data);
+    if (committedRetry) return jsonOutput({ status: "success", booking: committedRetry });
     const sheet = getBookingsSheetV2();
     const found = findBookingRowV2(sheet, data);
     if (!found) return jsonOutput({ status: "error", message: "Booking not found" });
     const booking = found.booking;
+    const beforeBooking = JSON.parse(JSON.stringify(booking));
     if (booking.deleted) {
       return jsonOutput({ status: "error", code: "BOOKING_DELETED", message: "Deleted bookings cannot be updated." });
     }
-    if (bookingStatusIsTerminal(booking.status)) {
+    if (bookingStatusIsTerminal(bookingEffectiveStatusV2(booking))) {
       return jsonOutput({ status: "error", code: "BOOKING_IMMUTABLE", message: "Terminal bookings cannot be updated." });
     }
     const requestedStatus = String(data.status || "").trim();
@@ -5814,8 +6464,13 @@ function updateBookingV2(data) {
       const appointmentTime = nextStatus === "proposed" ? proposedTime : nextTime;
       appointment = validateBookingAppointmentV2({
         employeeId: booking.employeeId, employeeName: booking.employee,
+        branchId: booking.branchId,
         date: appointmentDate, time: appointmentTime, durationMinutes: trustedServices.durationMinutes,
-        excludeId: booking.id, bookings: getAllBookingsV2(), barbers: publicBookingBarbers()
+        preparationMinutes: trustedServices.preparationMinutes,
+        cleanupMinutes: trustedServices.cleanupMinutes,
+        serviceSetHash: trustedServices.serviceSetHash,
+        excludeId: booking.id, bookings: getAllBookingsV2(), barbers: publicBookingBarbers(),
+        audience: "internal", requestData: data
       });
       if (!appointment.ok) return jsonOutput({ status: "error", code: appointment.code, message: appointment.message });
     }
@@ -5836,6 +6491,19 @@ function updateBookingV2(data) {
       booking.employee = appointment.barber.name;
       booking.durationMinutes = trustedServices.durationMinutes;
       booking.totalPrice = trustedServices.totalPrice;
+      booking.branchId = appointment.branchId || booking.branchId;
+      booking.availabilityToken = appointment.availabilityToken || booking.availabilityToken;
+      booking.scheduleVersion = Number(appointment.versions && appointment.versions.scheduleVersion) ||
+        booking.scheduleVersion;
+      booking.attendanceOperationalVersion =
+        Number(appointment.versions && appointment.versions.attendanceOperationalVersion) ||
+        booking.attendanceOperationalVersion;
+      booking.validatedAt = booking.updatedAt;
+      booking.validationSourceVersion = typeof BookingAvailabilityPhase5 !== "undefined"
+        ? BookingAvailabilityPhase5.VERSION : "LEGACY";
+      applyBookingOccupancySnapshot(
+        booking, trustedServices.preparationMinutes, trustedServices.cleanupMinutes,
+        trustedServices.serviceSetHash, nextStatus === "proposed" ? proposedTime : booking.time);
     }
     const actor = getActor(data);
     if (statusChanged && nextStatus === "confirmed") {
@@ -5853,16 +6521,28 @@ function updateBookingV2(data) {
       booking.completedAt = booking.updatedAt;
       booking.completedBy = actor.displayName;
     }
-    writeBookingRowV2(sheet, found.rowNumber, booking, found.row);
-    SpreadsheetApp.flush();
     const action = statusChanged
       ? (({ confirmed: "confirm", proposed: "propose", rejected: "reject", cancelled: "cancel", done: "complete" })[nextStatus] || "update")
       : "update";
+    commitBookingPhase5UnderCurrentLock({
+      data,
+      requestId: data.clientRequestId,
+      action: `BOOKING_${action.toUpperCase()}`,
+      booking, beforeState: beforeBooking,
+      business: () => {
+        writeBookingRowV2(sheet, found.rowNumber, booking, found.row);
+        SpreadsheetApp.flush();
+      },
+      compensate: () => {
+        writeBookingRowV2(sheet, found.rowNumber, beforeBooking, found.row);
+        SpreadsheetApp.flush();
+      }
+    });
     logActivity(data, action, "booking", booking.id, `Booking status | Previous: ${found.booking.status} | Next: ${nextStatus} | Employee: ${booking.employee} | Customer: ${booking.customerName}`);
     return jsonOutput({ status: "success", booking });
     });
   } catch (error) {
-    return jsonOutput({ status: "error", message: error.message });
+    return bookingErrorResponse(error, "BOOKING_UPDATE_FAILED");
   }
 }
 
@@ -5899,7 +6579,7 @@ function initializeBookingStagingEnvironment() {
   ];
   return {
     environment: "staging",
-    spreadsheetId: CUT_HUB_STAGING_SPREADSHEET_ID,
+    spreadsheetId: getCutHubEnvironmentConfig().spreadsheetId,
     sheets: sheets.map((sheet) => ({
       name: sheet.getName(),
       headerCount: Math.max(0, sheet.getLastColumn())
@@ -6457,12 +7137,15 @@ function deleteBooking(data) {
     return withBookingMutationLock({
       bookingRequestId: String(data.id || data.bookingId || "").trim()
     }, () => {
+    const committedRetry = committedBookingMutationRetry(data);
+    if (committedRetry) return jsonOutput({ status: "success", booking: committedRetry });
     const sheet = getBookingsSheetV2();
     const found = findBookingRowV2(sheet, data);
     if (!found) {
       return jsonOutput({ status: "error", message: "Booking not found" });
     }
     if (found.booking.deleted) return jsonOutput({ status: "success", booking: found.booking });
+    const beforeBooking = JSON.parse(JSON.stringify(found.booking));
     const deletionReason = normalizeProtectedText(data.reason || data.deletionReason, 500);
     if (!deletionReason) return jsonOutput({ status: "error", message: "A deletion reason is required." });
     const actor = getActor(data);
@@ -6471,8 +7154,18 @@ function deleteBooking(data) {
     found.booking.deletedBy = actor.displayName;
     found.booking.deletionReason = deletionReason;
     found.booking.updatedAt = found.booking.deletedAt;
-    writeBookingRowV2(sheet, found.rowNumber, found.booking, found.row);
-    SpreadsheetApp.flush();
+    commitBookingPhase5UnderCurrentLock({
+      data, requestId: data.clientRequestId, action: "BOOKING_DELETED",
+      booking: found.booking, beforeState: beforeBooking,
+      business: () => {
+        writeBookingRowV2(sheet, found.rowNumber, found.booking, found.row);
+        SpreadsheetApp.flush();
+      },
+      compensate: () => {
+        writeBookingRowV2(sheet, found.rowNumber, beforeBooking, found.row);
+        SpreadsheetApp.flush();
+      }
+    });
     logActivity(
       data,
       "soft_delete",
@@ -6483,7 +7176,7 @@ function deleteBooking(data) {
     return jsonOutput({ status: "success", booking: found.booking });
     });
   } catch (error) {
-    return jsonOutput({ status: "error", message: error.message });
+    return bookingErrorResponse(error, "BOOKING_DELETE_FAILED");
   }
 }
 
