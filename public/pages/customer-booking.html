@@ -35,6 +35,10 @@
           <button id="openTrackingBtn" class="secondary-action" type="button" data-ui-ar="متابعة حجز سابق" data-ui-en="Track Existing Booking">متابعة حجز سابق</button>
         </div>
         <div class="selection-grid">
+          <label class="field">
+            <span data-ui-ar="الفرع" data-ui-en="Branch">الفرع</span>
+            <select id="publicBranch" required><option value="">اختر الفرع</option></select>
+          </label>
           <div class="field">
             <span id="servicesLabel" data-ui-ar="الخدمات" data-ui-en="Services">الخدمات</span>
             <div id="publicServices" class="service-picker" role="group" aria-labelledby="servicesLabel" aria-busy="true">
@@ -101,6 +105,7 @@
   </div>
   <div id="liveStatus" class="sr-only" aria-live="assertive"></div>
 
+  <script src="../assets/js/core/runtime-config.js"></script>
   <script src="../assets/js/core/api.js"></script>
   <script src="../assets/js/pages/customer-booking.js"></script>
 </body>

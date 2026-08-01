@@ -5,7 +5,7 @@
   const elements = {
     bookingWorkspace: $("bookingWorkspace"), trackingWorkspace: $("trackingWorkspace"),
     services: $("publicServices"), serviceSummary: $("serviceSelectionSummary"),
-    date: $("publicDate"), barberGrid: $("barberGrid"), anyBarber: $("anyBarberBtn"),
+    branch: $("publicBranch"), date: $("publicDate"), barberGrid: $("barberGrid"), anyBarber: $("anyBarberBtn"),
     customerPanel: $("customerPanel"), summary: $("bookingSummary"), form: $("publicBookingForm"),
     customerName: $("publicCustomerName"), customerPhone: $("publicCustomerPhone"), note: $("publicNote"),
     submit: $("submitPublicBooking"), trackingContent: $("trackingContent"),
@@ -16,10 +16,12 @@
   };
 
   const state = {
-    services: [], selectedServiceIds: new Set(), barbers: [],
+    services: [], selectedServiceIds: new Set(), barbers: [], branches: [],
     employeeId: "", employeeName: "", time: "", loading: false,
     trackingToken: "", phoneLast4: "", language: "ar", lastFocus: null,
-    pendingCreateRequest: null
+    pendingCreateRequest: null, availabilityToken: "", availabilityPollTimer: null,
+    availabilityPollDelay: 30000, availabilityRequestSequence: 0,
+    liveRefreshEnabled: false, pendingProposalRequests: {}
   };
 
   const copy = {
@@ -106,12 +108,7 @@
   }).format(Number(value) || 0);
 
   async function publicRequest(payload) {
-    const response = await fetch(RomeoApi.API_URL, {
-      method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(payload)
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
+    return RomeoApi.request(payload);
   }
 
   function notify(message, kind = "info") {
@@ -244,20 +241,47 @@
     elements.customerPanel.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  async function loadOptions({ initial = false } = {}) {
+  async function loadOptions({ initial = false, silent = false } = {}) {
+    if (!elements.branch.value) {
+      elements.barberGrid.textContent = state.language === "ar"
+        ? "اختر الفرع لعرض المواعيد." : "Choose a branch to view appointments.";
+      return;
+    }
     if (state.loading) return;
     state.loading = true;
-    elements.barberGrid.setAttribute("aria-busy", "true");
-    elements.barberGrid.innerHTML = `<div class="loading-state"><span class="spinner"></span>${tr("loadingSlots")}</div>`;
+    const requestSequence = ++state.availabilityRequestSequence;
+    if (!silent) {
+      elements.barberGrid.setAttribute("aria-busy", "true");
+      elements.barberGrid.innerHTML = `<div class="loading-state"><span class="spinner"></span>${tr("loadingSlots")}</div>`;
+    }
     try {
       const requested = [...state.selectedServiceIds];
-      const result = await publicRequest({ action: "getPublicBookingOptions", date: elements.date.value, serviceIds: requested });
+      const result = await publicRequest({
+        action: "getPublicBookingOptions", branchId: elements.branch.value,
+        date: elements.date.value, serviceIds: requested,
+        ifNoneMatch: silent ? state.availabilityToken : ""
+      });
       if (result?.status !== "success") throw new Error(result?.message || tr("error"));
+      if (requestSequence !== state.availabilityRequestSequence) return;
+      state.liveRefreshEnabled = result.liveRefreshEnabled === true;
+      state.availabilityPollDelay = Math.max(30000, Number(result.retryAfterSeconds || 30) * 1000);
+      if (result.unchanged) return;
+      state.availabilityToken = String(result.availabilityToken || "");
       state.services = (Array.isArray(result.services) ? result.services : []).filter(isStandaloneService);
       const valid = new Set(state.services.map((service) => String(service.serviceId)));
       state.selectedServiceIds = new Set([...state.selectedServiceIds].filter((id) => valid.has(id)));
       if (initial && !state.selectedServiceIds.size && state.services[0]) state.selectedServiceIds.add(String(state.services[0].serviceId));
-      state.barbers = Array.isArray(result.barbers) ? result.barbers : [];
+      if (result.delta === true) {
+        const removed = new Set((result.removedStaffIds || []).map(String));
+        const merged = new Map(state.barbers
+          .filter((barber) => !removed.has(String(barber.staffId)))
+          .map((barber) => [String(barber.staffId), barber]));
+        (result.changedBarbers || []).forEach((barber) =>
+          merged.set(String(barber.staffId), barber));
+        state.barbers = [...merged.values()];
+      } else {
+        state.barbers = Array.isArray(result.barbers) ? result.barbers : [];
+      }
       if (!state.barbers.some((barber) => barber.staffId === state.employeeId && barber.slots?.includes(state.time))) {
         state.employeeId = ""; state.employeeName = ""; state.time = "";
         elements.customerPanel.classList.add("hidden");
@@ -266,11 +290,33 @@
       renderBarbers();
       setStep(state.selectedServiceIds.size ? 2 : 1);
     } catch (error) {
-      elements.barberGrid.innerHTML = `<div class="empty-public-state">${escapeHtml(error.message || tr("error"))}</div>`;
-      notify(error.message || tr("error"), "error");
+      state.availabilityPollDelay = Math.min(300000, Math.max(30000, state.availabilityPollDelay * 2));
+      if (!silent) {
+        elements.barberGrid.innerHTML = `<div class="empty-public-state">${escapeHtml(error.message || tr("error"))}</div>`;
+        notify(error.message || tr("error"), "error");
+      }
     } finally {
       state.loading = false;
       elements.barberGrid.setAttribute("aria-busy", "false");
+      scheduleAvailabilityPoll();
+    }
+  }
+
+  function scheduleAvailabilityPoll() {
+    clearTimeout(state.availabilityPollTimer);
+    if (!state.liveRefreshEnabled || document.hidden || !state.selectedServiceIds.size ||
+        elements.bookingWorkspace.classList.contains("hidden")) return;
+    state.availabilityPollTimer = setTimeout(() => loadOptions({ silent: true }),
+      state.availabilityPollDelay);
+  }
+
+  function refreshAvailabilityOnReturn() {
+    if (!document.hidden && state.liveRefreshEnabled && state.selectedServiceIds.size &&
+        !elements.bookingWorkspace.classList.contains("hidden")) {
+      clearTimeout(state.availabilityPollTimer);
+      loadOptions({ silent: true });
+    } else {
+      scheduleAvailabilityPoll();
     }
   }
 
@@ -299,7 +345,8 @@
       const result = await publicRequest(attachClientRequestId({
         action: "createPublicBookingRequest",
         serviceId: services[0].serviceId, serviceIds: services.map((service) => service.serviceId),
-        employeeId: state.employeeId, employee: state.employeeName, date: elements.date.value, time: state.time,
+        employeeId: state.employeeId, employee: state.employeeName,
+        branchId: elements.branch.value, date: elements.date.value, time: state.time,
         customerName: elements.customerName.value.trim(), customerPhone: phone, note: elements.note.value.trim()
       }));
       if (result?.status !== "success") {
@@ -438,8 +485,15 @@
     button.disabled = true;
     button.classList.add("loading");
     try {
-      const result = await publicRequest({ action: "respondToBookingProposal", trackingToken: state.trackingToken, phoneLast4: state.phoneLast4, response });
+      const key = `${state.trackingToken}:${response}`;
+      state.pendingProposalRequests[key] ||= `proposal-${crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
+      const result = await publicRequest({
+        action: "respondToBookingProposal", trackingToken: state.trackingToken,
+        phoneLast4: state.phoneLast4, response,
+        clientRequestId: state.pendingProposalRequests[key]
+      });
       if (result?.status !== "success") throw new Error(result?.message || tr("error"));
+      delete state.pendingProposalRequests[key];
       notify(state.language === "ar" ? "تم تحديث الطلب." : "Booking updated.", "success");
       await showTracking(state.trackingToken, state.phoneLast4);
     } catch (error) {
@@ -515,6 +569,10 @@
     state.employeeId = ""; state.time = ""; renderServices(); loadOptions();
   });
   elements.date.addEventListener("change", () => { state.employeeId = ""; state.time = ""; loadOptions(); });
+  elements.branch.addEventListener("change", () => {
+    state.employeeId = ""; state.time = ""; state.availabilityToken = "";
+    loadOptions({ initial: true });
+  });
   elements.barberGrid.addEventListener("click", (event) => {
     const button = event.target.closest("[data-time]");
     if (button) selectSlot(button.dataset.staffId, button.dataset.time);
@@ -527,6 +585,8 @@
   elements.form.addEventListener("submit", submitBooking);
   elements.openTracking.addEventListener("click", () => requestTrackingVerification());
   elements.newBooking.addEventListener("click", resetBooking);
+  document.addEventListener("visibilitychange", refreshAvailabilityOnReturn);
+  window.addEventListener("focus", refreshAvailabilityOnReturn);
   elements.language.addEventListener("click", () => {
     state.language = state.language === "ar" ? "en" : "ar";
     applyLanguage();
@@ -549,5 +609,15 @@
   applyLanguage();
   const trackingToken = new URLSearchParams(location.search).get("tracking");
   if (trackingToken) showTracking(trackingToken);
-  else loadOptions({ initial: true });
+  else publicRequest({ action: "listPublicBookingBranches" }).then(result => {
+    state.branches = Array.isArray(result?.branches) ? result.branches : [];
+    state.branches.forEach(branch => {
+      const option = document.createElement("option");
+      option.value = branch.branchId;
+      option.textContent = branch.branchName || branch.branchId;
+      elements.branch.append(option);
+    });
+    if (state.branches.length === 1) elements.branch.value = state.branches[0].branchId;
+    loadOptions({ initial: true });
+  }).catch(error => notify(error.message || tr("error"), "error"));
 })();

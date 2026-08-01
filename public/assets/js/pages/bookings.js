@@ -25,7 +25,9 @@
     bookings: [], services: [], selectedServiceIds: new Set(), otherService: false,
     barbers: [], activeSource: "public", busy: false, modalOpen: false, lastFocus: null,
     ratings: [], ratingMeta: null, countdownTimer: null, refreshTimer: null,
-    pendingCreateRequest: null
+    pendingCreateRequest: null, availabilityToken: "", availabilityPollTimer: null,
+    availabilityPollDelay: 10000, availabilityRequestSequence: 0,
+    liveRefreshEnabled: false, pendingMutationRequests: new Map()
   };
   const text = (ar, en) => document.documentElement.lang === "en" ? en : ar;
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -257,7 +259,9 @@
   }
 
   async function loadServiceOptions() {
-    const response = await RomeoApi.request({ action: "getPublicBookingOptions", date: elements.date.value });
+    const response = await RomeoApi.request({
+      action: "getPublicBookingOptions", date: elements.date.value, audience: "internal"
+    });
     if (response?.status !== "success") throw new Error(response?.message || "Could not load services.");
     state.services = response.services || [];
     state.barbers = response.barbers || [];
@@ -283,30 +287,70 @@
     elements.otherFields.classList.toggle("hidden", !state.otherService);
   }
 
-  async function loadInternalSlots() {
+  async function loadInternalSlots({ silent = false } = {}) {
     const employeeId = elements.employee.value;
     const serviceIds = [...state.selectedServiceIds];
     const duration = state.otherService ? Number(elements.otherDuration.value) : 0;
+    if (!silent) {
     elements.time.innerHTML = `<option value="">${text("جاري تحميل المواعيد...", "Loading appointments...")}</option>`;
     elements.time.disabled = true;
+    }
     if (!elements.date.value || !employeeId || (!state.otherService && !serviceIds.length) || (state.otherService && duration < 15)) {
       elements.slotStatus.textContent = text("اختر التاريخ والموظف والخدمات.", "Choose date, employee, and services.");
       return;
     }
+    const requestSequence = ++state.availabilityRequestSequence;
     try {
       const response = await RomeoApi.request({
         action: "getPublicBookingOptions", date: elements.date.value, serviceIds,
-        durationMinutes: state.otherService ? duration : undefined
+        durationMinutes: state.otherService ? duration : undefined,
+        audience: "internal", ifNoneMatch: silent ? state.availabilityToken : ""
       });
       if (response?.status !== "success") throw new Error(response?.message || "Could not load slots.");
-      const barber = (response.barbers || []).find((item) => String(item.staffId) === String(employeeId));
+      if (requestSequence !== state.availabilityRequestSequence) return;
+      state.liveRefreshEnabled = response.liveRefreshEnabled === true;
+      state.availabilityPollDelay = Math.max(10000, Number(response.retryAfterSeconds || 10) * 1000);
+      if (response.unchanged) return;
+      state.availabilityToken = String(response.availabilityToken || "");
+      if (response.delta === true) {
+        const removed = new Set((response.removedStaffIds || []).map(String));
+        const merged = new Map(state.barbers
+          .filter((barber) => !removed.has(String(barber.staffId)))
+          .map((barber) => [String(barber.staffId), barber]));
+        (response.changedBarbers || []).forEach((barber) =>
+          merged.set(String(barber.staffId), barber));
+        state.barbers = [...merged.values()];
+      } else {
+        state.barbers = Array.isArray(response.barbers) ? response.barbers : [];
+      }
+      const barber = state.barbers.find((item) => String(item.staffId) === String(employeeId));
       const slots = barber?.slots || [];
       elements.time.innerHTML = `<option value="">${slots.length ? text("اختر الموعد", "Choose appointment") : text("لا توجد مواعيد", "No appointments")}</option>` +
         slots.map((time) => `<option value="${escapeHtml(time)}">${escapeHtml(formatTime(time))}</option>`).join("");
       elements.time.disabled = !slots.length;
       elements.slotStatus.textContent = slots.length ? "" : text("لا توجد مواعيد متاحة للمدة المختارة.", "No available appointments for the selected duration.");
     } catch (error) {
-      elements.slotStatus.textContent = error.message;
+      state.availabilityPollDelay = Math.min(120000, Math.max(10000, state.availabilityPollDelay * 2));
+      if (!silent) elements.slotStatus.textContent = error.message;
+    } finally {
+      scheduleInternalAvailabilityPoll();
+    }
+  }
+
+  function scheduleInternalAvailabilityPoll() {
+    clearTimeout(state.availabilityPollTimer);
+    if (!state.liveRefreshEnabled || document.hidden || state.modalOpen || state.busy ||
+        !elements.date.value || !elements.employee.value) return;
+    state.availabilityPollTimer = setTimeout(() => loadInternalSlots({ silent: true }),
+      state.availabilityPollDelay);
+  }
+
+  function refreshInternalAvailabilityOnReturn() {
+    if (!document.hidden && state.liveRefreshEnabled && elements.date.value && elements.employee.value) {
+      clearTimeout(state.availabilityPollTimer);
+      loadInternalSlots({ silent: true });
+    } else {
+      scheduleInternalAvailabilityPoll();
     }
   }
 
@@ -353,7 +397,14 @@
     setButtonBusy(button, true);
     state.busy = true;
     try {
-      const response = await RomeoApi.request({ action: "updateBooking", id: booking.id, status, ...extra });
+      const requestKey = `update:${booking.id}:${status}:${JSON.stringify(extra)}`;
+      if (!state.pendingMutationRequests.has(requestKey)) {
+        state.pendingMutationRequests.set(requestKey, newClientRequestId());
+      }
+      const response = await RomeoApi.request({
+        action: "updateBooking", id: booking.id, status, ...extra,
+        clientRequestId: state.pendingMutationRequests.get(requestKey)
+      });
       if (response?.status !== "success") throw new Error(response?.message || text("تعذر تحديث الحجز.", "Could not update booking."));
       notify(text("تم تحديث الحجز.", "Booking updated."), "success");
       state.busy = false;
@@ -373,8 +424,10 @@
       onOpen: (body) => {
         const load = async () => {
           const response = await RomeoApi.request({
-            action: "getPublicBookingOptions", date: body.querySelector("#proposalDate").value,
-            serviceIds: booking.serviceIds, durationMinutes: booking.serviceIds.length ? undefined : booking.durationMinutes
+            action: "getPublicBookingOptions", branchId: booking.branchId,
+            date: body.querySelector("#proposalDate").value,
+            serviceIds: booking.serviceIds, durationMinutes: booking.serviceIds.length ? undefined : booking.durationMinutes,
+            audience: "internal"
           });
           const barber = (response.barbers || []).find((item) => item.staffId === booking.employeeId || item.name === booking.employee);
           const select = body.querySelector("#proposalTime");
@@ -410,7 +463,14 @@
         const reason = body.querySelector("#actionReason").value.trim();
         if (!reason) { notify(config.label, "error"); return false; }
         if (type === "delete") {
-          const response = await RomeoApi.request({ action: "deleteBooking", id: booking.id, reason });
+          const requestKey = `delete:${booking.id}:${reason}`;
+          if (!state.pendingMutationRequests.has(requestKey)) {
+            state.pendingMutationRequests.set(requestKey, newClientRequestId());
+          }
+          const response = await RomeoApi.request({
+            action: "deleteBooking", id: booking.id, reason,
+            clientRequestId: state.pendingMutationRequests.get(requestKey)
+          });
           if (response?.status !== "success") throw new Error(response?.message || "Could not delete booking.");
           notify(text("تم حذف الحجز مع الاحتفاظ بصف البيانات.", "Booking soft-deleted."), "success");
           await fetchBookings({ silent: true });
@@ -567,6 +627,9 @@
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     }
   });
+
+  document.addEventListener("visibilitychange", refreshInternalAvailabilityOnReturn);
+  window.addEventListener("focus", refreshInternalAvailabilityOnReturn);
 
   if (!can("create_bookings")) elements.formPanel.classList.add("hidden");
   if (!can("view_ratings")) document.querySelector(".ratings-tab")?.classList.add("hidden");
