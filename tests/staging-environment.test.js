@@ -6,7 +6,8 @@ const vm = require("node:vm");
 const root = path.resolve(__dirname, "..");
 const backendPath = path.join(root, "scripts", "app-script-final-owner-access.js");
 const backendSource = fs.readFileSync(backendPath, "utf8");
-const STAGING_ID = "1tSMYYSNivpNTOJOuKMBVCoE7NKdr3VCzpCgOulcIsoI";
+const STAGING_ID = "staging-sheet-test-id";
+const PRODUCTION_ID = "production-sheet-test-id";
 
 function createSheet(name, initialHeaders = []) {
   const rows = [[...initialHeaders]];
@@ -109,6 +110,7 @@ function stagingProperties(overrides = {}) {
   return {
     CUT_HUB_ENVIRONMENT: "staging",
     CUT_HUB_SPREADSHEET_ID: STAGING_ID,
+    CUT_HUB_STAGING_SPREADSHEET_ID: STAGING_ID,
     CUT_HUB_BACKEND_VERSION: "test-version",
     ...overrides
   };
@@ -148,6 +150,46 @@ test("wrong active or configured spreadsheet ID fails closed", () => {
     () => wrongConfigured.context.assertStagingEnvironment(),
     (error) => error.message === "STAGING_CONFIGURATION_INVALID"
   );
+});
+
+test("all staging spreadsheet identity mismatches fail closed", () => {
+  const cases = [
+    { name: "missing properties", properties: {} },
+    {
+      name: "configured and staging IDs differ",
+      properties: stagingProperties({ CUT_HUB_STAGING_SPREADSHEET_ID: PRODUCTION_ID })
+    },
+    {
+      name: "active production spreadsheet while environment is staging",
+      properties: stagingProperties(),
+      activeSpreadsheetId: PRODUCTION_ID
+    },
+    {
+      name: "only configured property differs",
+      properties: stagingProperties({ CUT_HUB_SPREADSHEET_ID: PRODUCTION_ID })
+    },
+    {
+      name: "malformed spreadsheet ID",
+      properties: stagingProperties({
+        CUT_HUB_SPREADSHEET_ID: "bad id!",
+        CUT_HUB_STAGING_SPREADSHEET_ID: "bad id!"
+      }),
+      activeSpreadsheetId: "bad id!"
+    },
+    {
+      name: "active spreadsheet unavailable",
+      properties: stagingProperties(),
+      noActiveSpreadsheet: true
+    }
+  ];
+  for (const identityCase of cases) {
+    const harness = createHarness(identityCase);
+    assert.throws(
+      () => harness.context.assertStagingEnvironment(),
+      (error) => error.message === "STAGING_CONFIGURATION_INVALID",
+      identityCase.name
+    );
+  }
 });
 
 test("missing and wrong environments fail for staging-only functions", () => {
@@ -211,7 +253,7 @@ test("initializeBookingStagingEnvironment is idempotent", () => {
   assert.deepEqual(
     JSON.parse(JSON.stringify(first.sheets)),
     [
-    { name: "Bookings", headerCount: 37 },
+    { name: "Bookings", headerCount: 50 },
       { name: "BOOKING_RATINGS", headerCount: 13 },
       { name: "BARBER_SCHEDULE", headerCount: 8 }
     ]
@@ -241,7 +283,7 @@ test("stagingIdentity is unavailable outside staging", () => {
   }
 });
 
-test("doPost enforces staging identity and preserves production and unset routing", () => {
+test("doPost enforces spreadsheet identity for staging and production routing", () => {
   const staging = createHarness({ properties: stagingProperties() });
   const identity = outputJson(staging.context.doPost({
     postData: {
@@ -260,18 +302,37 @@ test("doPost enforces staging identity and preserves production and unset routin
   }));
   assert.equal(rejected.code, "STAGING_CONFIGURATION_INVALID");
 
-  for (const environment of ["production", ""]) {
-    const harness = createHarness({
-      properties: stagingProperties({ CUT_HUB_ENVIRONMENT: environment }),
-      noActiveSpreadsheet: true
-    });
-    harness.context.getTotalIncome = () => ({ status: "success", total: 42 });
-    harness.context.jsonOutput = (value) => value;
-    const result = harness.context.doPost({
-      postData: { contents: JSON.stringify({ action: "totalIncome" }) }
-    });
-    assert.deepEqual(JSON.parse(JSON.stringify(result)), { status: "success", total: 42 });
-  }
+  const production = createHarness({
+    properties: stagingProperties({
+      CUT_HUB_ENVIRONMENT: "production",
+      CUT_HUB_SPREADSHEET_ID: PRODUCTION_ID
+    }),
+    activeSpreadsheetId: PRODUCTION_ID
+  });
+  production.context.getTotalIncome = () => ({ status: "success", total: 42 });
+  production.context.jsonOutput = (value) => value;
+  const validProduction = production.context.doPost({
+    postData: { contents: JSON.stringify({ action: "totalIncome" }) }
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(validProduction)), { status: "success", total: 42 });
+
+  const productionOnStaging = createHarness({
+    properties: stagingProperties({
+      CUT_HUB_ENVIRONMENT: "production",
+      CUT_HUB_SPREADSHEET_ID: PRODUCTION_ID
+    }),
+    activeSpreadsheetId: STAGING_ID
+  });
+  const wrongProductionTarget = outputJson(productionOnStaging.context.doPost({
+    postData: { contents: JSON.stringify({ action: "totalIncome" }) }
+  }));
+  assert.equal(wrongProductionTarget.code, "STAGING_CONFIGURATION_INVALID");
+
+  const unset = createHarness({ properties: {}, noActiveSpreadsheet: true });
+  const missingIdentity = outputJson(unset.context.doPost({
+    postData: { contents: JSON.stringify({ action: "totalIncome" }) }
+  }));
+  assert.equal(missingIdentity.code, "STAGING_CONFIGURATION_INVALID");
 });
 
 test("doPost accepts original JSON stagingIdentity requests and contains parse failures", () => {
