@@ -5,7 +5,7 @@ No files are staged or committed by this plan. Human approval is required before
 ## Accounting
 
 - Original immutable RC required-untracked entries: **60/60 accounted individually below**.
-- Current manifest required entries: **115**; current required untracked: **0**.
+- Current manifest required entries: **144**; current required untracked: **0**.
 - Every required path retains its approved commit assignment after commit, independent of transient working-tree state.
 - Excluded entries remain excluded and must not be silently added.
 
@@ -13,7 +13,7 @@ No files are staged or committed by this plan. Human approval is required before
 
 ### 1. feat(attendance): add attendance and staff scheduling runtime
 
-- Files: `public/assets/css/pages/attendance.css`, `public/assets/css/pages/schedule-management.css`, `public/assets/css/shared.css`, `public/assets/images/bank-building.png`, `public/assets/images/card.png`, `public/assets/images/money.png`, `public/assets/images/salonix-logo.svg`, `public/assets/images/walet.png`, `public/assets/js/pages/attendance.js`, `public/assets/js/pages/schedule-management.js`, `public/assets/js/utils/keyboard-navigation.js`, `public/assets/js/utils/language.js`, `public/assets/js/utils/layout.js`, `public/assets/js/utils/text-fix.js`, `public/pages/attendance.html`, `public/pages/schedule-management.html`, `scripts/staff-attendance-core.js`, `scripts/staff-attendance-phase3-gas.js`, `scripts/staff-attendance-phase3.js`, `scripts/staff-attendance-schema.js`, `scripts/staff-scheduling-phase2-gas.js`, `scripts/staff-scheduling-phase2.js`
+- Files: `public/assets/css/pages/attendance.css`, `public/assets/css/pages/schedule-management.css`, `public/assets/css/pages/staff-import-preview.css`, `public/assets/css/shared.css`, `public/assets/css/system-layout.css`, `public/assets/images/bank-building.png`, `public/assets/images/card.png`, `public/assets/images/money.png`, `public/assets/images/salonix-logo.svg`, `public/assets/images/walet.png`, `public/assets/js/pages/attendance.js`, `public/assets/js/pages/schedule-management.js`, `public/assets/js/utils/keyboard-navigation.js`, `public/assets/js/utils/language.js`, `public/assets/js/utils/layout.js`, `public/assets/js/utils/text-fix.js`, `public/pages/attendance.html`, `public/pages/schedule-management.html`, `scripts/branch-foundation-staging.js`, `scripts/branch-registry-row-staging.js`, `scripts/core-staging-auth-bootstrap.js`, `scripts/staff-attendance-core.js`, `scripts/staff-attendance-phase3-gas.js`, `scripts/staff-attendance-phase3.js`, `scripts/staff-attendance-schema.js`, `scripts/staff-import-preview-staging.js`, `scripts/staff-scheduling-phase2-gas.js`, `scripts/staff-scheduling-phase2.js`, `scripts/staff-schema-migration-staging-executor.js`
 - Purpose: isolate one reviewable release concern.
 - Dependencies: Earlier phase contracts and shared authentication/API boundaries.
 - Validation: associated manifest tests, syntax checks, deterministic generation where applicable, and `git diff --check`.
@@ -31,7 +31,7 @@ No files are staged or committed by this plan. Human approval is required before
 
 ### 3. feat(booking): add booking and availability runtime
 
-- Files: `public/assets/css/pages/booking-availability-admin.css`, `public/assets/css/pages/bookings.css`, `public/assets/css/pages/customer-booking.css`, `public/assets/js/core/api.js`, `public/assets/js/core/auth.js`, `public/assets/js/core/runtime-config.js`, `public/assets/js/pages/booking-availability-admin.js`, `public/assets/js/pages/bookings.js`, `public/assets/js/pages/cashier.js`, `public/assets/js/pages/customer-booking.js`, `public/pages/activity-log.html`, `public/pages/booking-availability-admin.html`, `public/pages/bookings.html`, `public/pages/cashier.html`, `public/pages/customer-booking.html`, `public/pages/customer-data.html`, `public/pages/daily-closing.html`, `public/pages/dashboard.html`, `public/pages/data-analysis.html`, `public/pages/enventory.html`, `public/pages/expenses.html`, `public/pages/income-statement.html`, `public/pages/invoices.html`, `public/pages/login.html`, `public/pages/staff-accounting.html`, `public/pages/staff-discount.html`, `public/pages/system-access.html`, `public/pages/withdrawals.html`, `scripts/booking-availability-phase5-gas.js`, `scripts/booking-availability-phase5.js`
+- Files: `public/assets/css/pages/booking-availability-admin.css`, `public/assets/css/pages/bookings.css`, `public/assets/css/pages/customer-booking.css`, `public/assets/js/core/api.js`, `public/assets/js/core/auth.js`, `public/assets/js/core/runtime-config.js`, `public/assets/js/core/staff-import-preview.js`, `public/assets/js/pages/booking-availability-admin.js`, `public/assets/js/pages/bookings.js`, `public/assets/js/pages/cashier.js`, `public/assets/js/pages/customer-booking.js`, `public/pages/activity-log.html`, `public/pages/booking-availability-admin.html`, `public/pages/bookings.html`, `public/pages/cashier.html`, `public/pages/customer-booking.html`, `public/pages/customer-data.html`, `public/pages/daily-closing.html`, `public/pages/dashboard.html`, `public/pages/data-analysis.html`, `public/pages/enventory.html`, `public/pages/expenses.html`, `public/pages/income-statement.html`, `public/pages/invoices.html`, `public/pages/login.html`, `public/pages/staff-accounting.html`, `public/pages/staff-discount.html`, `public/pages/system-access.html`, `public/pages/withdrawals.html`, `scripts/booking-availability-phase5-gas.js`, `scripts/booking-availability-phase5.js`
 - Purpose: isolate one reviewable release concern.
 - Dependencies: Earlier phase contracts and shared authentication/API boundaries.
 - Validation: associated manifest tests, syntax checks, deterministic generation where applicable, and `git diff --check`.
@@ -58,7 +58,7 @@ No files are staged or committed by this plan. Human approval is required before
 
 ### 6. test: add phase and safety coverage
 
-- Files: `tests/apps-script-deployment-package.test.js`, `tests/auth-navigation.test.js`, `tests/booking-availability-phase5-contract.test.js`, `tests/booking-availability-phase5-gas.test.js`, `tests/booking-availability-phase5.test.js`, `tests/booking-no-check-in-detector.test.js`, `tests/booking-rating-production-migration.test.js`, `tests/booking-rating-standalone-migration-runner.test.js`, `tests/booking-upgrade.test.js`, `tests/frontend-api-configuration.test.js`, `tests/local-release-candidate.test.js`, `tests/release-manifest.test.js`, `tests/source-control-inclusion-plan.test.js`, `tests/staff-attendance-core.test.js`, `tests/staff-attendance-phase3.test.js`, `tests/staff-payroll-attendance-phase4.test.js`, `tests/staff-scheduling-phase2-contract.test.js`, `tests/staff-scheduling-phase2-review.test.js`, `tests/staff-scheduling-phase2.test.js`, `tests/staging-environment.test.js`
+- Files: `tests/apps-script-deployment-package.test.js`, `tests/attendance-page-functional.test.js`, `tests/auth-navigation.test.js`, `tests/booking-availability-admin-functional.test.js`, `tests/booking-availability-phase5-contract.test.js`, `tests/booking-availability-phase5-gas.test.js`, `tests/booking-availability-phase5.test.js`, `tests/booking-no-check-in-detector.test.js`, `tests/booking-rating-production-migration.test.js`, `tests/booking-rating-standalone-migration-runner.test.js`, `tests/booking-upgrade.test.js`, `tests/branch-foundation-staging.test.js`, `tests/branch-registry-row-staging.test.js`, `tests/core-staging-auth-bootstrap.test.js`, `tests/customer-booking-branch.test.js`, `tests/customer-tracking-ratings.test.js`, `tests/frontend-api-configuration.test.js`, `tests/internal-booking-branch.test.js`, `tests/legacy-staff-snapshot-export.test.js`, `tests/local-release-candidate.test.js`, `tests/migration-preview-diagnostics.test.js`, `tests/payroll-attendance-page-functional.test.js`, `tests/release-manifest.test.js`, `tests/schedule-management-functional.test.js`, `tests/schedule-work-policy-ui.test.js`, `tests/shared-system-layout.test.js`, `tests/source-control-inclusion-plan.test.js`, `tests/staff-attendance-core.test.js`, `tests/staff-attendance-phase3.test.js`, `tests/staff-import-preview-staging.test.js`, `tests/staff-import-preview.test.js`, `tests/staff-payroll-attendance-phase4.test.js`, `tests/staff-scheduling-phase2-contract.test.js`, `tests/staff-scheduling-phase2-review.test.js`, `tests/staff-scheduling-phase2.test.js`, `tests/staff-schema-migration-staging-executor.test.js`, `tests/staff-work-policy-management.test.js`, `tests/staging-environment.test.js`
 - Purpose: isolate one reviewable release concern.
 - Dependencies: Validated runtime/source commits 1–4.
 - Validation: associated manifest tests, syntax checks, deterministic generation where applicable, and `git diff --check`.
@@ -67,7 +67,7 @@ No files are staged or committed by this plan. Human approval is required before
 
 ### 7. build(release): add deterministic validation tooling
 
-- Files: `scripts/build-local-release-candidate.js`, `scripts/build-staff-attendance-phase3-bundle.js`, `scripts/build-staff-payroll-attendance-phase4-bundle.js`, `scripts/build-staff-scheduling-phase2-bundle.js`, `scripts/generate-release-manifest.js`, `scripts/generate-source-control-inclusion-plan.js`
+- Files: `.gitignore`, `scripts/build-local-release-candidate.js`, `scripts/build-staff-attendance-phase3-bundle.js`, `scripts/build-staff-payroll-attendance-phase4-bundle.js`, `scripts/build-staff-scheduling-phase2-bundle.js`, `scripts/generate-release-manifest.js`, `scripts/generate-source-control-inclusion-plan.js`
 - Purpose: isolate one reviewable release concern.
 - Dependencies: Validated runtime/source commits 1–4.
 - Validation: associated manifest tests, syntax checks, deterministic generation where applicable, and `git diff --check`.
@@ -76,7 +76,7 @@ No files are staged or committed by this plan. Human approval is required before
 
 ### 8. docs(release): add runbooks and Staging controls
 
-- Files: `config/frontend-runtime-config.staging.example.js`, `docs/booking-no-check-in-trigger-runbook.md`, `docs/release-manifest.md`, `docs/release/frontend-staging-configuration.md`, `docs/release/human-approval-packet.md`, `docs/release/human-checkpoint-matrix.md`, `docs/release/migration-execution-matrix.md`, `docs/release/migration-preview-operator-procedure.md`, `docs/release/original-rc-required-untracked-baseline.md`, `docs/release/pre-staging-gate-report.md`, `docs/release/release-candidate-inventory.md`, `docs/release/source-control-inclusion-plan.md`, `docs/release/staging-baseline-evidence-template.md`, `docs/release/staging-configuration-template.md`, `docs/release/staging-data-blueprint.md`, `docs/release/staging-operator-input.md`, `docs/release/staging-script-property-plan.md`, `docs/release/staging-test-account-matrix.md`, `docs/staff-attendance-phase-1.md`, `docs/staff-attendance-phase-3.md`, `docs/staff-payroll-attendance-phase-4.md`, `docs/staff-scheduling-phase-2.md`, `docs/staging-entry-checklist.md`
+- Files: `config/frontend-runtime-config.staging.example.js`, `docs/booking-no-check-in-trigger-runbook.md`, `docs/release-manifest.md`, `docs/release/frontend-staging-configuration.md`, `docs/release/human-approval-packet.md`, `docs/release/human-checkpoint-matrix.md`, `docs/release/migration-execution-matrix.md`, `docs/release/migration-preview-operator-procedure.md`, `docs/release/original-rc-required-untracked-baseline.md`, `docs/release/pre-staging-gate-report.md`, `docs/release/release-candidate-inventory.md`, `docs/release/source-control-inclusion-plan.md`, `docs/release/staging-baseline-evidence-template.md`, `docs/release/staging-configuration-template.md`, `docs/release/staging-core-auth-bootstrap-runbook.md`, `docs/release/staging-data-blueprint.md`, `docs/release/staging-operator-input.md`, `docs/release/staging-schema-migration-execution-runbook.md`, `docs/release/staging-script-property-plan.md`, `docs/release/staging-test-account-matrix.md`, `docs/staff-attendance-phase-1.md`, `docs/staff-attendance-phase-3.md`, `docs/staff-payroll-attendance-phase-4.md`, `docs/staff-scheduling-phase-2.md`, `docs/staging-entry-checklist.md`
 - Purpose: isolate one reviewable release concern.
 - Dependencies: Validated runtime/source commits 1–4.
 - Validation: associated manifest tests, syntax checks, deterministic generation where applicable, and `git diff --check`.
@@ -87,7 +87,10 @@ No files are staged or committed by this plan. Human approval is required before
 
 | Path | Git state | Manifest classification | Git action | Proposed commit | Reproducibility |
 |---|---|---|---|---:|---|
+| `.apps-script-staging/` | untracked | excluded intentionally | intentionally exclude | — | direct/authoritative |
+| `.clasp.json` | untracked | excluded intentionally | intentionally exclude | — | direct/authoritative |
 | `.codex-daily-closing-inline-check.js` | untracked | unrelated/pre-existing | intentionally exclude | — | direct/authoritative |
+| `.gitignore` | tracked | authoritative source | include in tests/release tooling commit | 7 | direct/authoritative |
 | `.sync-backups/` | untracked | unrelated/pre-existing | intentionally exclude | — | direct/authoritative |
 | `.vscode/settings.json` | tracked | unrelated/pre-existing | intentionally exclude | — | direct/authoritative |
 | `attendance.html` | tracked | excluded intentionally | intentionally exclude | — | direct/authoritative |
@@ -109,8 +112,10 @@ No files are staged or committed by this plan. Human approval is required before
 | `docs/release/source-control-inclusion-plan.md` | tracked | documentation | include in documentation commit | 8 | generated from scripts/generate-source-control-inclusion-plan.js |
 | `docs/release/staging-baseline-evidence-template.md` | tracked | documentation | include in documentation commit | 8 | direct/authoritative |
 | `docs/release/staging-configuration-template.md` | tracked | documentation | include in documentation commit | 8 | direct/authoritative |
+| `docs/release/staging-core-auth-bootstrap-runbook.md` | tracked | documentation | include in documentation commit | 8 | direct/authoritative |
 | `docs/release/staging-data-blueprint.md` | tracked | documentation | include in documentation commit | 8 | direct/authoritative |
 | `docs/release/staging-operator-input.md` | tracked | documentation | include in documentation commit | 8 | direct/authoritative |
+| `docs/release/staging-schema-migration-execution-runbook.md` | tracked | operational runbook | include in documentation commit | 8 | direct/authoritative |
 | `docs/release/staging-script-property-plan.md` | tracked | documentation | include in documentation commit | 8 | direct/authoritative |
 | `docs/release/staging-test-account-matrix.md` | tracked | documentation | include in documentation commit | 8 | direct/authoritative |
 | `docs/staff-attendance-phase-1-engineering-review.md` | untracked | documentation | intentionally exclude | — | direct/authoritative |
@@ -129,7 +134,9 @@ No files are staged or committed by this plan. Human approval is required before
 | `public/assets/css/pages/customer-booking.css` | tracked | UI stylesheet | include in application commit | 3 | direct/authoritative |
 | `public/assets/css/pages/payroll-attendance.css` | tracked | UI stylesheet | include in application commit | 2 | direct/authoritative |
 | `public/assets/css/pages/schedule-management.css` | tracked | UI stylesheet | include in application commit | 1 | direct/authoritative |
+| `public/assets/css/pages/staff-import-preview.css` | tracked | UI stylesheet | include in application commit | 1 | direct/authoritative |
 | `public/assets/css/shared.css` | tracked | UI stylesheet | include in application commit | 1 | direct/authoritative |
+| `public/assets/css/system-layout.css` | tracked | UI stylesheet | include in application commit | 1 | direct/authoritative |
 | `public/assets/images/bank-building.png` | tracked | authoritative source | include in application commit | 1 | direct/authoritative |
 | `public/assets/images/card.png` | tracked | authoritative source | include in application commit | 1 | direct/authoritative |
 | `public/assets/images/money.png` | tracked | authoritative source | include in application commit | 1 | direct/authoritative |
@@ -138,6 +145,7 @@ No files are staged or committed by this plan. Human approval is required before
 | `public/assets/js/core/api.js` | tracked | UI JavaScript | include in application commit | 3 | direct/authoritative |
 | `public/assets/js/core/auth.js` | tracked | UI JavaScript | include in application commit | 3 | direct/authoritative |
 | `public/assets/js/core/runtime-config.js` | tracked | UI JavaScript | include in application commit | 3 | direct/authoritative |
+| `public/assets/js/core/staff-import-preview.js` | tracked | UI JavaScript | include in application commit | 3 | direct/authoritative |
 | `public/assets/js/pages/attendance.js` | tracked | UI JavaScript | include in application commit | 1 | direct/authoritative |
 | `public/assets/js/pages/booking-availability-admin.js` | tracked | UI JavaScript | include in application commit | 3 | direct/authoritative |
 | `public/assets/js/pages/bookings.js` | tracked | UI JavaScript | include in application commit | 3 | direct/authoritative |
@@ -163,6 +171,7 @@ No files are staged or committed by this plan. Human approval is required before
 | `public/pages/expenses.html` | tracked | UI page | include in application commit | 3 | direct/authoritative |
 | `public/pages/income-statement.html` | tracked | UI page | include in application commit | 3 | direct/authoritative |
 | `public/pages/invoices.html` | tracked | UI page | include in application commit | 3 | direct/authoritative |
+| `public/pages/legacy-staff-snapshot-local.html` | untracked | excluded intentionally | intentionally exclude | — | direct/authoritative |
 | `public/pages/login.html` | tracked | UI page | include in application commit | 3 | direct/authoritative |
 | `public/pages/payroll-attendance.html` | tracked | UI page | include in application commit | 2 | direct/authoritative |
 | `public/pages/schedule-management.html` | tracked | UI page | include in application commit | 1 | direct/authoritative |
@@ -179,28 +188,40 @@ No files are staged or committed by this plan. Human approval is required before
 | `scripts/booking-rating-standalone-migration-runner/appsscript.json` | tracked | migration preview | include in migration tooling commit | 5 | direct/authoritative |
 | `scripts/booking-rating-standalone-migration-runner/booking-rating-production-migration-core.js` | tracked | migration source | include in migration tooling commit | 5 | direct/authoritative |
 | `scripts/booking-rating-standalone-migration-runner/standalone-migration-adapter.js` | tracked | migration source | include in migration tooling commit | 5 | direct/authoritative |
+| `scripts/branch-foundation-staging.js` | tracked | authoritative source | include in application commit | 1 | direct/authoritative |
+| `scripts/branch-registry-bootstrap-executor-staging.js` | untracked | excluded intentionally | intentionally exclude | — | direct/authoritative |
+| `scripts/branch-registry-bootstrap-preview-staging.js` | untracked | excluded intentionally | intentionally exclude | — | direct/authoritative |
+| `scripts/branch-registry-row-staging.js` | tracked | authoritative source | include in application commit | 1 | direct/authoritative |
 | `scripts/build-booking-availability-phase5-bundle.js` | tracked | authoritative source | include in application commit | 4 | direct/authoritative |
 | `scripts/build-local-release-candidate.js` | tracked | authoritative source | include in tests/release tooling commit | 7 | direct/authoritative |
 | `scripts/build-staff-attendance-phase3-bundle.js` | tracked | authoritative source | include in tests/release tooling commit | 7 | direct/authoritative |
 | `scripts/build-staff-payroll-attendance-phase4-bundle.js` | tracked | authoritative source | include in tests/release tooling commit | 7 | direct/authoritative |
 | `scripts/build-staff-scheduling-phase2-bundle.js` | tracked | authoritative source | include in tests/release tooling commit | 7 | direct/authoritative |
+| `scripts/core-staging-auth-bootstrap.js` | tracked | authoritative source | include in application commit | 1 | direct/authoritative |
 | `scripts/generate-release-manifest.js` | tracked | authoritative source | include in tests/release tooling commit | 7 | direct/authoritative |
 | `scripts/generate-source-control-inclusion-plan.js` | tracked | authoritative source | include in tests/release tooling commit | 7 | direct/authoritative |
+| `scripts/owner-password-reset-staging.js` | untracked | excluded intentionally | intentionally exclude | — | direct/authoritative |
 | `scripts/staff-attendance-core.js` | tracked | authoritative source | include in application commit | 1 | direct/authoritative |
 | `scripts/staff-attendance-phase3-apps-script-bundle.gs` | untracked | generated bundle | intentionally exclude | — | generated from scripts/build-staff-attendance-phase3-bundle.js |
 | `scripts/staff-attendance-phase3-gas.js` | tracked | backend integration | include in application commit | 1 | direct/authoritative |
 | `scripts/staff-attendance-phase3.js` | tracked | authoritative source | include in application commit | 1 | direct/authoritative |
 | `scripts/staff-attendance-schema.js` | tracked | authoritative source | include in application commit | 1 | direct/authoritative |
+| `scripts/staff-bootstrap-executor-staging.js` | untracked | excluded intentionally | intentionally exclude | — | direct/authoritative |
+| `scripts/staff-bootstrap-preview-staging.js` | untracked | excluded intentionally | intentionally exclude | — | direct/authoritative |
+| `scripts/staff-import-preview-staging.js` | tracked | authoritative source | include in application commit | 1 | direct/authoritative |
 | `scripts/staff-payroll-attendance-phase4-apps-script-bundle.gs` | untracked | generated bundle | intentionally exclude | — | generated from scripts/build-staff-payroll-attendance-phase4-bundle.js |
 | `scripts/staff-payroll-attendance-phase4-gas.js` | tracked | backend integration | include in application commit | 2 | direct/authoritative |
 | `scripts/staff-payroll-attendance-phase4.js` | tracked | authoritative source | include in application commit | 2 | direct/authoritative |
 | `scripts/staff-scheduling-phase2-apps-script-bundle.gs` | untracked | generated bundle | intentionally exclude | — | generated from scripts/build-staff-scheduling-phase2-bundle.js |
 | `scripts/staff-scheduling-phase2-gas.js` | tracked | backend integration | include in application commit | 1 | direct/authoritative |
 | `scripts/staff-scheduling-phase2.js` | tracked | authoritative source | include in application commit | 1 | direct/authoritative |
+| `scripts/staff-schema-migration-staging-executor.js` | tracked | authoritative source | include in application commit | 1 | direct/authoritative |
 | `scripts/validate-apps-script-deployment-package.js` | tracked | authoritative source | include in tests/release tooling commit | 4 | direct/authoritative |
 | `system-access.html` | tracked | excluded intentionally | intentionally exclude | — | direct/authoritative |
 | `tests/apps-script-deployment-package.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
+| `tests/attendance-page-functional.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
 | `tests/auth-navigation.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
+| `tests/booking-availability-admin-functional.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
 | `tests/booking-availability-phase5-contract.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
 | `tests/booking-availability-phase5-gas.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
 | `tests/booking-availability-phase5.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
@@ -208,16 +229,38 @@ No files are staged or committed by this plan. Human approval is required before
 | `tests/booking-rating-production-migration.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
 | `tests/booking-rating-standalone-migration-runner.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
 | `tests/booking-upgrade.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
+| `tests/branch-foundation-staging.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
+| `tests/branch-registry-bootstrap-executor-staging.test.js` | untracked | test | intentionally exclude | — | direct/authoritative |
+| `tests/branch-registry-bootstrap-preview-staging.test.js` | untracked | test | intentionally exclude | — | direct/authoritative |
+| `tests/branch-registry-row-staging.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
+| `tests/core-staging-auth-bootstrap.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
+| `tests/customer-booking-branch.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
+| `tests/customer-tracking-ratings.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
 | `tests/frontend-api-configuration.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
+| `tests/internal-booking-branch.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
+| `tests/legacy-staff-snapshot-export.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
+| `tests/legacy-staff-snapshot-local.test.js` | untracked | test | intentionally exclude | — | direct/authoritative |
 | `tests/local-release-candidate.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
+| `tests/migration-preview-diagnostics.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
+| `tests/owner-password-reset-staging.test.js` | untracked | test | intentionally exclude | — | direct/authoritative |
+| `tests/payroll-attendance-page-functional.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
 | `tests/release-manifest.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
+| `tests/schedule-management-functional.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
+| `tests/schedule-work-policy-ui.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
+| `tests/shared-system-layout.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
 | `tests/source-control-inclusion-plan.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
 | `tests/staff-attendance-core.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
 | `tests/staff-attendance-phase3.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
+| `tests/staff-bootstrap-executor-staging.test.js` | untracked | test | intentionally exclude | — | direct/authoritative |
+| `tests/staff-bootstrap-preview-staging.test.js` | untracked | test | intentionally exclude | — | direct/authoritative |
+| `tests/staff-import-preview-staging.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
+| `tests/staff-import-preview.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
 | `tests/staff-payroll-attendance-phase4.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
 | `tests/staff-scheduling-phase2-contract.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
 | `tests/staff-scheduling-phase2-review.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
 | `tests/staff-scheduling-phase2.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
+| `tests/staff-schema-migration-staging-executor.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
+| `tests/staff-work-policy-management.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
 | `tests/staging-environment.test.js` | tracked | test | include in tests/release tooling commit | 6 | direct/authoritative |
 
 ## Original 60 required untracked files

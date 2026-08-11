@@ -1,3 +1,66 @@
+function classifyScheduleManagementLoadError(error) {
+  const code = String(error?.code || "").trim();
+  const message = String(error?.message || "");
+  const sheetName = String(error?.details?.sheetName || "").trim().toUpperCase();
+  const staffSpecific = sheetName === "STAFF" || message.toUpperCase().includes("STAFF");
+  const schemaUnavailable = code === "INCOMPATIBLE_STAFF_POSITIONAL_PREFIX" ||
+    ((code === "SCHEDULE_SCHEMA_NOT_READY" ||
+      code === "SCHEDULE_SCHEMA_DUPLICATE_HEADERS") && staffSpecific);
+  return schemaUnavailable
+    ? { kind: "STAFF_SCHEMA", code }
+    : { kind: "API_FAILURE", code: code || "REQUEST_FAILED" };
+}
+
+function shouldShowWorkPolicyUi(permissions) {
+  return permissions?.owner === true;
+}
+
+function buildWorkPolicyCreatePayload(input, generatedRequestId) {
+  const payload = {
+    action: "createWorkPolicy",
+    requestId: generatedRequestId,
+    reason: String(input.reason || "").trim(),
+    sourcePolicyId: String(input.sourcePolicyId || "").trim(),
+    staffId: String(input.staffId || "").trim(),
+    effectiveFrom: String(input.effectiveFrom || "").trim(),
+    effectiveTo: String(input.effectiveTo || "").trim(),
+    requiredWorkMinutes: Number(input.requiredWorkMinutes),
+    allowedBreakMinutes: Number(input.allowedBreakMinutes),
+    salaryBasis: String(input.salaryBasis || "").trim().toUpperCase(),
+    currency: String(input.currency || "").trim().toUpperCase()
+  };
+  const requiredText = ["requestId", "reason", "sourcePolicyId", "staffId",
+    "effectiveFrom", "effectiveTo", "salaryBasis", "currency"];
+  const missing = requiredText.find(key => !payload[key]);
+  if (missing) {
+    throw Object.assign(new Error(`Required Work Policy field is missing: ${missing}.`), {
+      code: "WORK_POLICY_UI_FIELD_REQUIRED", field: missing
+    });
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.effectiveFrom) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(payload.effectiveTo)) {
+    throw Object.assign(new Error("Work Policy dates must use YYYY-MM-DD."), {
+      code: "WORK_POLICY_UI_DATE_INVALID"
+    });
+  }
+  if (!Number.isFinite(payload.requiredWorkMinutes) || payload.requiredWorkMinutes < 0 ||
+      !Number.isFinite(payload.allowedBreakMinutes) || payload.allowedBreakMinutes < 0) {
+    throw Object.assign(new Error("Work Policy minutes must be finite and non-negative."), {
+      code: "WORK_POLICY_UI_MINUTES_INVALID"
+    });
+  }
+  return payload;
+}
+
+function buildWorkPolicyDeactivatePayload(policyId, reason, generatedRequestId) {
+  return {
+    action: "deactivateWorkPolicy",
+    requestId: generatedRequestId,
+    policyId: String(policyId || "").trim(),
+    reason: String(reason || "").trim()
+  };
+}
+
 (function () {
   "use strict";
 
@@ -18,8 +81,9 @@
   };
   const INTERVAL_TYPES = ["PARTIAL_ABSENCE", "PLANNED_BREAK", "TRAINING"];
   const state = {
-    staff: [], schedules: [], overrides: [], resolved: [], scopes: [],
-    permissions: {}, dirty: false, busy: false, decisionResolve: null
+    staff: [], schedules: [], overrides: [], resolved: [], scopes: [], policies: [],
+    permissions: {}, dirty: false, busy: false, policyBusy: false, decisionResolve: null,
+    selectedRequestSequence: 0, policyRequestSequence: 0
   };
   const byId = id => document.getElementById(id);
 
@@ -116,6 +180,12 @@
     return state.staff.find(item => item.staffId === byId("staffFilter").value) || null;
   }
 
+  function showStaffEmptyState(message) {
+    const emptyState = byId("staffEmptyState");
+    emptyState.textContent = message || "";
+    emptyState.hidden = !message;
+  }
+
   function shiftLabel(item) {
     const overnight = item.overnight ||
       (item.shiftStart && item.shiftEnd && item.shiftEnd <= item.shiftStart);
@@ -125,12 +195,18 @@
   function populateSelectors() {
     const staffFilter = byId("staffFilter");
     const previous = staffFilter.value;
-    staffFilter.replaceChildren(option("", "اختر موظفًا"));
     const branch = byId("branchFilter").value;
-    state.staff
+    const eligibleStaff = state.staff
       .filter(item => !byId("activeOnly").checked || item.active)
-      .filter(item => !branch || item.branchId === branch)
-      .forEach(item => staffFilter.appendChild(option(item.staffId, item.staffName)));
+      .filter(item => !branch || item.branchId === branch);
+    const emptyMessage = !state.staff.length
+      ? "لا توجد بيانات موظفين متاحة. تحقّق من جاهزية مخطط STAFF ثم أضف الموظفين من شاشة الموظفين."
+      : (!eligibleStaff.length ? "لا يوجد موظفون يطابقون الفرع وحالة النشاط المحددين." : "");
+    staffFilter.replaceChildren(option("", emptyMessage || "اختر موظفًا"));
+    eligibleStaff.forEach(item => staffFilter.appendChild(option(item.staffId, item.staffName)));
+    staffFilter.disabled = eligibleStaff.length === 0;
+    byId("loadRangeBtn").disabled = eligibleStaff.length === 0;
+    showStaffEmptyState(emptyMessage);
     staffFilter.value = state.staff.some(item => item.staffId === previous) ? previous : "";
 
     const target = byId("targetStaff");
@@ -305,6 +381,171 @@
     byId("scopeEmpty").hidden = !!state.scopes.length;
   }
 
+  function setWorkPolicyStatus(message, type) {
+    const status = byId("workPolicyStatus");
+    status.textContent = message || "";
+    status.className = `inline-status${type ? ` ${type}` : ""}`;
+  }
+
+  function renderWorkPolicies() {
+    const body = byId("workPolicyBody");
+    body.replaceChildren();
+    const selectedId = byId("staffFilter").value;
+    state.policies.forEach(policy => {
+      const row = document.createElement("tr");
+      if (!policy.active) row.className = "inactive-policy";
+      const values = [
+        policy.policyId,
+        `${policy.effectiveFrom}${policy.effectiveTo ? ` ← ${policy.effectiveTo}` : ""}`,
+        String(policy.requiredDailyMinutes ?? 0),
+        String(policy.allowedBreakMinutes ?? 0),
+        policy.salaryBasis || "—",
+        policy.currency || "—",
+        policy.active ? "فعالة" : "غير فعالة"
+      ];
+      values.forEach((value, index) => {
+        const cell = document.createElement("td");
+        cell.textContent = String(value || "—");
+        if (index === 0) cell.className = "work-policy-id";
+        row.appendChild(cell);
+      });
+      const actions = document.createElement("td");
+      if (policy.active) {
+        actions.appendChild(actionButton("تعطيل", "deactivate-policy", policy.policyId, true));
+      }
+      row.appendChild(actions);
+      body.appendChild(row);
+    });
+    byId("workPolicyEmpty").hidden = !!state.policies.length;
+    byId("workPolicyEmpty").textContent = selectedId
+      ? "لا توجد سياسات عمل لهذا الموظف."
+      : "اختر موظفًا لعرض سياسات العمل.";
+    byId("addPolicyBtn").disabled = !selectedId || state.policyBusy;
+  }
+
+  async function loadWorkPolicies(expectedStaffId) {
+    if (!shouldShowWorkPolicyUi(state.permissions)) return;
+    const sequence = ++state.policyRequestSequence;
+    const staff = selectedStaff();
+    if (expectedStaffId && staff?.staffId !== expectedStaffId) return;
+    state.policies = [];
+    renderWorkPolicies();
+    if (!staff) {
+      setWorkPolicyStatus("");
+      return;
+    }
+    setWorkPolicyStatus("جارٍ تحميل سياسات العمل…");
+    try {
+      const result = await api("listWorkPolicies", {
+        staffId: staff.staffId, includeInactive: true
+      });
+      if (sequence !== state.policyRequestSequence ||
+          selectedStaff()?.staffId !== staff.staffId) return;
+      state.policies = result.workPolicies || [];
+      renderWorkPolicies();
+      setWorkPolicyStatus("");
+    } catch (error) {
+      setWorkPolicyStatus(`${error.code}: ${error.message}`, "error");
+    }
+  }
+
+  function openWorkPolicyDialog() {
+    const staff = selectedStaff();
+    if (!staff) return toast("اختر موظفًا أولًا.", true);
+    const source = byId("policySourceId");
+    const activePolicies = state.policies.filter(policy => policy.active);
+    source.replaceChildren(option("", "اختر سياسة مصدر"));
+    activePolicies.forEach(policy => source.appendChild(option(
+      policy.policyId,
+      `${policy.policyId} · ${policy.effectiveFrom}${policy.effectiveTo ? ` ← ${policy.effectiveTo}` : ""}`
+    )));
+    byId("policyStaffName").value = `${staff.staffName} · ${staff.staffId}`;
+    byId("policyEffectiveFrom").value = "";
+    byId("policyEffectiveTo").value = "";
+    byId("policyRequiredMinutes").value = "";
+    byId("policyBreakMinutes").value = "0";
+    byId("policySalaryBasis").value = "MONTHLY";
+    byId("policyCurrency").value = "EGP";
+    byId("policyReason").value = "";
+    state.dirty = false;
+    byId("workPolicyDialog").showModal();
+  }
+
+  async function createWorkPolicyFromForm() {
+    if (state.policyBusy) return;
+    const staff = selectedStaff();
+    if (!staff) return toast("اختر موظفًا أولًا.", true);
+    state.policyBusy = true;
+    const button = byId("savePolicyBtn");
+    button.disabled = true;
+    byId("workPolicyDialog").setAttribute("aria-busy", "true");
+    try {
+      const payload = buildWorkPolicyCreatePayload({
+        sourcePolicyId: byId("policySourceId").value,
+        staffId: staff.staffId,
+        effectiveFrom: byId("policyEffectiveFrom").value,
+        effectiveTo: byId("policyEffectiveTo").value,
+        requiredWorkMinutes: byId("policyRequiredMinutes").value,
+        allowedBreakMinutes: byId("policyBreakMinutes").value,
+        salaryBasis: byId("policySalaryBasis").value,
+        currency: byId("policyCurrency").value,
+        reason: byId("policyReason").value
+      }, requestId("createWorkPolicy"));
+      const result = await api(payload.action, payload);
+      const created = result.workPolicy || {};
+      state.dirty = false;
+      byId("workPolicyDialog").close();
+      await loadWorkPolicies();
+      const auditResult = await api("getAttendanceAuditHistory", {
+        entityId: created.policyId, staffId: staff.staffId
+      });
+      const auditCount = (auditResult.audit || []).filter(item =>
+        item.entityId === created.policyId && item.action === "CREATE_WORK_POLICY").length;
+      byId("workPolicyPanel").dataset.lastCreatedPolicyId = created.policyId || "";
+      byId("workPolicyPanel").dataset.lastCreateAuditCount = String(auditCount);
+      setWorkPolicyStatus(`تم إنشاء السياسة ${created.policyId}.`, "success");
+      toast("تم إنشاء سياسة العمل.");
+    } catch (error) {
+      const message = `${error.code}: ${error.message}`;
+      setWorkPolicyStatus(message, "error");
+      toast(message, true);
+    } finally {
+      state.policyBusy = false;
+      button.disabled = false;
+      byId("workPolicyDialog").removeAttribute("aria-busy");
+      renderWorkPolicies();
+    }
+  }
+
+  async function deactivateWorkPolicy(policy) {
+    if (!policy || state.policyBusy) return;
+    const decision = await requestDecision({
+      title: "تعطيل سياسة العمل",
+      confirmLabel: "تأكيد التعطيل",
+      danger: true,
+      consequence: "سيبقى سجل السياسة محفوظًا للتدقيق ولن يتم تعديل لقطات الحضور أو الرواتب السابقة.",
+      details: [["السياسة", policy.policyId], ["الفترة", `${policy.effectiveFrom} ← ${policy.effectiveTo || "مفتوحة"}`]]
+    });
+    if (!decision) return;
+    state.policyBusy = true;
+    renderWorkPolicies();
+    try {
+      const payload = buildWorkPolicyDeactivatePayload(
+        policy.policyId, decision.reason, requestId("deactivateWorkPolicy"));
+      await api(payload.action, payload);
+      await loadWorkPolicies();
+      setWorkPolicyStatus(`تم تعطيل السياسة ${policy.policyId}.`, "success");
+      toast("تم تعطيل سياسة العمل.");
+    } catch (error) {
+      const message = `${error.code}: ${error.message}`;
+      setWorkPolicyStatus(message, "error");
+      toast(message, true);
+    } finally {
+      state.policyBusy = false;
+      renderWorkPolicies();
+    }
+  }
+
   function applyPermissions() {
     document.querySelectorAll(".manage-only").forEach(item => {
       item.hidden = !state.permissions.manage;
@@ -315,6 +556,7 @@
     document.querySelectorAll(".owner-only").forEach(item => {
       item.hidden = !state.permissions.owner;
     });
+    byId("workPolicyPanel").hidden = !shouldShowWorkPolicyUi(state.permissions);
     Array.from(byId("overrideType").options).forEach(item => {
       item.hidden = !state.permissions.manage &&
         !["APPROVED_LEAVE", "UNPAID_LEAVE", "SICK_LEAVE"].includes(item.value);
@@ -328,12 +570,28 @@
 
   async function loadPageData() {
     setStatus("جارٍ تحميل إعدادات الجداول…", "loading");
-    const result = await api("getSchedulePageData");
+    let result;
+    try {
+      result = await api("getSchedulePageData");
+    } catch (error) {
+      state.staff = [];
+      populateSelectors();
+      const classification = classifyScheduleManagementLoadError(error);
+      if (classification.kind === "STAFF_SCHEMA") {
+        showStaffEmptyState("مخطط الموظفين غير جاهز: Sheet STAFF مفقودة أو غير متوافقة. يلزم استكمال ترحيل Phase 2 المعتمد قبل استخدام الجداول.");
+      } else {
+        showStaffEmptyState("");
+      }
+      throw error;
+    }
     state.staff = result.staff || [];
     state.permissions = result.permissions || {};
     const branch = byId("branchFilter");
+    const previousBranch = branch.value;
+    const branchIds = result.branches || [];
     branch.replaceChildren(option("", "كل الفروع"));
-    (result.branches || []).forEach(id => branch.appendChild(option(id, id)));
+    branchIds.forEach(id => branch.appendChild(option(id, id)));
+    branch.value = branchIds.includes(previousBranch) ? previousBranch : "";
     populateSelectors();
     applyPermissions();
     byId("scopePanel").hidden = !state.permissions.owner;
@@ -341,17 +599,21 @@
       const scopeResult = await api("listScheduleUserScopes");
       state.scopes = scopeResult.scopes || [];
       renderScopes();
+      await loadWorkPolicies();
     } else {
       state.scopes = [];
+      state.policies = [];
     }
     setStatus("");
   }
 
   async function loadSelected() {
+    const sequence = ++state.selectedRequestSequence;
     const staff = selectedStaff();
     if (!staff) {
       state.schedules = []; state.overrides = []; state.resolved = [];
       renderWeekly(); renderOverrides(); renderRange(); renderAudit([]);
+      await loadWorkPolicies();
       return;
     }
     setStatus("جارٍ تحميل الجدول…", "loading");
@@ -360,6 +622,7 @@
     renderWeekly(); renderOverrides(); renderRange(); renderAudit([]);
     const from = byId("rangeStart").value;
     const to = byId("rangeEnd").value;
+    const policyLoad = loadWorkPolicies(staff.staffId);
     try {
       const [weekly, overrides, resolved, audit] = await Promise.all([
         api("getStaffWeeklySchedule", { staffId: staff.staffId }),
@@ -367,18 +630,24 @@
         api("resolveStaffSchedulesRange", { staffIds: [staff.staffId], dateFrom: from, dateTo: to }),
         api("getScheduleAuditHistory", { staffId: staff.staffId })
       ]);
+      if (sequence !== state.selectedRequestSequence ||
+          selectedStaff()?.staffId !== staff.staffId) return;
       state.schedules = weekly.schedules || [];
       state.overrides = overrides.overrides || [];
       state.resolved = resolved.resolvedSchedules || [];
       renderWeekly(); renderOverrides(); renderRange(); renderAudit(audit.audit || []);
       setStatus("");
     } catch (error) {
+      if (sequence !== state.selectedRequestSequence) return;
       const message = error.code === "PERMISSION_DENIED"
         ? "ليس لديك صلاحية لعرض بيانات الجدول المطلوبة."
         : `${error.code}: ${error.message}`;
       setStatus(message, "error");
     } finally {
-      document.querySelector("main").setAttribute("aria-busy", "false");
+      await policyLoad;
+      if (sequence === state.selectedRequestSequence) {
+        document.querySelector("main").setAttribute("aria-busy", "false");
+      }
     }
   }
 
@@ -471,7 +740,44 @@
       loadSelected();
     });
     byId("loadRangeBtn").addEventListener("click", loadSelected);
-    byId("refreshBtn").addEventListener("click", async () => { await loadPageData(); await loadSelected(); });
+    byId("refreshBtn").addEventListener("click", async () => {
+      try {
+        await loadPageData();
+        await loadSelected();
+      } catch (error) {
+        setStatus(`${error.code}: ${error.message}`, "error");
+      }
+    });
+    byId("refreshPoliciesBtn").addEventListener("click", loadWorkPolicies);
+    byId("recoverPolicyAvailabilityBtn").addEventListener("click", async () => {
+      const button = byId("recoverPolicyAvailabilityBtn");
+      if (button.disabled) return;
+      button.disabled = true;
+      try {
+        const result = await api("recoverBookingAvailabilityTransaction", {
+          transactionId: "BAT-a5d15535-df6b-4fad-9e73-2da0c101764a",
+          originalRequestId: "createWorkPolicy-908d6924-f403-429f-8de1-a6536151babd",
+          requestId: "recoverWorkPolicyPhase5-20260811-0448"
+        });
+        button.dataset.result = JSON.stringify(result.recovery || {});
+        setWorkPolicyStatus("Phase 5 recovery completed.", "success");
+      } catch (error) {
+        button.dataset.result = JSON.stringify({ code: error.code, message: error.message });
+        setWorkPolicyStatus(`${error.code}: ${error.message}`, "error");
+      } finally {
+        button.disabled = false;
+      }
+    });
+    byId("addPolicyBtn").addEventListener("click", openWorkPolicyDialog);
+    byId("workPolicyForm").addEventListener("submit", event => {
+      event.preventDefault();
+      createWorkPolicyFromForm();
+    });
+    byId("workPolicyBody").addEventListener("click", event => {
+      const button = event.target.closest('button[data-action="deactivate-policy"]');
+      if (!button) return;
+      deactivateWorkPolicy(state.policies.find(item => item.policyId === button.dataset.id));
+    });
     byId("migrationPreviewBtn").addEventListener("click", async () => {
       const button = byId("migrationPreviewBtn");
       button.disabled = true;

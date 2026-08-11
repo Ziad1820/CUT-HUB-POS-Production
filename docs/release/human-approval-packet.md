@@ -2,8 +2,8 @@
 
 This packet does not instruct or authorize deployment.
 
-- Release Candidate: `CUT-HUB-POS-RC-187ae11-21ef391df981`
-- Payload SHA-256: `21ef391df98149e01c719dc2f96d1e8fc0173d4c11f156c401d91946d200c40d`
+- Release Candidate: `CUT-HUB-POS-RC-c7cdf5a-c370f1788782`
+- Payload SHA-256: `c370f1788782d80c24ddf5fbbb3dc324f0a2bef21e8ea1fea2d1db12494586a3`
 - Required untracked files: **0**
 - Dirty tree: **yes; not reproducible from Git alone**
 
@@ -18,6 +18,8 @@ Migration sources are isolated under the migration subpackage and were not execu
 
 ## Intentionally excluded
 
+- `.apps-script-staging/` — Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit.
+- `.clasp.json` — Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit.
 - `.codex-daily-closing-inline-check.js` — Local editor, backup, or scratch artifact; excluded from release.
 - `.sync-backups/` — Local editor, backup, or scratch artifact; excluded from release.
 - `.vscode/settings.json` — Local editor, backup, or scratch artifact; excluded from release.
@@ -30,11 +32,23 @@ Migration sources are isolated under the migration subpackage and were not execu
 - `docs/staff-payroll-attendance-phase-4-strict-review.md` — Historical engineering review; documentation-only and not deployed.
 - `docs/staff-scheduling-phase-2-engineering-review.md` — Historical engineering review; documentation-only and not deployed.
 - `login.html` — Root compatibility wrapper duplicates public output; Vercel serves the public directory.
+- `public/pages/legacy-staff-snapshot-local.html` — Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit.
 - `schedule-management.html` — Root compatibility wrapper duplicates public output; Vercel serves the public directory.
+- `scripts/branch-registry-bootstrap-executor-staging.js` — Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit.
+- `scripts/branch-registry-bootstrap-preview-staging.js` — Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit.
+- `scripts/owner-password-reset-staging.js` — Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit.
 - `scripts/staff-attendance-phase3-apps-script-bundle.gs` — Obsolete for the aggregate package and overlaps globals already contained in Phase 5.
+- `scripts/staff-bootstrap-executor-staging.js` — Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit.
+- `scripts/staff-bootstrap-preview-staging.js` — Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit.
 - `scripts/staff-payroll-attendance-phase4-apps-script-bundle.gs` — Obsolete for the aggregate package and overlaps globals already contained in Phase 5.
 - `scripts/staff-scheduling-phase2-apps-script-bundle.gs` — Obsolete for the aggregate package and overlaps globals already contained in Phase 5.
 - `system-access.html` — Root compatibility wrapper duplicates public output; Vercel serves the public directory.
+- `tests/branch-registry-bootstrap-executor-staging.test.js` — Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit.
+- `tests/branch-registry-bootstrap-preview-staging.test.js` — Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit.
+- `tests/legacy-staff-snapshot-local.test.js` — Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit.
+- `tests/owner-password-reset-staging.test.js` — Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit.
+- `tests/staff-bootstrap-executor-staging.test.js` — Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit.
+- `tests/staff-bootstrap-preview-staging.test.js` — Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit.
 
 ## Risks and prerequisites
 

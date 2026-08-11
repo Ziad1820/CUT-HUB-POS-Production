@@ -1,5 +1,5 @@
 /* global StaffAttendancePhase3, StaffSchedulingPhase2, SpreadsheetApp, LockService,
-  PropertiesService, Utilities, getCutHubEnvironmentConfig, getAuthenticatedUser,
+  PropertiesService, Utilities, console, getCutHubEnvironmentConfig, assertStagingEnvironment, getAuthenticatedUser,
   normalizeManagedPermissions, jsonOutput, schedulePhase2Actor, schedulePhase2ReadRows,
   schedulePhase2ReadStaff, schedulePhase2ReadSchedules, schedulePhase2Headers,
   schedulePhase2AssertHeaders, schedulePhase2AssertNoDuplicateHeaders,
@@ -106,10 +106,48 @@ function attendancePhase3WithTransaction(details, callback) {
   }
 }
 
+function attendancePhase3DateOnly(value, timezone) {
+  var resolvedTimezone = String(timezone || StaffAttendancePhase3.TIME_ZONE || "Africa/Cairo");
+  if (Object.prototype.toString.call(value) === "[object Date]" &&
+      !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, resolvedTimezone, "yyyy-MM-dd");
+  }
+  var text = String(value || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(text)) {
+    var instant = new Date(text);
+    if (!isNaN(instant.getTime())) {
+      return Utilities.formatDate(instant, resolvedTimezone, "yyyy-MM-dd");
+    }
+  }
+  return text;
+}
+
+function attendancePhase3TimeOnly(value, timezone) {
+  var resolvedTimezone = String(timezone || StaffAttendancePhase3.TIME_ZONE || "Africa/Cairo");
+  if (Object.prototype.toString.call(value) === "[object Date]" &&
+      !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, resolvedTimezone, "HH:mm");
+  }
+  var text = String(value || "").trim();
+  if (/^\d{2}:\d{2}$/.test(text)) return text;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(text)) {
+    var instant = new Date(text);
+    if (!isNaN(instant.getTime())) {
+      return Utilities.formatDate(instant, resolvedTimezone, "HH:mm");
+    }
+  }
+  return text;
+}
+
 function attendancePhase3ReadDays() {
   var rows = schedulePhase2ReadRows("ATTENDANCE");
   return rows.filter(function (item) { return !!String(item.attendanceDayId || "").trim(); })
     .map(function (item) {
+      item.attendanceDate = attendancePhase3DateOnly(item.attendanceDate, item.timezone);
+      item.scheduledStart = attendancePhase3TimeOnly(item.scheduledStart, item.timezone);
+      item.scheduledEnd = attendancePhase3TimeOnly(item.scheduledEnd, item.timezone);
+      item.staffId = schedulePhase2Text(item.staffId);
       [
         "scheduleSourceIds", "shiftSegments", "calculationWarnings",
         "policySnapshot", "scheduleSnapshot", "sourceEventIds", "sessions", "breaks"
@@ -234,6 +272,15 @@ function attendancePhase3CreateRepository() {
         "OVERTIME_APPROVAL_ID", record, true);
     },
     listPolicies: function () { return schedulePhase2ReadRows("STAFF_WORK_POLICIES"); },
+    getPolicy: function (policyId) {
+      return attendancePhase3Unique(schedulePhase2ReadRows("STAFF_WORK_POLICIES"),
+        "policyId", policyId, "WORK_POLICY_ID_AMBIGUOUS");
+    },
+    savePolicy: function (record) {
+      return attendancePhase3Save("STAFF_WORK_POLICIES",
+        StaffAttendancePhase3.SHEET_SCHEMAS.STAFF_WORK_POLICIES,
+        "POLICY_ID", record, false);
+    },
     listLegacy: attendancePhase3ReadLegacy,
     appendAudit: function (record) {
       return attendancePhase3Save("STAFF_ATTENDANCE_AUDIT",
@@ -320,7 +367,28 @@ function attendancePhase3AssertWriteReady() {
   });
 }
 
+function attendancePhase3AssertPreviewEnvironment() {
+  var config = getCutHubEnvironmentConfig();
+  var environment = String(config.environment || "").toLowerCase();
+  if (environment === "production") {
+    var blocked = new Error("Phase 3 migration preview cannot access production.");
+    blocked.code = "PHASE3_ENVIRONMENT_BLOCKED";
+    throw blocked;
+  }
+  if (["development", "test", "staging"].indexOf(environment) === -1) {
+    var invalid = new Error("Phase 3 migration preview requires a recognized environment identity.");
+    invalid.code = "ATTENDANCE_ENVIRONMENT_IDENTITY_INVALID";
+    throw invalid;
+  }
+  if (environment === "staging") {
+    return assertStagingEnvironment().config;
+  }
+  return config;
+}
+
 function previewAttendanceMigration(data) {
+  data = data && typeof data === "object" ? data : {};
+  var config = attendancePhase3AssertPreviewEnvironment();
   var identity = attendancePhase3AssertEnvironmentIdentity();
   var existing = {};
   Object.keys(StaffAttendancePhase3.SHEET_SCHEMAS).forEach(function (name) {
@@ -331,8 +399,87 @@ function previewAttendanceMigration(data) {
     environment: identity.config.environment,
     expectedSpreadsheetId: identity.config.spreadsheetId,
     actualSpreadsheetId: identity.spreadsheet.getId(),
-    environmentReviewApproved: false
+    environmentReviewApproved: config.environment === "staging"
   });
+}
+
+function diagnosticPreviewAttendanceMigration(data) {
+  var config = getCutHubEnvironmentConfig();
+  var environment = String(config.environment || "").toLowerCase();
+  if (["development", "staging"].indexOf(environment) === -1) {
+    var blocked = new Error("Attendance migration diagnostic preview is limited to development and staging.");
+    blocked.code = "ATTENDANCE_DIAGNOSTIC_PREVIEW_ENVIRONMENT_BLOCKED";
+    throw blocked;
+  }
+  if (environment === "staging") assertStagingEnvironment();
+  var result = previewAttendanceMigration(data);
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+function attendancePhase3RunDiagnosticPreview(data) {
+  var config = getCutHubEnvironmentConfig();
+  var environment = String(config.environment || "").toLowerCase();
+  if (["development", "staging"].indexOf(environment) === -1) {
+    var blocked = new Error("Attendance migration diagnostic preview is limited to development and staging.");
+    blocked.code = "ATTENDANCE_DIAGNOSTIC_PREVIEW_ENVIRONMENT_BLOCKED";
+    throw blocked;
+  }
+  if (environment === "staging") assertStagingEnvironment();
+  return previewAttendanceMigration(data);
+}
+
+function diagnosticPreviewAttendanceMigrationSummary(data) {
+  var result = attendancePhase3RunDiagnosticPreview(data);
+  console.log(JSON.stringify({
+    schemaVersion: result.schemaVersion,
+    dryRun: result.dryRun,
+    writes: result.writes,
+    identity: result.identity,
+    createSheetNames: (result.createSheets || []).map(function (item) { return item.sheetName; }),
+    initializeBlankSheetNames: (result.initializeBlankSheets || []).map(function (item) {
+      return item.sheetName;
+    }),
+    appendColumnSheetNames: Object.keys(result.appendColumns || {}),
+    unchangedSheetNames: result.unchangedSheets || [],
+    errorCodes: (result.errors || []).map(function (item) { return item.code; }),
+    safe: result.safe
+  }));
+  return result;
+}
+
+function diagnosticPreviewAttendanceMigrationSheets(data) {
+  var result = attendancePhase3RunDiagnosticPreview(data);
+  (result.createSheets || []).forEach(function (item) {
+    console.log(JSON.stringify({
+      sheetName: item.sheetName,
+      headerCount: (item.headers || []).length,
+      headers: item.headers || []
+    }));
+  });
+  return result;
+}
+
+function diagnosticPreviewAttendanceMigrationColumns(data) {
+  var result = attendancePhase3RunDiagnosticPreview(data);
+  console.log(JSON.stringify({
+    appendColumns: result.appendColumns || {},
+    preservedUnknownColumns: result.preservedUnknownColumns || {}
+  }));
+  return result;
+}
+
+function diagnosticPreviewAttendanceMigrationSafety(data) {
+  var result = attendancePhase3RunDiagnosticPreview(data);
+  console.log(JSON.stringify({
+    errors: result.errors || [],
+    rollback: result.rollback || {},
+    safe: result.safe,
+    dryRun: result.dryRun,
+    writes: result.writes,
+    historicalRowsTouched: result.rollback && result.rollback.historicalRowsTouched
+  }));
+  return result;
 }
 
 function handleStaffAttendancePhase3Action(data) {
@@ -343,13 +490,7 @@ function handleStaffAttendancePhase3Action(data) {
         "ATTENDANCE_ACTION_UNKNOWN", "Attendance action is not supported.");
     }
     if (data.action === "previewAttendanceMigration") {
-      var previewConfig = getCutHubEnvironmentConfig();
-      if (["production", "staging"].indexOf(previewConfig.environment) !== -1) {
-        throw StaffAttendancePhase3.attendanceError(
-          "ATTENDANCE_PHASE3_ENVIRONMENT_BLOCKED",
-          "Phase 3 migration preview cannot access staging or production.");
-      }
-      attendancePhase3AssertEnvironmentIdentity();
+      attendancePhase3AssertPreviewEnvironment();
       var previewActor = schedulePhase2Actor(data);
       if (!previewActor || !previewActor.owner) {
         throw StaffAttendancePhase3.attendanceError(

@@ -2,8 +2,7 @@
   "use strict";
 
   const byId = id => document.getElementById(id);
-  const user = window.RomeoAuth && RomeoAuth.requireAuth
-    ? RomeoAuth.requireAuth("payroll_attendance.view") : null;
+  const user = RomeoAuth.requireAuth("payroll_attendance.view");
   if (!user) return;
 
   const state = {
@@ -11,13 +10,14 @@
     blockers: [], selectedAction: "", selectedAdjustment: null,
     requestSequence: 0, detailSequence: 0, loading: false
   };
+  const PAYROLL_INITIAL_READ_TIMEOUT_MS = 45000;
   const periodDialog = byId("periodDialog");
   const actionDialog = byId("actionDialog");
   const detailsDialog = byId("detailsDialog");
   const adjustmentDialog = byId("adjustmentDialog");
 
   function has(permission) {
-    return window.RomeoAuth && RomeoAuth.hasPermission(permission);
+    return RomeoAuth.hasPermission(permission);
   }
   function node(tag, className, value) {
     const element = document.createElement(tag);
@@ -69,6 +69,17 @@
       throw caught;
     }
     return result;
+  }
+  function withInitialReadTimeout(promise) {
+    let timeoutId;
+    const timeout = new Promise((_resolve, reject) => {
+      timeoutId = window.setTimeout(() => {
+        const error = new Error("انتهت مهلة تحميل فترات الرواتب. حاول التحديث مرة أخرى.");
+        error.code = "PAYROLL_READ_TIMEOUT";
+        reject(error);
+      }, PAYROLL_INITIAL_READ_TIMEOUT_MS);
+    });
+    return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
   }
   function option(label, value) { return new Option(label, value); }
   function currentPeriodId() { return byId("periodSelect").value; }
@@ -202,7 +213,7 @@
     byId("migrationPreviewBtn").hidden = String(user.username || "").toLowerCase() !== "owner";
   }
   async function loadPeriods(selectFirst) {
-    const result = await api({ action: "listPayrollPeriods" });
+    const result = await withInitialReadTimeout(api({ action: "listPayrollPeriods" }));
     state.periods = result.payrollPeriods || [];
     populatePeriods();
     if (selectFirst && !byId("periodSelect").value && state.periods.length) {

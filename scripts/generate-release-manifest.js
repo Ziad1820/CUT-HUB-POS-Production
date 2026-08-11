@@ -14,16 +14,36 @@ const ALLOWED_CLASSIFICATIONS = Object.freeze([
   "excluded intentionally"
 ]);
 
+const localStagingOnlyPaths = new Set([
+  ".apps-script-staging/",
+  ".clasp.json",
+  "public/pages/legacy-staff-snapshot-local.html",
+  "scripts/branch-registry-bootstrap-executor-staging.js",
+  "scripts/branch-registry-bootstrap-preview-staging.js",
+  "scripts/owner-password-reset-staging.js",
+  "scripts/staff-bootstrap-executor-staging.js",
+  "scripts/staff-bootstrap-preview-staging.js",
+  "tests/branch-registry-bootstrap-executor-staging.test.js",
+  "tests/branch-registry-bootstrap-preview-staging.test.js",
+  "tests/legacy-staff-snapshot-local.test.js",
+  "tests/owner-password-reset-staging.test.js",
+  "tests/staff-bootstrap-executor-staging.test.js",
+  "tests/staff-bootstrap-preview-staging.test.js"
+]);
+
 const explicitPaths = [
+  ".gitignore", ".apps-script-staging/", ".clasp.json",
   "attendance.html", "bookings.html", "cashier.html", "login.html",
   "system-access.html", "schedule-management.html", "booking-availability-admin.html",
   "config/apps-script-deployment-package.json",
   "config/frontend-runtime-config.staging.example.js",
   "public/assets/js/core/api.js", "public/assets/js/core/auth.js",
   "public/assets/js/core/runtime-config.js",
+  "public/assets/js/core/staff-import-preview.js",
   "public/assets/js/utils/layout.js", "public/assets/js/utils/text-fix.js",
   "public/assets/js/utils/keyboard-navigation.js", "public/assets/js/utils/language.js",
-  "public/assets/css/shared.css",
+  "public/assets/css/shared.css", "public/assets/css/system-layout.css",
+  "public/assets/css/pages/staff-import-preview.css",
   "public/assets/images/salonix-logo.svg", "public/assets/images/money.png",
   "public/assets/images/walet.png", "public/assets/images/card.png",
   "public/assets/images/bank-building.png",
@@ -47,13 +67,24 @@ const explicitPaths = [
   "public/pages/data-analysis.html", "public/pages/enventory.html",
   "public/pages/expenses.html", "public/pages/income-statement.html",
   "public/pages/invoices.html", "public/pages/staff-accounting.html",
+  "public/pages/legacy-staff-snapshot-local.html",
   "public/pages/staff-discount.html", "public/pages/withdrawals.html",
   "scripts/app-script-final-owner-access.js",
   "scripts/staff-attendance-schema.js", "scripts/staff-attendance-core.js",
   "scripts/staff-scheduling-phase2.js", "scripts/staff-scheduling-phase2-gas.js",
+  "scripts/staff-import-preview-staging.js",
   "scripts/staff-attendance-phase3.js", "scripts/staff-attendance-phase3-gas.js",
   "scripts/staff-payroll-attendance-phase4.js", "scripts/staff-payroll-attendance-phase4-gas.js",
-  "scripts/booking-availability-phase5.js", "scripts/booking-availability-phase5-gas.js",
+  "scripts/staff-schema-migration-staging-executor.js",
+  "scripts/core-staging-auth-bootstrap.js",
+  "scripts/booking-availability-phase5.js", "scripts/branch-foundation-staging.js",
+  "scripts/branch-registry-row-staging.js",
+  "scripts/branch-registry-bootstrap-executor-staging.js",
+  "scripts/branch-registry-bootstrap-preview-staging.js",
+  "scripts/owner-password-reset-staging.js",
+  "scripts/staff-bootstrap-executor-staging.js",
+  "scripts/staff-bootstrap-preview-staging.js",
+  "scripts/booking-availability-phase5-gas.js",
   "scripts/staff-scheduling-phase2-apps-script-bundle.gs",
   "scripts/staff-attendance-phase3-apps-script-bundle.gs",
   "scripts/staff-payroll-attendance-phase4-apps-script-bundle.gs",
@@ -73,18 +104,41 @@ const explicitPaths = [
   "tests/auth-navigation.test.js", "tests/staff-attendance-core.test.js",
   "tests/staff-scheduling-phase2.test.js", "tests/staff-scheduling-phase2-contract.test.js",
   "tests/staff-scheduling-phase2-review.test.js", "tests/staff-attendance-phase3.test.js",
+  "tests/staff-import-preview.test.js", "tests/staff-import-preview-staging.test.js",
+  "tests/shared-system-layout.test.js",
   "tests/staff-payroll-attendance-phase4.test.js", "tests/booking-upgrade.test.js",
+  "tests/staff-schema-migration-staging-executor.test.js",
+  "tests/core-staging-auth-bootstrap.test.js",
   "tests/booking-rating-production-migration.test.js",
   "tests/booking-rating-standalone-migration-runner.test.js",
   "tests/booking-availability-phase5.test.js",
   "tests/booking-availability-phase5-gas.test.js",
   "tests/booking-availability-phase5-contract.test.js",
+  "tests/branch-foundation-staging.test.js",
+  "tests/branch-registry-row-staging.test.js",
   "tests/booking-no-check-in-detector.test.js",
   "tests/apps-script-deployment-package.test.js", "tests/release-manifest.test.js",
   "tests/local-release-candidate.test.js",
   "tests/staging-environment.test.js",
   "tests/frontend-api-configuration.test.js",
   "tests/source-control-inclusion-plan.test.js",
+  "tests/attendance-page-functional.test.js",
+  "tests/booking-availability-admin-functional.test.js",
+  "tests/branch-registry-bootstrap-executor-staging.test.js",
+  "tests/branch-registry-bootstrap-preview-staging.test.js",
+  "tests/customer-booking-branch.test.js",
+  "tests/customer-tracking-ratings.test.js",
+  "tests/internal-booking-branch.test.js",
+  "tests/legacy-staff-snapshot-export.test.js",
+  "tests/legacy-staff-snapshot-local.test.js",
+  "tests/migration-preview-diagnostics.test.js",
+  "tests/owner-password-reset-staging.test.js",
+  "tests/payroll-attendance-page-functional.test.js",
+  "tests/schedule-management-functional.test.js",
+  "tests/schedule-work-policy-ui.test.js",
+  "tests/staff-bootstrap-executor-staging.test.js",
+  "tests/staff-bootstrap-preview-staging.test.js",
+  "tests/staff-work-policy-management.test.js",
   "docs/staff-attendance-phase-1.md", "docs/staff-attendance-phase-1-engineering-review.md",
   "docs/staff-scheduling-phase-2.md", "docs/staff-scheduling-phase-2-engineering-review.md",
   "docs/staff-attendance-phase-3.md", "docs/staff-attendance-phase-3-strict-review.md",
@@ -92,6 +146,8 @@ const explicitPaths = [
   "docs/staff-payroll-attendance-phase-4-strict-review.md",
   "docs/booking-no-check-in-trigger-runbook.md", "docs/staging-entry-checklist.md",
   "docs/release/migration-execution-matrix.md",
+  "docs/release/staging-schema-migration-execution-runbook.md",
+  "docs/release/staging-core-auth-bootstrap-runbook.md",
   "docs/release/staging-configuration-template.md",
   "docs/release/staging-test-account-matrix.md",
   "docs/release/staging-data-blueprint.md",
@@ -183,6 +239,12 @@ function testsFor(file) {
   if (/staff-attendance-(?:schema|core)|phase-1/.test(file)) tests.push(
     "tests/staff-attendance-core.test.js");
   if (/payroll-attendance/.test(file)) tests.push("tests/staff-payroll-attendance-phase4.test.js");
+  if (/staff-schema-migration-staging-executor/.test(file)) {
+    tests.push("tests/staff-schema-migration-staging-executor.test.js");
+  }
+  if (/core-staging-auth-bootstrap/.test(file)) {
+    tests.push("tests/core-staging-auth-bootstrap.test.js");
+  }
   if (/booking-availability|no-check-in/.test(file)) tests.push(
     "tests/booking-availability-phase5.test.js",
     "tests/booking-availability-phase5-gas.test.js",
@@ -207,6 +269,7 @@ function describe(file, sourceOrder) {
   const historicalReview = /(?:engineering-review|strict-review)\.md$/.test(file);
   const localArtifact = file === ".codex-daily-closing-inline-check.js" ||
     file.startsWith(".vscode/") || file.startsWith(".sync-backups/");
+  const localStagingOnly = localStagingOnlyPaths.has(file);
   const generatedRcMetadata = [
     "docs/release/release-candidate-inventory.md",
     "docs/release/human-approval-packet.md"
@@ -218,7 +281,12 @@ function describe(file, sourceOrder) {
   let order = "Release evidence; not runtime-loaded";
   let reason = "Required source or verification evidence for the complete implementation.";
 
-  if (localArtifact) {
+  if (localStagingOnly) {
+    classification = file.startsWith("tests/") ? "test" : "excluded intentionally";
+    required = false;
+    order = "Never package";
+    reason = "Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit.";
+  } else if (localArtifact) {
     classification = "unrelated/pre-existing"; required = false;
     order = "Never package"; reason = "Local editor, backup, or scratch artifact; excluded from release.";
   } else if (generatedRcMetadata) {
@@ -278,7 +346,7 @@ function describe(file, sourceOrder) {
   } else if (file === "config/apps-script-deployment-package.json") {
     classification = "operational runbook"; order = "Read by local package validator";
     reason = "Machine-readable allowlist and exclusion list for the future Apps Script package.";
-  } else if (/booking-no-check-in-trigger-runbook|staging-entry-checklist|release-manifest/.test(file)) {
+  } else if (/booking-no-check-in-trigger-runbook|staging-schema-migration-execution-runbook|staging-entry-checklist|release-manifest/.test(file)) {
     classification = "operational runbook";
     if (file === OUTPUT) {
       generated = true; authority = "scripts/generate-release-manifest.js";
@@ -364,6 +432,6 @@ if (require.main === module) {
 }
 
 module.exports = {
-  ALLOWED_CLASSIFICATIONS, OUTPUT, explicitPaths, gitDirectory, gitStates,
+  ALLOWED_CLASSIFICATIONS, OUTPUT, explicitPaths, localStagingOnlyPaths, gitDirectory, gitStates,
   buildEntries, renderManifest, generate
 };

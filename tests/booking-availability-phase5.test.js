@@ -438,7 +438,7 @@ test("a hold expiring exactly at the trusted server timestamp no longer blocks",
   assert.ok(result.slots.some(slot => slot.start === "10:00"));
 });
 
-test("migration preview is append-only, zero-write, and blocked outside development/test", () => {
+test("migration preview is append-only, zero-write, available in Staging, and blocked in Production", () => {
   const existing = {
     Bookings: ["ID"], SERVICES: ["NAME"],
     BRANCH_BOOKING_HOURS: ["BRANCH_HOURS_ID"]
@@ -447,6 +447,8 @@ test("migration preview is append-only, zero-write, and blocked outside developm
     environment: "development", expectedSpreadsheetId: "sheet", actualSpreadsheetId: "sheet"
   });
   assert.equal(plan.executionAllowed, false);
+  assert.equal(plan.dryRun, true);
+  assert.equal(plan.environment, "development");
   assert.equal(plan.writes, 0);
   assert.equal(plan.historicalRowsTouched, 0);
   assert.ok(plan.plannedCreatedSheets.includes("BOOKING_AVAILABILITY_VERSIONS"));
@@ -455,6 +457,12 @@ test("migration preview is append-only, zero-write, and blocked outside developm
   assert.ok(plan.plannedCreatedSheets.includes("BOOKING_AVAILABILITY_TRANSACTIONS"));
   assert.ok(plan.plannedCreatedSheets.includes("BOOKING_BRANCH_REGISTRY"));
   assert.ok(plan.plannedAppendedColumns.SERVICES.includes("PREPARATION_MINUTES"));
+  const staging = phase5.planMigration({}, {
+    environment: "staging", expectedSpreadsheetId: "sheet", actualSpreadsheetId: "sheet"
+  });
+  assert.equal(staging.blocked, false);
+  assert.equal(staging.executionAllowed, false);
+  assert.equal(staging.writes, 0);
   const blocked = phase5.planMigration({}, {
     environment: "production", expectedSpreadsheetId: "sheet", actualSpreadsheetId: "sheet"
   });

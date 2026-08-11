@@ -6,20 +6,25 @@
   <title>إدارة الحضور - SALONIX</title>
   <link rel="stylesheet" href="../assets/css/shared.css">
   <link rel="stylesheet" href="../assets/css/pages/attendance.css">
+  <link rel="stylesheet" href="../assets/css/system-layout.css">
 </head>
 <body>
-  <div class="attendance-app">
-    <header class="attendance-header">
-      <button type="button" class="menu-toggle" id="menuToggle" aria-label="فتح القائمة">☰</button>
-      <div>
+  <div class="attendance-app system-app">
+    <header class="attendance-header system-header">
+      <div class="system-header-menu">
+        <button type="button" class="menu-toggle" id="menuToggle" aria-label="فتح القائمة">☰</button>
+      </div>
+      <div class="system-header-copy">
         <p class="eyebrow">SALONIX · ATTENDANCE</p>
         <h1>الحضور اليومي</h1>
         <p>الأوقات من الخادم، والجدول المعتمد هو مصدر خطة اليوم.</p>
       </div>
-      <div class="sync-state" id="syncState" role="status" aria-live="polite">جارٍ المزامنة…</div>
+      <div class="system-header-actions">
+        <div class="sync-state" id="syncState" role="status" aria-live="polite">جارٍ المزامنة…</div>
+      </div>
     </header>
 
-    <main>
+    <main class="system-content">
       <section class="toolbar panel" aria-label="مرشحات الحضور">
         <label>التاريخ <input id="attendanceDate" type="date"></label>
         <label>الفرع <select id="branchFilter"><option value="">كل الفروع</option></select></label>
@@ -42,12 +47,9 @@
     </main>
   </div>
 
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
-  <aside class="sidebar" id="sidebar" aria-label="القائمة الرئيسية">
-    <h3>Menu</h3>
-    <button class="sidebar-link active" type="button">Attendance</button>
-    <button class="sidebar-link" type="button" data-href="schedule-management.html">Staff Scheduling</button>
-    <button class="sidebar-link" type="button" data-href="dashboard.html">Dashboard</button>
+  <div class="sidebar-overlay system-sidebar-overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar system-sidebar" id="sidebar" aria-label="القائمة الرئيسية">
+    <h3>القائمة</h3>
     <button type="button" id="logoutBtn">Logout</button>
   </aside>
 
@@ -103,6 +105,6 @@
   <script src="../assets/js/utils/layout.js"></script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>
-  <script src="../assets/js/pages/attendance.js"></script>
+  <script src="../assets/js/pages/attendance.js?v=20260811-1"></script>
 </body>
 </html>

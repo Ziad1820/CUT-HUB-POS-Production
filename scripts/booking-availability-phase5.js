@@ -614,7 +614,7 @@
     const existing = existingSheets || {};
     const environment = text(identity && identity.environment).toLowerCase();
     const errors = [];
-    if (!environment || !["development", "test"].includes(environment)) {
+    if (!environment || !["development", "test", "staging"].includes(environment)) {
       errors.push({ code: "PHASE5_ENVIRONMENT_BLOCKED" });
     }
     if (!identity || !identity.expectedSpreadsheetId ||
@@ -663,7 +663,8 @@
       if (missing.length) appendedColumns[name] = missing;
     });
     return Object.freeze({
-      phase: 5, version: VERSION, blocked: errors.length > 0, errors,
+      phase: 5, version: VERSION, environment, dryRun: true,
+      blocked: errors.length > 0, errors,
       plannedCreatedSheets: createdSheets, plannedAppendedColumns: appendedColumns,
       executionAllowed: false, writes: 0, historicalRowsTouched: 0
     });

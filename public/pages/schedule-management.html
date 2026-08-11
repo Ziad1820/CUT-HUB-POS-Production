@@ -5,31 +5,35 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Staff Scheduling - SALONIX</title>
   <link rel="stylesheet" href="../assets/css/shared.css">
-  <link rel="stylesheet" href="../assets/css/pages/schedule-management.css">
+  <link rel="stylesheet" href="../assets/css/pages/schedule-management.css?v=20260811-1">
+  <link rel="stylesheet" href="../assets/css/system-layout.css">
 </head>
 <body>
-  <div class="schedule-app">
-    <header class="schedule-header">
-      <button class="menu-toggle" id="menuToggle" type="button" aria-label="فتح القائمة">☰</button>
-      <div>
+  <div class="schedule-app system-app">
+    <header class="schedule-header system-header">
+      <div class="system-header-menu">
+        <button class="menu-toggle" id="menuToggle" type="button" aria-label="فتح القائمة">☰</button>
+      </div>
+      <div class="header-copy">
         <p class="eyebrow">SALONIX · PHASE 2</p>
         <h1>جداول الموظفين</h1>
         <p>إدارة الجداول الأسبوعية والاستثناءات بدون تعديل Google Sheets مباشرة.</p>
       </div>
-      <div class="actions">
+      <div class="actions header-actions">
         <button class="secondary-btn owner-only" id="migrationPreviewBtn" type="button" hidden>معاينة الترحيل</button>
         <button class="secondary-btn" id="refreshBtn" type="button">تحديث</button>
       </div>
     </header>
 
-    <main>
+    <main class="system-content">
       <section class="panel filters" aria-label="مرشحات الجدول">
-        <label>الموظف<select id="staffFilter"></select></label>
+        <label>الموظف<select id="staffFilter" aria-describedby="staffEmptyState"><option value="">جاري تحميل الموظفين…</option></select></label>
         <label>الفرع<select id="branchFilter"><option value="">كل الفروع</option></select></label>
         <label>بداية العرض<input id="rangeStart" type="date"></label>
         <label>نهاية العرض<input id="rangeEnd" type="date"></label>
         <label class="check"><input id="activeOnly" type="checkbox" checked> الموظفون النشطون فقط</label>
         <button class="primary-btn" id="loadRangeBtn" type="button">عرض الفترة</button>
+        <p class="filter-empty-state" id="staffEmptyState" role="status" hidden></p>
       </section>
 
       <div id="statusBanner" class="status" role="status" aria-live="polite"></div>
@@ -71,6 +75,28 @@
         <div id="scopeEmpty" class="empty" hidden>لا توجد روابط مستخدمين بعد.</div>
       </section>
 
+      <section class="panel owner-only" id="workPolicyPanel" aria-labelledby="workPolicyTitle" hidden>
+        <div class="section-title">
+          <div>
+            <h2 id="workPolicyTitle">سياسات العمل</h2>
+            <p>إدارة السياسة الفعالة للموظف المحدد مع الاحتفاظ بالسجل السابق للتدقيق.</p>
+          </div>
+          <div class="actions">
+            <button class="secondary-btn" id="refreshPoliciesBtn" type="button">تحديث السياسات</button>
+            <button class="secondary-btn" id="recoverPolicyAvailabilityBtn" type="button">Recover Phase 5</button>
+            <button class="primary-btn" id="addPolicyBtn" type="button">إضافة سياسة</button>
+          </div>
+        </div>
+        <div id="workPolicyStatus" class="inline-status" role="status" aria-live="polite"></div>
+        <div class="table-scroll">
+          <table class="work-policy-table">
+            <thead><tr><th>المعرّف</th><th>الفترة الفعالة</th><th>دقائق العمل</th><th>البريك</th><th>أساس الراتب</th><th>العملة</th><th>الحالة</th><th>إجراء</th></tr></thead>
+            <tbody id="workPolicyBody"></tbody>
+          </table>
+        </div>
+        <div id="workPolicyEmpty" class="empty">اختر موظفًا لعرض سياسات العمل.</div>
+      </section>
+
       <section class="panel">
         <div class="section-title">
           <div><h2>عرض الفترة والاستثناءات</h2><p>النتيجة المحسومة توضح مصدر الجدول وأي إجازة أو إغلاق أو فترة محجوبة.</p></div>
@@ -101,14 +127,9 @@
     </main>
   </div>
 
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
-  <aside class="sidebar" id="sidebar" aria-label="القائمة الرئيسية">
-    <h3>Menu</h3>
-    <button class="sidebar-link" type="button" data-href="dashboard.html">Dashboard</button>
-    <button class="sidebar-link" type="button" data-href="attendance.html">Attendance</button>
-    <button class="sidebar-link active" type="button">Staff Scheduling</button>
-    <button class="sidebar-link" type="button" data-href="bookings.html">Bookings</button>
-    <button class="sidebar-link" type="button" data-href="system-access.html">System Access</button>
+  <div class="sidebar-overlay system-sidebar-overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar system-sidebar" id="sidebar" aria-label="القائمة الرئيسية">
+    <h3>القائمة</h3>
     <button type="button" id="logoutBtn">Logout</button>
   </aside>
 
@@ -183,6 +204,25 @@
     </form>
   </dialog>
 
+  <dialog id="workPolicyDialog" aria-labelledby="workPolicyDialogTitle">
+    <form id="workPolicyForm" method="dialog">
+      <div class="dialog-title"><h2 id="workPolicyDialogTitle">إضافة سياسة عمل</h2><button type="button" data-close="workPolicyDialog" aria-label="إغلاق">×</button></div>
+      <p class="dialog-hint">يتم نسخ الحقول الكاملة من سياسة سابقة لنفس الموظف، ثم تطبيق القيم المحددة أدناه فقط.</p>
+      <div class="form-grid work-policy-form-grid">
+        <label class="wide">الموظف<input id="policyStaffName" readonly></label>
+        <label class="wide">السياسة المصدر<select id="policySourceId" required></select></label>
+        <label>فعالة من<input id="policyEffectiveFrom" type="date" required></label>
+        <label>فعالة إلى<input id="policyEffectiveTo" type="date" required></label>
+        <label>دقائق العمل المطلوبة<input id="policyRequiredMinutes" type="number" min="0" step="1" required></label>
+        <label>دقائق البريك المسموح<input id="policyBreakMinutes" type="number" min="0" step="1" required></label>
+        <label>أساس الراتب<select id="policySalaryBasis" required><option value="MONTHLY">شهري</option><option value="DAILY">يومي</option><option value="HOURLY">بالساعة</option><option value="PER_MINUTE">بالدقيقة</option></select></label>
+        <label>العملة<input id="policyCurrency" maxlength="3" value="EGP" required></label>
+        <label class="wide">سبب الإنشاء<input id="policyReason" maxlength="500" required></label>
+      </div>
+      <div class="dialog-actions"><button class="secondary-btn" type="button" data-close="workPolicyDialog">إلغاء</button><button class="primary-btn" id="savePolicyBtn" type="submit">حفظ السياسة</button></div>
+    </form>
+  </dialog>
+
   <dialog id="decisionDialog" aria-labelledby="decisionDialogTitle">
     <form id="decisionForm" method="dialog">
       <div class="dialog-title"><h2 id="decisionDialogTitle">تأكيد الإجراء</h2><button type="button" id="decisionCloseBtn" aria-label="إغلاق">×</button></div>
@@ -211,6 +251,6 @@
   <script src="../assets/js/utils/layout.js"></script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>
-  <script src="../assets/js/pages/schedule-management.js"></script>
+  <script src="../assets/js/pages/schedule-management.js?v=20260811-1"></script>
 </body>
 </html>

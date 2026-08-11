@@ -975,7 +975,8 @@ test("safe sheet writer fails closed when the Sheets Advanced Service is unavail
   const sheet = { getSheetId: () => 101 };
   assert.throws(
     () => context.writeSheetRowWithExplicitValues(sheet, 2, ["=SUM(1,1)"]),
-    /SAFE_SHEET_WRITE_UNAVAILABLE/
+    error => error.code === "SAFE_SHEET_WRITE_UNAVAILABLE" &&
+      error.businessMutationState === "NOT_STARTED"
   );
 });
 

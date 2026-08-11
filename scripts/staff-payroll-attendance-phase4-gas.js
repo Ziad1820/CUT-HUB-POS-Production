@@ -1,5 +1,5 @@
 /* global StaffPayrollAttendancePhase4, SpreadsheetApp, LockService, PropertiesService,
-  Utilities, getCutHubEnvironmentConfig, jsonOutput, schedulePhase2Actor,
+  Utilities, console, getCutHubEnvironmentConfig, assertStagingEnvironment, jsonOutput, schedulePhase2Actor,
   schedulePhase2ReadRows, schedulePhase2Headers, schedulePhase2AssertHeaders,
   schedulePhase2AssertNoDuplicateHeaders, schedulePhase2Canonical, schedulePhase2Camel,
   schedulePhase2Sheet, schedulePhase2RecordUndo, schedulePhase2RollbackTransaction,
@@ -19,6 +19,34 @@ function payrollAttendancePhase4ReadJsonFields(record, fields) {
     }
   });
   return record;
+}
+
+function payrollAttendancePhase4DateOnly(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, StaffPayrollAttendancePhase4.TIME_ZONE, "yyyy-MM-dd");
+  }
+  var source = String(value || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(source)) return source;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(source)) {
+    var parsed = new Date(source);
+    if (!isNaN(parsed.getTime())) {
+      return Utilities.formatDate(parsed, StaffPayrollAttendancePhase4.TIME_ZONE, "yyyy-MM-dd");
+    }
+  }
+  return source;
+}
+
+function payrollAttendancePhase4NormalizeDateOnlyFields(record, fields) {
+  fields.forEach(function (key) {
+    record[key] = payrollAttendancePhase4DateOnly(record[key]);
+  });
+  return record;
+}
+
+function payrollAttendancePhase4ReadPeriods() {
+  return schedulePhase2ReadRows("PAYROLL_ATTENDANCE_PERIODS").map(function (item) {
+    return payrollAttendancePhase4NormalizeDateOnlyFields(item, ["startDate", "endDate"]);
+  });
 }
 
 function payrollAttendancePhase4ReadStaff() {
@@ -68,6 +96,7 @@ function payrollAttendancePhase4ReadStaff() {
 
 function payrollAttendancePhase4ReadSettlements() {
   return schedulePhase2ReadRows("PAYROLL_ATTENDANCE_SETTLEMENTS").map(function (item) {
+    payrollAttendancePhase4NormalizeDateOnlyFields(item, ["periodStart", "periodEnd"]);
     payrollAttendancePhase4ReadJsonFields(item, [
       "sourceAttendanceDayIds", "sourceAttendanceSnapshot",
       "policySnapshot", "salarySnapshot", "warnings", "blockers"
@@ -131,10 +160,10 @@ function payrollAttendancePhase4WithTransaction(details, callback) {
 
 function payrollAttendancePhase4CreateRepository() {
   return {
-    listPeriods: function () { return schedulePhase2ReadRows("PAYROLL_ATTENDANCE_PERIODS"); },
+    listPeriods: payrollAttendancePhase4ReadPeriods,
     getPeriod: function (id) {
       return payrollAttendancePhase4Unique(
-        schedulePhase2ReadRows("PAYROLL_ATTENDANCE_PERIODS"),
+        payrollAttendancePhase4ReadPeriods(),
         "payrollPeriodId", id, "PAYROLL_PERIOD_ID_AMBIGUOUS");
     },
     savePeriod: function (record) {
@@ -265,15 +294,18 @@ function payrollAttendancePhase4AssertSchema() {
 function payrollAttendancePhase4AssertPreviewEnvironment() {
   var config = getCutHubEnvironmentConfig();
   var environment = String(config.environment || "").toLowerCase();
-  if (["staging", "production"].indexOf(environment) !== -1) {
-    var blocked = new Error("Phase 4 migration preview cannot access staging or production.");
+  if (environment === "production") {
+    var blocked = new Error("Phase 4 migration preview cannot access production.");
     blocked.code = "PHASE4_ENVIRONMENT_BLOCKED";
     throw blocked;
   }
-  if (["development", "test"].indexOf(environment) === -1) {
-    var invalid = new Error("Phase 4 migration preview requires development or test identity.");
+  if (["development", "test", "staging"].indexOf(environment) === -1) {
+    var invalid = new Error("Phase 4 migration preview requires a recognized environment identity.");
     invalid.code = "PAYROLL_ENVIRONMENT_IDENTITY_INVALID";
     throw invalid;
+  }
+  if (environment === "staging") {
+    return assertStagingEnvironment().config;
   }
   return config;
 }
@@ -290,8 +322,90 @@ function previewPayrollPhase4Migration(data) {
     environment: identity.config.environment,
     expectedSpreadsheetId: identity.config.spreadsheetId,
     actualSpreadsheetId: identity.spreadsheet.getId(),
-    environmentReviewApproved: false
+    environmentReviewApproved: config.environment === "staging"
   });
+}
+
+function diagnosticPreviewPayrollPhase4Migration(data) {
+  var config = getCutHubEnvironmentConfig();
+  var environment = String(config.environment || "").toLowerCase();
+  if (["development", "staging"].indexOf(environment) === -1) {
+    var blocked = new Error("Payroll migration diagnostic preview is limited to development and staging.");
+    blocked.code = "PAYROLL_DIAGNOSTIC_PREVIEW_ENVIRONMENT_BLOCKED";
+    throw blocked;
+  }
+  if (environment === "staging") assertStagingEnvironment();
+  var result = previewPayrollPhase4Migration(data);
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+function payrollAttendancePhase4RunDiagnosticPreview(data) {
+  var config = getCutHubEnvironmentConfig();
+  var environment = String(config.environment || "").toLowerCase();
+  if (["development", "staging"].indexOf(environment) === -1) {
+    var blocked = new Error("Payroll migration diagnostic preview is limited to development and staging.");
+    blocked.code = "PAYROLL_DIAGNOSTIC_PREVIEW_ENVIRONMENT_BLOCKED";
+    throw blocked;
+  }
+  if (environment === "staging") assertStagingEnvironment();
+  return previewPayrollPhase4Migration(data);
+}
+
+function diagnosticPreviewPayrollPhase4MigrationSummary(data) {
+  var result = payrollAttendancePhase4RunDiagnosticPreview(data);
+  console.log(JSON.stringify({
+    schemaVersion: result.schemaVersion,
+    version: result.version || StaffPayrollAttendancePhase4.VERSION,
+    dryRun: result.dryRun,
+    writes: result.writes,
+    executionAllowed: result.executionAllowed,
+    identity: result.identity,
+    createSheetNames: (result.createSheets || []).map(function (item) { return item.sheetName; }),
+    initializeBlankSheetNames: (result.initializeBlankSheets || []).map(function (item) {
+      return item.sheetName;
+    }),
+    appendColumnSheetNames: Object.keys(result.appendColumns || {}),
+    unchangedSheetNames: result.unchangedSheets || [],
+    errorCodes: (result.errors || []).map(function (item) { return item.code; }),
+    safe: result.safe
+  }));
+  return result;
+}
+
+function diagnosticPreviewPayrollPhase4MigrationSafety(data) {
+  var result = payrollAttendancePhase4RunDiagnosticPreview(data);
+  console.log(JSON.stringify({
+    errors: result.errors || [],
+    rollback: result.rollback || {},
+    safe: result.safe,
+    dryRun: result.dryRun,
+    writes: result.writes,
+    executionAllowed: result.executionAllowed,
+    historicalRowsTouched: result.rollback && result.rollback.historicalRowsTouched
+  }));
+  return result;
+}
+
+function diagnosticPreviewPayrollPhase4MigrationSheets(data) {
+  var result = payrollAttendancePhase4RunDiagnosticPreview(data);
+  (result.createSheets || []).forEach(function (item) {
+    console.log(JSON.stringify({
+      sheetName: item.sheetName,
+      headerCount: (item.headers || []).length,
+      headers: item.headers || []
+    }));
+  });
+  return result;
+}
+
+function diagnosticPreviewPayrollPhase4MigrationColumns(data) {
+  var result = payrollAttendancePhase4RunDiagnosticPreview(data);
+  console.log(JSON.stringify({
+    appendColumns: result.appendColumns || {},
+    preservedUnknownColumns: result.preservedUnknownColumns || {}
+  }));
+  return result;
 }
 
 function handleStaffPayrollAttendancePhase4Action(data) {

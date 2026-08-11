@@ -1,5 +1,5 @@
-/* global StaffSchedulingPhase2, SpreadsheetApp, LockService, Utilities,
-  getAuthenticatedUser, normalizeManagedPermissions, getCutHubEnvironmentConfig,
+/* global StaffSchedulingPhase2, SpreadsheetApp, LockService, Utilities, console,
+  getAuthenticatedUser, normalizeManagedPermissions, getCutHubEnvironmentConfig, assertStagingEnvironment,
   readUsersFromSheet, jsonOutput */
 
 /**
@@ -68,6 +68,17 @@ function schedulePhase2AssertHeaders(name, expected) {
       throw prefixError;
     }
   }
+  if (name === "STAFF") {
+    var staffPrefix = StaffSchedulingPhase2.STAFF_LEGACY_HEADERS;
+    var staffDisplaced = staffPrefix.some(function (header, index) {
+      return headers[index] !== schedulePhase2Canonical(header);
+    });
+    if (staffDisplaced) {
+      var staffPrefixError = new Error("Protected positional STAFF columns were displaced.");
+      staffPrefixError.code = "INCOMPATIBLE_STAFF_POSITIONAL_PREFIX";
+      throw staffPrefixError;
+    }
+  }
   var missing = expected.filter(function (header) {
     return headers.indexOf(schedulePhase2Canonical(header)) === -1;
   });
@@ -96,9 +107,14 @@ function schedulePhase2ReadRows(name) {
           : value.toISOString();
       }
       if (/_JSON$/.test(header)) {
+        var canonicalJsonKey = key;
+        var canonicalJsonValue = value === undefined || value === null ? "" : String(value);
         try { value = value ? JSON.parse(String(value)) : (header === "BRANCH_IDS_JSON" ? [] : null); }
         catch (_error) { value = header === "BRANCH_IDS_JSON" ? [] : null; }
         key = key.replace(/Json$/, "");
+        if (name === "STAFF_WORK_POLICIES") {
+          record[canonicalJsonKey] = canonicalJsonValue;
+        }
       }
       record[key] = value;
     });
@@ -163,11 +179,13 @@ function schedulePhase2Save(name, schema, idHeader, record) {
 }
 
 function schedulePhase2ReadStaff() {
-  var sheet = schedulePhase2Sheet("STAFF", true);
+  var ready = schedulePhase2AssertHeaders(
+    "STAFF", StaffSchedulingPhase2.PHASE2_SHEET_SCHEMAS.STAFF
+  );
+  var sheet = ready.sheet;
   if (sheet.getLastRow() < 2) return [];
-  var width = Math.max(11, sheet.getLastColumn());
-  var headers = schedulePhase2Headers(sheet);
-  schedulePhase2AssertNoDuplicateHeaders("STAFF", headers);
+  var headers = ready.headers;
+  var width = headers.length;
   var branchIndex = headers.indexOf("BRANCH_ID");
   return sheet.getRange(2, 1, sheet.getLastRow() - 1, width).getValues()
     .map(function (row, index) {
@@ -471,6 +489,7 @@ function schedulePhase2AssertEnvironmentIdentity() {
 }
 
 function previewStaffScheduleMigration(data) {
+  data = data && typeof data === "object" ? data : {};
   var spreadsheet = SpreadsheetApp.getActive();
   var config = getCutHubEnvironmentConfig();
   var existing = {};
@@ -484,6 +503,24 @@ function previewStaffScheduleMigration(data) {
     actualSpreadsheetId: spreadsheet.getId(),
     environmentReviewApproved: data.environmentReviewApproved === true
   });
+}
+
+function diagnosticPreviewStaffScheduleMigration(data) {
+  var config = getCutHubEnvironmentConfig();
+  var environment = String(config.environment || "").toLowerCase();
+  if (["development", "staging"].indexOf(environment) === -1) {
+    var blocked = new Error("Schedule migration diagnostic preview is limited to development and staging.");
+    blocked.code = "SCHEDULE_DIAGNOSTIC_PREVIEW_ENVIRONMENT_BLOCKED";
+    throw blocked;
+  }
+  var previewData = data && typeof data === "object" ? Object.assign({}, data) : {};
+  if (environment === "staging") {
+    assertStagingEnvironment();
+    previewData.environmentReviewApproved = true;
+  }
+  var result = previewStaffScheduleMigration(previewData);
+  console.log(JSON.stringify(result, null, 2));
+  return result;
 }
 
 function handleStaffSchedulingPhase2Action(data) {

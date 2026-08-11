@@ -35,7 +35,8 @@ input, select, textarea { min-width: 10rem; padding: .65rem; border: 1px solid v
 .lifecycle-panel span { display: block; color: var(--payroll-muted); margin-top: .25rem; }
 .action-row { display: flex; flex-wrap: wrap; gap: .5rem; }
 .page-message { padding: .85rem; border-radius: 10px; background: #ffeded; color: #7a2525; border: 1px solid #efc1c1; }
-.table-scroll { overflow: auto; }
+.table-panel { min-width: 0; }
+.table-scroll { max-width: 100%; overflow: auto; }
 table { width: 100%; border-collapse: collapse; min-width: 1050px; }
 th, td { padding: .75rem; text-align: right; border-bottom: 1px solid var(--payroll-line); vertical-align: top; }
 th { color: var(--payroll-muted); background: #f8fbfa; position: sticky; top: 0; }
@@ -59,6 +60,7 @@ pre { direction: ltr; text-align: left; white-space: pre-wrap; overflow-wrap: an
 .sidebar { position: fixed; inset-block: 0; inset-inline-start: 0; width: 260px; background: #fff; padding: 1rem; z-index: 21; transform: translateX(110%); transition: transform .2s; display: grid; align-content: start; gap: .5rem; box-shadow: 0 0 25px rgba(0, 0, 0, .14); }
 .sidebar.active { transform: translateX(0); }
 .sidebar-overlay.active { display: block; }
+.system-sidebar { transform: none; }
 
 @media (max-width: 1100px) {
   .summary-grid { grid-template-columns: repeat(3, 1fr); }

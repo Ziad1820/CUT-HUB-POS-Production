@@ -6,20 +6,25 @@
   <title>تسويات الحضور والرواتب - SALONIX</title>
   <link rel="stylesheet" href="../assets/css/shared.css">
   <link rel="stylesheet" href="../assets/css/pages/payroll-attendance.css">
+  <link rel="stylesheet" href="../assets/css/system-layout.css">
 </head>
 <body>
-  <div class="payroll-app">
-    <header class="payroll-header">
-      <button type="button" class="menu-toggle" id="menuToggle" aria-label="فتح القائمة">☰</button>
-      <div>
+  <div class="payroll-app system-app">
+    <header class="payroll-header system-header">
+      <div class="system-header-menu">
+        <button type="button" class="menu-toggle" id="menuToggle" aria-label="فتح القائمة">☰</button>
+      </div>
+      <div class="system-header-copy">
         <p class="eyebrow">SALONIX · PAYROLL ATTENDANCE</p>
         <h1>تسويات الحضور والرواتب</h1>
         <p>تسوية دورية مبنية فقط على نتائج الحضور اليومية المعتمدة.</p>
       </div>
-      <div id="syncState" class="sync-state" role="status" aria-live="polite">جارٍ التحميل…</div>
+      <div class="system-header-actions">
+        <div id="syncState" class="sync-state" role="status" aria-live="polite">جارٍ التحميل…</div>
+      </div>
     </header>
 
-    <main>
+    <main class="system-content">
       <section class="panel period-toolbar" aria-label="اختيار فترة الرواتب">
         <label>الفترة
           <select id="periodSelect"><option value="">اختر فترة</option></select>
@@ -87,12 +92,9 @@
     </main>
   </div>
 
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
-  <aside class="sidebar" id="sidebar" aria-label="القائمة الرئيسية">
+  <div class="sidebar-overlay system-sidebar-overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar system-sidebar" id="sidebar" aria-label="القائمة الرئيسية">
     <h3>القائمة</h3>
-    <button class="sidebar-link active" type="button">تسويات الحضور</button>
-    <button class="sidebar-link" type="button" data-href="attendance.html">الحضور</button>
-    <button class="sidebar-link" type="button" data-href="dashboard.html">لوحة التحكم</button>
     <button type="button" id="logoutBtn">تسجيل الخروج</button>
   </aside>
 
@@ -161,6 +163,6 @@
   <script src="../assets/js/core/auth.js"></script>
   <script src="../assets/js/utils/layout.js"></script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
-  <script src="../assets/js/pages/payroll-attendance.js"></script>
+  <script src="../assets/js/pages/payroll-attendance.js?v=20260809-1"></script>
 </body>
 </html>

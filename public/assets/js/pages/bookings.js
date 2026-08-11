@@ -3,7 +3,7 @@
   const $ = (id) => document.getElementById(id);
   const elements = {
     formPanel: document.querySelector(".booking-form-panel"), form: $("bookingForm"),
-    customerName: $("customerName"), customerPhone: $("customerPhone"), date: $("bookingDate"),
+    customerName: $("customerName"), customerPhone: $("customerPhone"), branch: $("bookingBranch"), date: $("bookingDate"),
     time: $("bookingTime"), employee: $("bookingEmployee"), services: $("internalServices"),
     serviceSummary: $("internalServiceSummary"), otherFields: $("otherServiceFields"),
     otherName: $("otherServiceName"), otherDuration: $("otherServiceDuration"), note: $("bookingNote"),
@@ -27,7 +27,8 @@
     ratings: [], ratingMeta: null, countdownTimer: null, refreshTimer: null,
     pendingCreateRequest: null, availabilityToken: "", availabilityPollTimer: null,
     availabilityPollDelay: 10000, availabilityRequestSequence: 0,
-    liveRefreshEnabled: false, pendingMutationRequests: new Map()
+    liveRefreshEnabled: false, pendingMutationRequests: new Map(),
+    bookingRequestSequence: 0, bookingReloadQueued: false
   };
   const text = (ar, en) => document.documentElement.lang === "en" ? en : ar;
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -126,15 +127,23 @@
   }
 
   async function fetchBookings({ silent = false } = {}) {
-    if (state.busy || state.modalOpen) return;
+    const requestedDate = elements.filterDate.value;
+    const requestedStatus = elements.status.value;
+    const requestSequence = ++state.bookingRequestSequence;
+    if (state.busy || state.modalOpen) {
+      state.bookingReloadQueued = true;
+      return;
+    }
     state.busy = true;
     if (!silent) elements.list.innerHTML = `<div class="empty-state"><span class="spinner"></span> ${text("جاري تحميل الحجوزات...", "Loading bookings...")}</div>`;
     try {
       const response = await RomeoApi.request({
         action: "getBookings",
-        filters: { date: elements.filterDate.value, status: elements.status.value }
+        filters: { date: requestedDate, status: requestedStatus }
       });
       if (response?.status !== "success") throw new Error(response?.message || text("تعذر تحميل الحجوزات.", "Could not load bookings."));
+      if (requestSequence !== state.bookingRequestSequence ||
+          elements.filterDate.value !== requestedDate || elements.status.value !== requestedStatus) return;
       state.bookings = (response.bookings || []).map(normalizeBooking);
       render();
     } catch (error) {
@@ -142,6 +151,10 @@
       notify(error.message, "error");
     } finally {
       state.busy = false;
+      if (state.bookingReloadQueued || requestSequence !== state.bookingRequestSequence) {
+        state.bookingReloadQueued = false;
+        setTimeout(() => fetchBookings({ silent: true }), 0);
+      }
     }
   }
 
@@ -259,15 +272,57 @@
   }
 
   async function loadServiceOptions() {
+    const branchId = elements.branch.value;
+    if (!branchId) {
+      elements.employee.innerHTML = `<option value="">${text("اختر الفرع أولاً", "Choose a branch first")}</option>`;
+      elements.employee.disabled = true;
+      elements.services.innerHTML = "";
+      elements.slotStatus.textContent = text("اختر الفرع أولاً.", "Choose a branch first.");
+      return;
+    }
     const response = await RomeoApi.request({
-      action: "getPublicBookingOptions", date: elements.date.value, audience: "internal"
+      action: "getPublicBookingOptions", branchId, date: elements.date.value, audience: "internal"
     });
     if (response?.status !== "success") throw new Error(response?.message || "Could not load services.");
+    if (elements.branch.value !== branchId) return;
     state.services = response.services || [];
     state.barbers = response.barbers || [];
+    elements.employee.disabled = false;
+    elements.slotStatus.textContent = "";
     elements.employee.innerHTML = `<option value="">${text("اختر الموظف", "Choose employee")}</option>` +
       state.barbers.map((barber) => `<option value="${escapeHtml(barber.staffId)}">${escapeHtml(barber.name)}</option>`).join("");
     renderServiceOptions();
+  }
+
+  async function loadBranchOptions() {
+    const response = await RomeoApi.request({ action: "listBookingBranches" });
+    if (response?.status !== "success") throw new Error(response?.message || text("تعذر تحميل الفروع.", "Could not load branches."));
+    const branches = (response.branches || []).filter((branch) => branch.active !== false);
+    elements.branch.innerHTML = `<option value="">${text("اختر الفرع", "Choose branch")}</option>` +
+      branches.map((branch) => `<option value="${escapeHtml(branch.branchId)}">${escapeHtml(branch.branchName || branch.branchId)}</option>`).join("");
+    if (branches.length === 1) elements.branch.value = String(branches[0].branchId);
+  }
+
+  function clearInternalAvailability() {
+    state.availabilityRequestSequence += 1;
+    state.availabilityToken = "";
+    state.liveRefreshEnabled = false;
+    clearTimeout(state.availabilityPollTimer);
+    state.availabilityPollTimer = null;
+    state.barbers = [];
+    elements.employee.innerHTML = `<option value="">${text("اختر الموظف", "Choose employee")}</option>`;
+    elements.time.innerHTML = `<option value="">${text("اختر التاريخ والموظف والخدمات", "Choose date, employee, and services")}</option>`;
+    elements.time.disabled = true;
+  }
+
+  async function changeInternalBranch() {
+    clearInternalAvailability();
+    state.services = [];
+    state.selectedServiceIds.clear();
+    state.otherService = false;
+    state.pendingCreateRequest = null;
+    renderServiceOptions();
+    await loadServiceOptions();
   }
 
   function renderServiceOptions() {
@@ -288,12 +343,19 @@
   }
 
   async function loadInternalSlots({ silent = false } = {}) {
+    const branchId = elements.branch.value;
     const employeeId = elements.employee.value;
     const serviceIds = [...state.selectedServiceIds];
     const duration = state.otherService ? Number(elements.otherDuration.value) : 0;
     if (!silent) {
     elements.time.innerHTML = `<option value="">${text("جاري تحميل المواعيد...", "Loading appointments...")}</option>`;
     elements.time.disabled = true;
+    }
+    if (!branchId) {
+      elements.time.innerHTML = `<option value="">${text("اختر الفرع أولاً", "Choose a branch first")}</option>`;
+      elements.time.disabled = true;
+      elements.slotStatus.textContent = text("اختر الفرع أولاً.", "Choose a branch first.");
+      return;
     }
     if (!elements.date.value || !employeeId || (!state.otherService && !serviceIds.length) || (state.otherService && duration < 15)) {
       elements.slotStatus.textContent = text("اختر التاريخ والموظف والخدمات.", "Choose date, employee, and services.");
@@ -302,7 +364,7 @@
     const requestSequence = ++state.availabilityRequestSequence;
     try {
       const response = await RomeoApi.request({
-        action: "getPublicBookingOptions", date: elements.date.value, serviceIds,
+        action: "getPublicBookingOptions", branchId, date: elements.date.value, serviceIds,
         durationMinutes: state.otherService ? duration : undefined,
         audience: "internal", ifNoneMatch: silent ? state.availabilityToken : ""
       });
@@ -356,6 +418,8 @@
 
   async function createBooking(event) {
     event.preventDefault();
+    const branchId = elements.branch.value;
+    if (!branchId) return notify(text("اختر الفرع أولاً.", "Choose a branch first."), "error");
     const selected = state.services.filter((service) => state.selectedServiceIds.has(String(service.serviceId)));
     if ((!selected.length && !state.otherService) || (state.otherService && (!elements.otherName.value.trim() || Number(elements.otherDuration.value) < 15))) {
       return notify(text("اختر الخدمات أو أكمل بيانات الخدمة الأخرى.", "Select services or complete Other Service details."), "error");
@@ -365,7 +429,7 @@
     state.busy = true;
     try {
       const response = await RomeoApi.request(attachClientRequestId({
-        action: "createBooking", customerName: elements.customerName.value.trim(),
+        action: "createBooking", branchId, customerName: elements.customerName.value.trim(),
         customerPhone: elements.customerPhone.value.trim(), date: elements.date.value, time: elements.time.value,
         employeeId: elements.employee.value, employee: employeeOption?.textContent || "",
         serviceId: state.otherService ? "" : selected[0]?.serviceId,
@@ -387,8 +451,9 @@
   }
 
   function resetForm() {
+    const keepBranch = elements.branch.value;
     const keepDate = elements.date.value;
-    elements.form.reset(); elements.date.value = keepDate || todayKey();
+    elements.form.reset(); elements.branch.value = keepBranch; elements.date.value = keepDate || todayKey();
     state.selectedServiceIds.clear(); state.otherService = false; state.pendingCreateRequest = null;
     renderServiceOptions(); loadInternalSlots();
   }
@@ -422,20 +487,35 @@
         <label><span>${text("الموعد المتاح", "Available appointment")}</span><select id="proposalTime" disabled><option>${text("جاري التحميل...", "Loading...")}</option></select></label>
         <small id="proposalStatus" aria-live="polite"></small>`,
       onOpen: (body) => {
+        let requestSequence = 0;
         const load = async () => {
-          const response = await RomeoApi.request({
-            action: "getPublicBookingOptions", branchId: booking.branchId,
-            date: body.querySelector("#proposalDate").value,
-            serviceIds: booking.serviceIds, durationMinutes: booking.serviceIds.length ? undefined : booking.durationMinutes,
-            audience: "internal"
-          });
-          const barber = (response.barbers || []).find((item) => item.staffId === booking.employeeId || item.name === booking.employee);
           const select = body.querySelector("#proposalTime");
-          const slots = barber?.slots || [];
-          select.innerHTML = `<option value="">${slots.length ? text("اختر الموعد", "Choose time") : text("لا توجد مواعيد متاحة", "No available appointments")}</option>` +
-            slots.map((time) => `<option value="${time}">${formatTime(time)}</option>`).join("");
-          select.disabled = !slots.length;
-          body.querySelector("#proposalStatus").textContent = slots.length ? "" : text("لا توجد مواعيد متاحة للمدة المختارة.", "No available appointments for the selected duration.");
+          const status = body.querySelector("#proposalStatus");
+          const proposedDate = body.querySelector("#proposalDate").value;
+          const sequence = ++requestSequence;
+          select.disabled = true;
+          select.innerHTML = `<option value="">${text("جاري التحميل...", "Loading...")}</option>`;
+          status.textContent = "";
+          try {
+            const response = await RomeoApi.request({
+              action: "getPublicBookingOptions", branchId: booking.branchId,
+              date: proposedDate,
+              serviceIds: booking.serviceIds, durationMinutes: booking.serviceIds.length ? undefined : booking.durationMinutes,
+              audience: "internal"
+            });
+            if (sequence !== requestSequence || body.querySelector("#proposalDate").value !== proposedDate) return;
+            if (response?.status !== "success") throw new Error(response?.message || text("تعذر تحميل المواعيد.", "Could not load appointments."));
+            const barber = (response.barbers || []).find((item) => item.staffId === booking.employeeId || item.name === booking.employee);
+            const slots = barber?.slots || [];
+            select.innerHTML = `<option value="">${slots.length ? text("اختر الموعد", "Choose time") : text("لا توجد مواعيد متاحة", "No available appointments")}</option>` +
+              slots.map((time) => `<option value="${time}">${formatTime(time)}</option>`).join("");
+            select.disabled = !slots.length;
+            status.textContent = slots.length ? "" : text("لا توجد مواعيد متاحة للمدة المختارة.", "No available appointments for the selected duration.");
+          } catch (error) {
+            if (sequence !== requestSequence) return;
+            select.innerHTML = `<option value="">${text("لا توجد مواعيد متاحة", "No available appointments")}</option>`;
+            status.textContent = error.message || text("تعذر تحميل المواعيد.", "Could not load appointments.");
+          }
         };
         body.querySelector("#proposalDate").onchange = load; load();
       },
@@ -444,6 +524,7 @@
         const proposedTime = body.querySelector("#proposalTime").value;
         if (!proposedDate || !proposedTime) { notify(text("اختر موعدًا متاحًا.", "Choose an available appointment."), "error"); return false; }
         await updateStatus(booking, "proposed", { proposedDate, proposedTime });
+        setTimeout(() => fetchBookings({ silent: true }), 0);
         return true;
       }
     });
@@ -477,6 +558,7 @@
         } else {
           await updateStatus(booking, config.status, { [config.key]: reason });
         }
+        setTimeout(() => fetchBookings({ silent: true }), 0);
         return true;
       }
     });
@@ -586,6 +668,7 @@
 
   elements.form.addEventListener("submit", createBooking);
   elements.clear.addEventListener("click", resetForm);
+  elements.branch.addEventListener("change", () => changeInternalBranch().catch((error) => notify(error.message, "error")));
   elements.services.addEventListener("change", (event) => {
     const service = event.target.closest("[data-service-id]");
     const other = event.target.closest("[data-other-service]");
@@ -636,7 +719,10 @@
   elements.date.value = todayKey();
   elements.date.min = todayKey();
   elements.filterDate.value = todayKey();
-  Promise.all([loadServiceOptions(), fetchBookings()]).catch((error) => notify(error.message, "error"));
+  Promise.all([
+    loadBranchOptions().then(loadServiceOptions),
+    fetchBookings()
+  ]).catch((error) => notify(error.message, "error"));
   state.countdownTimer = setInterval(updateCountdowns, 1000);
   state.refreshTimer = setInterval(() => {
     if (!state.modalOpen && !state.busy) {

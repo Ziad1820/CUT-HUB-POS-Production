@@ -1262,7 +1262,7 @@ test("export audit failure produces no completed idempotency or export evidence"
   assert.equal(base.getState().idempotency.length, 0);
 });
 
-test("migration preview is zero-write and blocks staging and production", () => {
+test("migration preview is zero-write, permits approved staging review, and blocks production", () => {
   const identity = {
     environment: "development", expectedSpreadsheetId: "X",
     actualSpreadsheetId: "X", environmentReviewApproved: true
@@ -1285,10 +1285,16 @@ test("migration preview is zero-write and blocks staging and production", () => 
     PAYROLL_ATTENDANCE_PERIODS: ["PAYROLL_PERIOD_ID", "payroll-period-id"]
   }, identity);
   assert.ok(duplicate.errors.some(item => item.code === "DUPLICATE_HEADERS"));
-  for (const environment of ["staging", "production"]) {
-    const blocked = phase4.planMigration({}, { ...identity, environment });
-    assert.ok(blocked.errors.some(item => item.code === "PHASE4_ENVIRONMENT_BLOCKED"));
-  }
+  const staging = phase4.planMigration({}, { ...identity, environment: "staging" });
+  assert.equal(staging.writes, 0);
+  assert.equal(staging.executionAllowed, false);
+  assert.equal(staging.errors.some(item => item.code === "PHASE4_ENVIRONMENT_BLOCKED"), false);
+  const unapprovedStaging = phase4.planMigration({}, {
+    ...identity, environment: "staging", environmentReviewApproved: false
+  });
+  assert.ok(unapprovedStaging.errors.some(item => item.code === "ENVIRONMENT_NOT_APPROVED"));
+  const production = phase4.planMigration({}, { ...identity, environment: "production" });
+  assert.ok(production.errors.some(item => item.code === "PHASE4_ENVIRONMENT_BLOCKED"));
 });
 
 test("legacy payroll rows are classified read-only and ambiguous IDs never activate", () => {
@@ -1400,26 +1406,98 @@ test("GAS payroll staff reader rejects missing and duplicate stable IDs", () => 
     caught => caught.code === "PAYROLL_STAFF_ID_AMBIGUOUS");
 });
 
-test("active migration handler blocks staging and production before actor or spreadsheet access", () => {
-  for (const environment of ["staging", "production"]) {
-    let actorCalls = 0;
-    let spreadsheetCalls = 0;
-    const context = vm.createContext({
-      getCutHubEnvironmentConfig: () => ({ environment, spreadsheetId: "X" }),
-      schedulePhase2Actor: () => { actorCalls += 1; return { owner: true }; },
-      SpreadsheetApp: {
-        getActive() { spreadsheetCalls += 1; throw new Error("must not access"); }
-      },
-      jsonOutput: (value) => value
-    });
-    vm.runInContext(buildBundle({ write: false }).bundle, context);
-    const result = context.handleStaffPayrollAttendancePhase4Action({
-      action: "previewPayrollPhase4Migration"
-    });
-    assert.equal(result.code, "PHASE4_ENVIRONMENT_BLOCKED");
-    assert.equal(actorCalls, 0);
-    assert.equal(spreadsheetCalls, 0);
-  }
+test("GAS payroll readers preserve Cairo date-only fields without UTC day shifts", () => {
+  const context = vm.createContext({
+    Utilities: {
+      formatDate(value, timezone, pattern) {
+        assert.equal(timezone, "Africa/Cairo");
+        assert.equal(pattern, "yyyy-MM-dd");
+        return new Date(value.getTime() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      }
+    }
+  });
+  vm.runInContext(buildBundle({ write: false }).bundle, context);
+  const sheetDate = vm.runInContext('new Date("2026-08-08T21:00:00.000Z")', context);
+  context.schedulePhase2ReadRows = (sheetName) => {
+    if (sheetName === "PAYROLL_ATTENDANCE_PERIODS") {
+      return [{
+        payrollPeriodId: "PAYPER-1", startDate: sheetDate, endDate: sheetDate,
+        status: "DRAFT", createdAt: sheetDate
+      }];
+    }
+    if (sheetName === "PAYROLL_ATTENDANCE_SETTLEMENTS") {
+      return [{
+        settlementId: "PAYS-1", periodStart: sheetDate, periodEnd: sheetDate,
+        createdAt: sheetDate, sourceAttendanceDayIds: "[]", sourceAttendanceSnapshot: "[]",
+        policySnapshot: "{}", salarySnapshot: "{}", warnings: "[]", blockers: "[]"
+      }];
+    }
+    return [];
+  };
+  const repository = context.payrollAttendancePhase4CreateRepository();
+  const period = repository.listPeriods()[0];
+  assert.equal(period.startDate, "2026-08-09");
+  assert.equal(period.endDate, "2026-08-09");
+  assert.equal(period.createdAt, sheetDate);
+  assert.equal(repository.getPeriod("PAYPER-1").startDate, "2026-08-09");
+  const settlement = repository.listSettlements({})[0];
+  assert.equal(settlement.periodStart, "2026-08-09");
+  assert.equal(settlement.periodEnd, "2026-08-09");
+  assert.equal(settlement.createdAt, sheetDate);
+});
+
+test("active migration handler blocks production before actor or spreadsheet access", () => {
+  let actorCalls = 0;
+  let spreadsheetCalls = 0;
+  const context = vm.createContext({
+    getCutHubEnvironmentConfig: () => ({ environment: "production", spreadsheetId: "X" }),
+    schedulePhase2Actor: () => { actorCalls += 1; return { owner: true }; },
+    SpreadsheetApp: {
+      getActive() { spreadsheetCalls += 1; throw new Error("must not access"); }
+    },
+    jsonOutput: (value) => value
+  });
+  vm.runInContext(buildBundle({ write: false }).bundle, context);
+  const result = context.handleStaffPayrollAttendancePhase4Action({
+    action: "previewPayrollPhase4Migration"
+  });
+  assert.equal(result.code, "PHASE4_ENVIRONMENT_BLOCKED");
+  assert.equal(actorCalls, 0);
+  assert.equal(spreadsheetCalls, 0);
+});
+
+test("direct staging migration preview verifies staging identity and performs no writes", () => {
+  const config = {
+    environment: "staging", spreadsheetId: "staging-sheet-id-1234567890",
+    stagingSpreadsheetId: "staging-sheet-id-1234567890"
+  };
+  let stagingChecks = 0;
+  let reads = 0;
+  let writes = 0;
+  const spreadsheet = {
+    getId: () => config.spreadsheetId,
+    getSheetByName() { reads += 1; return null; },
+    insertSheet() { writes += 1; throw new Error("preview must not create sheets"); }
+  };
+  const context = vm.createContext({
+    getCutHubEnvironmentConfig: () => config,
+    assertStagingEnvironment() {
+      stagingChecks += 1;
+      return { config, spreadsheet };
+    },
+    SpreadsheetApp: { getActive: () => spreadsheet },
+    jsonOutput: (value) => value
+  });
+  vm.runInContext(buildBundle({ write: false }).bundle, context);
+  const preview = context.previewPayrollPhase4Migration();
+  assert.equal(stagingChecks, 1);
+  assert.ok(reads > 0);
+  assert.equal(writes, 0);
+  assert.equal(preview.writes, 0);
+  assert.equal(preview.rollback.historicalRowsTouched, 0);
+  assert.equal(preview.executionAllowed, false);
+  assert.equal(preview.errors.some(item => item.code === "ENVIRONMENT_NOT_APPROVED"), false);
+  assert.equal(preview.errors.some(item => item.code === "PHASE4_ENVIRONMENT_BLOCKED"), false);
 });
 
 test("active router exposes Phase 4 before Phase 3 and legacy deductions remain excluded", () => {

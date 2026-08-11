@@ -29,12 +29,14 @@
     "recalculateAttendanceDay", "requestAttendanceOvertime",
     "approveAttendanceOvertime", "rejectAttendanceOvertime",
     "listUnresolvedAttendanceDays", "listOpenAttendanceBreaks",
-    "getAttendanceAuditHistory", "listLegacyAttendanceRecords", "previewAttendanceMigration"
+    "getAttendanceAuditHistory", "listLegacyAttendanceRecords", "previewAttendanceMigration",
+    "listWorkPolicies", "createWorkPolicy", "deactivateWorkPolicy"
   ]);
   const WRITE_ACTIONS = new Set(ACTIONS.filter((action) => ![
     "getAttendanceDashboard", "getEmployeeAttendanceDay", "listAttendanceEvents",
     "listUnresolvedAttendanceDays", "listOpenAttendanceBreaks",
-    "getAttendanceAuditHistory", "listLegacyAttendanceRecords", "previewAttendanceMigration"
+    "getAttendanceAuditHistory", "listLegacyAttendanceRecords", "previewAttendanceMigration",
+    "listWorkPolicies"
   ].includes(action)));
   const BLOCKED_CLASSIFICATIONS = new Set([
     "WEEKLY_DAY_OFF", "APPROVED_LEAVE", "UNPAID_LEAVE", "SICK_LEAVE",
@@ -70,6 +72,147 @@
   function parseJson(value, fallback) {
     if (value && typeof value === "object") return clone(value);
     try { return JSON.parse(text(value) || JSON.stringify(fallback)); } catch (_error) { return clone(fallback); }
+  }
+  const WORK_POLICY_SERVER_FIELDS = new Set([
+    "policyId", "active", "createdAt", "createdBy", "updatedAt", "updatedBy"
+  ]);
+  const WORK_POLICY_NUMERIC_FIELDS = new Set([
+    "requiredDailyMinutes", "allowedBreakMinutes", "maxSingleBreakMinutes",
+    "breakGraceMinutes", "graceLateMinutes", "graceEarlyLeaveMinutes",
+    "deficitRatePerHour", "fixedLatePenalty", "dailyDeductionCap",
+    "overtimeRatePerHour", "overtimeMultiplier", "minOvertimeThresholdMinutes",
+    "dailyOvertimeCapMinutes", "periodOvertimeCapMinutes", "roundingIncrementMinutes",
+    "monthlyAllowedLeaveDays", "maxCarryForwardDays", "excessAbsenceMultiplier",
+    "excessAbsenceFixedAmount", "maxExcessAbsenceDeduction", "fixedDayValue",
+    "monthlySalary", "workingDaysDivisor", "hourlyRate", "currencyMinorScale",
+    "monthlySalaryMinor", "deficitRateMinorPerMinute", "dailyDeductionCapMinor",
+    "periodDeductionCapMinor", "overtimeRateMinorPerMinute", "overtimeMultiplierBps",
+    "unpaidLeaveMultiplierBps", "absenceMultiplierBps"
+  ]);
+  const WORK_POLICY_BOOLEAN_FIELDS = new Set([
+    "allowMultipleBreaks", "excessBreakContributesToDeficit",
+    "overtimeApprovalRequired", "leaveCarryForward", "leaveApprovalRequired",
+    "hireDateProration", "terminationDateProration", "sickLeavePaid"
+  ]);
+  const WORK_POLICY_ENUMS = Object.freeze({
+    breakPaymentType: ["PAID", "UNPAID"],
+    deficitRateType: ["SALARY_DERIVED", "FIXED_HOURLY", "FIXED_PER_MINUTE"],
+    overtimePolicy: ["NONE", "PAID", "TIME_OFF", "OFFSET_DEFICIT"],
+    roundingMode: ["NONE", "FLOOR", "CEIL", "NEAREST"],
+    settlementPeriod: ["DAILY", "WEEKLY", "MONTHLY", "PAYROLL_PERIOD", "CUSTOM_PAYROLL_PERIOD"],
+    partialLeaveUnit: ["MINUTES", "HOURS", "HALF_DAY", "DAY"],
+    leaveResetPeriod: ["MONTHLY", "PAYROLL_PERIOD", "CUSTOM_PAYROLL_PERIOD"],
+    excessAbsencePolicy: ["DAY_VALUE_MULTIPLIER", "FIXED_AMOUNT_PER_DAY", "WORKING_HOURS_BASED"],
+    dayValueMethod: ["FIXED_DAY_VALUE", "MONTHLY_SALARY_DIVIDED_BY_CALENDAR_DAYS",
+      "MONTHLY_SALARY_DIVIDED_BY_WORKING_DAYS", "REQUIRED_DAILY_HOURS_AT_HOURLY_RATE"],
+    salaryBasis: ["MONTHLY", "DAILY", "HOURLY", "PER_MINUTE"],
+    overtimeRateType: ["SALARY_DERIVED", "FIXED_HOURLY", "FIXED_PER_MINUTE"],
+    unresolvedBehavior: ["BLOCK", "EXCLUDE"]
+  });
+  function workPolicyKey(header) {
+    return String(header || "").toLowerCase().replace(/_([a-z0-9])/g,
+      (_match, character) => character.toUpperCase());
+  }
+  function workPolicyInputValue(source, key) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) return source[key];
+    const header = schema.SHEET_SCHEMAS.STAFF_WORK_POLICIES.find((item) =>
+      workPolicyKey(item) === key);
+    if (header && Object.prototype.hasOwnProperty.call(source, header)) return source[header];
+    if (key === "requiredDailyMinutes" &&
+        Object.prototype.hasOwnProperty.call(source, "requiredWorkMinutes")) {
+      return source.requiredWorkMinutes;
+    }
+    return undefined;
+  }
+  function workPolicyDate(value, field) {
+    try { return core.parseDateKey(value).text; } catch (_error) {
+      throw attendanceError("WORK_POLICY_DATE_INVALID", `${field} must be YYYY-MM-DD.`);
+    }
+  }
+  function workPolicyBoolean(value, field) {
+    if (value === true || value === false) return value;
+    if (["TRUE", "FALSE"].includes(upper(value))) return upper(value) === "TRUE";
+    throw attendanceError("WORK_POLICY_BOOLEAN_INVALID", `${field} must be a boolean.`);
+  }
+  function workPolicyNumber(value, field) {
+    if (value === "" || value === null) return "";
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      throw attendanceError("WORK_POLICY_NUMBER_INVALID", `${field} must be finite and non-negative.`);
+    }
+    return parsed;
+  }
+  function normalizeCompleteWorkPolicy(source, options) {
+    const trustedStoredSource = options && options.trustedStoredSource === true;
+    if (!source || typeof source !== "object" || Array.isArray(source)) {
+      throw attendanceError("WORK_POLICY_COMPLETE_PAYLOAD_REQUIRED",
+        "A complete work policy object is required.");
+    }
+    const record = {};
+    schema.SHEET_SCHEMAS.STAFF_WORK_POLICIES.map(workPolicyKey).forEach((key) => {
+      if (WORK_POLICY_SERVER_FIELDS.has(key)) return;
+      const value = workPolicyInputValue(source, key);
+      if (value === undefined) {
+        throw attendanceError("WORK_POLICY_FIELD_REQUIRED", `Complete policy field is required: ${key}.`,
+          { field: key });
+      }
+      if (key === "staffId") record[key] = requireText(value,
+        "WORK_POLICY_STAFF_ID_REQUIRED", "Stable staff ID is required.");
+      else if (key === "effectiveFrom") record[key] = workPolicyDate(value, key);
+      else if (key === "effectiveTo") record[key] = value === "" || value === null
+        ? "" : workPolicyDate(value, key);
+      else if (WORK_POLICY_BOOLEAN_FIELDS.has(key)) record[key] =
+        trustedStoredSource && text(value) === "" ? "" : workPolicyBoolean(value, key);
+      else if (WORK_POLICY_NUMERIC_FIELDS.has(key)) record[key] = workPolicyNumber(value, key);
+      else if (key.endsWith("Json")) {
+        try {
+          if (trustedStoredSource && text(value) === "") record[key] = "";
+          else {
+            const parsed = typeof value === "string" ? JSON.parse(value || "[]") : clone(value);
+            record[key] = stable(parsed);
+          }
+        } catch (_error) {
+          throw attendanceError("WORK_POLICY_JSON_INVALID", `${key} must contain valid JSON.`);
+        }
+      } else if (WORK_POLICY_ENUMS[key]) {
+        const normalized = upper(value);
+        if (trustedStoredSource && !normalized) {
+          record[key] = "";
+          return;
+        }
+        if (!WORK_POLICY_ENUMS[key].includes(normalized)) {
+          throw attendanceError("WORK_POLICY_ENUM_INVALID", `${key} contains an unsupported value.`,
+            { field: key });
+        }
+        record[key] = normalized;
+      } else if (key === "currency") {
+        const currency = upper(value);
+        if (!/^[A-Z]{3}$/.test(currency)) {
+          throw attendanceError("WORK_POLICY_CURRENCY_INVALID", "Currency must be a three-letter code.");
+        }
+        record[key] = currency;
+      } else if (["defaultShiftStart", "defaultShiftEnd"].includes(key)) {
+        const time = text(value);
+        if (time && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+          throw attendanceError("WORK_POLICY_TIME_INVALID", `${key} must be HH:mm or blank.`);
+        }
+        record[key] = time;
+      } else record[key] = text(value);
+    });
+    if (record.effectiveTo && record.effectiveTo < record.effectiveFrom) {
+      throw attendanceError("WORK_POLICY_DATE_RANGE_INVALID",
+        "Effective-to cannot be before effective-from.");
+    }
+    ["requiredDailyMinutes", "allowedBreakMinutes", "maxSingleBreakMinutes",
+      "roundingIncrementMinutes", "currencyMinorScale", "monthlySalaryMinor",
+      "deficitRateMinorPerMinute", "dailyDeductionCapMinor", "periodDeductionCapMinor",
+      "overtimeRateMinorPerMinute", "overtimeMultiplierBps", "unpaidLeaveMultiplierBps",
+      "absenceMultiplierBps"].forEach((key) => {
+      if (record[key] !== "" && !Number.isInteger(record[key])) {
+        throw attendanceError("WORK_POLICY_INTEGER_REQUIRED", `${key} must be an integer.`);
+      }
+    });
+    return record;
   }
   function stable(value) {
     if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
@@ -606,6 +749,9 @@
         state.overtime.push(clone(record)); return clone(record);
       },
       listPolicies: () => clone(state.policies),
+      getPolicy: (policyId) => clone(findUnique(state.policies, "policyId", policyId,
+        "WORK_POLICY_ID_AMBIGUOUS")),
+      savePolicy: (record) => save("policies", "policyId", record),
       listLegacy: () => clone(state.legacy),
       appendAudit: (record) => {
         if (state.audit.some((item) => item.actionId === record.actionId)) {
@@ -635,6 +781,7 @@
     const now = config.now || (() => new Date().toISOString());
     const uuid = config.uuid || (() => Math.random().toString(36).slice(2));
     const withLock = config.withLock || ((_details, callback) => callback());
+    const beforeWorkPolicyNormalization = config.beforeWorkPolicyNormalization || (() => {});
     function allocateId(prefix, exists, code) {
       for (let attempt = 0; attempt < 10; attempt += 1) {
         const candidate = id(prefix, uuid);
@@ -679,12 +826,23 @@
       const existing = repository.listDays({ staffId: staff.staffId, date });
       if (existing.length > 1) throw attendanceError("ATTENDANCE_DAY_AMBIGUOUS", "Multiple daily results exist.");
       const current = existing[0];
-      const schedule = scheduleResolver(staff, date) || {
+      const persistedSchedule = current && current.scheduleSnapshot &&
+        typeof current.scheduleSnapshot === "object" ? clone(current.scheduleSnapshot) : null;
+      const persistedPolicy = current && current.policySnapshot &&
+        typeof current.policySnapshot === "object" ? clone(current.policySnapshot) : null;
+      const schedule = persistedSchedule || scheduleResolver(staff, date) || {
         date, staffId: staff.staffId, sourceType: "NONE", sourceIds: [], shiftSegments: [],
         requiredWorkMinutes: 0, allowedBreakMinutes: 0, classification: "NOT_SCHEDULED",
         warnings: ["NO_RESOLVED_SCHEDULE"]
       };
-      const policy = policyFor(staff, date);
+      const policy = persistedPolicy ? {
+        resolution: {
+          source: "PERSISTED_ATTENDANCE_SNAPSHOT",
+          policyId: text(persistedPolicy.policyId),
+          snapshot: persistedPolicy
+        },
+        snapshot: persistedPolicy
+      } : policyFor(staff, date);
       const attendanceDayId = current ? current.attendanceDayId : dayId(staff.staffId, date);
       const calculated = calculateDay({
         attendanceDayId, staff, date, schedule, policy: policy.snapshot,
@@ -698,6 +856,33 @@
         dayLifecycle: current && current.dayLifecycle,
         now: serverNow
       });
+      const persistedEventIds = current && Array.isArray(current.sourceEventIds)
+        ? current.sourceEventIds.map(text) : [];
+      const calculatedEventIds = (calculated.sourceEventIds || []).map(text);
+      const evidenceMatches = !!current && (
+        (!!text(current.sourceEventHash) &&
+          text(current.sourceEventHash) === text(calculated.sourceEventHash)) ||
+        (persistedEventIds.length > 0 && stable(persistedEventIds) === stable(calculatedEventIds))
+      );
+      const persistedCompleted = !!current && !calculated.openSession && !calculated.openBreak &&
+        evidenceMatches &&
+        text(current.calculationVersion) === PHASE3_VERSION;
+      if (persistedCompleted) {
+        return Object.freeze({
+          ...calculated,
+          ...clone(current),
+          state: calculated.state,
+          sessions: calculated.sessions,
+          breaks: calculated.breaks,
+          sourceEventIds: calculated.sourceEventIds,
+          sourceEventHash: calculated.sourceEventHash,
+          approvedOvertimeMinutes: calculated.approvedOvertimeMinutes,
+          overtimeApprovalStatus: calculated.overtimeApprovalStatus,
+          openSession: false,
+          openBreak: false,
+          staleCalculation: false
+        });
+      }
       return Object.freeze({
         ...calculated,
         staleCalculation: !!current && (
@@ -740,6 +925,55 @@
         createdBy: item.createdBy,
         stale: bool(item.stale)
       };
+    }
+    function requireOwner(resolvedActor) {
+      if (!resolvedActor.owner) {
+        throw attendanceError("WORK_POLICY_OWNER_REQUIRED",
+          "Only the owner can manage work policies.");
+      }
+    }
+    function workPolicyDto(item) {
+      return {
+        policyId: text(item.policyId), staffId: text(item.staffId),
+        effectiveFrom: text(item.effectiveFrom), effectiveTo: text(item.effectiveTo),
+        requiredDailyMinutes: number(item.requiredDailyMinutes, 0),
+        allowedBreakMinutes: number(item.allowedBreakMinutes, 0),
+        salaryBasis: upper(item.salaryBasis), currency: upper(item.currency),
+        active: item.active !== false && upper(item.active) !== "FALSE",
+        createdAt: text(item.createdAt), createdBy: text(item.createdBy),
+        updatedAt: text(item.updatedAt), updatedBy: text(item.updatedBy)
+      };
+    }
+    function workPolicyRangesOverlap(left, right) {
+      const leftEnd = text(left.effectiveTo) || "9999-12-31";
+      const rightEnd = text(right.effectiveTo) || "9999-12-31";
+      return text(left.effectiveFrom) <= rightEnd && text(right.effectiveFrom) <= leftEnd;
+    }
+    function completeWorkPolicyPayload(data) {
+      if (data.policy) return normalizeCompleteWorkPolicy(data.policy);
+      const sourcePolicyId = text(data.sourcePolicyId);
+      if (!sourcePolicyId) {
+        throw attendanceError("WORK_POLICY_COMPLETE_PAYLOAD_REQUIRED",
+          "Provide a complete policy object or an explicit source policy ID.");
+      }
+      const source = repository.getPolicy(sourcePolicyId);
+      if (!source) throw attendanceError("WORK_POLICY_SOURCE_NOT_FOUND",
+        "The source work policy was not found.");
+      const copied = {};
+      schema.SHEET_SCHEMAS.STAFF_WORK_POLICIES.map(workPolicyKey).forEach((key) => {
+        if (!WORK_POLICY_SERVER_FIELDS.has(key)) copied[key] = source[key];
+      });
+      ["staffId", "effectiveFrom", "effectiveTo", "requiredDailyMinutes",
+        "requiredWorkMinutes", "allowedBreakMinutes", "salaryBasis", "currency"]
+        .forEach((key) => {
+          if (Object.prototype.hasOwnProperty.call(data, key)) copied[key] = data[key];
+        });
+      if (Object.prototype.hasOwnProperty.call(copied, "requiredWorkMinutes")) {
+        copied.requiredDailyMinutes = copied.requiredWorkMinutes;
+        delete copied.requiredWorkMinutes;
+      }
+      beforeWorkPolicyNormalization(clone(copied));
+      return normalizeCompleteWorkPolicy(copied, { trustedStoredSource: true });
     }
     function audit(action, entityType, entityId, staffId, resolvedActor, before, after, reason, requestId, at) {
       repository.appendAudit({
@@ -891,6 +1125,71 @@
     }
 
     const handlers = {
+      listWorkPolicies(data) {
+        const resolvedActor = actor(data); requireOwner(resolvedActor);
+        const policies = repository.listPolicies()
+          .filter((item) => !data.staffId || text(item.staffId) === text(data.staffId))
+          .filter((item) => data.includeInactive === true ||
+            (item.active !== false && upper(item.active) !== "FALSE"))
+          .map(workPolicyDto);
+        return {
+          status: "success", code: "WORK_POLICY_LIST_OK", workPolicies: policies,
+          serverNow: now()
+        };
+      },
+      createWorkPolicy(data) {
+        return mutation("createWorkPolicy", data, "attendance.manage",
+          (resolvedActor, requestId, reason, at) => {
+            requireOwner(resolvedActor);
+            const policy = completeWorkPolicyPayload(data);
+            const staff = repository.getStaff(policy.staffId);
+            if (!staff) throw attendanceError("WORK_POLICY_STAFF_NOT_FOUND",
+              "The employee does not exist.");
+            if (staff.active === false || upper(staff.active) === "FALSE") {
+              throw attendanceError("WORK_POLICY_STAFF_INACTIVE",
+                "An inactive employee cannot receive a new work policy.");
+            }
+            const overlap = repository.listPolicies().find((item) =>
+              text(item.staffId) === policy.staffId &&
+              item.active !== false && upper(item.active) !== "FALSE" &&
+              workPolicyRangesOverlap(item, policy));
+            if (overlap) throw attendanceError("WORK_POLICY_EFFECTIVE_OVERLAP",
+              "An active work policy already overlaps this effective range.",
+              { conflictingPolicyId: text(overlap.policyId) });
+            const record = {
+              ...policy,
+              policyId: allocateId("POL", (candidate) => !!repository.getPolicy(candidate),
+                "WORK_POLICY_ID_ALLOCATION_FAILED"),
+              active: true, createdAt: at, createdBy: resolvedActor.actorId,
+              updatedAt: at, updatedBy: resolvedActor.actorId
+            };
+            repository.savePolicy(record);
+            audit("CREATE_WORK_POLICY", "STAFF_WORK_POLICY", record.policyId,
+              record.staffId, resolvedActor, {}, record, reason, requestId, at);
+            return { code: "CREATE_WORK_POLICY_OK", workPolicy: workPolicyDto(record) };
+          });
+      },
+      deactivateWorkPolicy(data) {
+        return mutation("deactivateWorkPolicy", data, "attendance.manage",
+          (resolvedActor, requestId, reason, at) => {
+            requireOwner(resolvedActor);
+            const policyId = requireText(data.policyId, "WORK_POLICY_ID_REQUIRED",
+              "Stable policy ID is required.");
+            const current = repository.getPolicy(policyId);
+            if (!current) throw attendanceError("WORK_POLICY_NOT_FOUND",
+              "The work policy was not found.");
+            if (current.active === false || upper(current.active) === "FALSE") {
+              throw attendanceError("WORK_POLICY_ALREADY_INACTIVE",
+                "The work policy is already inactive.");
+            }
+            const updated = { ...current, active: false, updatedAt: at,
+              updatedBy: resolvedActor.actorId };
+            repository.savePolicy(updated);
+            audit("DEACTIVATE_WORK_POLICY", "STAFF_WORK_POLICY", current.policyId,
+              current.staffId, resolvedActor, current, updated, reason, requestId, at);
+            return { code: "DEACTIVATE_WORK_POLICY_OK", workPolicy: workPolicyDto(updated) };
+          });
+      },
       getAttendanceDashboard(data) {
         const resolvedActor = actor(data); requirePermission(resolvedActor, "attendance.view");
         const date = core.parseDateKey(data.date || dateFromInstant(now())).text;
@@ -1345,7 +1644,7 @@
   function planAttendanceMigration(existingSheets, identity) {
     const plan = clone(core.planSchemaMigration(existingSheets, identity));
     const environment = text(identity && identity.environment).toLowerCase();
-    if (["production", "staging"].includes(environment)) {
+    if (environment === "production") {
       plan.errors = (plan.errors || []).filter((item) => item.code !== "ENVIRONMENT_NOT_APPROVED");
       plan.errors.push({ code: "PHASE3_ENVIRONMENT_BLOCKED" });
       plan.blocked = true;

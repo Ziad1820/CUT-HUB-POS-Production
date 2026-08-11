@@ -32,11 +32,14 @@ test("generated Apps Script bundle is deterministic and includes Phase 5 last", 
   const generated = builder.buildBundle({ write: false });
   const committed = fs.readFileSync(generated.outputPath, "utf8");
   assert.equal(committed, generated.bundle);
-  assert.deepEqual(generated.sourceOrder.slice(-2), [
-    "booking-availability-phase5.js", "booking-availability-phase5-gas.js"
+  assert.deepEqual(generated.sourceOrder.slice(-4), [
+    "booking-availability-phase5.js", "branch-foundation-staging.js",
+    "branch-registry-row-staging.js",
+    "booking-availability-phase5-gas.js"
   ]);
-  assert.deepEqual(generated.sourceOrder.slice(-4, -2), [
-    "staff-payroll-attendance-phase4.js", "staff-payroll-attendance-phase4-gas.js"
+  assert.deepEqual(generated.sourceOrder.slice(-8, -4), [
+    "staff-payroll-attendance-phase4.js", "staff-payroll-attendance-phase4-gas.js",
+    "staff-schema-migration-staging-executor.js", "core-staging-auth-bootstrap.js"
   ]);
   assert.doesNotThrow(() => new Function(committed));
 });
@@ -152,6 +155,7 @@ test("active dispatcher exposes preview and permissioned conflict/override actio
     "transitionBookingAvailabilityConflict", "listPublicBookingBranches",
     "listBookingBranches", "saveBookingBranchHours",
     "saveBookingBranchConfiguration",
+    "recoverBookingAvailabilityTransaction",
     "listBookingOperationalOverrides", "runBookingNoCheckInDetector",
     "previewBookingNoCheckInTriggerInstallation"
   ]) assert.ok(backend.includes(`"${action}"`));
@@ -243,7 +247,7 @@ test("availability permissions are separate from Attendance and Payroll permissi
 test("migration adapter is preview-only and contains no schema creation operation", () => {
   assert.match(gas, /previewBookingAvailabilityMigration/);
   assert.doesNotMatch(gas, /insertSheet|insertColumnsAfter|deleteSheet|deleteRow/);
-  assert.match(gas, /Phase 5 migration preview cannot access staging or production/);
+  assert.match(gas, /Phase 5 preview cannot access production/);
 });
 
 test("Booking, Scheduling, and Attendance mutations publish version invalidation hooks", () => {

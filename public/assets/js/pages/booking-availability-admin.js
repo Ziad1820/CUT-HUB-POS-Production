@@ -19,7 +19,8 @@
   };
   const state = {
     branchId: "", branches: [], branchHours: [], conflicts: [], overrides: [], audit: [],
-    flags: {}, cacheStatus: {}, quotaEstimate: null
+    flags: {}, cacheStatus: {}, quotaEstimate: null,
+    requestSequence: 0, reloadQueued: false
   };
   const requestId = prefix => `${prefix}-${crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
 
@@ -83,6 +84,14 @@
       item.textContent = `${label}: ${boolLabel(flags[key])}`;
       flagsNode.append(item);
     });
+    applyFeatureState();
+  }
+  function applyFeatureState() {
+    const overrideEnabled = state.flags?.managerOverrideEnabled === true;
+    Array.from(byId("overrideForm").elements).forEach(node => {
+      node.disabled = !overrideEnabled;
+    });
+    byId("overrideFeatureState").hidden = overrideEnabled;
   }
   function currentBranch() {
     return state.branches.find(item => item.branchId === state.branchId) || null;
@@ -157,8 +166,10 @@
       const text = document.createElement("p");
       text.textContent = `${item.conflictCode} · ${item.date} ${item.slotStart} · ${item.status}`;
       const actions = document.createElement("div"); actions.className = "record-actions";
-      if (item.status === "OPEN") actions.append(button("إقرار", () => transition(item, "ACKNOWLEDGED")));
-      if (item.status === "ACKNOWLEDGED") {
+      if (state.flags?.conflictResolutionEnabled === true && item.status === "OPEN") {
+        actions.append(button("إقرار", () => transition(item, "ACKNOWLEDGED")));
+      }
+      if (state.flags?.conflictResolutionEnabled === true && item.status === "ACKNOWLEDGED") {
         actions.append(button("حل", () => transition(item, "RESOLVED")));
         actions.append(button("استبعاد بسبب", () => transition(item, "DISMISSED_WITH_REASON")));
       }
@@ -172,7 +183,9 @@
       const text = document.createElement("p");
       text.textContent = `${item.staffId} · ${item.date} · ${item.startTime}–${item.endTime} · ${item.status}`;
       card.append(text);
-      if (item.status === "ACTIVE") card.append(button("إلغاء الاستثناء", () => revoke(item)));
+      if (state.flags?.managerOverrideEnabled === true && item.status === "ACTIVE") {
+        card.append(button("إلغاء الاستثناء", () => revoke(item)));
+      }
       overrides.append(card);
     });
     if (!state.overrides.length) empty(overrides, "لا توجد استثناءات تشغيلية.");
@@ -199,9 +212,14 @@
     status("جارٍ التحميل…", "loading");
     try { await work(); status("تم تحديث البيانات.", ""); }
     catch (error) { const mapped = mappedError(error); status(mapped[0], mapped[1]); }
-    finally { busy = false; document.querySelectorAll("button").forEach(node => { node.disabled = false; }); }
+    finally {
+      busy = false;
+      document.querySelectorAll("button").forEach(node => { node.disabled = false; });
+      applyFeatureState();
+    }
   }
-  async function fetchData() {
+  async function fetchData(sequence) {
+      const requestedBranchId = state.branchId;
       const jobs = [
         api("getBookingAvailabilityFlags"),
         api("listBookingBranches"),
@@ -213,6 +231,8 @@
           ? api("listBookingAvailabilityAudit") : Promise.resolve({ audit: [] })
       ];
       const values = await Promise.all(jobs);
+      if (sequence !== state.requestSequence ||
+          (requestedBranchId && requestedBranchId !== state.branchId)) return false;
       const flagResult = values[0];
       const branches = values[1];
       state.flags = flagResult.flags || {};
@@ -239,8 +259,25 @@
       state.audit = (values[4].audit || []).filter(item => item.branchId === state.branchId);
       populateSelectedBranch();
       renderRecords();
+      return true;
   }
-  async function load() { await guarded(fetchData); }
+  async function refreshData() {
+    const sequence = ++state.requestSequence;
+    return fetchData(sequence);
+  }
+  async function load() {
+    ++state.requestSequence;
+    if (busy) {
+      state.reloadQueued = true;
+      return;
+    }
+    const sequence = state.requestSequence;
+    await guarded(() => fetchData(sequence));
+    if (state.reloadQueued) {
+      state.reloadQueued = false;
+      void load();
+    }
+  }
   async function transition(item, next) {
     const reason = prompt("اكتب سبب القرار:");
     if (!reason) return;
@@ -249,7 +286,7 @@
         conflictId: item.conflictId, status: next, reason,
         clientRequestId: requestId("conflict")
       });
-      await fetchData();
+      await refreshData();
     });
   }
   async function revoke(item) {
@@ -260,7 +297,7 @@
         operationalOverrideId: item.operationalOverrideId, reason,
         clientRequestId: requestId("revoke")
       });
-      await fetchData();
+      await refreshData();
     });
   }
   document.querySelectorAll("[data-permission]").forEach(node => {
@@ -269,7 +306,11 @@
   document.querySelectorAll(".owner-only").forEach(node => { node.hidden = !owner; });
   byId("branchSelect").addEventListener("change", event => {
     state.branchId = event.target.value;
+    state.conflicts = [];
+    state.overrides = [];
+    state.audit = [];
     populateSelectedBranch();
+    renderRecords();
     load();
   });
   byId("refreshBtn").addEventListener("click", load);
@@ -278,7 +319,7 @@
     guarded(async () => {
       await api("createBookingOperationalOverride", {
         ...values, branchId: state.branchId, clientRequestId: requestId("override")
-      }); event.currentTarget.reset(); await fetchData();
+      }); event.currentTarget.reset(); await refreshData();
     });
   });
   byId("hoursForm").addEventListener("submit", event => {
@@ -289,7 +330,7 @@
       await api("saveBookingBranchHours", {
         ...values, active: event.currentTarget.active.checked,
         branchId: state.branchId, clientRequestId: requestId("hours")
-      }); await fetchData();
+      }); await refreshData();
     });
   });
   byId("hoursForm").weekday.addEventListener("change", event => populateHoursForm(event.target.value));
@@ -305,7 +346,7 @@
         clientRequestId: requestId("branch")
       });
       state.branchId = values.branchId;
-      await fetchData();
+      await refreshData();
     });
   });
   byId("newBranchBtn").addEventListener("click", () => {

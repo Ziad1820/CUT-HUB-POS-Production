@@ -13,7 +13,7 @@
 
   if (!schema || !core) throw new Error("STAFF_SCHEDULING_PHASE2_DEPENDENCY_REQUIRED");
 
-  const PHASE2_VERSION = "STAFF_SCHEDULING_PHASE2_V1";
+  const PHASE2_VERSION = "STAFF_SCHEDULING_PHASE2_V2";
   const TIME_ZONE = "Africa/Cairo";
   const WEEKDAYS = Object.freeze([
     "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"
@@ -51,7 +51,12 @@
     "createScheduleOverride", "transitionScheduleOverride", "cancelScheduleOverride",
     "reviewScheduleOverride", "saveScheduleUserScope"
   ]);
+  const STAFF_LEGACY_HEADERS = Object.freeze([
+    "NAME", "CODE", "SALARY", "PERCENTAGE", "ID", "BONUS", "DEDUCTION",
+    "ACTIVE", "CREATED_AT", "UPDATED_AT", "IS_BARBER"
+  ]);
   const PHASE2_SHEET_SCHEMAS = Object.freeze({
+    STAFF: Object.freeze([...STAFF_LEGACY_HEADERS, "BRANCH_ID"]),
     BARBER_SCHEDULE: schema.SHEET_SCHEMAS.BARBER_SCHEDULE,
     STAFF_SCHEDULE_OVERRIDES: schema.SHEET_SCHEMAS.STAFF_SCHEDULE_OVERRIDES,
     STAFF_ATTENDANCE_AUDIT: schema.SHEET_SCHEMAS.STAFF_ATTENDANCE_AUDIT,
@@ -1391,6 +1396,11 @@
         report.errors.push({ sheetName, code: "INCOMPATIBLE_LEGACY_SCHEDULE_PREFIX" });
         return;
       }
+      if (sheetName === "STAFF" && STAFF_LEGACY_HEADERS.some((header, index) =>
+        current[index] !== canonicalHeader(header))) {
+        report.errors.push({ sheetName, code: "INCOMPATIBLE_STAFF_POSITIONAL_PREFIX" });
+        return;
+      }
       const desiredKeys = desired.map(canonicalHeader);
       const unknown = nonBlank.filter((header) => !desiredKeys.includes(header));
       if (unknown.length) report.preservedUnknownColumns[sheetName] = unknown;
@@ -1539,7 +1549,7 @@
     OVERRIDE_TRANSITIONS,
     ACTIONS,
     WRITE_ACTIONS,
-    PHASE2_SHEET_SCHEMAS,
+    PHASE2_SHEET_SCHEMAS, STAFF_LEGACY_HEADERS,
     normalizeWeekday,
     validateScheduleSegment,
     scheduleConflict,

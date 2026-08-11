@@ -66,7 +66,10 @@
     });
     return formatter.format(new Date());
   }
-  function minutes(value) { return `${Number(value || 0)} د`; }
+  function minutes(value) {
+    const numeric = Number(value || 0);
+    return `${Number.isFinite(numeric) ? Math.round(numeric) : 0} د`;
+  }
   function clock(value) {
     if (!value) return "—";
     const instant = new Date(value);
@@ -224,16 +227,20 @@
     const branchSelect = byId("branchFilter");
     const currentStaff = staffSelect.value;
     const currentBranch = branchSelect.value;
-    staffSelect.replaceChildren(new Option("كل الموظفين", ""));
-    branchSelect.replaceChildren(new Option("كل الفروع", ""));
     const branches = new Set();
-    days.forEach(day => {
-      staffSelect.append(new Option(day.staffName, day.staffId));
-      if (day.branchId) branches.add(day.branchId);
-    });
-    [...branches].sort().forEach(branch => branchSelect.append(new Option(branch, branch)));
-    staffSelect.value = currentStaff;
-    branchSelect.value = currentBranch;
+    days.forEach(day => { if (day.branchId) branches.add(day.branchId); });
+    if (!currentStaff) {
+      staffSelect.replaceChildren(new Option("كل الموظفين", ""));
+      days.forEach(day => staffSelect.append(new Option(day.staffName, day.staffId)));
+    }
+    if (!currentBranch) {
+      branchSelect.replaceChildren(new Option("كل الفروع", ""));
+      [...branches].sort().forEach(branch => branchSelect.append(new Option(branch, branch)));
+    }
+    staffSelect.value = currentStaff && [...staffSelect.options].some(option => option.value === currentStaff)
+      ? currentStaff : "";
+    branchSelect.value = currentBranch && [...branchSelect.options].some(option => option.value === currentBranch)
+      ? currentBranch : "";
   }
   async function loadDashboard() {
     const sequence = ++state.requestSequence;
@@ -456,7 +463,10 @@
   });
   byId("refreshBtn").addEventListener("click", loadDashboard);
   byId("attendanceDate").addEventListener("change", loadDashboard);
-  byId("branchFilter").addEventListener("change", loadDashboard);
+  byId("branchFilter").addEventListener("change", () => {
+    byId("staffFilter").value = "";
+    loadDashboard();
+  });
   byId("staffFilter").addEventListener("change", loadDashboard);
   byId("unresolvedFilter").addEventListener("change", loadDashboard);
   byId("openBreakFilter").addEventListener("change", loadDashboard);

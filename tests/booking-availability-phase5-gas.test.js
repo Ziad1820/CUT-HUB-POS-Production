@@ -19,6 +19,8 @@ function harness() {
   rows.STAFF = [];
   rows.ATTENDANCE_EVENTS = [];
   rows.STAFF_ATTENDANCE_DAYS = [];
+  rows.STAFF_WORK_POLICIES = [];
+  rows.STAFF_ATTENDANCE_IDEMPOTENCY = [];
   const writes = [];
   let uuid = 0;
   const clock = { hour: 10, minute: 16 };
@@ -28,6 +30,15 @@ function harness() {
       permissions: phase5.PERMISSIONS, branchIds: ["BR-1", "BR-2"]
     },
     duplicate: false
+  };
+  const scriptProperties = {};
+  const configuredProperties = {
+    BOOKING_AVAILABILITY_ENGINE: "PHASE5",
+    BOOKING_PHASE2_PLANNED_ENABLED: "true",
+    BOOKING_ATTENDANCE_LIVE_ENABLED: "true",
+    BOOKING_MANAGER_OVERRIDE_ENABLED: "true",
+    BOOKING_CONFLICT_RESOLUTION_ENABLED: "true",
+    BOOKING_NO_CHECK_IN_DETECTOR_ENABLED: "true"
   };
   const context = {
     console, Date, JSON, Number, String, Math, Object, Array,
@@ -51,14 +62,10 @@ function harness() {
     },
     PropertiesService: {
       getScriptProperties: () => ({
-        getProperty: name => ({
-          BOOKING_AVAILABILITY_ENGINE: "PHASE5",
-          BOOKING_PHASE2_PLANNED_ENABLED: "true",
-          BOOKING_ATTENDANCE_LIVE_ENABLED: "true",
-           BOOKING_MANAGER_OVERRIDE_ENABLED: "true",
-           BOOKING_CONFLICT_RESOLUTION_ENABLED: "true",
-           BOOKING_NO_CHECK_IN_DETECTOR_ENABLED: "true"
-        })[name] || ""
+        getProperty: name => Object.prototype.hasOwnProperty.call(scriptProperties, name)
+          ? scriptProperties[name] : configuredProperties[name] || "",
+        setProperty: (name, value) => { scriptProperties[name] = String(value); },
+        deleteProperty: name => { delete scriptProperties[name]; }
       })
     },
     CacheService: { getScriptCache: () => ({ get: () => null, put: () => {} }) },
@@ -103,7 +110,7 @@ function harness() {
   };
   vm.createContext(context);
   vm.runInContext(gasSource, context, { filename: gasPath });
-  return { context, rows, writes, clock, identity };
+  return { context, rows, writes, clock, identity, scriptProperties };
 }
 
 test("transaction writes durable intent and returns the original committed result on retry", () => {
@@ -122,6 +129,141 @@ test("transaction writes durable intent and returns the original committed resul
   assert.equal(rows.BOOKING_AVAILABILITY_TRANSACTIONS[0].status, "COMMITTED");
   assert.deepEqual(context.bookingAvailabilityPhase5RunTransaction(options), { ok: true, value: 7 });
   assert.equal(businessCalls, 1);
+});
+
+test("pre-write safe writer failure is compensated with zero effects and identical retry commits", () => {
+  const { context, rows } = harness();
+  let writerAvailable = false;
+  let businessRows = 0;
+  let versionWrites = 0;
+  let auditWrites = 0;
+  const options = {
+    data: {}, requestId: "request-safe-writer-retry", action: "BOOKING_CREATE",
+    entityType: "BOOKING", entityId: "B-SAFE", branchId: "BR-1", date: "2099-01-02",
+    business: () => {
+      if (!writerAvailable) throw Object.assign(new Error("SAFE_SHEET_WRITE_UNAVAILABLE"), {
+        code: "SAFE_SHEET_WRITE_UNAVAILABLE", businessMutationState: "NOT_STARTED"
+      });
+      businessRows += 1;
+      return { id: "B-SAFE" };
+    },
+    version: () => { versionWrites += 1; return { value: versionWrites }; },
+    audit: () => { auditWrites += 1; return { auditId: "A-SAFE" }; },
+    compensateBusiness: () => { throw new Error("must not compensate a proven pre-write failure"); },
+    response: value => ({ ok: true, bookingId: value.id })
+  };
+  assert.throws(() => context.bookingAvailabilityPhase5RunTransaction(options),
+    error => error.code === "SAFE_SHEET_WRITE_UNAVAILABLE");
+  const transaction = rows.BOOKING_AVAILABILITY_TRANSACTIONS[0];
+  assert.equal(transaction.status, "COMPENSATED");
+  assert.deepEqual(Array.from(transaction.compensationState.steps), ["BUSINESS_NOT_WRITTEN"]);
+  assert.equal(businessRows, 0);
+  assert.equal(versionWrites, 0);
+  assert.equal(auditWrites, 0);
+  assert.equal(rows.Bookings.length, 0);
+
+  writerAvailable = true;
+  assert.deepEqual(context.bookingAvailabilityPhase5RunTransaction(options), {
+    ok: true, bookingId: "B-SAFE"
+  });
+  assert.equal(rows.BOOKING_AVAILABILITY_TRANSACTIONS.length, 1);
+  assert.equal(rows.BOOKING_AVAILABILITY_TRANSACTIONS[0].transactionId, transaction.transactionId);
+  assert.equal(rows.BOOKING_AVAILABILITY_TRANSACTIONS[0].status, "COMMITTED");
+  assert.equal(businessRows, 1);
+  assert.equal(versionWrites, 1);
+  assert.equal(auditWrites, 1);
+});
+
+test("rolled-back Schedule validation errors are compensated without a recovery marker", () => {
+  const { context, rows } = harness();
+  assert.throws(() => context.bookingAvailabilityPhase5RunOperationalMutationTransaction(
+    "schedule", { action: "saveScheduleSegment", requestId: "schedule-overlap-safe" },
+    () => { throw Object.assign(new Error("Schedule overlap."), {
+      code: "SCHEDULE_SHIFT_CONFLICT"
+    }); }), error => error.code === "SCHEDULE_SHIFT_CONFLICT");
+  const transaction = rows.BOOKING_AVAILABILITY_TRANSACTIONS[0];
+  assert.equal(transaction.status, "COMPENSATED");
+  assert.equal(transaction.recoveryRequired, false);
+  assert.deepEqual(Array.from(transaction.compensationState.steps), ["BUSINESS_NOT_WRITTEN"]);
+
+  const uncertain = harness();
+  assert.throws(() => uncertain.context.bookingAvailabilityPhase5RunOperationalMutationTransaction(
+    "schedule", { action: "saveScheduleSegment", requestId: "schedule-uncertain" },
+    () => { throw Object.assign(new Error("Rollback incomplete."), {
+      code: "SCHEDULE_COMPENSATION_FAILED"
+    }); }), error => error.code === "AVAILABILITY_RECOVERY_REQUIRED");
+  assert.equal(uncertain.rows.BOOKING_AVAILABILITY_TRANSACTIONS[0].status,
+    "RECOVERY_REQUIRED");
+});
+
+test("caught failure after durable intent is retryable but an unexplained stranded intent is not", () => {
+  const caught = harness();
+  const options = {
+    data: { phase5FailurePoint: "INTENT" }, requestId: "request-intent-caught",
+    action: "BOOKING_CREATE", entityType: "BOOKING", entityId: "B-INTENT",
+    branchId: "BR-1", date: "2099-01-02",
+    business: () => ({ id: "B-INTENT" }), version: () => ({ value: 1 }),
+    audit: () => ({ auditId: "A-INTENT" }), compensateBusiness: () => {}
+  };
+  assert.throws(() => caught.context.bookingAvailabilityPhase5RunTransaction(options),
+    error => error.code === "AVAILABILITY_INJECTED_FAILURE");
+  assert.equal(caught.rows.BOOKING_AVAILABILITY_TRANSACTIONS[0].status, "COMPENSATED");
+  assert.deepEqual(Array.from(
+    caught.rows.BOOKING_AVAILABILITY_TRANSACTIONS[0].compensationState.steps),
+  ["BUSINESS_NOT_STARTED"]);
+  options.data = {};
+  assert.deepEqual(caught.context.bookingAvailabilityPhase5RunTransaction(options), { id: "B-INTENT" });
+
+  const stranded = harness();
+  stranded.rows.BOOKING_AVAILABILITY_TRANSACTIONS.push({
+    transactionId: "BAT-STRANDED", requestId: "request-intent-stranded",
+    action: "BOOKING_CREATE", status: "INTENT", writeBoundary: "INTENT",
+    compensationState: {}, recoveryRequired: false
+  });
+  assert.throws(() => stranded.context.bookingAvailabilityPhase5RunTransaction({
+    ...options, requestId: "request-intent-stranded"
+  }), error => error.code === "AVAILABILITY_RECOVERY_REQUIRED");
+});
+
+test("uncertain business failure must compensate before retry or remain recovery-required", () => {
+  const compensated = harness();
+  let compensatedEntity = 0;
+  let compensatedAttempt = 0;
+  const compensatedOptions = {
+    data: {}, requestId: "request-business-compensated", action: "BOOKING_CREATE",
+    entityType: "BOOKING", entityId: "B-COMP", branchId: "BR-1", date: "2099-01-02",
+    business: () => {
+      compensatedAttempt += 1;
+      compensatedEntity = 1;
+      if (compensatedAttempt === 1) throw new Error("outcome uncertain after write");
+      return { id: "B-COMP" };
+    },
+    version: () => ({ value: 1 }), audit: () => ({ auditId: "A-COMP" }),
+    compensateBusiness: () => { compensatedEntity = 0; }
+  };
+  assert.throws(() => compensated.context.bookingAvailabilityPhase5RunTransaction(compensatedOptions),
+    /outcome uncertain/);
+  assert.equal(compensatedEntity, 0);
+  assert.equal(compensated.rows.BOOKING_AVAILABILITY_TRANSACTIONS[0].status, "COMPENSATED");
+  assert.deepEqual(
+    compensated.context.bookingAvailabilityPhase5RunTransaction(compensatedOptions),
+    { id: "B-COMP" });
+  assert.equal(compensatedEntity, 1);
+
+  const uncertain = harness();
+  let uncertainBusinessCalls = 0;
+  const uncertainOptions = {
+    data: {}, requestId: "request-business-uncertain", action: "BOOKING_CREATE",
+    entityType: "BOOKING", entityId: "B-UNCERTAIN", branchId: "BR-1", date: "2099-01-02",
+    business: () => { uncertainBusinessCalls += 1; throw new Error("write result unknown"); },
+    compensateBusiness: () => { throw new Error("compensation could not prove rollback"); }
+  };
+  assert.throws(() => uncertain.context.bookingAvailabilityPhase5RunTransaction(uncertainOptions),
+    error => error.code === "AVAILABILITY_RECOVERY_REQUIRED");
+  assert.equal(uncertain.rows.BOOKING_AVAILABILITY_TRANSACTIONS[0].status, "RECOVERY_REQUIRED");
+  assert.throws(() => uncertain.context.bookingAvailabilityPhase5RunTransaction(uncertainOptions),
+    error => error.code === "AVAILABILITY_RECOVERY_REQUIRED");
+  assert.equal(uncertainBusinessCalls, 1);
 });
 
 test("version failure compensates a persisted business write and records exact evidence", () => {
@@ -164,6 +306,174 @@ test("audit failure compensates authority change; failed compensation leaves rec
       error.details.transactionId));
   assert.equal(second.rows.BOOKING_AVAILABILITY_TRANSACTIONS[0].status, "RECOVERY_REQUIRED");
   assert.equal(second.rows.BOOKING_AVAILABILITY_TRANSACTIONS[0].recoveryRequired, true);
+});
+
+test("one-day Work Policy derives STAFF branch and invalidates one date exactly once", () => {
+  const { context, rows } = harness();
+  rows.STAFF.push({ staffId: "S-1", branchId: "BR-1", active: true });
+  rows.BOOKING_BRANCH_REGISTRY.push({
+    branchId: "BR-1", branchName: "Main", active: true,
+    timeZone: "Africa/Cairo", publicSelectable: true, closureStatus: "OPEN"
+  });
+  const result = context.bookingAvailabilityPhase5RunOperationalMutationTransaction(
+    "attendance", {
+      action: "createWorkPolicy", requestId: "policy-scope-one-day",
+      policy: { staffId: "S-1", effectiveFrom: "2099-01-02", effectiveTo: "2099-01-02" }
+    }, () => ({ status: "success", code: "CREATE_WORK_POLICY_OK", workPolicy: {
+      policyId: "POL-1", staffId: "S-1", effectiveFrom: "2099-01-02",
+      effectiveTo: "2099-01-02", active: true
+    } }));
+  assert.equal(result.workPolicy.policyId, "POL-1");
+  assert.equal(rows.BOOKING_AVAILABILITY_GENERATIONS.length, 1);
+  assert.equal(rows.BOOKING_AVAILABILITY_GENERATIONS[0].scopeType, "BRANCH");
+  assert.equal(rows.BOOKING_AVAILABILITY_GENERATIONS[0].scopeId, "BR-1");
+  assert.equal(rows.BOOKING_AVAILABILITY_GENERATIONS[0].attendanceOperationalGeneration, 1);
+  assert.equal(rows.BOOKING_AVAILABILITY_VERSIONS.length, 1);
+  assert.equal(rows.BOOKING_AVAILABILITY_VERSIONS[0].branchId, "BR-1");
+  assert.equal(rows.BOOKING_AVAILABILITY_VERSIONS[0].date, "2099-01-02");
+  assert.equal(rows.BOOKING_AVAILABILITY_VERSIONS[0].attendanceOperationalVersion, 1);
+  assert.equal(rows.BOOKING_AVAILABILITY_AUDIT.length, 1);
+  assert.equal(rows.BOOKING_AVAILABILITY_TRANSACTIONS[0].status, "COMMITTED");
+  assert.equal(rows.BOOKING_AVAILABILITY_TRANSACTIONS[0].branchId, "BR-1");
+});
+
+test("multi-day Work Policy invalidates every bounded date and one branch generation", () => {
+  const { context, rows } = harness();
+  rows.STAFF.push({ staffId: "S-1", branchId: "BR-1", active: true });
+  rows.BOOKING_BRANCH_REGISTRY.push({
+    branchId: "BR-1", branchName: "Main", active: true,
+    timeZone: "Africa/Cairo", publicSelectable: true, closureStatus: "OPEN"
+  });
+  context.bookingAvailabilityPhase5RunOperationalMutationTransaction("attendance", {
+    action: "createWorkPolicy", requestId: "policy-scope-multi-day",
+    policy: { staffId: "S-1", effectiveFrom: "2099-01-02", effectiveTo: "2099-01-04" }
+  }, () => ({ status: "success", code: "CREATE_WORK_POLICY_OK", workPolicy: {
+    policyId: "POL-MULTI", staffId: "S-1", effectiveFrom: "2099-01-02",
+    effectiveTo: "2099-01-04", active: true
+  } }));
+  assert.deepEqual(Array.from(rows.BOOKING_AVAILABILITY_VERSIONS, item => item.date),
+    ["2099-01-02", "2099-01-03", "2099-01-04"]);
+  assert.equal(rows.BOOKING_AVAILABILITY_GENERATIONS.length, 1);
+  assert.equal(rows.BOOKING_AVAILABILITY_GENERATIONS[0].attendanceOperationalGeneration, 1);
+});
+
+test("Work Policy scope fails before business write for missing or forged STAFF branch", () => {
+  const missing = harness();
+  missing.rows.STAFF.push({ staffId: "S-1", branchId: "", active: true });
+  let missingBusinessCalls = 0;
+  assert.throws(() => missing.context.bookingAvailabilityPhase5RunOperationalMutationTransaction(
+    "attendance", {
+      action: "createWorkPolicy", requestId: "policy-missing-branch",
+      policy: { staffId: "S-1", effectiveFrom: "2099-01-02", effectiveTo: "2099-01-02" }
+    }, () => { missingBusinessCalls += 1; return {}; }),
+  error => error.code === "AVAILABILITY_POLICY_STAFF_BRANCH_REQUIRED");
+  assert.equal(missingBusinessCalls, 0);
+  assert.equal(missing.rows.BOOKING_AVAILABILITY_TRANSACTIONS.length, 0);
+
+  const forged = harness();
+  forged.rows.STAFF.push({ staffId: "S-1", branchId: "BR-1", active: true });
+  forged.rows.BOOKING_BRANCH_REGISTRY.push({
+    branchId: "BR-1", branchName: "Main", active: true,
+    timeZone: "Africa/Cairo", publicSelectable: true, closureStatus: "OPEN"
+  });
+  let forgedBusinessCalls = 0;
+  assert.throws(() => forged.context.bookingAvailabilityPhase5RunOperationalMutationTransaction(
+    "attendance", {
+      action: "createWorkPolicy", requestId: "policy-forged-branch", branchId: "BR-2",
+      policy: { staffId: "S-1", effectiveFrom: "2099-01-02", effectiveTo: "2099-01-02" }
+    }, () => { forgedBusinessCalls += 1; return {}; }),
+  error => error.code === "AVAILABILITY_POLICY_BRANCH_SCOPE_MISMATCH");
+  assert.equal(forgedBusinessCalls, 0);
+  assert.equal(forged.rows.BOOKING_AVAILABILITY_TRANSACTIONS.length, 0);
+});
+
+test("recovery completes the existing Work Policy transaction without duplicate effects", () => {
+  const { context, rows, identity } = harness();
+  rows.STAFF.push({ staffId: "S-1", branchId: "BR-1", active: true });
+  rows.BOOKING_BRANCH_REGISTRY.push({
+    branchId: "BR-1", branchName: "Main", active: true,
+    timeZone: "Africa/Cairo", publicSelectable: true, closureStatus: "OPEN"
+  });
+  const businessState = { status: "success", code: "CREATE_WORK_POLICY_OK", workPolicy: {
+    policyId: "POL-RECOVER", staffId: "S-1", effectiveFrom: "2099-01-02",
+    effectiveTo: "2099-01-02", active: true
+  } };
+  rows.STAFF_WORK_POLICIES.push({
+    policyId: "POL-RECOVER", staffId: "S-1", effectiveFrom: "2099-01-02",
+    effectiveTo: "2099-01-02", active: true
+  });
+  rows.STAFF_ATTENDANCE_IDEMPOTENCY.push({
+    requestId: "policy-recovery-original", action: "createWorkPolicy",
+    status: "COMPLETED", response: businessState
+  });
+  rows.BOOKING_AVAILABILITY_TRANSACTIONS.push({
+    transactionId: "BAT-RECOVER", requestId: "policy-recovery-original",
+    action: "ATTENDANCE_AVAILABILITY_INVALIDATION", entityType: "ATTENDANCE_MUTATION",
+    actorId: "owner-1", environment: "test", status: "RECOVERY_REQUIRED",
+    writeBoundary: "FAILED", beforeState: {}, businessState,
+    versionState: {}, auditState: {}, result: {},
+    errorCode: "AVAILABILITY_GENERATION_SCOPE_INVALID",
+    errorMessage: "Availability generation scope is invalid.",
+    compensationState: { attempted: true, completed: false }, recoveryRequired: true
+  });
+  const input = {
+    transactionId: "BAT-RECOVER", originalRequestId: "policy-recovery-original",
+    requestId: "policy-recovery-attempt-01"
+  };
+  const first = context.bookingAvailabilityPhase5RecoverWorkPolicyTransaction(
+    input, identity.actor);
+  assert.equal(first.recovered, true);
+  assert.equal(first.replay, false);
+  assert.equal(rows.BOOKING_AVAILABILITY_TRANSACTIONS[0].status, "COMMITTED");
+  assert.equal(rows.BOOKING_AVAILABILITY_TRANSACTIONS[0].recoveryRequired, false);
+  assert.equal(rows.BOOKING_AVAILABILITY_GENERATIONS.length, 1);
+  assert.equal(rows.BOOKING_AVAILABILITY_VERSIONS.length, 1);
+  assert.equal(rows.BOOKING_AVAILABILITY_AUDIT.length, 1);
+  const counts = {
+    generations: rows.BOOKING_AVAILABILITY_GENERATIONS.length,
+    versions: rows.BOOKING_AVAILABILITY_VERSIONS.length,
+    audits: rows.BOOKING_AVAILABILITY_AUDIT.length
+  };
+  const replay = context.bookingAvailabilityPhase5RecoverWorkPolicyTransaction(
+    input, identity.actor);
+  assert.equal(replay.replay, true);
+  assert.deepEqual(counts, {
+    generations: rows.BOOKING_AVAILABILITY_GENERATIONS.length,
+    versions: rows.BOOKING_AVAILABILITY_VERSIONS.length,
+    audits: rows.BOOKING_AVAILABILITY_AUDIT.length
+  });
+});
+
+test("recovery safely clears a legacy no-effect Schedule validation marker", () => {
+  const { context, rows, identity, scriptProperties } = harness();
+  rows.BOOKING_AVAILABILITY_TRANSACTIONS.push({
+    transactionId: "BAT-SCHEDULE-VALIDATION", requestId: "schedule-overlap-legacy",
+    action: "SCHEDULE_AVAILABILITY_INVALIDATION", entityType: "SCHEDULE_MUTATION",
+    actorId: "owner-1", environment: "test", status: "RECOVERY_REQUIRED",
+    writeBoundary: "FAILED", beforeState: {}, businessState: {}, versionState: {},
+    auditState: {}, result: {}, errorCode: "SCHEDULE_SHIFT_CONFLICT",
+    errorMessage: "Schedule segment conflicts with an active segment.",
+    compensationState: { attempted: true, completed: false,
+      errorCode: "AVAILABILITY_COMPENSATION_UNAVAILABLE" }, recoveryRequired: true
+  });
+  const input = { transactionId: "BAT-SCHEDULE-VALIDATION",
+    originalRequestId: "schedule-overlap-legacy", requestId: "recover-schedule-safe" };
+  const recovered = context.bookingAvailabilityPhase5RecoverWorkPolicyTransaction(
+    input, identity.actor);
+  assert.equal(recovered.compensated, true);
+  assert.equal(recovered.replay, false);
+  assert.equal(rows.BOOKING_AVAILABILITY_TRANSACTIONS[0].status, "COMPENSATED");
+  assert.equal(rows.BOOKING_AVAILABILITY_TRANSACTIONS[0].recoveryRequired, false);
+  assert.equal(rows.BOOKING_AVAILABILITY_GENERATIONS.length, 0);
+  assert.equal(rows.BOOKING_AVAILABILITY_AUDIT.length, 0);
+  assert.equal(context.bookingAvailabilityPhase5RecoverWorkPolicyTransaction(
+    input, identity.actor).replay, true);
+
+  rows.BOOKING_AVAILABILITY_TRANSACTIONS[0].status = "RECOVERY_REQUIRED";
+  rows.BOOKING_AVAILABILITY_TRANSACTIONS[0].recoveryRequired = true;
+  scriptProperties["SCHEDULE_RECOVERY_schedule-overlap-legacy"] = "uncertain";
+  assert.throws(() => context.bookingAvailabilityPhase5RecoverWorkPolicyTransaction(
+    input, identity.actor), error => error.code === "AVAILABILITY_RECOVERY_STATE_UNSUPPORTED");
 });
 
 test("read-only branch and migration preview paths perform zero authoritative writes", () => {
@@ -239,6 +549,33 @@ test("branch hours reject malformed and reversed effective ranges before writing
   assert.equal(saved.closeTime, "06:00");
   assert.equal(rows.BRANCH_BOOKING_HOURS[0].effectiveFrom, "2099-03-01");
   assert.equal(rows.BRANCH_BOOKING_HOURS[0].effectiveTo, "2099-03-31");
+});
+
+test("operational override persists the validated staff identity and commits once", () => {
+  const { context, rows, identity } = harness();
+  rows.BOOKING_BRANCH_REGISTRY.push({
+    branchId: "BR-1", branchName: "Main", active: true,
+    timeZone: "Africa/Cairo", publicSelectable: true, closureStatus: "OPEN"
+  });
+  rows.STAFF.push({ staffId: "S-1", branchId: "BR-1", active: true });
+  identity.actor = {
+    actorId: "manager-1", role: "MANAGER", owner: false, branchIds: ["BR-1"],
+    permissions: ["booking_availability.manage_override", "booking_availability.override_internal"]
+  };
+  const input = {
+    branchId: "BR-1", staffId: "S-1", date: "2099-01-02",
+    startTime: "10:30", endTime: "11:00", reason: "controlled test",
+    clientRequestId: "override-create-01"
+  };
+  const created = context.bookingAvailabilityPhase5CreateOverride(input, identity.actor);
+  assert.equal(created.staffId, "S-1");
+  assert.equal(rows.BOOKING_OPERATIONAL_OVERRIDES.length, 1);
+  assert.equal(rows.BOOKING_OPERATIONAL_OVERRIDES[0].staffId, "S-1");
+  assert.equal(rows.BOOKING_AVAILABILITY_TRANSACTIONS[0].status, "COMMITTED");
+  assert.equal(rows.BOOKING_AVAILABILITY_AUDIT.length, 1);
+  const replay = context.bookingAvailabilityPhase5CreateOverride(input, identity.actor);
+  assert.equal(replay.operationalOverrideId, created.operationalOverrideId);
+  assert.equal(rows.BOOKING_OPERATIONAL_OVERRIDES.length, 1);
 });
 
 test("realistic role matrix keeps Booking authority separate from Attendance and Payroll", () => {

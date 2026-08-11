@@ -63,8 +63,8 @@ function bookingAvailabilityPhase5AssertIdentity(options) {
     spreadsheetError.code = "AVAILABILITY_SPREADSHEET_IDENTITY_MISMATCH";
     throw spreadsheetError;
   }
-  if (data.preview && ["production", "staging"].indexOf(config.environment) !== -1) {
-    var previewError = new Error("Phase 5 migration preview cannot access staging or production.");
+  if (data.preview && config.environment === "production") {
+    var previewError = new Error("Phase 5 preview cannot access production.");
     previewError.code = "PHASE5_ENVIRONMENT_BLOCKED";
     throw previewError;
   }
@@ -619,6 +619,7 @@ function bookingAvailabilityPhase5CommittedResultForRequest(requestId) {
   if (String(matches[0].status).toUpperCase() === "COMMITTED") {
     return bookingAvailabilityPhase5TransactionResult(matches[0]);
   }
+  if (bookingAvailabilityPhase5TransactionSafelyRetryable(matches[0])) return null;
   var error = BookingAvailabilityPhase5.availabilityError(
     "AVAILABILITY_RECOVERY_REQUIRED", "The original request has a durable recovery state.");
   error.details = {
@@ -627,6 +628,31 @@ function bookingAvailabilityPhase5CommittedResultForRequest(requestId) {
     recoveryRequired: matches[0].recoveryRequired === true
   };
   throw error;
+}
+
+function bookingAvailabilityPhase5TransactionSafelyRetryable(record) {
+  if (!record || String(record.status || "").toUpperCase() !== "COMPENSATED" ||
+      record.recoveryRequired === true ||
+      String(record.recoveryRequired || "").toUpperCase() === "TRUE") return false;
+  var compensation = record.compensationState || {};
+  return compensation.completed === true ||
+    String(compensation.completed || "").toUpperCase() === "TRUE";
+}
+
+function bookingAvailabilityPhase5BusinessFailureHasNoEffect(error) {
+  return !!error && (error.businessMutationState === "NOT_STARTED" ||
+    error.noBusinessMutation === true);
+}
+
+function bookingAvailabilityPhase5RetryHistory(record) {
+  var compensation = record && record.compensationState || {};
+  var history = Array.isArray(compensation.retryHistory) ? compensation.retryHistory.slice(-9) : [];
+  history.push({
+    status: record.status, errorCode: record.errorCode, errorMessage: record.errorMessage,
+    writeBoundary: record.writeBoundary, compensationCompleted: compensation.completed === true,
+    compensationSteps: compensation.steps || [], updatedAt: record.updatedAt
+  });
+  return history;
 }
 
 function bookingAvailabilityPhase5TransactionResult(record) {
@@ -644,34 +670,50 @@ function bookingAvailabilityPhase5RunTransaction(options) {
       "AVAILABILITY_TRANSACTION_REQUEST_INVALID", "A valid transaction request ID is required.");
   }
   var prior = bookingAvailabilityPhase5FindTransaction(action, requestId);
+  var retryHistory = [];
   if (prior) {
     var status = String(prior.status || "").toUpperCase();
     if (status === "COMMITTED") return bookingAvailabilityPhase5TransactionResult(prior);
-    var recovery = BookingAvailabilityPhase5.availabilityError(
-      "AVAILABILITY_RECOVERY_REQUIRED", "The original request requires deterministic recovery.");
-    recovery.details = {
-      transactionId: prior.transactionId, status: status,
-      writeBoundary: prior.writeBoundary, recoveryRequired: true
-    };
-    throw recovery;
+    if (bookingAvailabilityPhase5TransactionSafelyRetryable(prior)) {
+      retryHistory = bookingAvailabilityPhase5RetryHistory(prior);
+    } else {
+      var recovery = BookingAvailabilityPhase5.availabilityError(
+        "AVAILABILITY_RECOVERY_REQUIRED", "The original request requires deterministic recovery.");
+      recovery.details = {
+        transactionId: prior.transactionId, status: status,
+        writeBoundary: prior.writeBoundary, recoveryRequired: true
+      };
+      throw recovery;
+    }
   }
   var identity = bookingAvailabilityPhase5AssertIdentity();
   var actor = options.actor || bookingAvailabilityPhase5Actor(data, true);
   var now = bookingAvailabilityPhase5Now();
-  var transaction = {
+  var transaction = prior || {
     transactionId: "BAT-" + Utilities.getUuid(), requestId: requestId, action: action,
+    createdAt: now
+  };
+  Object.assign(transaction, {
+    requestId: requestId, action: action,
     entityType: options.entityType || "", entityId: options.entityId || "",
     branchId: options.branchId || "", date: options.date || "",
     actorId: actor ? actor.actorId : "public", environment: identity.config.environment,
     status: "INTENT", writeBoundary: "INTENT", beforeState: options.beforeState || {},
     businessState: {}, versionState: {}, auditState: {}, result: {},
-    errorCode: "", errorMessage: "", compensationState: {},
-    recoveryRequired: false, createdAt: now, updatedAt: now
-  };
+    errorCode: "", errorMessage: "",
+    compensationState: { retryCount: retryHistory.length, retryHistory: retryHistory },
+    recoveryRequired: false, updatedAt: now
+  });
   bookingAvailabilityPhase5SaveTransaction(transaction);
-  bookingAvailabilityPhase5FailurePoint(data, "INTENT");
   var businessResult;
+  var businessAttempted = false;
   try {
+    bookingAvailabilityPhase5FailurePoint(data, "INTENT");
+    transaction.status = "BUSINESS_STARTED";
+    transaction.writeBoundary = "BUSINESS_STARTED";
+    transaction.updatedAt = bookingAvailabilityPhase5Now();
+    bookingAvailabilityPhase5SaveTransaction(transaction);
+    businessAttempted = true;
     businessResult = options.business(transaction);
     transaction.entityId = transaction.entityId ||
       bookingAvailabilityPhase5Text(businessResult && (businessResult.id ||
@@ -710,23 +752,33 @@ function bookingAvailabilityPhase5RunTransaction(options) {
     if (String(transaction.status).toUpperCase() === "COMMITTED") {
       return transaction.result || {};
     }
-    var compensation = { attempted: true, completed: false, steps: [] };
+    var compensation = {
+      attempted: true, completed: false, steps: [],
+      retryCount: Number(transaction.compensationState && transaction.compensationState.retryCount) || 0,
+      retryHistory: transaction.compensationState && transaction.compensationState.retryHistory || []
+    };
     try {
-      if (options.compensateAudit && transaction.auditState) {
+      if (options.compensateAudit && transaction.auditState &&
+          Object.keys(transaction.auditState).length) {
         options.compensateAudit(transaction.auditState, transaction);
         compensation.steps.push("AUDIT");
       }
-      if (options.compensateVersion && transaction.versionState) {
+      if (options.compensateVersion && transaction.versionState &&
+          Object.keys(transaction.versionState).length) {
         options.compensateVersion(transaction.versionState, transaction);
         compensation.steps.push("VERSION");
       }
-      if (options.compensateBusiness && businessResult) {
+      if (!businessAttempted) {
+        compensation.steps.push("BUSINESS_NOT_STARTED");
+      } else if (bookingAvailabilityPhase5BusinessFailureHasNoEffect(error)) {
+        compensation.steps.push("BUSINESS_NOT_WRITTEN");
+      } else if (options.compensateBusiness) {
         options.compensateBusiness(businessResult, transaction);
         compensation.steps.push("BUSINESS");
-      } else if (businessResult && !options.compensateBusiness) {
+      } else {
         throw BookingAvailabilityPhase5.availabilityError(
           "AVAILABILITY_COMPENSATION_UNAVAILABLE",
-          "Business compensation is not available for this mutation.");
+          "Business compensation is not available for an attempted mutation.");
       }
       bookingAvailabilityPhase5FailurePoint(data, "COMPENSATION");
       compensation.completed = true;
@@ -814,6 +866,44 @@ function bookingAvailabilityPhase5IncrementVersion(kind, branchId, date, actor) 
   var generation = bookingAvailabilityPhase5IncrementGeneration(
     generationKind, generationScope, generationId, actor, "");
   return { before: before, after: current, generation: generation };
+}
+
+function bookingAvailabilityPhase5IncrementVersionOnly(kind, branchId, date, actor) {
+  var fieldByKind = {
+    booking: "bookingVersion", schedule: "scheduleVersion",
+    attendance: "attendanceOperationalVersion",
+    operationalOverride: "operationalOverrideVersion",
+    service: "serviceVersion", branchHours: "branchHoursVersion"
+  };
+  var field = fieldByKind[kind];
+  if (!field || !bookingAvailabilityPhase5Text(branchId) ||
+      !bookingAvailabilityPhase5ValidDate(date)) {
+    throw BookingAvailabilityPhase5.availabilityError(
+      "AVAILABILITY_VERSION_SCOPE_INVALID", "Availability version scope is invalid.");
+  }
+  bookingAvailabilityPhase5RequireSheet("BOOKING_AVAILABILITY_VERSIONS");
+  var rows = schedulePhase2ReadRows("BOOKING_AVAILABILITY_VERSIONS").filter(function (item) {
+    return bookingAvailabilityPhase5Text(item.branchId) === bookingAvailabilityPhase5Text(branchId) &&
+      bookingAvailabilityPhase5Text(item.date) === bookingAvailabilityPhase5Text(date);
+  });
+  if (rows.length > 1) throw BookingAvailabilityPhase5.availabilityError(
+    "AVAILABILITY_VERSION_AMBIGUOUS", "Availability version scope is ambiguous.");
+  var before = rows[0] ? JSON.parse(JSON.stringify(rows[0])) : null;
+  var current = rows[0] || {
+    versionId: "BAV-" + bookingAvailabilityPhase5Text(branchId) + "-" + date,
+    branchId: branchId, date: date, bookingVersion: 0, scheduleVersion: 0,
+    attendanceOperationalVersion: 0, operationalOverrideVersion: 0,
+    serviceVersion: 0, branchHoursVersion: 0
+  };
+  current[field] = BookingAvailabilityPhase5.nextGeneration(current[field], 0).value;
+  current.updatedAt = bookingAvailabilityPhase5Now();
+  current.updatedBy = actor ? actor.actorId : "system";
+  schedulePhase2Save(
+    "BOOKING_AVAILABILITY_VERSIONS",
+    BookingAvailabilityPhase5.SHEET_SCHEMAS.BOOKING_AVAILABILITY_VERSIONS,
+    "VERSION_ID", current
+  );
+  return { before: before, after: current };
 }
 
 function bookingAvailabilityPhase5CreateOverride(data, actor) {
@@ -925,7 +1015,7 @@ function bookingAvailabilityPhase5CreateOverride(data, actor) {
     var attendance = bookingAvailabilityPhase5Attendance(staffMatches[0], date);
     var record = {
       operationalOverrideId: "BOV-" + Utilities.getUuid(),
-      branchId: branchId, staffId: record.staffId, date: date,
+      branchId: branchId, staffId: staffId, date: date,
       startTime: startTime, endTime: endTime, status: "ACTIVE",
       reason: reason, sourceAttendanceDayId: attendance.attendanceDayId,
       sourceEventIds: attendance.sourceEventIds,
@@ -1273,6 +1363,122 @@ function publishOperationalMutationUnderCurrentLock(kind, data, result) {
   return bookingAvailabilityPhase5AfterMutationUnderLock(kind, data, result);
 }
 
+function bookingAvailabilityPhase5PolicyDates(effectiveFrom, effectiveTo) {
+  var start = bookingAvailabilityPhase5Text(effectiveFrom);
+  var end = bookingAvailabilityPhase5Text(effectiveTo);
+  if (!bookingAvailabilityPhase5ValidDate(start) ||
+      (end && !bookingAvailabilityPhase5ValidDate(end)) || (end && end < start)) {
+    throw BookingAvailabilityPhase5.availabilityError(
+      "AVAILABILITY_POLICY_DATE_SCOPE_INVALID", "Work Policy date scope is invalid.");
+  }
+  if (!end) return [];
+  var dates = [];
+  var cursor = new Date(start + "T00:00:00Z");
+  var finalDate = new Date(end + "T00:00:00Z");
+  while (cursor <= finalDate) {
+    if (dates.length >= 366) throw BookingAvailabilityPhase5.availabilityError(
+      "AVAILABILITY_POLICY_DATE_SCOPE_TOO_LARGE",
+      "Work Policy date scope exceeds the bounded invalidation contract.");
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+function bookingAvailabilityPhase5ResolveWorkPolicyScope(data, result) {
+  var action = bookingAvailabilityPhase5Text(data && data.action);
+  if (["createWorkPolicy", "deactivateWorkPolicy"].indexOf(action) === -1) return null;
+  var policy = result && result.workPolicy;
+  var staffId = bookingAvailabilityPhase5Text(policy && policy.staffId);
+  if (!staffId) throw BookingAvailabilityPhase5.availabilityError(
+    "AVAILABILITY_POLICY_STAFF_SCOPE_INVALID", "Work Policy staff scope is invalid.");
+  var matches = schedulePhase2ReadStaff().filter(function (item) {
+    return bookingAvailabilityPhase5Text(item.staffId) === staffId;
+  });
+  if (matches.length !== 1 || !bookingAvailabilityPhase5Text(matches[0].branchId)) {
+    throw BookingAvailabilityPhase5.availabilityError(
+      matches.length > 1 ? "AVAILABILITY_POLICY_STAFF_SCOPE_AMBIGUOUS" :
+        "AVAILABILITY_POLICY_STAFF_BRANCH_REQUIRED",
+      "Work Policy staff must resolve to exactly one canonical branch.");
+  }
+  var branchId = bookingAvailabilityPhase5Text(matches[0].branchId);
+  var suppliedBranchId = bookingAvailabilityPhase5Text(data && data.branchId);
+  if (suppliedBranchId && suppliedBranchId !== branchId) {
+    throw BookingAvailabilityPhase5.availabilityError(
+      "AVAILABILITY_POLICY_BRANCH_SCOPE_MISMATCH",
+      "Client-supplied branch scope cannot override canonical STAFF authority.");
+  }
+  bookingAvailabilityPhase5Branch(branchId, { allowClosed: true });
+  var effectiveFrom = bookingAvailabilityPhase5Text(policy.effectiveFrom);
+  var effectiveTo = bookingAvailabilityPhase5Text(policy.effectiveTo);
+  return {
+    policyId: bookingAvailabilityPhase5Text(policy.policyId), staffId: staffId,
+    branchId: branchId, effectiveFrom: effectiveFrom, effectiveTo: effectiveTo,
+    dates: bookingAvailabilityPhase5PolicyDates(effectiveFrom, effectiveTo)
+  };
+}
+
+function bookingAvailabilityPhase5PreflightWorkPolicyScope(data) {
+  if (bookingAvailabilityPhase5Text(data && data.action) !== "createWorkPolicy") return null;
+  var input = data && data.policy || {};
+  var staffId = bookingAvailabilityPhase5Text(input.staffId || input.STAFF_ID || data.staffId);
+  if (!staffId) return null;
+  var matches = schedulePhase2ReadStaff().filter(function (item) {
+    return bookingAvailabilityPhase5Text(item.staffId) === staffId;
+  });
+  if (matches.length !== 1 || !bookingAvailabilityPhase5Text(matches[0].branchId)) {
+    throw BookingAvailabilityPhase5.availabilityError(
+      matches.length > 1 ? "AVAILABILITY_POLICY_STAFF_SCOPE_AMBIGUOUS" :
+        "AVAILABILITY_POLICY_STAFF_BRANCH_REQUIRED",
+      "Work Policy staff must resolve to exactly one canonical branch.");
+  }
+  var branchId = bookingAvailabilityPhase5Text(matches[0].branchId);
+  var suppliedBranchId = bookingAvailabilityPhase5Text(data && data.branchId);
+  if (suppliedBranchId && suppliedBranchId !== branchId) {
+    throw BookingAvailabilityPhase5.availabilityError(
+      "AVAILABILITY_POLICY_BRANCH_SCOPE_MISMATCH",
+      "Client-supplied branch scope cannot override canonical STAFF authority.");
+  }
+  bookingAvailabilityPhase5Branch(branchId, { allowClosed: true });
+  return { branchId: branchId, staffId: staffId };
+}
+
+function bookingAvailabilityPhase5InvalidateWorkPolicy(scope, actor, requestId) {
+  var generation = bookingAvailabilityPhase5IncrementGeneration(
+    "attendance", "BRANCH", scope.branchId, actor, requestId);
+  var versions = scope.dates.map(function (date) {
+    return bookingAvailabilityPhase5IncrementVersionOnly(
+      "attendance", scope.branchId, date, actor);
+  });
+  return {
+    kind: "WORK_POLICY", scopeType: "BRANCH", branchId: scope.branchId,
+    staffId: scope.staffId, effectiveFrom: scope.effectiveFrom,
+    effectiveTo: scope.effectiveTo, affectedDates: scope.dates,
+    generation: generation, versions: versions
+  };
+}
+
+function bookingAvailabilityPhase5WorkPolicyAudit(scope, actor, requestId) {
+  var matches = schedulePhase2ReadRows("BOOKING_AVAILABILITY_AUDIT").filter(function (item) {
+    return bookingAvailabilityPhase5Text(item.requestId) === requestId &&
+      bookingAvailabilityPhase5Text(item.entityId) === scope.policyId &&
+      bookingAvailabilityPhase5Text(item.action) === "WORK_POLICY_AVAILABILITY_INVALIDATED";
+  });
+  if (matches.length > 1) throw BookingAvailabilityPhase5.availabilityError(
+    "AVAILABILITY_POLICY_AUDIT_AMBIGUOUS", "Work Policy invalidation audit is ambiguous.");
+  if (matches.length === 1) return matches[0];
+  return bookingAvailabilityPhase5AppendAudit({
+    action: "WORK_POLICY_AVAILABILITY_INVALIDATED", entityType: "STAFF_WORK_POLICY",
+    entityId: scope.policyId, branchId: scope.branchId, staffId: scope.staffId,
+    date: scope.effectiveFrom, actorId: actor ? actor.actorId : "system",
+    actorRole: actor ? actor.role : "SYSTEM", reasonCode: "WORK_POLICY_SCOPE_CHANGED",
+    sourceIds: [scope.policyId], afterState: {
+      effectiveFrom: scope.effectiveFrom, effectiveTo: scope.effectiveTo,
+      affectedDates: scope.dates
+    }, requestId: requestId
+  });
+}
+
 function bookingAvailabilityPhase5RunOperationalMutationTransaction(kind, data, callback) {
   if (bookingAvailabilityPhase5Flags().engine === "LEGACY") return callback();
   var requestId = bookingAvailabilityPhase5Text(data && (data.clientRequestId || data.requestId));
@@ -1283,15 +1489,36 @@ function bookingAvailabilityPhase5RunOperationalMutationTransaction(kind, data, 
     });
   }
   var actor = bookingAvailabilityPhase5Actor(data, true);
+  var policyPreflight = bookingAvailabilityPhase5PreflightWorkPolicyScope(data);
   return bookingAvailabilityPhase5RunTransaction({
     data: data, requestId: requestId,
     action: String(kind).toUpperCase() + "_AVAILABILITY_INVALIDATION",
     entityType: String(kind).toUpperCase() + "_MUTATION",
-    branchId: bookingAvailabilityPhase5Text(data && data.branchId),
+    branchId: policyPreflight ? policyPreflight.branchId :
+      bookingAvailabilityPhase5Text(data && data.branchId),
     date: bookingAvailabilityPhase5Text(data && data.date),
     actor: actor, beforeState: {},
-    business: function () { return callback(); },
-    version: function (result) {
+    business: function () {
+      try {
+        return callback();
+      } catch (error) {
+        var domainCode = String(error && error.code || "").toUpperCase();
+        if (domainCode !== "SCHEDULE_COMPENSATION_FAILED" &&
+            domainCode !== "ATTENDANCE_COMPENSATION_FAILED") {
+          error.noBusinessMutation = true;
+        }
+        throw error;
+      }
+    },
+    version: function (result, transaction) {
+      var policyScope = bookingAvailabilityPhase5ResolveWorkPolicyScope(data, result);
+      if (policyScope) {
+        transaction.branchId = policyScope.branchId;
+        transaction.date = policyScope.effectiveFrom;
+        transaction.entityType = "STAFF_WORK_POLICY";
+        transaction.entityId = policyScope.policyId;
+        return bookingAvailabilityPhase5InvalidateWorkPolicy(policyScope, actor, requestId);
+      }
       var day = result && (result.attendanceDay || result.day);
       var record = result && (result.override || result.scheduleOverride || result.record);
       var branchId = bookingAvailabilityPhase5Text(
@@ -1306,6 +1533,9 @@ function bookingAvailabilityPhase5RunOperationalMutationTransaction(kind, data, 
       return bookingAvailabilityPhase5IncrementVersion(kind, branchId, date, actor);
     },
     audit: function (result) {
+      var policyScope = bookingAvailabilityPhase5ResolveWorkPolicyScope(data, result);
+      if (policyScope) return bookingAvailabilityPhase5WorkPolicyAudit(
+        policyScope, actor, requestId);
       var day = result && (result.attendanceDay || result.day);
       var record = result && (result.override || result.scheduleOverride || result.record);
       var branchId = bookingAvailabilityPhase5Text(
@@ -1326,6 +1556,138 @@ function bookingAvailabilityPhase5RunOperationalMutationTransaction(kind, data, 
       });
     },
     response: function (result) { return result; }
+  });
+}
+
+function bookingAvailabilityPhase5RecoverWorkPolicyTransaction(data, actor) {
+  if (!actor || !actor.owner) throw BookingAvailabilityPhase5.availabilityError(
+    "AVAILABILITY_OWNER_REQUIRED", "Only owner can recover availability transactions.");
+  var transactionId = bookingAvailabilityPhase5Text(data.transactionId);
+  var originalRequestId = bookingAvailabilityPhase5Text(data.originalRequestId);
+  var recoveryRequestId = bookingAvailabilityPhase5Text(data.requestId);
+  if (!transactionId || !bookingAvailabilityPhase5ValidRequestId(originalRequestId) ||
+      !bookingAvailabilityPhase5ValidRequestId(recoveryRequestId)) {
+    throw BookingAvailabilityPhase5.availabilityError(
+      "AVAILABILITY_RECOVERY_REQUEST_INVALID", "Recovery transaction and request identity are required.");
+  }
+  return bookingAvailabilityPhase5WithLock(function () {
+    var matches = schedulePhase2ReadRows("BOOKING_AVAILABILITY_TRANSACTIONS").filter(function (item) {
+      return bookingAvailabilityPhase5Text(item.transactionId) === transactionId &&
+        bookingAvailabilityPhase5Text(item.requestId) === originalRequestId;
+    });
+    if (matches.length !== 1) throw BookingAvailabilityPhase5.availabilityError(
+      matches.length ? "AVAILABILITY_TRANSACTION_AMBIGUOUS" : "AVAILABILITY_TRANSACTION_NOT_FOUND",
+      "Recovery transaction was not found uniquely.");
+    var transaction = matches[0];
+    if (String(transaction.status).toUpperCase() === "COMMITTED") {
+      return { recovered: true, replay: true, transactionId: transactionId,
+        result: bookingAvailabilityPhase5TransactionResult(transaction) };
+    }
+    if (String(transaction.status).toUpperCase() === "COMPENSATED" &&
+        transaction.recoveryRequired !== true &&
+        String(transaction.recoveryRequired || "").toUpperCase() !== "TRUE") {
+      return { recovered: true, replay: true, compensated: true,
+        transactionId: transactionId, result: {} };
+    }
+    var transactionAction = String(transaction.action || "").toUpperCase();
+    var domainPrefix = transactionAction === "SCHEDULE_AVAILABILITY_INVALIDATION"
+      ? "SCHEDULE" : transactionAction === "ATTENDANCE_AVAILABILITY_INVALIDATION"
+        ? "ATTENDANCE" : "";
+    var domainRecoveryMarker = domainPrefix
+      ? PropertiesService.getScriptProperties().getProperty(
+        domainPrefix + "_RECOVERY_" + originalRequestId) : "";
+    var compensation = transaction.compensationState || {};
+    var emptyOperationalState = [transaction.businessState, transaction.versionState,
+      transaction.auditState, transaction.result].every(function (value) {
+        return !value || !Object.keys(value).length;
+      });
+    var domainCompensationFailed = String(transaction.errorCode || "").toUpperCase() ===
+      domainPrefix + "_COMPENSATION_FAILED";
+    if (String(transaction.status).toUpperCase() === "RECOVERY_REQUIRED" &&
+        domainPrefix && emptyOperationalState && !domainRecoveryMarker &&
+        !domainCompensationFailed &&
+        String(compensation.errorCode || "").toUpperCase() ===
+          "AVAILABILITY_COMPENSATION_UNAVAILABLE") {
+      transaction.compensationState = {
+        attempted: true, completed: true,
+        steps: ["BUSINESS_ROLLED_BACK_BY_DOMAIN_TRANSACTION"],
+        retryCount: Number(compensation.retryCount) || 0,
+        retryHistory: compensation.retryHistory || []
+      };
+      transaction.status = "COMPENSATED";
+      transaction.writeBoundary = "RECOVERY_COMPENSATED";
+      transaction.recoveryRequired = false;
+      transaction.updatedAt = bookingAvailabilityPhase5Now();
+      bookingAvailabilityPhase5SaveTransaction(transaction);
+      return { recovered: true, replay: false, compensated: true,
+        transactionId: transactionId, result: {} };
+    }
+    if (String(transaction.status).toUpperCase() !== "RECOVERY_REQUIRED" ||
+        bookingAvailabilityPhase5Text(transaction.action) !== "ATTENDANCE_AVAILABILITY_INVALIDATION" ||
+        bookingAvailabilityPhase5Text(transaction.errorCode) !== "AVAILABILITY_GENERATION_SCOPE_INVALID") {
+      throw BookingAvailabilityPhase5.availabilityError(
+        "AVAILABILITY_RECOVERY_STATE_UNSUPPORTED",
+        "Only the proven Work Policy invalidation recovery state is supported.");
+    }
+    var result = transaction.businessState;
+    var policy = result && result.workPolicy;
+    if (!policy || ["CREATE_WORK_POLICY_OK", "DEACTIVATE_WORK_POLICY_OK"].indexOf(
+        bookingAvailabilityPhase5Text(result.code)) === -1) {
+      throw BookingAvailabilityPhase5.availabilityError(
+        "AVAILABILITY_RECOVERY_BUSINESS_EVIDENCE_INVALID",
+        "Committed Work Policy business evidence is missing.");
+    }
+    var policyRows = schedulePhase2ReadRows("STAFF_WORK_POLICIES").filter(function (item) {
+      return bookingAvailabilityPhase5Text(item.policyId) ===
+        bookingAvailabilityPhase5Text(policy.policyId);
+    });
+    var idempotencyRows = schedulePhase2ReadRows("STAFF_ATTENDANCE_IDEMPOTENCY").filter(function (item) {
+      return bookingAvailabilityPhase5Text(item.requestId) === originalRequestId &&
+        String(item.status || "").toUpperCase() === "COMPLETED";
+    });
+    if (policyRows.length !== 1 || idempotencyRows.length !== 1) {
+      throw BookingAvailabilityPhase5.availabilityError(
+        "AVAILABILITY_RECOVERY_BUSINESS_EVIDENCE_INVALID",
+        "Work Policy and idempotency evidence must each exist exactly once.");
+    }
+    var originalAction = bookingAvailabilityPhase5Text(idempotencyRows[0].action);
+    var scope = bookingAvailabilityPhase5ResolveWorkPolicyScope(
+      { action: originalAction }, result);
+    if (!transaction.versionState || !Object.keys(transaction.versionState).length) {
+      transaction.versionState = bookingAvailabilityPhase5InvalidateWorkPolicy(
+        scope, actor, originalRequestId);
+      transaction.status = "VERSION_WRITTEN";
+      transaction.writeBoundary = "RECOVERY_VERSION";
+      transaction.branchId = scope.branchId;
+      transaction.date = scope.effectiveFrom;
+      transaction.entityType = "STAFF_WORK_POLICY";
+      transaction.entityId = scope.policyId;
+      transaction.updatedAt = bookingAvailabilityPhase5Now();
+      bookingAvailabilityPhase5SaveTransaction(transaction);
+    }
+    if (!transaction.auditState || !Object.keys(transaction.auditState).length) {
+      transaction.auditState = bookingAvailabilityPhase5WorkPolicyAudit(
+        scope, actor, originalRequestId);
+      transaction.status = "AUDIT_WRITTEN";
+      transaction.writeBoundary = "RECOVERY_AUDIT";
+      transaction.updatedAt = bookingAvailabilityPhase5Now();
+      bookingAvailabilityPhase5SaveTransaction(transaction);
+    }
+    transaction.result = result;
+    transaction.status = "COMMITTED";
+    transaction.writeBoundary = "RECOVERED";
+    transaction.errorCode = "";
+    transaction.errorMessage = "";
+    transaction.recoveryRequired = false;
+    transaction.compensationState = {
+      recovered: true, recoveryRequestId: recoveryRequestId,
+      recoveredAt: bookingAvailabilityPhase5Now(), recoveredBy: actor.actorId
+    };
+    transaction.updatedAt = bookingAvailabilityPhase5Now();
+    bookingAvailabilityPhase5SaveTransaction(transaction);
+    return { recovered: true, replay: false, transactionId: transactionId,
+      branchId: scope.branchId, staffId: scope.staffId,
+      affectedDates: scope.dates, result: result };
   });
 }
 
@@ -1911,16 +2273,17 @@ function bookingAvailabilityPhase5DetectorFreshContext(unit) {
 }
 
 function previewBookingNoCheckInTriggerInstallation(data) {
-  bookingAvailabilityPhase5AssertIdentity({ preview: true });
+  var identity = bookingAvailabilityPhase5AssertIdentity({ preview: true });
   var actor = bookingAvailabilityPhase5Actor(data);
   if (!actor.owner) throw BookingAvailabilityPhase5.availabilityError(
     "AVAILABILITY_OWNER_REQUIRED", "Only owner can preview the detector trigger.");
   return {
+    environment: identity.config.environment, dryRun: true,
     executionAllowed: false, installed: false, writes: 0, checkpointWrites: 0,
     handler: "runBookingNoCheckInDetector", cadenceMinutes: 5,
     limits: bookingAvailabilityPhase5DetectorLimits(data),
     checkpoint: { mode: "REPRODUCIBLE_TOKEN", durableWritesEnabled: false },
-    requiredGates: ["development-or-test", "PHASE5", "planned-enabled",
+    requiredGates: ["non-production", "PHASE5", "planned-enabled",
       "attendance-live-enabled", "conflict-resolution-enabled", "detector-enabled"],
     note: "Preview only. No conflicts, audits, checkpoints, generations, data, or ScriptApp triggers are written."
   };
@@ -2184,6 +2547,12 @@ function handleBookingAvailabilityPhase5Action(data) {
       return jsonOutput({
         status: "success",
         branch: bookingAvailabilityPhase5SaveBranchConfiguration(data, actor)
+      });
+    }
+    if (data.action === "recoverBookingAvailabilityTransaction") {
+      return jsonOutput({
+        status: "success",
+        recovery: bookingAvailabilityPhase5RecoverWorkPolicyTransaction(data, actor)
       });
     }
     if (data.action === "previewBookingNoCheckInTriggerInstallation") {

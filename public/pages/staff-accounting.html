@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="../assets/css/shared.css">
+    <link rel="stylesheet" href="../assets/css/pages/staff-import-preview.css">
 <title>Staff Accounting - SALONIX</title>
   <style>
     :root {
@@ -493,6 +494,8 @@
           <div class="list-actions">
             <button type="button" class="action-btn primary" id="addStaffBtn" data-i18n-ar="إضافة موظف" data-i18n-en="Add Employee">إضافة موظف</button>
             <button type="button" class="action-btn soft" id="resetBtn" data-i18n-ar="إعادة ضبط البيانات" data-i18n-en="Reset Data">إعادة ضبط البيانات</button>
+            <button type="button" class="action-btn soft" id="importPreviewBtn" data-i18n-ar="معاينة استيراد STAFF" data-i18n-en="Preview STAFF Import">معاينة استيراد STAFF</button>
+            <button type="button" class="action-btn soft" id="legacyStaffSnapshotBtn" data-i18n-ar="معاينة لقطة STAFF القديمة" data-i18n-en="Preview Legacy STAFF Snapshot">Legacy STAFF Snapshot</button>
           </div>
         </section>
 
@@ -616,16 +619,165 @@
     <button type="button" id="logoutBtn">Logout</button>
   </aside>
 
+  <dialog class="staff-import-dialog" id="staffImportPreviewDialog" aria-labelledby="staffImportPreviewTitle">
+    <div class="staff-import-content">
+      <div class="staff-import-head">
+        <h2 id="staffImportPreviewTitle">معاينة استيراد الموظفين المحليين</h2>
+        <button type="button" class="staff-import-close" id="closeImportPreviewBtn" aria-label="إغلاق">×</button>
+      </div>
+      <p>معاينة فقط: لا تكتب في STAFF ولا تغيّر localStorage. يجب تحديد فرع صريح لكل موظف وتأكيد القيم الافتراضية.</p>
+      <div class="staff-import-defaults">
+        <label>النسبة الافتراضية<input id="importDefaultPercentage" type="number" value="0" min="0" step="0.01"></label>
+        <label>المكافأة الافتراضية<input id="importDefaultBonus" type="number" value="0" min="0" step="0.01"></label>
+        <label>الخصم الافتراضي<input id="importDefaultDeduction" type="number" value="0" min="0" step="0.01"></label>
+        <label class="check-field">نشط<input id="importDefaultActive" type="checkbox" checked></label>
+      </div>
+      <label class="staff-import-confirmation">
+        <input id="importDefaultsConfirmed" type="checkbox">
+        أؤكد أن PERCENTAGE وBONUS وDEDUCTION تبدأ بصفر وأن ACTIVE يبدأ بقيمة TRUE لهذه المعاينة.
+      </label>
+      <div class="staff-import-branches" id="importBranchFields" aria-label="تعيين فروع الموظفين"></div>
+      <div class="staff-import-actions">
+        <button type="button" class="action-btn primary" id="runImportPreviewBtn">إنشاء المعاينة</button>
+        <span id="importPreviewState" role="status" aria-live="polite"></span>
+      </div>
+      <pre class="staff-import-output" id="importPreviewOutput">لم يتم إنشاء معاينة بعد.</pre>
+    </div>
+  </dialog>
+
+  <!-- TEMPORARY STAFF BOOTSTRAP SUPPORT: remove after the reviewed STAFF bootstrap is complete. -->
+  <dialog class="staff-import-dialog" id="legacyStaffSnapshotDialog" aria-labelledby="legacyStaffSnapshotTitle">
+    <div class="staff-import-content">
+      <div class="staff-import-head">
+        <h2 id="legacyStaffSnapshotTitle">Legacy STAFF Snapshot</h2>
+        <button type="button" class="staff-import-close" id="closeLegacyStaffSnapshotBtn" aria-label="إغلاق">×</button>
+      </div>
+      <p>قراءة محلية مؤقتة فقط. لا يتم تعديل التخزين أو إرسال البيانات إلى الخادم.</p>
+      <div class="staff-import-actions">
+        <button type="button" class="action-btn primary" id="previewLegacyStaffSnapshotBtn">Preview Legacy STAFF Snapshot</button>
+        <button type="button" class="action-btn soft" id="copyLegacyStaffSnapshotBtn" disabled>Copy JSON</button>
+        <span id="legacyStaffSnapshotState" role="status" aria-live="polite"></span>
+      </div>
+      <pre class="staff-import-output" id="legacyStaffSnapshotOutput">لم تتم قراءة المصدر بعد.</pre>
+    </div>
+  </dialog>
+
   <script src="../assets/js/utils/text-fix.js"></script>
   <script src="../assets/js/core/runtime-config.js"></script>
   <script src="../assets/js/core/api.js"></script>
   <script src="../assets/js/core/auth.js"></script>
+  <script src="../assets/js/core/staff-import-preview.js"></script>
   <script src="../assets/js/utils/layout.js"></script>
+  <script id="legacyStaffSnapshotExportLogic">
+    // TEMPORARY STAFF BOOTSTRAP SUPPORT: read-only local snapshot extraction only.
+    window.LegacyStaffSnapshotExport = (() => {
+      "use strict";
+
+      const SOURCE_KEY = "romeo-pos-staff-accounting-v2";
+      const FIELD_ALIASES = Object.freeze({
+        id: Object.freeze(["id", "staffId"]),
+        name: Object.freeze(["name", "staffName"]),
+        code: Object.freeze(["code", "staffCode"]),
+        salary: Object.freeze(["salary", "salaries"]),
+        percentage: Object.freeze(["percentage", "salaryPercentage"]),
+        bonus: Object.freeze(["bonus"]),
+        deduction: Object.freeze(["deduction", "debt", "lateDiscount"]),
+        isBarber: Object.freeze(["isBarber"])
+      });
+
+      function selectedSourceValue(record, aliases) {
+        for (const alias of aliases) {
+          if (Object.prototype.hasOwnProperty.call(record, alias)) return record[alias];
+        }
+        return null;
+      }
+
+      function filteredRecord(record) {
+        return Object.fromEntries(Object.entries(FIELD_ALIASES).map(([field, aliases]) => [
+          field, selectedSourceValue(record, aliases)
+        ]));
+      }
+
+      function reviewText(value) {
+        return String(value === null || value === undefined ? "" : value).trim();
+      }
+
+      function duplicateGroups(records, field, caseInsensitive) {
+        const groups = new Map();
+        records.forEach((record, index) => {
+          let value = reviewText(record[field]);
+          if (!value) return;
+          if (caseInsensitive) value = value.toUpperCase();
+          if (!groups.has(value)) groups.set(value, []);
+          groups.get(value).push(index + 1);
+        });
+        return Array.from(groups.entries())
+          .filter(([, recordNumbers]) => recordNumbers.length > 1)
+          .map(([value, recordNumbers]) => ({ value, recordNumbers }));
+      }
+
+      function validationSummary(records) {
+        const missingIds = [];
+        const missingNames = [];
+        const missingCodes = [];
+        const c06Records = [];
+        const nonBarberRecords = [];
+        records.forEach((record, index) => {
+          const recordNumber = index + 1;
+          if (!reviewText(record.id)) missingIds.push(recordNumber);
+          if (!reviewText(record.name)) missingNames.push(recordNumber);
+          if (!reviewText(record.code)) missingCodes.push(recordNumber);
+          if (reviewText(record.code).toUpperCase() === "C06") {
+            c06Records.push({ recordNumber, id: record.id, code: record.code,
+              review: "HUMAN_REVIEW_REQUIRED" });
+          }
+          if (record.isBarber === false) {
+            nonBarberRecords.push({ recordNumber, id: record.id });
+          }
+        });
+        return {
+          recordCount: records.length,
+          missingIds,
+          duplicateIds: duplicateGroups(records, "id", false),
+          missingNames,
+          missingCodes,
+          duplicateCodes: duplicateGroups(records, "code", true),
+          c06Records,
+          nonBarberRecords
+        };
+      }
+
+      function read(storage) {
+        const raw = storage.getItem(SOURCE_KEY);
+        if (raw === null) {
+          return { status: "LEGACY_STAFF_SOURCE_NOT_FOUND", sourceKey: SOURCE_KEY,
+            records: [], validation: validationSummary([]) };
+        }
+        let parsed;
+        try {
+          parsed = JSON.parse(raw);
+        } catch (_error) {
+          return { status: "LEGACY_STAFF_SOURCE_INVALID", sourceKey: SOURCE_KEY,
+            records: [], validation: validationSummary([]) };
+        }
+        if (!Array.isArray(parsed) || parsed.some(record => !record || typeof record !== "object" || Array.isArray(record))) {
+          return { status: "LEGACY_STAFF_SOURCE_INVALID", sourceKey: SOURCE_KEY,
+            records: [], validation: validationSummary([]) };
+        }
+        const records = parsed.map(filteredRecord);
+        return { status: "ACTUAL_LEGACY_STAFF_SNAPSHOT_FOUND", sourceKey: SOURCE_KEY,
+          records, validation: validationSummary(records) };
+      }
+
+      return Object.freeze({ SOURCE_KEY, read });
+    })();
+  </script>
   <script>
     RomeoAuth.requireAuth("view_staff_accounting");
 
     const API_URL = RomeoApi.API_URL;
     const STAFF_KEY = "romeo-pos-staff-accounting-v2";
+    const OPERATOR_EXCLUSION_RULE = Object.freeze({ code: "C06", salary: 0, isBarber: false });
     const WITHDRAWALS_KEY = "romeo-pos-withdrawals";
     const BARBER_NAMES_BY_CODE = {
       R01: "KAREEM",
@@ -678,6 +830,13 @@
     const resetBtn = document.getElementById("resetBtn");
     const saveBtn = document.getElementById("saveBtn");
     const deleteBtn = document.getElementById("deleteBtn");
+    const importPreviewBtn = document.getElementById("importPreviewBtn");
+    const staffImportPreviewDialog = document.getElementById("staffImportPreviewDialog");
+    const closeImportPreviewBtn = document.getElementById("closeImportPreviewBtn");
+    const runImportPreviewBtn = document.getElementById("runImportPreviewBtn");
+    const importBranchFields = document.getElementById("importBranchFields");
+    const importPreviewOutput = document.getElementById("importPreviewOutput");
+    const importPreviewState = document.getElementById("importPreviewState");
 
     function currentLanguage() {
       return window.RomeoLanguage?.getCurrentLanguage?.()
@@ -701,6 +860,26 @@
 
     function cloneDefaults() {
       return DEFAULT_STAFF.map(item => ({ ...item }));
+    }
+
+    function readLegacyImportSource() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(STAFF_KEY) || "[]");
+        return Array.isArray(parsed) ? parsed.map(item => ({ ...item })) : [];
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function resolveOperatorExcludedStaffIds(records) {
+      const matches = records.filter(record =>
+        String(record.code ?? record.staffCode ?? "").trim().toUpperCase() === OPERATOR_EXCLUSION_RULE.code &&
+        Number(record.salary ?? record.salaries) === OPERATOR_EXCLUSION_RULE.salary &&
+        record.isBarber === OPERATOR_EXCLUSION_RULE.isBarber
+      );
+      if (matches.length !== 1) return new Set();
+      const id = String(matches[0].id ?? matches[0].staffId ?? "").trim();
+      return id ? new Set([id]) : new Set();
     }
 
     function normalizeStaffRecord(staff, index = 0) {
@@ -743,6 +922,9 @@
       }
     }
 
+    const legacyImportSourceSnapshot = readLegacyImportSource();
+    const operatorExcludedStaffIds = resolveOperatorExcludedStaffIds(legacyImportSourceSnapshot);
+    let canonicalStaffRows = [];
     let staffList = getStoredStaff();
     let withdrawalsList = readArrayStore(WITHDRAWALS_KEY);
     let selectedId = staffList[0]?.id || null;
@@ -759,6 +941,8 @@
         const sheetStaff = data.staff
           .map(normalizeStaffRecord)
           .filter(staff => staff.name);
+
+        canonicalStaffRows = sheetStaff.map(staff => ({ ...staff }));
 
         if (!sheetStaff.length) {
           return;
@@ -1133,6 +1317,71 @@
       renderAll();
     }
 
+    function renderImportBranchFields() {
+      importBranchFields.replaceChildren();
+      legacyImportSourceSnapshot.forEach(record => {
+        const label = document.createElement("label");
+        const id = String(record.id ?? record.staffId ?? "").trim();
+        const name = String((record.name ?? record.staffName ?? id) || "موظف").trim();
+        const includeControl = document.createElement("span");
+        const include = document.createElement("input");
+        include.type = "checkbox";
+        include.checked = !operatorExcludedStaffIds.has(id);
+        include.dataset.staffImportIncludeId = id;
+        includeControl.appendChild(include);
+        includeControl.append(` استيراد ${name} (${String(record.code ?? record.staffCode ?? "").trim().toUpperCase() || "بدون كود"})`);
+        label.appendChild(includeControl);
+        const input = document.createElement("input");
+        input.type = "text";
+        input.autocomplete = "off";
+        input.placeholder = "BRANCH_ID مطلوب";
+        input.dataset.staffImportId = id;
+        input.disabled = !include.checked;
+        include.addEventListener("change", () => { input.disabled = !include.checked; });
+        input.setAttribute("aria-label", `معرّف فرع ${name}`);
+        label.appendChild(input);
+        importBranchFields.appendChild(label);
+      });
+    }
+
+    function openImportPreview() {
+      renderImportBranchFields();
+      importPreviewOutput.textContent = "لم يتم إنشاء معاينة بعد.";
+      importPreviewState.textContent = legacyImportSourceSnapshot.length
+        ? `${legacyImportSourceSnapshot.length} سجل محلي جاهز للفحص؛ ${operatorExcludedStaffIds.size} مستبعد بقرار المشغّل.`
+        : "لا توجد سجلات محلية محفوظة للمعاينة.";
+      staffImportPreviewDialog.showModal();
+    }
+
+    function runImportPreview() {
+      const branchById = {};
+      const excludedSourceIds = [];
+      importBranchFields.querySelectorAll("[data-staff-import-include-id]").forEach(input => {
+        if (!input.checked) excludedSourceIds.push(input.dataset.staffImportIncludeId);
+      });
+      importBranchFields.querySelectorAll("[data-staff-import-id]").forEach(input => {
+        branchById[input.dataset.staffImportId] = input.value;
+      });
+      const result = RomeoStaffImportPreview.previewLegacyStaffImport({
+        sourceRecords: legacyImportSourceSnapshot,
+        existingStaffRows: canonicalStaffRows,
+        excludedSourceIds,
+        branchById,
+        defaultsConfirmed: document.getElementById("importDefaultsConfirmed").checked,
+        defaults: {
+          percentage: Number(document.getElementById("importDefaultPercentage").value),
+          bonus: Number(document.getElementById("importDefaultBonus").value),
+          deduction: Number(document.getElementById("importDefaultDeduction").value),
+          active: document.getElementById("importDefaultActive").checked
+        },
+        importTimestamp: new Date().toISOString()
+      });
+      importPreviewState.textContent = result.safe
+        ? `المعاينة آمنة: ${result.operationCount} صف مقترح، بدون كتابة.`
+        : `المعاينة محظورة: ${result.errors.length} خطأ أو تعارض.`;
+      importPreviewOutput.textContent = JSON.stringify(result, null, 2);
+    }
+
     function openSidebar() {
       sidebar.classList.add("active");
       sidebarOverlay.classList.add("active");
@@ -1158,6 +1407,9 @@
     elements.searchInput.addEventListener("input", renderEmployeeList);
     addStaffBtn.addEventListener("click", addStaff);
     resetBtn.addEventListener("click", resetData);
+    importPreviewBtn.addEventListener("click", openImportPreview);
+    closeImportPreviewBtn.addEventListener("click", () => staffImportPreviewDialog.close());
+    runImportPreviewBtn.addEventListener("click", runImportPreview);
     saveBtn.addEventListener("click", saveSelectedStaff);
     deleteBtn.addEventListener("click", deleteSelected);
     menuToggle.addEventListener("click", openSidebar);
@@ -1169,6 +1421,44 @@
     renderAll();
     loadStaffFromSheet();
     loadWithdrawalsFromSheet();
+  </script>
+  <script id="legacyStaffSnapshotExportUi">
+    // TEMPORARY STAFF BOOTSTRAP SUPPORT: isolated from normal STAFF save/import behavior.
+    (() => {
+      "use strict";
+      const openButton = document.getElementById("legacyStaffSnapshotBtn");
+      const dialog = document.getElementById("legacyStaffSnapshotDialog");
+      const closeButton = document.getElementById("closeLegacyStaffSnapshotBtn");
+      const previewButton = document.getElementById("previewLegacyStaffSnapshotBtn");
+      const copyButton = document.getElementById("copyLegacyStaffSnapshotBtn");
+      const state = document.getElementById("legacyStaffSnapshotState");
+      const output = document.getElementById("legacyStaffSnapshotOutput");
+      let currentReport = null;
+
+      openButton.addEventListener("click", () => {
+        currentReport = null;
+        copyButton.disabled = true;
+        state.textContent = "";
+        output.textContent = "اضغط Preview لقراءة مفتاح STAFF المحدد فقط.";
+        dialog.showModal();
+      });
+      closeButton.addEventListener("click", () => dialog.close());
+      previewButton.addEventListener("click", () => {
+        currentReport = window.LegacyStaffSnapshotExport.read(localStorage);
+        output.textContent = JSON.stringify(currentReport, null, 2);
+        state.textContent = currentReport.status;
+        copyButton.disabled = currentReport.status !== "ACTUAL_LEGACY_STAFF_SNAPSHOT_FOUND";
+      });
+      copyButton.addEventListener("click", async () => {
+        if (!currentReport || currentReport.status !== "ACTUAL_LEGACY_STAFF_SNAPSHOT_FOUND") return;
+        try {
+          await navigator.clipboard.writeText(JSON.stringify(currentReport, null, 2));
+          state.textContent = "LEGACY_STAFF_SNAPSHOT_COPIED";
+        } catch (_error) {
+          state.textContent = "LEGACY_STAFF_SNAPSHOT_COPY_FAILED";
+        }
+      });
+    })();
   </script>
   <script src="../assets/js/utils/floating-calculator.js"></script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>

@@ -141,6 +141,24 @@ test("Apps Script bundle loads without CommonJS and exports required globals in 
   assert.equal(typeof context.handleStaffSchedulingPhase2Action, "function");
 });
 
+test("direct Schedule migration Preview normalizes missing data and stays zero-write", () => {
+  const harness = gasHarness({}, { environment: "staging", spreadsheetId: "sheet-1" });
+  const beforeSheets = JSON.stringify(harness.sheets);
+  const beforeProperties = JSON.stringify(Array.from(harness.propertyState.entries()));
+
+  const direct = harness.context.previewStaffScheduleMigration();
+  assert.equal(direct.writes, 0);
+  assert.ok(direct.errors.some(item => item.code === "ENVIRONMENT_NOT_APPROVED"));
+
+  const approved = harness.context.previewStaffScheduleMigration({
+    environmentReviewApproved: true
+  });
+  assert.equal(approved.writes, 0);
+  assert.equal(approved.errors.some(item => item.code === "ENVIRONMENT_NOT_APPROVED"), false);
+  assert.equal(JSON.stringify(harness.sheets), beforeSheets);
+  assert.equal(JSON.stringify(Array.from(harness.propertyState.entries())), beforeProperties);
+});
+
 test("pure Phase 2 domain has no Sheets, network, browser, or production configuration access", () => {
   const source = fs.readFileSync(path.join(__dirname, "../scripts/staff-scheduling-phase2.js"), "utf8");
   [
@@ -407,8 +425,13 @@ test("active source wiring includes route, permission, page assets, and no inlin
   assert.ok(page.includes("../assets/css/pages/schedule-management.css"));
   assert.ok(page.includes("../assets/js/pages/schedule-management.js"));
   assert.ok(page.includes('id="scopePanel"') && page.includes('id="scopeDialog"'));
+  assert.ok(page.includes('class="header-copy"') && page.includes('class="actions header-actions"'));
+  assert.ok(page.includes('id="staffEmptyState"') && page.includes('aria-describedby="staffEmptyState"'));
   assert.ok(ui.includes('RomeoAuth.requireAuth("schedule.view")'));
   assert.ok(ui.includes('"saveScheduleUserScope"') && ui.includes('"listScheduleUserScopes"'));
+  assert.ok(ui.includes("classifyScheduleManagementLoadError") &&
+    ui.includes('classification.kind === "STAFF_SCHEMA"') &&
+    ui.includes("showStaffEmptyState"));
   assert.equal(ui.includes("innerHTML"), false);
   assert.equal(/on(click|change|submit)=/i.test(page), false);
 });
@@ -446,6 +469,18 @@ test("GAS adapter preserves unknown columns and rejects displaced protected lega
     displaced.context.schedulePhase2AssertHeaders(
       "BARBER_SCHEDULE", displaced.context.StaffSchedulingPhase2.PHASE2_SHEET_SCHEMAS.BARBER_SCHEDULE
     ));
+});
+
+test("staff loading validates the complete canonical STAFF schema even when the sheet is empty", () => {
+  const incomplete = gasHarness({
+    STAFF: { headers: scheduling.STAFF_LEGACY_HEADERS, rows: [] }
+  });
+  expectCode("SCHEDULE_SCHEMA_NOT_READY", () => incomplete.context.schedulePhase2ReadStaff());
+
+  const canonical = gasHarness({
+    STAFF: { headers: scheduling.PHASE2_SHEET_SCHEMAS.STAFF, rows: [] }
+  });
+  assert.deepEqual(Array.from(canonical.context.schedulePhase2ReadStaff()), []);
 });
 
 test("GAS adapter transaction restores updated rows and clears recovery marker after compensation", () => {
@@ -537,6 +572,11 @@ test("migration planner covers legacy, complete, partial, missing, changed, and 
   assert.equal(legacyPlan.safe, true);
   assert.ok(legacyPlan.appendColumns.BARBER_SCHEDULE.includes("SEGMENT_INDEX"));
   assert.ok(legacyPlan.createSheets.some(item => item.sheetName === "SCHEDULE_USER_SCOPES"));
+  assert.deepEqual(scheduling.PHASE2_SHEET_SCHEMAS.STAFF, [
+    "NAME", "CODE", "SALARY", "PERCENTAGE", "ID", "BONUS", "DEDUCTION",
+    "ACTIVE", "CREATED_AT", "UPDATED_AT", "IS_BARBER", "BRANCH_ID"
+  ]);
+  assert.ok(legacyPlan.createSheets.some(item => item.sheetName === "STAFF"));
 
   const completeSheets = Object.fromEntries(Object.entries(scheduling.PHASE2_SHEET_SCHEMAS)
     .map(([name, headers]) => [name, [...headers]]));
@@ -551,6 +591,19 @@ test("migration planner covers legacy, complete, partial, missing, changed, and 
   }, identity);
   assert.equal(partial.safe, true);
   assert.ok(partial.appendColumns.STAFF_SCHEDULE_OVERRIDES.length > 0);
+
+  const staffMissingBranch = scheduling.planScheduleMigration({
+    ...completeSheets,
+    STAFF: completeSheets.STAFF.slice(0, 11)
+  }, identity);
+  assert.deepEqual(staffMissingBranch.appendColumns.STAFF, ["BRANCH_ID"]);
+
+  const displacedStaff = scheduling.planScheduleMigration({
+    ...completeSheets,
+    STAFF: ["CODE", "NAME", ...completeSheets.STAFF.slice(2)]
+  }, identity);
+  assert.equal(displacedStaff.safe, false);
+  assert.ok(displacedStaff.errors.some(item => item.code === "INCOMPATIBLE_STAFF_POSITIONAL_PREFIX"));
 
   const incompatible = scheduling.planScheduleMigration({
     ...completeSheets,

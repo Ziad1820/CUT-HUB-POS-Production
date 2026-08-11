@@ -11,6 +11,7 @@ const BASELINE_SNAPSHOT = "docs/release/original-rc-required-untracked-baseline.
 
 function actionFor(entry) {
   if (!entry.required) return "intentionally exclude";
+  if (entry.path === ".gitignore") return "include in tests/release tooling commit";
   if (entry.classification === "test") return "include in tests/release tooling commit";
   if (["migration source", "migration preview"].includes(entry.classification) ||
       /booking-rating-(?:production-migration|standalone-migration-runner)/.test(entry.path)) {

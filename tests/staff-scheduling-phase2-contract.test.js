@@ -448,6 +448,7 @@ test("Phase 2 source is isolated from booking and attendance event actions", () 
 test("UI exposes server-backed grid, range, bulk, day-off, override, and audit controls", () => {
   const html = fs.readFileSync(path.join(__dirname, "../public/pages/schedule-management.html"), "utf8");
   const js = fs.readFileSync(path.join(__dirname, "../public/assets/js/pages/schedule-management.js"), "utf8");
+  const css = fs.readFileSync(path.join(__dirname, "../public/assets/css/pages/schedule-management.css"), "utf8");
   [
     "weeklyBody", "rangeGrid", "staffFilter", "branchFilter", "activeOnly",
     "segmentDialog", "copyDayBtn", "copyEmployeeBtn", "applyRangeBtn",
@@ -461,6 +462,18 @@ test("UI exposes server-backed grid, range, bulk, day-off, override, and audit c
   assert.ok(js.includes("requestDecision"));
   assert.ok(js.includes('sourceDialog.setAttribute("aria-busy", "true")'));
   assert.ok(js.includes("if (state.busy)"));
+  assert.ok(html.indexOf('id="menuToggle"') < html.indexOf('class="header-copy"'));
+  assert.ok(html.includes('class="actions header-actions"') && html.includes('id="refreshBtn"'));
+  assert.ok(css.includes(".schedule-header{direction:ltr}"));
+  assert.ok(css.includes(".schedule-header>.header-actions{direction:rtl;flex:0 0 auto"));
+  assert.ok(css.includes(".filter-empty-state{grid-column:1/-1"));
+  [
+    "SCHEDULE_SCHEMA_NOT_READY",
+    "INCOMPATIBLE_STAFF_POSITIONAL_PREFIX",
+    "SCHEDULE_SCHEMA_DUPLICATE_HEADERS"
+  ].forEach(code => assert.ok(js.includes(code), code));
+  assert.ok(js.includes('classification.kind === "STAFF_SCHEMA"'));
+  assert.ok(js.includes("staffFilter.disabled = eligibleStaff.length === 0"));
 });
 
 console.log(`Staff scheduling Phase 2 contract tests passed: ${passed}`);

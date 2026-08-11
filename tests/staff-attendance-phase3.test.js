@@ -153,6 +153,28 @@ test("multiple non-overlapping sessions are supported and summed", () => {
   assert.equal(result.attendanceDay.presenceMinutesRaw, 480);
 });
 
+test("completed attendance reads preserve the captured schedule and policy snapshots", () => {
+  let activeSchedule = schedule();
+  const h = harness({ scheduleResolver: () => activeSchedule });
+  h.execute("attendanceCheckIn");
+  h.setNow("2026-07-29T17:00:00+03:00");
+  h.execute("attendanceCheckOut");
+
+  const listPersistedDays = h.repository.listDays;
+  h.repository.listDays = filters => listPersistedDays(filters).map(day => ({
+    ...day, scheduleSnapshot: "", policySnapshot: "", sourceEventHash: "legacy-hash"
+  }));
+  activeSchedule = null;
+  const dashboard = h.execute("getAttendanceDashboard", { as: "manager", date: "2026-07-29" });
+  const day = dashboard.attendanceDays.find(item => item.staffId === "S1");
+  assert.equal(day.scheduleSource, "RECURRING");
+  assert.equal(day.scheduledStart, "09:00");
+  assert.equal(day.requiredWorkMinutesRaw, 480);
+  assert.equal(day.policyId, "POL-1");
+  assert.equal(day.workedMinutesRaw, 480);
+  assert.equal(day.state, "CHECKED_OUT");
+});
+
 test("zero, reversed, and non-monotonic intervals fail closed", () => {
   errorCode(() => phase3.buildEventState([
     { eventId: "1", eventType: "CHECK_IN", eventAt: "2026-07-29T10:00:00+03:00" },
@@ -482,7 +504,7 @@ test("legacy attendance reader remains immutable and malformed rows report expli
     "INCOMPATIBLE_EXISTING_SCHEMA");
 });
 
-test("migration preview is zero-write, repeatable, duplicate-aware, partial-aware, and blocks staging/production", () => {
+test("migration preview is zero-write, permits approved staging review, and blocks production", () => {
   const existing = { ATTENDANCE: [...schema.LEGACY_ATTENDANCE_HEADERS] };
   const identity = {
     environment: "development", expectedSpreadsheetId: "DEV", actualSpreadsheetId: "DEV"
@@ -497,12 +519,23 @@ test("migration preview is zero-write, repeatable, duplicate-aware, partial-awar
     ATTENDANCE: ["ID", "ID"]
   }, identity);
   assert.ok(duplicate.errors.some(error => error.code === "DUPLICATE_HEADERS"));
-  for (const environment of ["staging", "production"]) {
-    const blocked = phase3.planAttendanceMigration({}, {
-      environment, expectedSpreadsheetId: "X", actualSpreadsheetId: "X"
-    });
-    assert.ok(blocked.errors.some(error => error.code === "PHASE3_ENVIRONMENT_BLOCKED"));
-  }
+  const staging = phase3.planAttendanceMigration({}, {
+    environment: "staging", expectedSpreadsheetId: "X", actualSpreadsheetId: "X",
+    environmentReviewApproved: true
+  });
+  assert.equal(staging.errors.some(error => error.code === "ENVIRONMENT_NOT_APPROVED"), false);
+  assert.equal(staging.errors.some(error => error.code === "PHASE3_ENVIRONMENT_BLOCKED"), false);
+  assert.equal(staging.safe, true);
+  assert.equal(staging.writes, 0);
+  assert.equal(staging.executionAllowed, false);
+  const unapprovedStaging = phase3.planAttendanceMigration({}, {
+    environment: "staging", expectedSpreadsheetId: "X", actualSpreadsheetId: "X"
+  });
+  assert.ok(unapprovedStaging.errors.some(error => error.code === "ENVIRONMENT_NOT_APPROVED"));
+  const production = phase3.planAttendanceMigration({}, {
+    environment: "production", expectedSpreadsheetId: "X", actualSpreadsheetId: "X"
+  });
+  assert.ok(production.errors.some(error => error.code === "PHASE3_ENVIRONMENT_BLOCKED"));
 });
 
 test("Apps Script bundle has exact dependency order, no CommonJS dependency, and matches generated source", () => {
@@ -518,6 +551,60 @@ test("Apps Script bundle has exact dependency order, no CommonJS dependency, and
   vm.runInContext(generated, context);
   assert.ok(context.StaffAttendancePhase3);
   assert.equal(typeof context.handleStaffAttendancePhase3Action, "function");
+});
+
+test("GAS Attendance reader normalizes Sheets date-only values in Cairo without changing timestamps", () => {
+  const source = fs.readFileSync(path.join(ROOT, "scripts/staff-attendance-phase3-gas.js"), "utf8");
+  const sheetDate = new Date("2026-08-08T21:00:00.000Z");
+  const sheetTime = new Date("1899-12-30T13:54:51.000Z");
+  const actualCheckIn = "2026-08-09T13:00:00+03:00";
+  const calculatedAt = "2026-08-09T14:05:00+03:00";
+  const context = vm.createContext({
+    console,
+    StaffAttendancePhase3: { TIME_ZONE: "Africa/Cairo" },
+    Utilities: {
+      formatDate(value, timezone, format) {
+        assert.equal(timezone, "Africa/Cairo");
+        if (format === "yyyy-MM-dd") {
+          assert.equal(value.getTime(), sheetDate.getTime());
+          return "2026-08-09";
+        }
+        assert.equal(format, "HH:mm");
+        if (value.getTime() === sheetTime.getTime()) return "16:00";
+        assert.equal(value.getTime(), new Date("1899-12-30T16:24:51.000Z").getTime());
+        return "18:30";
+      }
+    },
+    schedulePhase2Text(value) {
+      return String(value === undefined || value === null ? "" : value).trim();
+    },
+    schedulePhase2ReadRows() {
+      return [{
+        attendanceDayId: "ATD-S1-2026-08-09",
+        staffId: 1784232573966,
+        attendanceDate: "2026-08-08T21:00:00.000Z",
+        scheduledStart: sheetTime.toISOString(),
+        scheduledEnd: "1899-12-30T16:24:51.000Z",
+        timezone: "Africa/Cairo",
+        actualCheckIn,
+        calculatedAt,
+        locked: false,
+        openSession: false,
+        openBreak: false,
+        staleCalculation: false
+      }];
+    }
+  });
+  vm.runInContext(source, context);
+
+  assert.equal(context.attendancePhase3DateOnly(sheetDate, "Africa/Cairo"), "2026-08-09");
+  const rows = context.attendancePhase3ReadDays();
+  assert.equal(rows[0].attendanceDate, "2026-08-09");
+  assert.equal(rows[0].staffId, "1784232573966");
+  assert.equal(rows[0].scheduledStart, "16:00");
+  assert.equal(rows[0].scheduledEnd, "18:30");
+  assert.equal(rows[0].actualCheckIn, actualCheckIn);
+  assert.equal(rows[0].calculatedAt, calculatedAt);
 });
 
 test("GAS adapter enforces identity, complete schema, lock, append-only writes, rollback, and durable recovery marker", () => {

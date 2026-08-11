@@ -70,3 +70,25 @@ test("runtime, test, migration, and runbook roles cannot cross classification bo
     }
   }
 });
+
+test("later functional regressions ship while local Staging tools remain excluded", () => {
+  const byPath = new Map(manifest.buildEntries().map(entry => [entry.path, entry]));
+  for (const file of [
+    "tests/attendance-page-functional.test.js",
+    "tests/booking-availability-admin-functional.test.js",
+    "tests/customer-booking-branch.test.js",
+    "tests/customer-tracking-ratings.test.js",
+    "tests/internal-booking-branch.test.js",
+    "tests/payroll-attendance-page-functional.test.js",
+    "tests/schedule-management-functional.test.js",
+    "tests/schedule-work-policy-ui.test.js",
+    "tests/staff-work-policy-management.test.js"
+  ]) {
+    assert.equal(byPath.get(file)?.required, true, file);
+    assert.equal(byPath.get(file)?.classification, "test", file);
+  }
+  for (const file of manifest.localStagingOnlyPaths) {
+    assert.equal(byPath.get(file)?.required, false, file);
+    assert.match(byPath.get(file)?.reason || "", /Local Staging/);
+  }
+});

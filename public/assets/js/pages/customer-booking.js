@@ -241,8 +241,45 @@
     elements.customerPanel.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  function clearPublicAvailability({ clearServices = false } = {}) {
+    state.availabilityRequestSequence += 1;
+    state.availabilityToken = "";
+    state.barbers = [];
+    state.employeeId = "";
+    state.employeeName = "";
+    state.time = "";
+    if (clearServices) {
+      state.services = [];
+      state.selectedServiceIds.clear();
+      renderServices();
+    }
+    elements.customerPanel.classList.add("hidden");
+    elements.barberGrid.replaceChildren();
+  }
+
+  function changePublicBranch() {
+    clearPublicAvailability({ clearServices: true });
+    loadOptions({ initial: true });
+  }
+
+  function changePublicServices(event) {
+    const checkbox = event.target.closest("[data-service-id]");
+    if (!checkbox) return;
+    if (checkbox.checked) state.selectedServiceIds.add(checkbox.dataset.serviceId);
+    else state.selectedServiceIds.delete(checkbox.dataset.serviceId);
+    clearPublicAvailability();
+    renderServices();
+    loadOptions();
+  }
+
+  function changePublicDate() {
+    clearPublicAvailability();
+    loadOptions();
+  }
+
   async function loadOptions({ initial = false, silent = false } = {}) {
-    if (!elements.branch.value) {
+    const branchId = elements.branch.value;
+    if (!branchId) {
       elements.barberGrid.textContent = state.language === "ar"
         ? "اختر الفرع لعرض المواعيد." : "Choose a branch to view appointments.";
       return;
@@ -257,12 +294,12 @@
     try {
       const requested = [...state.selectedServiceIds];
       const result = await publicRequest({
-        action: "getPublicBookingOptions", branchId: elements.branch.value,
+        action: "getPublicBookingOptions", branchId,
         date: elements.date.value, serviceIds: requested,
         ifNoneMatch: silent ? state.availabilityToken : ""
       });
       if (result?.status !== "success") throw new Error(result?.message || tr("error"));
-      if (requestSequence !== state.availabilityRequestSequence) return;
+      if (requestSequence !== state.availabilityRequestSequence || elements.branch.value !== branchId) return;
       state.liveRefreshEnabled = result.liveRefreshEnabled === true;
       state.availabilityPollDelay = Math.max(30000, Number(result.retryAfterSeconds || 30) * 1000);
       if (result.unchanged) return;
@@ -298,6 +335,10 @@
     } finally {
       state.loading = false;
       elements.barberGrid.setAttribute("aria-busy", "false");
+      if (requestSequence !== state.availabilityRequestSequence && elements.branch.value) {
+        loadOptions({ initial: true });
+        return;
+      }
       scheduleAvailabilityPoll();
     }
   }
@@ -458,7 +499,7 @@
       <div class="proposal-card"><strong>${state.language === "ar" ? "الموعد المقترح" : "Proposed appointment"}</strong>
         <p>${escapeHtml(formatDate(booking.proposedDate))} · ${escapeHtml(formatTime(booking.proposedTime))}</p>
         <div class="proposal-actions"><button class="primary-action" type="button" data-proposal="accept">${state.language === "ar" ? "موافق" : "Accept"}</button>
-        <button class="danger-action primary-action" type="button" data-proposal="decline">${state.language === "ar" ? "غير مناسب" : "Decline"}</button></div>
+        <button class="danger-action primary-action" type="button" data-proposal="reject">${state.language === "ar" ? "غير مناسب" : "Decline"}</button></div>
       </div>` : "";
     elements.trackingContent.className = "tracking-card";
     elements.trackingContent.innerHTML = `
@@ -540,15 +581,19 @@
     });
     $("submitRatingBtn").onclick = async () => {
       const button = $("submitRatingBtn"); button.disabled = true; button.classList.add("loading");
-      const response = await publicRequest({
-        action: "submitBookingRating", trackingToken: state.trackingToken, phoneLast4: state.phoneLast4,
-        rating: selected, comment: $("ratingComment").value.trim()
-      });
-      if (response?.status !== "success") {
-        notify(response?.message || tr("error"), "error"); button.disabled = false; button.classList.remove("loading"); return;
+      try {
+        const response = await publicRequest({
+          action: "submitBookingRating", trackingToken: state.trackingToken, phoneLast4: state.phoneLast4,
+          rating: selected, comment: $("ratingComment").value.trim()
+        });
+        if (response?.status !== "success") throw new Error(response?.message || tr("error"));
+        notify(tr("thankYou"), "success");
+        await renderRating(booking);
+      } catch (error) {
+        notify(error.message || tr("error"), "error");
+        button.disabled = false;
+        button.classList.remove("loading");
       }
-      notify(tr("thankYou"), "success");
-      await renderRating(booking);
     };
   }
 
@@ -556,23 +601,15 @@
     const url = new URL(location.href); url.search = ""; history.replaceState({}, "", url);
     state.trackingToken = ""; state.phoneLast4 = ""; state.employeeId = ""; state.employeeName = ""; state.time = "";
     elements.form.reset(); elements.date.value = todayKey();
+    clearPublicAvailability();
     elements.bookingWorkspace.classList.remove("hidden"); elements.trackingWorkspace.classList.add("hidden");
     elements.customerPanel.classList.add("hidden"); setStep(1); loadOptions({ initial: true });
     scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  elements.services.addEventListener("change", (event) => {
-    const checkbox = event.target.closest("[data-service-id]");
-    if (!checkbox) return;
-    if (checkbox.checked) state.selectedServiceIds.add(checkbox.dataset.serviceId);
-    else state.selectedServiceIds.delete(checkbox.dataset.serviceId);
-    state.employeeId = ""; state.time = ""; renderServices(); loadOptions();
-  });
-  elements.date.addEventListener("change", () => { state.employeeId = ""; state.time = ""; loadOptions(); });
-  elements.branch.addEventListener("change", () => {
-    state.employeeId = ""; state.time = ""; state.availabilityToken = "";
-    loadOptions({ initial: true });
-  });
+  elements.services.addEventListener("change", changePublicServices);
+  elements.date.addEventListener("change", changePublicDate);
+  elements.branch.addEventListener("change", changePublicBranch);
   elements.barberGrid.addEventListener("click", (event) => {
     const button = event.target.closest("[data-time]");
     if (button) selectSlot(button.dataset.staffId, button.dataset.time);

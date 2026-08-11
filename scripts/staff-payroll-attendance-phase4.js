@@ -1424,7 +1424,7 @@
   function planMigration(existingSheets, identity) {
     const plan = clone(core.planSchemaMigration(existingSheets || {}, identity || {}));
     const environment = text(identity && identity.environment).toLowerCase();
-    if (["production", "staging"].includes(environment)) {
+    if (environment === "production") {
       plan.errors = (plan.errors || []).filter((item) => item.code !== "ENVIRONMENT_NOT_APPROVED");
       plan.errors.push({ code: "PHASE4_ENVIRONMENT_BLOCKED" });
       plan.blocked = true;

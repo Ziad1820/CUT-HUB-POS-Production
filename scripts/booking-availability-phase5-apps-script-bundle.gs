@@ -1,5 +1,5 @@
 /* GENERATED FILE. Upload this bundle instead of the constituent Phase 1-5 modules. */
-/* Order: schema -> Phase 1 core -> Phase 2 -> Phase 3 -> Phase 4 -> Phase 5 Booking Availability. */
+/* Order: schema -> Phase 1 core -> Phase 2 -> Phase 3 -> Phase 4 -> Staging schema executor -> Core Auth bootstrap -> Phase 5 contract -> Branch Foundation -> Canonical branch row -> Phase 5 GAS. */
 
 /* BEGIN staff-attendance-schema.js */
 (function (root, factory) {
@@ -1345,7 +1345,7 @@
 
   if (!schema || !core) throw new Error("STAFF_SCHEDULING_PHASE2_DEPENDENCY_REQUIRED");
 
-  const PHASE2_VERSION = "STAFF_SCHEDULING_PHASE2_V1";
+  const PHASE2_VERSION = "STAFF_SCHEDULING_PHASE2_V2";
   const TIME_ZONE = "Africa/Cairo";
   const WEEKDAYS = Object.freeze([
     "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"
@@ -1383,7 +1383,12 @@
     "createScheduleOverride", "transitionScheduleOverride", "cancelScheduleOverride",
     "reviewScheduleOverride", "saveScheduleUserScope"
   ]);
+  const STAFF_LEGACY_HEADERS = Object.freeze([
+    "NAME", "CODE", "SALARY", "PERCENTAGE", "ID", "BONUS", "DEDUCTION",
+    "ACTIVE", "CREATED_AT", "UPDATED_AT", "IS_BARBER"
+  ]);
   const PHASE2_SHEET_SCHEMAS = Object.freeze({
+    STAFF: Object.freeze([...STAFF_LEGACY_HEADERS, "BRANCH_ID"]),
     BARBER_SCHEDULE: schema.SHEET_SCHEMAS.BARBER_SCHEDULE,
     STAFF_SCHEDULE_OVERRIDES: schema.SHEET_SCHEMAS.STAFF_SCHEDULE_OVERRIDES,
     STAFF_ATTENDANCE_AUDIT: schema.SHEET_SCHEMAS.STAFF_ATTENDANCE_AUDIT,
@@ -2723,6 +2728,11 @@
         report.errors.push({ sheetName, code: "INCOMPATIBLE_LEGACY_SCHEDULE_PREFIX" });
         return;
       }
+      if (sheetName === "STAFF" && STAFF_LEGACY_HEADERS.some((header, index) =>
+        current[index] !== canonicalHeader(header))) {
+        report.errors.push({ sheetName, code: "INCOMPATIBLE_STAFF_POSITIONAL_PREFIX" });
+        return;
+      }
       const desiredKeys = desired.map(canonicalHeader);
       const unknown = nonBlank.filter((header) => !desiredKeys.includes(header));
       if (unknown.length) report.preservedUnknownColumns[sheetName] = unknown;
@@ -2871,7 +2881,7 @@
     OVERRIDE_TRANSITIONS,
     ACTIONS,
     WRITE_ACTIONS,
-    PHASE2_SHEET_SCHEMAS,
+    PHASE2_SHEET_SCHEMAS, STAFF_LEGACY_HEADERS,
     normalizeWeekday,
     validateScheduleSegment,
     scheduleConflict,
@@ -2893,8 +2903,8 @@
 /* END staff-scheduling-phase2.js */
 
 /* BEGIN staff-scheduling-phase2-gas.js */
-/* global StaffSchedulingPhase2, SpreadsheetApp, LockService, Utilities,
-  getAuthenticatedUser, normalizeManagedPermissions, getCutHubEnvironmentConfig,
+/* global StaffSchedulingPhase2, SpreadsheetApp, LockService, Utilities, console,
+  getAuthenticatedUser, normalizeManagedPermissions, getCutHubEnvironmentConfig, assertStagingEnvironment,
   readUsersFromSheet, jsonOutput */
 
 /**
@@ -2963,6 +2973,17 @@ function schedulePhase2AssertHeaders(name, expected) {
       throw prefixError;
     }
   }
+  if (name === "STAFF") {
+    var staffPrefix = StaffSchedulingPhase2.STAFF_LEGACY_HEADERS;
+    var staffDisplaced = staffPrefix.some(function (header, index) {
+      return headers[index] !== schedulePhase2Canonical(header);
+    });
+    if (staffDisplaced) {
+      var staffPrefixError = new Error("Protected positional STAFF columns were displaced.");
+      staffPrefixError.code = "INCOMPATIBLE_STAFF_POSITIONAL_PREFIX";
+      throw staffPrefixError;
+    }
+  }
   var missing = expected.filter(function (header) {
     return headers.indexOf(schedulePhase2Canonical(header)) === -1;
   });
@@ -2991,9 +3012,14 @@ function schedulePhase2ReadRows(name) {
           : value.toISOString();
       }
       if (/_JSON$/.test(header)) {
+        var canonicalJsonKey = key;
+        var canonicalJsonValue = value === undefined || value === null ? "" : String(value);
         try { value = value ? JSON.parse(String(value)) : (header === "BRANCH_IDS_JSON" ? [] : null); }
         catch (_error) { value = header === "BRANCH_IDS_JSON" ? [] : null; }
         key = key.replace(/Json$/, "");
+        if (name === "STAFF_WORK_POLICIES") {
+          record[canonicalJsonKey] = canonicalJsonValue;
+        }
       }
       record[key] = value;
     });
@@ -3058,11 +3084,13 @@ function schedulePhase2Save(name, schema, idHeader, record) {
 }
 
 function schedulePhase2ReadStaff() {
-  var sheet = schedulePhase2Sheet("STAFF", true);
+  var ready = schedulePhase2AssertHeaders(
+    "STAFF", StaffSchedulingPhase2.PHASE2_SHEET_SCHEMAS.STAFF
+  );
+  var sheet = ready.sheet;
   if (sheet.getLastRow() < 2) return [];
-  var width = Math.max(11, sheet.getLastColumn());
-  var headers = schedulePhase2Headers(sheet);
-  schedulePhase2AssertNoDuplicateHeaders("STAFF", headers);
+  var headers = ready.headers;
+  var width = headers.length;
   var branchIndex = headers.indexOf("BRANCH_ID");
   return sheet.getRange(2, 1, sheet.getLastRow() - 1, width).getValues()
     .map(function (row, index) {
@@ -3366,6 +3394,7 @@ function schedulePhase2AssertEnvironmentIdentity() {
 }
 
 function previewStaffScheduleMigration(data) {
+  data = data && typeof data === "object" ? data : {};
   var spreadsheet = SpreadsheetApp.getActive();
   var config = getCutHubEnvironmentConfig();
   var existing = {};
@@ -3379,6 +3408,24 @@ function previewStaffScheduleMigration(data) {
     actualSpreadsheetId: spreadsheet.getId(),
     environmentReviewApproved: data.environmentReviewApproved === true
   });
+}
+
+function diagnosticPreviewStaffScheduleMigration(data) {
+  var config = getCutHubEnvironmentConfig();
+  var environment = String(config.environment || "").toLowerCase();
+  if (["development", "staging"].indexOf(environment) === -1) {
+    var blocked = new Error("Schedule migration diagnostic preview is limited to development and staging.");
+    blocked.code = "SCHEDULE_DIAGNOSTIC_PREVIEW_ENVIRONMENT_BLOCKED";
+    throw blocked;
+  }
+  var previewData = data && typeof data === "object" ? Object.assign({}, data) : {};
+  if (environment === "staging") {
+    assertStagingEnvironment();
+    previewData.environmentReviewApproved = true;
+  }
+  var result = previewStaffScheduleMigration(previewData);
+  console.log(JSON.stringify(result, null, 2));
+  return result;
 }
 
 function handleStaffSchedulingPhase2Action(data) {
@@ -3437,6 +3484,280 @@ function handleStaffSchedulingPhase2Action(data) {
 
 /* END staff-scheduling-phase2-gas.js */
 
+/* BEGIN staff-import-preview-staging.js */
+/* global BookingAvailabilityPhase5, DriveApp, Session,
+  StaffSchedulingPhase2, assertStagingEnvironment, getCutHubEnvironmentConfig,
+  schedulePhase2AssertHeaders, schedulePhase2ReadRows */
+
+/**
+ * Read-only, owner-authorized Staging preview for a reviewed STAFF append plan.
+ * This module intentionally exposes no execute or mutation entry point.
+ */
+
+function staffImportPreviewError(code, message, details) {
+  var error = new Error(message || code);
+  error.code = code;
+  if (details !== undefined) error.details = details;
+  return error;
+}
+
+function staffImportPreviewText(value) {
+  return String(value === undefined || value === null ? "" : value).trim();
+}
+
+function staffImportPreviewStagingIdentityAndOwner() {
+  var config = getCutHubEnvironmentConfig();
+  var environment = staffImportPreviewText(config.environment).toLowerCase();
+  if (environment !== "staging") {
+    throw staffImportPreviewError(
+      "STAFF_IMPORT_STAGING_ONLY", "STAFF import Preview is restricted to Staging."
+    );
+  }
+  if (!config.spreadsheetId || !config.stagingSpreadsheetId ||
+      config.spreadsheetId !== config.stagingSpreadsheetId) {
+    throw staffImportPreviewError(
+      "STAFF_IMPORT_STAGING_PIN_MISMATCH", "Expected and Staging Spreadsheet pins must match."
+    );
+  }
+  var strict = assertStagingEnvironment();
+  if (!strict || !strict.spreadsheet ||
+      strict.spreadsheet.getId() !== config.spreadsheetId ||
+      strict.spreadsheet.getId() !== config.stagingSpreadsheetId) {
+    throw staffImportPreviewError(
+      "STAFF_IMPORT_STAGING_IDENTITY_MISMATCH", "Strict Staging identity validation failed."
+    );
+  }
+  var effectiveEmail = "";
+  var activeEmail = "";
+  var ownerEmail = "";
+  try {
+    effectiveEmail = staffImportPreviewText(Session.getEffectiveUser().getEmail()).toLowerCase();
+    activeEmail = staffImportPreviewText(Session.getActiveUser().getEmail()).toLowerCase();
+    ownerEmail = staffImportPreviewText(
+      DriveApp.getFileById(strict.spreadsheet.getId()).getOwner().getEmail()
+    ).toLowerCase();
+  } catch (_error) {
+    effectiveEmail = "";
+    activeEmail = "";
+    ownerEmail = "";
+  }
+  if (!effectiveEmail || !activeEmail || !ownerEmail ||
+      effectiveEmail !== activeEmail || activeEmail !== ownerEmail) {
+    throw staffImportPreviewError(
+      "STAFF_IMPORT_OWNER_REQUIRED", "Only the verified interactive Staging owner can run this Preview."
+    );
+  }
+  return { config: config, spreadsheet: strict.spreadsheet, actorIdentity: effectiveEmail };
+}
+
+function staffImportPreviewActiveBranches() {
+  schedulePhase2AssertHeaders(
+    "BOOKING_BRANCH_REGISTRY",
+    BookingAvailabilityPhase5.SHEET_SCHEMAS.BOOKING_BRANCH_REGISTRY
+  );
+  return schedulePhase2ReadRows("BOOKING_BRANCH_REGISTRY").filter(function (branch) {
+    var active = branch.active === true || String(branch.active || "").toUpperCase() === "TRUE";
+    return active && staffImportPreviewText(branch.branchId) && staffImportPreviewText(branch.branchName);
+  });
+}
+
+function staffImportPreviewCanonicalValue(row, header) {
+  if (Object.prototype.hasOwnProperty.call(row, header)) return row[header];
+  var camel = header.toLowerCase().replace(/_([a-z])/g, function (_match, letter) {
+    return letter.toUpperCase();
+  });
+  return row[camel];
+}
+
+function staffImportPreviewNormalizeApprovedRows(rows) {
+  var headers = StaffSchedulingPhase2.PHASE2_SHEET_SCHEMAS.STAFF;
+  return rows.map(function (row) {
+    var result = {};
+    headers.forEach(function (header) {
+      result[header] = staffImportPreviewCanonicalValue(row || {}, header);
+    });
+    return result;
+  });
+}
+
+function staffImportPreviewNumber(value) {
+  var number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function staffImportPreviewCode(value) {
+  return staffImportPreviewText(value).toUpperCase();
+}
+
+function staffImportPreviewRowsEqual(left, right) {
+  return StaffSchedulingPhase2.PHASE2_SHEET_SCHEMAS.STAFF.filter(function (header) {
+    return header !== "CREATED_AT" && header !== "UPDATED_AT";
+  }).every(function (header) {
+    var leftValue = staffImportPreviewCanonicalValue(left, header);
+    var rightValue = staffImportPreviewCanonicalValue(right, header);
+    if (["SALARY", "PERCENTAGE", "BONUS", "DEDUCTION"].indexOf(header) !== -1) {
+      return staffImportPreviewNumber(leftValue) === staffImportPreviewNumber(rightValue);
+    }
+    if (header === "ACTIVE" || header === "IS_BARBER") {
+      return Boolean(leftValue) === Boolean(rightValue);
+    }
+    return staffImportPreviewText(leftValue) === staffImportPreviewText(rightValue);
+  });
+}
+
+function staffImportPreviewHash(rows) {
+  var input = JSON.stringify(rows.map(function (row) {
+    return StaffSchedulingPhase2.PHASE2_SHEET_SCHEMAS.STAFF.map(function (header) {
+      return staffImportPreviewCanonicalValue(row, header);
+    });
+  }));
+  var result = 2166136261;
+  for (var index = 0; index < input.length; index += 1) {
+    result ^= input.charCodeAt(index);
+    result = Math.imul(result, 16777619);
+  }
+  return (result >>> 0).toString(16).padStart(8, "0");
+}
+
+function staffImportPreviewPlan(canonicalRows, existingRows) {
+  var errors = [];
+  var sourceIds = {};
+  var sourceCodes = {};
+  canonicalRows.forEach(function (row, index) {
+    var id = staffImportPreviewText(row.ID);
+    var code = staffImportPreviewCode(row.CODE);
+    if (sourceIds[id] !== undefined) {
+      errors.push({ code: "STAFF_IMPORT_DUPLICATE_ID", id: id,
+        sourceIndexes: [sourceIds[id], index] });
+    } else sourceIds[id] = index;
+    if (sourceCodes[code] !== undefined) {
+      errors.push({ code: "STAFF_IMPORT_DUPLICATE_CODE", staffCode: code,
+        sourceIndexes: [sourceCodes[code], index] });
+    } else sourceCodes[code] = index;
+  });
+
+  var existingById = {};
+  var existingByCode = {};
+  existingRows.forEach(function (row, index) {
+    var id = staffImportPreviewText(staffImportPreviewCanonicalValue(row, "ID"));
+    var code = staffImportPreviewCode(staffImportPreviewCanonicalValue(row, "CODE"));
+    if (id) {
+      if (existingById[id]) errors.push({ code: "STAFF_EXISTING_DUPLICATE_ID", id: id });
+      else existingById[id] = { row: row, index: index };
+    }
+    if (code) {
+      if (existingByCode[code]) errors.push({ code: "STAFF_EXISTING_DUPLICATE_CODE", staffCode: code });
+      else existingByCode[code] = { row: row, index: index };
+    }
+  });
+
+  var proposedRows = [];
+  var unchangedCount = 0;
+  canonicalRows.forEach(function (row, sourceIndex) {
+    var id = staffImportPreviewText(row.ID);
+    var code = staffImportPreviewCode(row.CODE);
+    var sameId = existingById[id];
+    var sameCode = existingByCode[code];
+    if (sameId) {
+      if (staffImportPreviewRowsEqual(sameId.row, row)) unchangedCount += 1;
+      else errors.push({ code: "STAFF_IMPORT_EXISTING_ID_CONFLICT", sourceIndex: sourceIndex,
+        existingRow: sameId.index });
+      return;
+    }
+    if (sameCode) {
+      errors.push({ code: "STAFF_IMPORT_EXISTING_CODE_CONFLICT", sourceIndex: sourceIndex,
+        existingRow: sameCode.index });
+      return;
+    }
+    proposedRows.push(row);
+  });
+  return { errors: errors, proposedRows: proposedRows, unchangedCount: unchangedCount,
+    planHash: staffImportPreviewHash(canonicalRows) };
+}
+
+function previewStaffImportStaging(data) {
+  data = data && typeof data === "object" ? data : {};
+  try {
+    var identity = staffImportPreviewStagingIdentityAndOwner();
+    var approvedRows = Array.isArray(data.proposedRows) ? data.proposedRows : [];
+    if (approvedRows.length !== 6) {
+      throw staffImportPreviewError(
+        "STAFF_IMPORT_APPROVED_ROW_COUNT_INVALID", "Exactly six approved STAFF rows are required.",
+        { expected: 6, actual: approvedRows.length }
+      );
+    }
+    var canonicalRows = staffImportPreviewNormalizeApprovedRows(approvedRows);
+    schedulePhase2AssertHeaders("STAFF", StaffSchedulingPhase2.PHASE2_SHEET_SCHEMAS.STAFF);
+    var existingRows = schedulePhase2ReadRows("STAFF");
+    var activeBranches = staffImportPreviewActiveBranches();
+    if (activeBranches.length !== 1) {
+      throw staffImportPreviewError(
+        "STAFF_IMPORT_CANONICAL_BRANCH_COUNT_INVALID",
+        "Exactly one active canonical branch is required.", { activeBranchCount: activeBranches.length }
+      );
+    }
+    var branchId = staffImportPreviewText(activeBranches[0].branchId);
+    var timestamp = staffImportPreviewText(canonicalRows[0].CREATED_AT);
+    var contractErrors = [];
+    canonicalRows.forEach(function (row, index) {
+      if (!staffImportPreviewText(row.NAME) || !staffImportPreviewText(row.CODE) ||
+          !staffImportPreviewText(row.ID) || staffImportPreviewNumber(row.SALARY) === null ||
+          staffImportPreviewNumber(row.SALARY) < 0 || typeof row.IS_BARBER !== "boolean") {
+        contractErrors.push({ code: "STAFF_IMPORT_APPROVED_ROW_REQUIRED_VALUE_INVALID", sourceIndex: index });
+      }
+      if (staffImportPreviewNumber(row.PERCENTAGE) !== 0 ||
+          staffImportPreviewNumber(row.BONUS) !== 0 ||
+          staffImportPreviewNumber(row.DEDUCTION) !== 0 ||
+          row.ACTIVE !== true || staffImportPreviewText(row.CREATED_AT) !== timestamp ||
+          staffImportPreviewText(row.UPDATED_AT) !== timestamp ||
+          staffImportPreviewText(row.BRANCH_ID) !== branchId) {
+        contractErrors.push({ code: "STAFF_IMPORT_APPROVED_ROW_CONTRACT_INVALID", sourceIndex: index });
+      }
+    });
+    if (!timestamp || Number.isNaN(Date.parse(timestamp))) {
+      contractErrors.push({ code: "STAFF_IMPORT_TIMESTAMP_INVALID" });
+    }
+    var plan = staffImportPreviewPlan(canonicalRows, existingRows);
+    var errors = contractErrors.concat(plan.errors || []);
+    var safe = errors.length === 0;
+    return {
+      schemaVersion: "STAFF_STAGING_IMPORT_PREVIEW_V1",
+      dryRun: true,
+      writes: 0,
+      safe: safe,
+      identity: {
+        environment: identity.config.environment,
+        expectedSpreadsheetId: identity.config.spreadsheetId,
+        actualSpreadsheetId: identity.spreadsheet.getId()
+      },
+      branch: { branchId: branchId, branchName: activeBranches[0].branchName },
+      sourceCount: canonicalRows.length,
+      existingStaffRowCount: existingRows.length,
+      unchangedCount: plan.unchangedCount,
+      proposedCount: plan.proposedRows.length,
+      errors: errors,
+      appendOperations: safe ? plan.proposedRows.map(function (row) {
+        return { type: "APPEND_ROW", sheetName: "STAFF", row: row };
+      }) : [],
+      planHash: plan.planHash
+    };
+  } catch (error) {
+    return {
+      schemaVersion: "STAFF_STAGING_IMPORT_PREVIEW_V1",
+      dryRun: true,
+      writes: 0,
+      safe: false,
+      sourceCount: Array.isArray(data.proposedRows) ? data.proposedRows.length : 0,
+      proposedCount: 0,
+      appendOperations: [],
+      errors: [{ code: error.code || "STAFF_IMPORT_PREVIEW_FAILED", message: error.message,
+        details: error.details || null }]
+    };
+  }
+}
+
+/* END staff-import-preview-staging.js */
+
 /* BEGIN staff-attendance-phase3.js */
 (function (root, factory) {
   const schema = typeof module !== "undefined" && module.exports
@@ -3469,12 +3790,14 @@ function handleStaffSchedulingPhase2Action(data) {
     "recalculateAttendanceDay", "requestAttendanceOvertime",
     "approveAttendanceOvertime", "rejectAttendanceOvertime",
     "listUnresolvedAttendanceDays", "listOpenAttendanceBreaks",
-    "getAttendanceAuditHistory", "listLegacyAttendanceRecords", "previewAttendanceMigration"
+    "getAttendanceAuditHistory", "listLegacyAttendanceRecords", "previewAttendanceMigration",
+    "listWorkPolicies", "createWorkPolicy", "deactivateWorkPolicy"
   ]);
   const WRITE_ACTIONS = new Set(ACTIONS.filter((action) => ![
     "getAttendanceDashboard", "getEmployeeAttendanceDay", "listAttendanceEvents",
     "listUnresolvedAttendanceDays", "listOpenAttendanceBreaks",
-    "getAttendanceAuditHistory", "listLegacyAttendanceRecords", "previewAttendanceMigration"
+    "getAttendanceAuditHistory", "listLegacyAttendanceRecords", "previewAttendanceMigration",
+    "listWorkPolicies"
   ].includes(action)));
   const BLOCKED_CLASSIFICATIONS = new Set([
     "WEEKLY_DAY_OFF", "APPROVED_LEAVE", "UNPAID_LEAVE", "SICK_LEAVE",
@@ -3510,6 +3833,147 @@ function handleStaffSchedulingPhase2Action(data) {
   function parseJson(value, fallback) {
     if (value && typeof value === "object") return clone(value);
     try { return JSON.parse(text(value) || JSON.stringify(fallback)); } catch (_error) { return clone(fallback); }
+  }
+  const WORK_POLICY_SERVER_FIELDS = new Set([
+    "policyId", "active", "createdAt", "createdBy", "updatedAt", "updatedBy"
+  ]);
+  const WORK_POLICY_NUMERIC_FIELDS = new Set([
+    "requiredDailyMinutes", "allowedBreakMinutes", "maxSingleBreakMinutes",
+    "breakGraceMinutes", "graceLateMinutes", "graceEarlyLeaveMinutes",
+    "deficitRatePerHour", "fixedLatePenalty", "dailyDeductionCap",
+    "overtimeRatePerHour", "overtimeMultiplier", "minOvertimeThresholdMinutes",
+    "dailyOvertimeCapMinutes", "periodOvertimeCapMinutes", "roundingIncrementMinutes",
+    "monthlyAllowedLeaveDays", "maxCarryForwardDays", "excessAbsenceMultiplier",
+    "excessAbsenceFixedAmount", "maxExcessAbsenceDeduction", "fixedDayValue",
+    "monthlySalary", "workingDaysDivisor", "hourlyRate", "currencyMinorScale",
+    "monthlySalaryMinor", "deficitRateMinorPerMinute", "dailyDeductionCapMinor",
+    "periodDeductionCapMinor", "overtimeRateMinorPerMinute", "overtimeMultiplierBps",
+    "unpaidLeaveMultiplierBps", "absenceMultiplierBps"
+  ]);
+  const WORK_POLICY_BOOLEAN_FIELDS = new Set([
+    "allowMultipleBreaks", "excessBreakContributesToDeficit",
+    "overtimeApprovalRequired", "leaveCarryForward", "leaveApprovalRequired",
+    "hireDateProration", "terminationDateProration", "sickLeavePaid"
+  ]);
+  const WORK_POLICY_ENUMS = Object.freeze({
+    breakPaymentType: ["PAID", "UNPAID"],
+    deficitRateType: ["SALARY_DERIVED", "FIXED_HOURLY", "FIXED_PER_MINUTE"],
+    overtimePolicy: ["NONE", "PAID", "TIME_OFF", "OFFSET_DEFICIT"],
+    roundingMode: ["NONE", "FLOOR", "CEIL", "NEAREST"],
+    settlementPeriod: ["DAILY", "WEEKLY", "MONTHLY", "PAYROLL_PERIOD", "CUSTOM_PAYROLL_PERIOD"],
+    partialLeaveUnit: ["MINUTES", "HOURS", "HALF_DAY", "DAY"],
+    leaveResetPeriod: ["MONTHLY", "PAYROLL_PERIOD", "CUSTOM_PAYROLL_PERIOD"],
+    excessAbsencePolicy: ["DAY_VALUE_MULTIPLIER", "FIXED_AMOUNT_PER_DAY", "WORKING_HOURS_BASED"],
+    dayValueMethod: ["FIXED_DAY_VALUE", "MONTHLY_SALARY_DIVIDED_BY_CALENDAR_DAYS",
+      "MONTHLY_SALARY_DIVIDED_BY_WORKING_DAYS", "REQUIRED_DAILY_HOURS_AT_HOURLY_RATE"],
+    salaryBasis: ["MONTHLY", "DAILY", "HOURLY", "PER_MINUTE"],
+    overtimeRateType: ["SALARY_DERIVED", "FIXED_HOURLY", "FIXED_PER_MINUTE"],
+    unresolvedBehavior: ["BLOCK", "EXCLUDE"]
+  });
+  function workPolicyKey(header) {
+    return String(header || "").toLowerCase().replace(/_([a-z0-9])/g,
+      (_match, character) => character.toUpperCase());
+  }
+  function workPolicyInputValue(source, key) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) return source[key];
+    const header = schema.SHEET_SCHEMAS.STAFF_WORK_POLICIES.find((item) =>
+      workPolicyKey(item) === key);
+    if (header && Object.prototype.hasOwnProperty.call(source, header)) return source[header];
+    if (key === "requiredDailyMinutes" &&
+        Object.prototype.hasOwnProperty.call(source, "requiredWorkMinutes")) {
+      return source.requiredWorkMinutes;
+    }
+    return undefined;
+  }
+  function workPolicyDate(value, field) {
+    try { return core.parseDateKey(value).text; } catch (_error) {
+      throw attendanceError("WORK_POLICY_DATE_INVALID", `${field} must be YYYY-MM-DD.`);
+    }
+  }
+  function workPolicyBoolean(value, field) {
+    if (value === true || value === false) return value;
+    if (["TRUE", "FALSE"].includes(upper(value))) return upper(value) === "TRUE";
+    throw attendanceError("WORK_POLICY_BOOLEAN_INVALID", `${field} must be a boolean.`);
+  }
+  function workPolicyNumber(value, field) {
+    if (value === "" || value === null) return "";
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      throw attendanceError("WORK_POLICY_NUMBER_INVALID", `${field} must be finite and non-negative.`);
+    }
+    return parsed;
+  }
+  function normalizeCompleteWorkPolicy(source, options) {
+    const trustedStoredSource = options && options.trustedStoredSource === true;
+    if (!source || typeof source !== "object" || Array.isArray(source)) {
+      throw attendanceError("WORK_POLICY_COMPLETE_PAYLOAD_REQUIRED",
+        "A complete work policy object is required.");
+    }
+    const record = {};
+    schema.SHEET_SCHEMAS.STAFF_WORK_POLICIES.map(workPolicyKey).forEach((key) => {
+      if (WORK_POLICY_SERVER_FIELDS.has(key)) return;
+      const value = workPolicyInputValue(source, key);
+      if (value === undefined) {
+        throw attendanceError("WORK_POLICY_FIELD_REQUIRED", `Complete policy field is required: ${key}.`,
+          { field: key });
+      }
+      if (key === "staffId") record[key] = requireText(value,
+        "WORK_POLICY_STAFF_ID_REQUIRED", "Stable staff ID is required.");
+      else if (key === "effectiveFrom") record[key] = workPolicyDate(value, key);
+      else if (key === "effectiveTo") record[key] = value === "" || value === null
+        ? "" : workPolicyDate(value, key);
+      else if (WORK_POLICY_BOOLEAN_FIELDS.has(key)) record[key] =
+        trustedStoredSource && text(value) === "" ? "" : workPolicyBoolean(value, key);
+      else if (WORK_POLICY_NUMERIC_FIELDS.has(key)) record[key] = workPolicyNumber(value, key);
+      else if (key.endsWith("Json")) {
+        try {
+          if (trustedStoredSource && text(value) === "") record[key] = "";
+          else {
+            const parsed = typeof value === "string" ? JSON.parse(value || "[]") : clone(value);
+            record[key] = stable(parsed);
+          }
+        } catch (_error) {
+          throw attendanceError("WORK_POLICY_JSON_INVALID", `${key} must contain valid JSON.`);
+        }
+      } else if (WORK_POLICY_ENUMS[key]) {
+        const normalized = upper(value);
+        if (trustedStoredSource && !normalized) {
+          record[key] = "";
+          return;
+        }
+        if (!WORK_POLICY_ENUMS[key].includes(normalized)) {
+          throw attendanceError("WORK_POLICY_ENUM_INVALID", `${key} contains an unsupported value.`,
+            { field: key });
+        }
+        record[key] = normalized;
+      } else if (key === "currency") {
+        const currency = upper(value);
+        if (!/^[A-Z]{3}$/.test(currency)) {
+          throw attendanceError("WORK_POLICY_CURRENCY_INVALID", "Currency must be a three-letter code.");
+        }
+        record[key] = currency;
+      } else if (["defaultShiftStart", "defaultShiftEnd"].includes(key)) {
+        const time = text(value);
+        if (time && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+          throw attendanceError("WORK_POLICY_TIME_INVALID", `${key} must be HH:mm or blank.`);
+        }
+        record[key] = time;
+      } else record[key] = text(value);
+    });
+    if (record.effectiveTo && record.effectiveTo < record.effectiveFrom) {
+      throw attendanceError("WORK_POLICY_DATE_RANGE_INVALID",
+        "Effective-to cannot be before effective-from.");
+    }
+    ["requiredDailyMinutes", "allowedBreakMinutes", "maxSingleBreakMinutes",
+      "roundingIncrementMinutes", "currencyMinorScale", "monthlySalaryMinor",
+      "deficitRateMinorPerMinute", "dailyDeductionCapMinor", "periodDeductionCapMinor",
+      "overtimeRateMinorPerMinute", "overtimeMultiplierBps", "unpaidLeaveMultiplierBps",
+      "absenceMultiplierBps"].forEach((key) => {
+      if (record[key] !== "" && !Number.isInteger(record[key])) {
+        throw attendanceError("WORK_POLICY_INTEGER_REQUIRED", `${key} must be an integer.`);
+      }
+    });
+    return record;
   }
   function stable(value) {
     if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
@@ -4046,6 +4510,9 @@ function handleStaffSchedulingPhase2Action(data) {
         state.overtime.push(clone(record)); return clone(record);
       },
       listPolicies: () => clone(state.policies),
+      getPolicy: (policyId) => clone(findUnique(state.policies, "policyId", policyId,
+        "WORK_POLICY_ID_AMBIGUOUS")),
+      savePolicy: (record) => save("policies", "policyId", record),
       listLegacy: () => clone(state.legacy),
       appendAudit: (record) => {
         if (state.audit.some((item) => item.actionId === record.actionId)) {
@@ -4075,6 +4542,7 @@ function handleStaffSchedulingPhase2Action(data) {
     const now = config.now || (() => new Date().toISOString());
     const uuid = config.uuid || (() => Math.random().toString(36).slice(2));
     const withLock = config.withLock || ((_details, callback) => callback());
+    const beforeWorkPolicyNormalization = config.beforeWorkPolicyNormalization || (() => {});
     function allocateId(prefix, exists, code) {
       for (let attempt = 0; attempt < 10; attempt += 1) {
         const candidate = id(prefix, uuid);
@@ -4119,12 +4587,23 @@ function handleStaffSchedulingPhase2Action(data) {
       const existing = repository.listDays({ staffId: staff.staffId, date });
       if (existing.length > 1) throw attendanceError("ATTENDANCE_DAY_AMBIGUOUS", "Multiple daily results exist.");
       const current = existing[0];
-      const schedule = scheduleResolver(staff, date) || {
+      const persistedSchedule = current && current.scheduleSnapshot &&
+        typeof current.scheduleSnapshot === "object" ? clone(current.scheduleSnapshot) : null;
+      const persistedPolicy = current && current.policySnapshot &&
+        typeof current.policySnapshot === "object" ? clone(current.policySnapshot) : null;
+      const schedule = persistedSchedule || scheduleResolver(staff, date) || {
         date, staffId: staff.staffId, sourceType: "NONE", sourceIds: [], shiftSegments: [],
         requiredWorkMinutes: 0, allowedBreakMinutes: 0, classification: "NOT_SCHEDULED",
         warnings: ["NO_RESOLVED_SCHEDULE"]
       };
-      const policy = policyFor(staff, date);
+      const policy = persistedPolicy ? {
+        resolution: {
+          source: "PERSISTED_ATTENDANCE_SNAPSHOT",
+          policyId: text(persistedPolicy.policyId),
+          snapshot: persistedPolicy
+        },
+        snapshot: persistedPolicy
+      } : policyFor(staff, date);
       const attendanceDayId = current ? current.attendanceDayId : dayId(staff.staffId, date);
       const calculated = calculateDay({
         attendanceDayId, staff, date, schedule, policy: policy.snapshot,
@@ -4138,6 +4617,33 @@ function handleStaffSchedulingPhase2Action(data) {
         dayLifecycle: current && current.dayLifecycle,
         now: serverNow
       });
+      const persistedEventIds = current && Array.isArray(current.sourceEventIds)
+        ? current.sourceEventIds.map(text) : [];
+      const calculatedEventIds = (calculated.sourceEventIds || []).map(text);
+      const evidenceMatches = !!current && (
+        (!!text(current.sourceEventHash) &&
+          text(current.sourceEventHash) === text(calculated.sourceEventHash)) ||
+        (persistedEventIds.length > 0 && stable(persistedEventIds) === stable(calculatedEventIds))
+      );
+      const persistedCompleted = !!current && !calculated.openSession && !calculated.openBreak &&
+        evidenceMatches &&
+        text(current.calculationVersion) === PHASE3_VERSION;
+      if (persistedCompleted) {
+        return Object.freeze({
+          ...calculated,
+          ...clone(current),
+          state: calculated.state,
+          sessions: calculated.sessions,
+          breaks: calculated.breaks,
+          sourceEventIds: calculated.sourceEventIds,
+          sourceEventHash: calculated.sourceEventHash,
+          approvedOvertimeMinutes: calculated.approvedOvertimeMinutes,
+          overtimeApprovalStatus: calculated.overtimeApprovalStatus,
+          openSession: false,
+          openBreak: false,
+          staleCalculation: false
+        });
+      }
       return Object.freeze({
         ...calculated,
         staleCalculation: !!current && (
@@ -4180,6 +4686,55 @@ function handleStaffSchedulingPhase2Action(data) {
         createdBy: item.createdBy,
         stale: bool(item.stale)
       };
+    }
+    function requireOwner(resolvedActor) {
+      if (!resolvedActor.owner) {
+        throw attendanceError("WORK_POLICY_OWNER_REQUIRED",
+          "Only the owner can manage work policies.");
+      }
+    }
+    function workPolicyDto(item) {
+      return {
+        policyId: text(item.policyId), staffId: text(item.staffId),
+        effectiveFrom: text(item.effectiveFrom), effectiveTo: text(item.effectiveTo),
+        requiredDailyMinutes: number(item.requiredDailyMinutes, 0),
+        allowedBreakMinutes: number(item.allowedBreakMinutes, 0),
+        salaryBasis: upper(item.salaryBasis), currency: upper(item.currency),
+        active: item.active !== false && upper(item.active) !== "FALSE",
+        createdAt: text(item.createdAt), createdBy: text(item.createdBy),
+        updatedAt: text(item.updatedAt), updatedBy: text(item.updatedBy)
+      };
+    }
+    function workPolicyRangesOverlap(left, right) {
+      const leftEnd = text(left.effectiveTo) || "9999-12-31";
+      const rightEnd = text(right.effectiveTo) || "9999-12-31";
+      return text(left.effectiveFrom) <= rightEnd && text(right.effectiveFrom) <= leftEnd;
+    }
+    function completeWorkPolicyPayload(data) {
+      if (data.policy) return normalizeCompleteWorkPolicy(data.policy);
+      const sourcePolicyId = text(data.sourcePolicyId);
+      if (!sourcePolicyId) {
+        throw attendanceError("WORK_POLICY_COMPLETE_PAYLOAD_REQUIRED",
+          "Provide a complete policy object or an explicit source policy ID.");
+      }
+      const source = repository.getPolicy(sourcePolicyId);
+      if (!source) throw attendanceError("WORK_POLICY_SOURCE_NOT_FOUND",
+        "The source work policy was not found.");
+      const copied = {};
+      schema.SHEET_SCHEMAS.STAFF_WORK_POLICIES.map(workPolicyKey).forEach((key) => {
+        if (!WORK_POLICY_SERVER_FIELDS.has(key)) copied[key] = source[key];
+      });
+      ["staffId", "effectiveFrom", "effectiveTo", "requiredDailyMinutes",
+        "requiredWorkMinutes", "allowedBreakMinutes", "salaryBasis", "currency"]
+        .forEach((key) => {
+          if (Object.prototype.hasOwnProperty.call(data, key)) copied[key] = data[key];
+        });
+      if (Object.prototype.hasOwnProperty.call(copied, "requiredWorkMinutes")) {
+        copied.requiredDailyMinutes = copied.requiredWorkMinutes;
+        delete copied.requiredWorkMinutes;
+      }
+      beforeWorkPolicyNormalization(clone(copied));
+      return normalizeCompleteWorkPolicy(copied, { trustedStoredSource: true });
     }
     function audit(action, entityType, entityId, staffId, resolvedActor, before, after, reason, requestId, at) {
       repository.appendAudit({
@@ -4331,6 +4886,71 @@ function handleStaffSchedulingPhase2Action(data) {
     }
 
     const handlers = {
+      listWorkPolicies(data) {
+        const resolvedActor = actor(data); requireOwner(resolvedActor);
+        const policies = repository.listPolicies()
+          .filter((item) => !data.staffId || text(item.staffId) === text(data.staffId))
+          .filter((item) => data.includeInactive === true ||
+            (item.active !== false && upper(item.active) !== "FALSE"))
+          .map(workPolicyDto);
+        return {
+          status: "success", code: "WORK_POLICY_LIST_OK", workPolicies: policies,
+          serverNow: now()
+        };
+      },
+      createWorkPolicy(data) {
+        return mutation("createWorkPolicy", data, "attendance.manage",
+          (resolvedActor, requestId, reason, at) => {
+            requireOwner(resolvedActor);
+            const policy = completeWorkPolicyPayload(data);
+            const staff = repository.getStaff(policy.staffId);
+            if (!staff) throw attendanceError("WORK_POLICY_STAFF_NOT_FOUND",
+              "The employee does not exist.");
+            if (staff.active === false || upper(staff.active) === "FALSE") {
+              throw attendanceError("WORK_POLICY_STAFF_INACTIVE",
+                "An inactive employee cannot receive a new work policy.");
+            }
+            const overlap = repository.listPolicies().find((item) =>
+              text(item.staffId) === policy.staffId &&
+              item.active !== false && upper(item.active) !== "FALSE" &&
+              workPolicyRangesOverlap(item, policy));
+            if (overlap) throw attendanceError("WORK_POLICY_EFFECTIVE_OVERLAP",
+              "An active work policy already overlaps this effective range.",
+              { conflictingPolicyId: text(overlap.policyId) });
+            const record = {
+              ...policy,
+              policyId: allocateId("POL", (candidate) => !!repository.getPolicy(candidate),
+                "WORK_POLICY_ID_ALLOCATION_FAILED"),
+              active: true, createdAt: at, createdBy: resolvedActor.actorId,
+              updatedAt: at, updatedBy: resolvedActor.actorId
+            };
+            repository.savePolicy(record);
+            audit("CREATE_WORK_POLICY", "STAFF_WORK_POLICY", record.policyId,
+              record.staffId, resolvedActor, {}, record, reason, requestId, at);
+            return { code: "CREATE_WORK_POLICY_OK", workPolicy: workPolicyDto(record) };
+          });
+      },
+      deactivateWorkPolicy(data) {
+        return mutation("deactivateWorkPolicy", data, "attendance.manage",
+          (resolvedActor, requestId, reason, at) => {
+            requireOwner(resolvedActor);
+            const policyId = requireText(data.policyId, "WORK_POLICY_ID_REQUIRED",
+              "Stable policy ID is required.");
+            const current = repository.getPolicy(policyId);
+            if (!current) throw attendanceError("WORK_POLICY_NOT_FOUND",
+              "The work policy was not found.");
+            if (current.active === false || upper(current.active) === "FALSE") {
+              throw attendanceError("WORK_POLICY_ALREADY_INACTIVE",
+                "The work policy is already inactive.");
+            }
+            const updated = { ...current, active: false, updatedAt: at,
+              updatedBy: resolvedActor.actorId };
+            repository.savePolicy(updated);
+            audit("DEACTIVATE_WORK_POLICY", "STAFF_WORK_POLICY", current.policyId,
+              current.staffId, resolvedActor, current, updated, reason, requestId, at);
+            return { code: "DEACTIVATE_WORK_POLICY_OK", workPolicy: workPolicyDto(updated) };
+          });
+      },
       getAttendanceDashboard(data) {
         const resolvedActor = actor(data); requirePermission(resolvedActor, "attendance.view");
         const date = core.parseDateKey(data.date || dateFromInstant(now())).text;
@@ -4785,7 +5405,7 @@ function handleStaffSchedulingPhase2Action(data) {
   function planAttendanceMigration(existingSheets, identity) {
     const plan = clone(core.planSchemaMigration(existingSheets, identity));
     const environment = text(identity && identity.environment).toLowerCase();
-    if (["production", "staging"].includes(environment)) {
+    if (environment === "production") {
       plan.errors = (plan.errors || []).filter((item) => item.code !== "ENVIRONMENT_NOT_APPROVED");
       plan.errors.push({ code: "PHASE3_ENVIRONMENT_BLOCKED" });
       plan.blocked = true;
@@ -4810,7 +5430,7 @@ function handleStaffSchedulingPhase2Action(data) {
 
 /* BEGIN staff-attendance-phase3-gas.js */
 /* global StaffAttendancePhase3, StaffSchedulingPhase2, SpreadsheetApp, LockService,
-  PropertiesService, Utilities, getCutHubEnvironmentConfig, getAuthenticatedUser,
+  PropertiesService, Utilities, console, getCutHubEnvironmentConfig, assertStagingEnvironment, getAuthenticatedUser,
   normalizeManagedPermissions, jsonOutput, schedulePhase2Actor, schedulePhase2ReadRows,
   schedulePhase2ReadStaff, schedulePhase2ReadSchedules, schedulePhase2Headers,
   schedulePhase2AssertHeaders, schedulePhase2AssertNoDuplicateHeaders,
@@ -4917,10 +5537,48 @@ function attendancePhase3WithTransaction(details, callback) {
   }
 }
 
+function attendancePhase3DateOnly(value, timezone) {
+  var resolvedTimezone = String(timezone || StaffAttendancePhase3.TIME_ZONE || "Africa/Cairo");
+  if (Object.prototype.toString.call(value) === "[object Date]" &&
+      !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, resolvedTimezone, "yyyy-MM-dd");
+  }
+  var text = String(value || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(text)) {
+    var instant = new Date(text);
+    if (!isNaN(instant.getTime())) {
+      return Utilities.formatDate(instant, resolvedTimezone, "yyyy-MM-dd");
+    }
+  }
+  return text;
+}
+
+function attendancePhase3TimeOnly(value, timezone) {
+  var resolvedTimezone = String(timezone || StaffAttendancePhase3.TIME_ZONE || "Africa/Cairo");
+  if (Object.prototype.toString.call(value) === "[object Date]" &&
+      !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, resolvedTimezone, "HH:mm");
+  }
+  var text = String(value || "").trim();
+  if (/^\d{2}:\d{2}$/.test(text)) return text;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(text)) {
+    var instant = new Date(text);
+    if (!isNaN(instant.getTime())) {
+      return Utilities.formatDate(instant, resolvedTimezone, "HH:mm");
+    }
+  }
+  return text;
+}
+
 function attendancePhase3ReadDays() {
   var rows = schedulePhase2ReadRows("ATTENDANCE");
   return rows.filter(function (item) { return !!String(item.attendanceDayId || "").trim(); })
     .map(function (item) {
+      item.attendanceDate = attendancePhase3DateOnly(item.attendanceDate, item.timezone);
+      item.scheduledStart = attendancePhase3TimeOnly(item.scheduledStart, item.timezone);
+      item.scheduledEnd = attendancePhase3TimeOnly(item.scheduledEnd, item.timezone);
+      item.staffId = schedulePhase2Text(item.staffId);
       [
         "scheduleSourceIds", "shiftSegments", "calculationWarnings",
         "policySnapshot", "scheduleSnapshot", "sourceEventIds", "sessions", "breaks"
@@ -5045,6 +5703,15 @@ function attendancePhase3CreateRepository() {
         "OVERTIME_APPROVAL_ID", record, true);
     },
     listPolicies: function () { return schedulePhase2ReadRows("STAFF_WORK_POLICIES"); },
+    getPolicy: function (policyId) {
+      return attendancePhase3Unique(schedulePhase2ReadRows("STAFF_WORK_POLICIES"),
+        "policyId", policyId, "WORK_POLICY_ID_AMBIGUOUS");
+    },
+    savePolicy: function (record) {
+      return attendancePhase3Save("STAFF_WORK_POLICIES",
+        StaffAttendancePhase3.SHEET_SCHEMAS.STAFF_WORK_POLICIES,
+        "POLICY_ID", record, false);
+    },
     listLegacy: attendancePhase3ReadLegacy,
     appendAudit: function (record) {
       return attendancePhase3Save("STAFF_ATTENDANCE_AUDIT",
@@ -5131,7 +5798,28 @@ function attendancePhase3AssertWriteReady() {
   });
 }
 
+function attendancePhase3AssertPreviewEnvironment() {
+  var config = getCutHubEnvironmentConfig();
+  var environment = String(config.environment || "").toLowerCase();
+  if (environment === "production") {
+    var blocked = new Error("Phase 3 migration preview cannot access production.");
+    blocked.code = "PHASE3_ENVIRONMENT_BLOCKED";
+    throw blocked;
+  }
+  if (["development", "test", "staging"].indexOf(environment) === -1) {
+    var invalid = new Error("Phase 3 migration preview requires a recognized environment identity.");
+    invalid.code = "ATTENDANCE_ENVIRONMENT_IDENTITY_INVALID";
+    throw invalid;
+  }
+  if (environment === "staging") {
+    return assertStagingEnvironment().config;
+  }
+  return config;
+}
+
 function previewAttendanceMigration(data) {
+  data = data && typeof data === "object" ? data : {};
+  var config = attendancePhase3AssertPreviewEnvironment();
   var identity = attendancePhase3AssertEnvironmentIdentity();
   var existing = {};
   Object.keys(StaffAttendancePhase3.SHEET_SCHEMAS).forEach(function (name) {
@@ -5142,8 +5830,87 @@ function previewAttendanceMigration(data) {
     environment: identity.config.environment,
     expectedSpreadsheetId: identity.config.spreadsheetId,
     actualSpreadsheetId: identity.spreadsheet.getId(),
-    environmentReviewApproved: false
+    environmentReviewApproved: config.environment === "staging"
   });
+}
+
+function diagnosticPreviewAttendanceMigration(data) {
+  var config = getCutHubEnvironmentConfig();
+  var environment = String(config.environment || "").toLowerCase();
+  if (["development", "staging"].indexOf(environment) === -1) {
+    var blocked = new Error("Attendance migration diagnostic preview is limited to development and staging.");
+    blocked.code = "ATTENDANCE_DIAGNOSTIC_PREVIEW_ENVIRONMENT_BLOCKED";
+    throw blocked;
+  }
+  if (environment === "staging") assertStagingEnvironment();
+  var result = previewAttendanceMigration(data);
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+function attendancePhase3RunDiagnosticPreview(data) {
+  var config = getCutHubEnvironmentConfig();
+  var environment = String(config.environment || "").toLowerCase();
+  if (["development", "staging"].indexOf(environment) === -1) {
+    var blocked = new Error("Attendance migration diagnostic preview is limited to development and staging.");
+    blocked.code = "ATTENDANCE_DIAGNOSTIC_PREVIEW_ENVIRONMENT_BLOCKED";
+    throw blocked;
+  }
+  if (environment === "staging") assertStagingEnvironment();
+  return previewAttendanceMigration(data);
+}
+
+function diagnosticPreviewAttendanceMigrationSummary(data) {
+  var result = attendancePhase3RunDiagnosticPreview(data);
+  console.log(JSON.stringify({
+    schemaVersion: result.schemaVersion,
+    dryRun: result.dryRun,
+    writes: result.writes,
+    identity: result.identity,
+    createSheetNames: (result.createSheets || []).map(function (item) { return item.sheetName; }),
+    initializeBlankSheetNames: (result.initializeBlankSheets || []).map(function (item) {
+      return item.sheetName;
+    }),
+    appendColumnSheetNames: Object.keys(result.appendColumns || {}),
+    unchangedSheetNames: result.unchangedSheets || [],
+    errorCodes: (result.errors || []).map(function (item) { return item.code; }),
+    safe: result.safe
+  }));
+  return result;
+}
+
+function diagnosticPreviewAttendanceMigrationSheets(data) {
+  var result = attendancePhase3RunDiagnosticPreview(data);
+  (result.createSheets || []).forEach(function (item) {
+    console.log(JSON.stringify({
+      sheetName: item.sheetName,
+      headerCount: (item.headers || []).length,
+      headers: item.headers || []
+    }));
+  });
+  return result;
+}
+
+function diagnosticPreviewAttendanceMigrationColumns(data) {
+  var result = attendancePhase3RunDiagnosticPreview(data);
+  console.log(JSON.stringify({
+    appendColumns: result.appendColumns || {},
+    preservedUnknownColumns: result.preservedUnknownColumns || {}
+  }));
+  return result;
+}
+
+function diagnosticPreviewAttendanceMigrationSafety(data) {
+  var result = attendancePhase3RunDiagnosticPreview(data);
+  console.log(JSON.stringify({
+    errors: result.errors || [],
+    rollback: result.rollback || {},
+    safe: result.safe,
+    dryRun: result.dryRun,
+    writes: result.writes,
+    historicalRowsTouched: result.rollback && result.rollback.historicalRowsTouched
+  }));
+  return result;
 }
 
 function handleStaffAttendancePhase3Action(data) {
@@ -5154,13 +5921,7 @@ function handleStaffAttendancePhase3Action(data) {
         "ATTENDANCE_ACTION_UNKNOWN", "Attendance action is not supported.");
     }
     if (data.action === "previewAttendanceMigration") {
-      var previewConfig = getCutHubEnvironmentConfig();
-      if (["production", "staging"].indexOf(previewConfig.environment) !== -1) {
-        throw StaffAttendancePhase3.attendanceError(
-          "ATTENDANCE_PHASE3_ENVIRONMENT_BLOCKED",
-          "Phase 3 migration preview cannot access staging or production.");
-      }
-      attendancePhase3AssertEnvironmentIdentity();
+      attendancePhase3AssertPreviewEnvironment();
       var previewActor = schedulePhase2Actor(data);
       if (!previewActor || !previewActor.owner) {
         throw StaffAttendancePhase3.attendanceError(
@@ -6633,7 +7394,7 @@ function handleStaffAttendancePhase3Action(data) {
   function planMigration(existingSheets, identity) {
     const plan = clone(core.planSchemaMigration(existingSheets || {}, identity || {}));
     const environment = text(identity && identity.environment).toLowerCase();
-    if (["production", "staging"].includes(environment)) {
+    if (environment === "production") {
       plan.errors = (plan.errors || []).filter((item) => item.code !== "ENVIRONMENT_NOT_APPROVED");
       plan.errors.push({ code: "PHASE4_ENVIRONMENT_BLOCKED" });
       plan.blocked = true;
@@ -6665,7 +7426,7 @@ function handleStaffAttendancePhase3Action(data) {
 
 /* BEGIN staff-payroll-attendance-phase4-gas.js */
 /* global StaffPayrollAttendancePhase4, SpreadsheetApp, LockService, PropertiesService,
-  Utilities, getCutHubEnvironmentConfig, jsonOutput, schedulePhase2Actor,
+  Utilities, console, getCutHubEnvironmentConfig, assertStagingEnvironment, jsonOutput, schedulePhase2Actor,
   schedulePhase2ReadRows, schedulePhase2Headers, schedulePhase2AssertHeaders,
   schedulePhase2AssertNoDuplicateHeaders, schedulePhase2Canonical, schedulePhase2Camel,
   schedulePhase2Sheet, schedulePhase2RecordUndo, schedulePhase2RollbackTransaction,
@@ -6685,6 +7446,34 @@ function payrollAttendancePhase4ReadJsonFields(record, fields) {
     }
   });
   return record;
+}
+
+function payrollAttendancePhase4DateOnly(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, StaffPayrollAttendancePhase4.TIME_ZONE, "yyyy-MM-dd");
+  }
+  var source = String(value || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(source)) return source;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(source)) {
+    var parsed = new Date(source);
+    if (!isNaN(parsed.getTime())) {
+      return Utilities.formatDate(parsed, StaffPayrollAttendancePhase4.TIME_ZONE, "yyyy-MM-dd");
+    }
+  }
+  return source;
+}
+
+function payrollAttendancePhase4NormalizeDateOnlyFields(record, fields) {
+  fields.forEach(function (key) {
+    record[key] = payrollAttendancePhase4DateOnly(record[key]);
+  });
+  return record;
+}
+
+function payrollAttendancePhase4ReadPeriods() {
+  return schedulePhase2ReadRows("PAYROLL_ATTENDANCE_PERIODS").map(function (item) {
+    return payrollAttendancePhase4NormalizeDateOnlyFields(item, ["startDate", "endDate"]);
+  });
 }
 
 function payrollAttendancePhase4ReadStaff() {
@@ -6734,6 +7523,7 @@ function payrollAttendancePhase4ReadStaff() {
 
 function payrollAttendancePhase4ReadSettlements() {
   return schedulePhase2ReadRows("PAYROLL_ATTENDANCE_SETTLEMENTS").map(function (item) {
+    payrollAttendancePhase4NormalizeDateOnlyFields(item, ["periodStart", "periodEnd"]);
     payrollAttendancePhase4ReadJsonFields(item, [
       "sourceAttendanceDayIds", "sourceAttendanceSnapshot",
       "policySnapshot", "salarySnapshot", "warnings", "blockers"
@@ -6797,10 +7587,10 @@ function payrollAttendancePhase4WithTransaction(details, callback) {
 
 function payrollAttendancePhase4CreateRepository() {
   return {
-    listPeriods: function () { return schedulePhase2ReadRows("PAYROLL_ATTENDANCE_PERIODS"); },
+    listPeriods: payrollAttendancePhase4ReadPeriods,
     getPeriod: function (id) {
       return payrollAttendancePhase4Unique(
-        schedulePhase2ReadRows("PAYROLL_ATTENDANCE_PERIODS"),
+        payrollAttendancePhase4ReadPeriods(),
         "payrollPeriodId", id, "PAYROLL_PERIOD_ID_AMBIGUOUS");
     },
     savePeriod: function (record) {
@@ -6931,15 +7721,18 @@ function payrollAttendancePhase4AssertSchema() {
 function payrollAttendancePhase4AssertPreviewEnvironment() {
   var config = getCutHubEnvironmentConfig();
   var environment = String(config.environment || "").toLowerCase();
-  if (["staging", "production"].indexOf(environment) !== -1) {
-    var blocked = new Error("Phase 4 migration preview cannot access staging or production.");
+  if (environment === "production") {
+    var blocked = new Error("Phase 4 migration preview cannot access production.");
     blocked.code = "PHASE4_ENVIRONMENT_BLOCKED";
     throw blocked;
   }
-  if (["development", "test"].indexOf(environment) === -1) {
-    var invalid = new Error("Phase 4 migration preview requires development or test identity.");
+  if (["development", "test", "staging"].indexOf(environment) === -1) {
+    var invalid = new Error("Phase 4 migration preview requires a recognized environment identity.");
     invalid.code = "PAYROLL_ENVIRONMENT_IDENTITY_INVALID";
     throw invalid;
+  }
+  if (environment === "staging") {
+    return assertStagingEnvironment().config;
   }
   return config;
 }
@@ -6956,8 +7749,90 @@ function previewPayrollPhase4Migration(data) {
     environment: identity.config.environment,
     expectedSpreadsheetId: identity.config.spreadsheetId,
     actualSpreadsheetId: identity.spreadsheet.getId(),
-    environmentReviewApproved: false
+    environmentReviewApproved: config.environment === "staging"
   });
+}
+
+function diagnosticPreviewPayrollPhase4Migration(data) {
+  var config = getCutHubEnvironmentConfig();
+  var environment = String(config.environment || "").toLowerCase();
+  if (["development", "staging"].indexOf(environment) === -1) {
+    var blocked = new Error("Payroll migration diagnostic preview is limited to development and staging.");
+    blocked.code = "PAYROLL_DIAGNOSTIC_PREVIEW_ENVIRONMENT_BLOCKED";
+    throw blocked;
+  }
+  if (environment === "staging") assertStagingEnvironment();
+  var result = previewPayrollPhase4Migration(data);
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+function payrollAttendancePhase4RunDiagnosticPreview(data) {
+  var config = getCutHubEnvironmentConfig();
+  var environment = String(config.environment || "").toLowerCase();
+  if (["development", "staging"].indexOf(environment) === -1) {
+    var blocked = new Error("Payroll migration diagnostic preview is limited to development and staging.");
+    blocked.code = "PAYROLL_DIAGNOSTIC_PREVIEW_ENVIRONMENT_BLOCKED";
+    throw blocked;
+  }
+  if (environment === "staging") assertStagingEnvironment();
+  return previewPayrollPhase4Migration(data);
+}
+
+function diagnosticPreviewPayrollPhase4MigrationSummary(data) {
+  var result = payrollAttendancePhase4RunDiagnosticPreview(data);
+  console.log(JSON.stringify({
+    schemaVersion: result.schemaVersion,
+    version: result.version || StaffPayrollAttendancePhase4.VERSION,
+    dryRun: result.dryRun,
+    writes: result.writes,
+    executionAllowed: result.executionAllowed,
+    identity: result.identity,
+    createSheetNames: (result.createSheets || []).map(function (item) { return item.sheetName; }),
+    initializeBlankSheetNames: (result.initializeBlankSheets || []).map(function (item) {
+      return item.sheetName;
+    }),
+    appendColumnSheetNames: Object.keys(result.appendColumns || {}),
+    unchangedSheetNames: result.unchangedSheets || [],
+    errorCodes: (result.errors || []).map(function (item) { return item.code; }),
+    safe: result.safe
+  }));
+  return result;
+}
+
+function diagnosticPreviewPayrollPhase4MigrationSafety(data) {
+  var result = payrollAttendancePhase4RunDiagnosticPreview(data);
+  console.log(JSON.stringify({
+    errors: result.errors || [],
+    rollback: result.rollback || {},
+    safe: result.safe,
+    dryRun: result.dryRun,
+    writes: result.writes,
+    executionAllowed: result.executionAllowed,
+    historicalRowsTouched: result.rollback && result.rollback.historicalRowsTouched
+  }));
+  return result;
+}
+
+function diagnosticPreviewPayrollPhase4MigrationSheets(data) {
+  var result = payrollAttendancePhase4RunDiagnosticPreview(data);
+  (result.createSheets || []).forEach(function (item) {
+    console.log(JSON.stringify({
+      sheetName: item.sheetName,
+      headerCount: (item.headers || []).length,
+      headers: item.headers || []
+    }));
+  });
+  return result;
+}
+
+function diagnosticPreviewPayrollPhase4MigrationColumns(data) {
+  var result = payrollAttendancePhase4RunDiagnosticPreview(data);
+  console.log(JSON.stringify({
+    appendColumns: result.appendColumns || {},
+    preservedUnknownColumns: result.preservedUnknownColumns || {}
+  }));
+  return result;
 }
 
 function handleStaffPayrollAttendancePhase4Action(data) {
@@ -7002,6 +7877,1956 @@ function handleStaffPayrollAttendancePhase4Action(data) {
 }
 
 /* END staff-payroll-attendance-phase4-gas.js */
+
+/* BEGIN staff-schema-migration-staging-executor.js */
+/* global SpreadsheetApp, PropertiesService, LockService, Utilities, Session, DriveApp,
+  console, getCutHubEnvironmentConfig, assertStagingEnvironment,
+  previewStaffScheduleMigration, previewAttendanceMigration, previewPayrollPhase4Migration,
+  previewBranchFoundationMigration */
+
+var STAFF_SCHEMA_MIGRATION_JOURNAL_PREFIX = "STAFF_SCHEMA_MIGRATION_JOURNAL_";
+var STAFF_SCHEMA_MIGRATION_TOKEN_PREFIX = "STAFF_SCHEMA_MIGRATION_TOKEN_";
+var STAFF_SCHEMA_MIGRATION_TOKEN_TTL_MS = 5 * 60 * 1000;
+var STAFF_SCHEMA_MIGRATION_LOCK_TIMEOUT_MS = 30000;
+var STAFF_SCHEMA_MIGRATION_JOURNAL_MAX_BYTES = 8000;
+var STAFF_SCHEMA_MIGRATION_PROPERTY_STORE_MAX_BYTES = 450000;
+var STAFF_SCHEMA_MIGRATION_ERROR_MESSAGE_MAX_LENGTH = 500;
+
+function staffSchemaMigrationError(code, message, details) {
+  var error = new Error(message || code);
+  error.code = code;
+  if (details !== undefined) error.details = details;
+  return error;
+}
+
+function staffSchemaMigrationCanonical(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return "[" + value.map(staffSchemaMigrationCanonical).join(",") + "]";
+  }
+  return "{" + Object.keys(value).sort().map(function (key) {
+    return JSON.stringify(key) + ":" + staffSchemaMigrationCanonical(value[key]);
+  }).join(",") + "}";
+}
+
+function staffSchemaMigrationHash(value) {
+  var bytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    staffSchemaMigrationCanonical(value),
+    Utilities.Charset.UTF_8
+  );
+  return "sha256:" + bytes.map(function (value) {
+    var byte = value < 0 ? value + 256 : value;
+    return byte.toString(16).padStart(2, "0");
+  }).join("");
+}
+
+function staffSchemaMigrationPlanHash(plan) {
+  plan = plan || {};
+  return staffSchemaMigrationHash({
+    schemaVersion: plan.schemaVersion,
+    version: plan.version,
+    dryRun: plan.dryRun,
+    writes: plan.writes,
+    executionAllowed: plan.executionAllowed,
+    identity: plan.identity || {},
+    headerNormalization: plan.headerNormalization,
+    createSheets: plan.createSheets || [],
+    initializeBlankSheets: plan.initializeBlankSheets || [],
+    appendColumns: plan.appendColumns || {},
+    unchangedSheets: plan.unchangedSheets || [],
+    preservedUnknownColumns: plan.preservedUnknownColumns || {},
+    errors: plan.errors || [],
+    rollback: plan.rollback || {},
+    safe: plan.safe
+  });
+}
+
+function staffSchemaMigrationNow() {
+  return new Date().toISOString();
+}
+
+function staffSchemaMigrationPhaseDefinition(phase) {
+  var key = String(phase || "").toUpperCase();
+  var definitions = {
+    PHASE2: {
+      phase: "PHASE2", migrationId: "STAFF_SCHEDULING_PHASE2_SCHEMA",
+      preview: function () {
+        return previewStaffScheduleMigration({ environmentReviewApproved: true });
+      }, previousPhase: ""
+    },
+    PHASE3: {
+      phase: "PHASE3", migrationId: "ATTENDANCE_PHASE3_SCHEMA",
+      preview: function () { return previewAttendanceMigration({}); }, previousPhase: "PHASE2"
+    },
+    PHASE4: {
+      phase: "PHASE4", migrationId: "PAYROLL_ATTENDANCE_PHASE4_SCHEMA",
+      preview: function () { return previewPayrollPhase4Migration({}); }, previousPhase: "PHASE3"
+    },
+    BRANCH_FOUNDATION: {
+      phase: "BRANCH_FOUNDATION", migrationId: "BRANCH_FOUNDATION_V1",
+      preview: function () { return previewBranchFoundationMigration({}); }, previousPhase: ""
+    }
+  };
+  if (!definitions[key]) {
+    throw staffSchemaMigrationError("MIGRATION_PHASE_INVALID", "Migration phase is unsupported.");
+  }
+  return definitions[key];
+}
+
+function staffSchemaMigrationPreflightStaging() {
+  var config = getCutHubEnvironmentConfig();
+  var environment = String(config.environment || "").trim().toLowerCase();
+  if (environment !== "staging") {
+    throw staffSchemaMigrationError(
+      "MIGRATION_STAGING_ONLY", "Schema migration execution is restricted to Staging."
+    );
+  }
+  if (!config.spreadsheetId || !config.stagingSpreadsheetId ||
+      config.spreadsheetId !== config.stagingSpreadsheetId) {
+    throw staffSchemaMigrationError(
+      "MIGRATION_STAGING_PIN_MISMATCH", "Expected and Staging spreadsheet pins must match."
+    );
+  }
+  var strict = assertStagingEnvironment();
+  if (!strict || !strict.spreadsheet ||
+      strict.spreadsheet.getId() !== config.spreadsheetId ||
+      strict.spreadsheet.getId() !== config.stagingSpreadsheetId) {
+    throw staffSchemaMigrationError(
+      "MIGRATION_STAGING_IDENTITY_MISMATCH", "Strict Staging identity validation failed."
+    );
+  }
+  return strict;
+}
+
+function staffSchemaMigrationAssertOwner(strict) {
+  var effectiveEmail = "";
+  var activeEmail = "";
+  var ownerEmail = "";
+  try {
+    effectiveEmail = String(Session.getEffectiveUser().getEmail() || "").trim().toLowerCase();
+    activeEmail = String(Session.getActiveUser().getEmail() || "").trim().toLowerCase();
+    var file = DriveApp.getFileById(strict.spreadsheet.getId());
+    var owner = file && file.getOwner ? file.getOwner() : null;
+    ownerEmail = String(owner && owner.getEmail ? owner.getEmail() : "").trim().toLowerCase();
+  } catch (_error) {
+    effectiveEmail = "";
+    ownerEmail = "";
+  }
+  if (!effectiveEmail || !activeEmail || !ownerEmail ||
+      effectiveEmail !== activeEmail || activeEmail !== ownerEmail) {
+    throw staffSchemaMigrationError(
+      "MIGRATION_OWNER_REQUIRED", "Only the verified Staging spreadsheet owner can run schema migration controls."
+    );
+  }
+  return { actorId: effectiveEmail, actorIdentity: effectiveEmail };
+}
+
+function staffSchemaMigrationIdentityAndOwner() {
+  var strict = staffSchemaMigrationPreflightStaging();
+  var actor = staffSchemaMigrationAssertOwner(strict);
+  return {
+    config: strict.config,
+    spreadsheet: strict.spreadsheet,
+    actorId: actor.actorId,
+    actorIdentity: actor.actorIdentity
+  };
+}
+
+function staffSchemaMigrationAssertPreview(plan, identity) {
+  var errors = plan && Array.isArray(plan.errors) ? plan.errors : [];
+  if (!plan || plan.safe !== true || errors.length !== 0 ||
+      plan.dryRun !== true || Number(plan.writes) !== 0) {
+    throw staffSchemaMigrationError(
+      "MIGRATION_PREVIEW_NOT_SAFE", "The approved preview preconditions were not satisfied.",
+      { errors: errors }
+    );
+  }
+  var planIdentity = plan.identity || {};
+  if (String(planIdentity.environment || "").toLowerCase() !== "staging" ||
+      String(planIdentity.expectedSpreadsheetId || "") !== identity.spreadsheet.getId() ||
+      String(planIdentity.actualSpreadsheetId || "") !== identity.spreadsheet.getId()) {
+    throw staffSchemaMigrationError(
+      "MIGRATION_PREVIEW_IDENTITY_MISMATCH", "Preview identity does not match strict Staging identity."
+    );
+  }
+  return plan;
+}
+
+function staffSchemaMigrationPendingOperations(plan) {
+  return (plan.createSheets || []).length +
+    (plan.initializeBlankSheets || []).length +
+    Object.keys(plan.appendColumns || {}).length;
+}
+
+function staffSchemaMigrationAssertExecutionOrder(definition, identity) {
+  if (!definition.previousPhase) return;
+  var previous = staffSchemaMigrationPhaseDefinition(definition.previousPhase);
+  var previousPlan = staffSchemaMigrationAssertPreview(previous.preview(), identity);
+  if (staffSchemaMigrationPendingOperations(previousPlan) !== 0) {
+    throw staffSchemaMigrationError(
+      "MIGRATION_EXECUTION_ORDER_REQUIRED",
+      previous.phase + " schema must be complete before " + definition.phase + "."
+    );
+  }
+}
+
+function staffSchemaMigrationSchemaVersion(plan) {
+  return String(plan.schemaVersion || plan.version || "");
+}
+
+function staffSchemaMigrationJournalKey(phase, requestId, spreadsheetId, actorIdentity) {
+  return STAFF_SCHEMA_MIGRATION_JOURNAL_PREFIX +
+    String(phase) + "_" +
+    staffSchemaMigrationHash(String(spreadsheetId)).slice(7) + "_" +
+    staffSchemaMigrationHash(String(actorIdentity)).slice(7) + "_" +
+    staffSchemaMigrationHash(String(requestId)).slice(7);
+}
+
+function staffSchemaMigrationTokenKey(phase) {
+  return STAFF_SCHEMA_MIGRATION_TOKEN_PREFIX + String(phase);
+}
+
+function staffSchemaMigrationReadJson(store, key) {
+  var raw = store.getProperty(key);
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch (_error) {
+    throw staffSchemaMigrationError("MIGRATION_STATE_CORRUPT", "Migration state is not valid JSON.");
+  }
+}
+
+function staffSchemaMigrationWriteJournal(key, journal) {
+  journal.updatedAt = staffSchemaMigrationNow();
+  var payload = JSON.stringify(journal);
+  var byteLength = typeof Utilities.newBlob === "function"
+    ? Utilities.newBlob(payload).getBytes().length
+    : unescape(encodeURIComponent(payload)).length;
+  if (byteLength > STAFF_SCHEMA_MIGRATION_JOURNAL_MAX_BYTES) {
+    throw staffSchemaMigrationError(
+      "MIGRATION_JOURNAL_SIZE_LIMIT",
+      "Migration journal exceeds the guarded Script Property size limit.",
+      { byteLength: byteLength, maximumBytes: STAFF_SCHEMA_MIGRATION_JOURNAL_MAX_BYTES }
+    );
+  }
+  var properties = PropertiesService.getScriptProperties();
+  var current = properties.getProperties();
+  var totalBytes = Object.keys(current).reduce(function (total, currentKey) {
+    return total + (typeof Utilities.newBlob === "function"
+      ? Utilities.newBlob(currentKey + current[currentKey]).getBytes().length
+      : unescape(encodeURIComponent(currentKey + current[currentKey])).length);
+  }, 0);
+  var replacedBytes = current[key] ? (typeof Utilities.newBlob === "function"
+    ? Utilities.newBlob(key + current[key]).getBytes().length
+    : unescape(encodeURIComponent(key + current[key])).length) : 0;
+  var projectedBytes = totalBytes - replacedBytes + byteLength +
+    (typeof Utilities.newBlob === "function"
+      ? Utilities.newBlob(key).getBytes().length
+      : unescape(encodeURIComponent(key)).length);
+  if (projectedBytes > STAFF_SCHEMA_MIGRATION_PROPERTY_STORE_MAX_BYTES) {
+    throw staffSchemaMigrationError(
+      "MIGRATION_PROPERTY_STORE_SIZE_LIMIT",
+      "Migration journal would exceed the guarded Script Property store limit.",
+      { projectedBytes: projectedBytes, maximumBytes: STAFF_SCHEMA_MIGRATION_PROPERTY_STORE_MAX_BYTES }
+    );
+  }
+  properties.setProperty(key, payload);
+}
+
+function staffSchemaMigrationErrorDetail(error) {
+  return {
+    code: String(error && error.code || "MIGRATION_EXECUTION_FAILED").slice(0, 120),
+    message: String(error && error.message || error || "Migration execution failed.")
+      .slice(0, STAFF_SCHEMA_MIGRATION_ERROR_MESSAGE_MAX_LENGTH)
+  };
+}
+
+function staffSchemaMigrationFingerprint(definition, requestId, planHash, identity, requestContext) {
+  return staffSchemaMigrationHash({
+    phase: definition.phase,
+    migrationId: definition.migrationId,
+    requestId: requestId,
+    planHash: planHash,
+    spreadsheetId: identity.spreadsheet.getId(),
+    actorIdentity: identity.actorIdentity,
+    requestContext: String(requestContext || "")
+  });
+}
+
+function staffSchemaMigrationTryLocks(callback) {
+  var scriptLock = LockService.getScriptLock();
+  var documentLock = LockService.getDocumentLock ? LockService.getDocumentLock() : null;
+  if (!scriptLock.tryLock(STAFF_SCHEMA_MIGRATION_LOCK_TIMEOUT_MS)) {
+    throw staffSchemaMigrationError("MIGRATION_CONCURRENT_EXECUTION", "Another migration is active.");
+  }
+  var documentLocked = false;
+  try {
+    if (documentLock) {
+      documentLocked = documentLock.tryLock(STAFF_SCHEMA_MIGRATION_LOCK_TIMEOUT_MS);
+      if (!documentLocked) {
+        throw staffSchemaMigrationError("MIGRATION_CONCURRENT_EXECUTION", "Spreadsheet migration lock is active.");
+      }
+    }
+    return callback();
+  } finally {
+    if (documentLock && documentLocked) documentLock.releaseLock();
+    scriptLock.releaseLock();
+  }
+}
+
+function staffSchemaMigrationPrepare(phase, data) {
+  data = data && typeof data === "object" ? data : {};
+  var definition = staffSchemaMigrationPhaseDefinition(phase);
+  var identity = staffSchemaMigrationIdentityAndOwner();
+  var requestId = String(data.requestId || Utilities.getUuid() || "").trim();
+  var requestContext = String(data.requestContext || "").trim();
+  if (!requestId || requestId.length > 160) {
+    throw staffSchemaMigrationError("MIGRATION_REQUEST_ID_INVALID", "A valid requestId is required.");
+  }
+  return staffSchemaMigrationTryLocks(function () {
+    var journalKey = staffSchemaMigrationJournalKey(
+      definition.phase, requestId, identity.spreadsheet.getId(), identity.actorIdentity
+    );
+    var scriptProperties = PropertiesService.getScriptProperties();
+    var existing = staffSchemaMigrationReadJson(scriptProperties, journalKey);
+    if (existing && ["APPLYING", "RECOVERY_REQUIRED"].indexOf(existing.status) !== -1) {
+      throw staffSchemaMigrationError(
+        "MIGRATION_REQUEST_NOT_PREPARABLE", "The existing request requires completion or recovery."
+      );
+    }
+    staffSchemaMigrationAssertExecutionOrder(definition, identity);
+    var plan = staffSchemaMigrationAssertPreview(definition.preview(), identity);
+    var planHash = staffSchemaMigrationPlanHash(plan);
+    var bindingPlanHash = existing && existing.status === "COMMITTED"
+      ? existing.exactPlanHash : planHash;
+    var fingerprint = staffSchemaMigrationFingerprint(
+      definition, requestId, bindingPlanHash, identity, requestContext
+    );
+    if (existing && existing.requestFingerprint !== fingerprint) {
+      throw staffSchemaMigrationError(
+        "MIGRATION_REQUEST_ID_REUSED", "requestId was already bound to a different migration payload."
+      );
+    }
+    var now = Date.now();
+    var token = Utilities.getUuid() + "-" + Utilities.getUuid();
+    var tokenRecord = {
+      token: token,
+      tokenHash: staffSchemaMigrationHash(token),
+      phase: definition.phase,
+      requestId: requestId,
+      requestFingerprint: fingerprint,
+      exactPlanHash: bindingPlanHash,
+      spreadsheetId: identity.spreadsheet.getId(),
+      actorIdentity: identity.actorIdentity,
+      expiresAt: new Date(now + STAFF_SCHEMA_MIGRATION_TOKEN_TTL_MS).toISOString()
+    };
+    var journal = existing && existing.status === "COMMITTED" ? existing : {
+      migrationId: definition.migrationId,
+      schemaVersion: staffSchemaMigrationSchemaVersion(plan),
+      phase: definition.phase,
+      requestId: requestId,
+      actorIdentity: identity.actorIdentity,
+      expectedSpreadsheetId: identity.spreadsheet.getId(),
+      startedTimestamp: staffSchemaMigrationNow(),
+      completedTimestamp: "",
+      status: "PREPARED",
+      exactPlanHash: planHash,
+      requestFingerprint: fingerprint,
+      requestContext: requestContext,
+      createdSheetNames: [],
+      initializedBlankSheets: [],
+      appendedColumnRanges: [],
+      errorDetails: [],
+      writes: 0,
+      finalResult: null
+    };
+    if (journal.status !== "COMMITTED") staffSchemaMigrationWriteJournal(journalKey, journal);
+    PropertiesService.getUserProperties().setProperty(
+      staffSchemaMigrationTokenKey(definition.phase), JSON.stringify(tokenRecord)
+    );
+    var summary = {
+      token: token,
+      expiresAt: tokenRecord.expiresAt,
+      phase: definition.phase,
+      requestId: requestId,
+      exactPlanHash: bindingPlanHash,
+      spreadsheetId: tokenRecord.spreadsheetId,
+      actorIdentity: tokenRecord.actorIdentity,
+      createSheetNames: (plan.createSheets || []).map(function (item) { return item.sheetName; }),
+      initializeBlankSheetNames: (plan.initializeBlankSheets || []).map(function (item) {
+        return item.sheetName;
+      }),
+      appendColumnSheetNames: Object.keys(plan.appendColumns || {}),
+      alreadyCommitted: journal.status === "COMMITTED"
+    };
+    console.log(JSON.stringify({
+      tokenIssued: true,
+      expiresAt: summary.expiresAt,
+      phase: summary.phase,
+      requestId: summary.requestId,
+      exactPlanHash: summary.exactPlanHash,
+      spreadsheetId: summary.spreadsheetId,
+      actorIdentity: summary.actorIdentity,
+      createSheetNames: summary.createSheetNames,
+      initializeBlankSheetNames: summary.initializeBlankSheetNames,
+      appendColumnSheetNames: summary.appendColumnSheetNames,
+      alreadyCommitted: summary.alreadyCommitted
+    }));
+    return summary;
+  });
+}
+
+function prepareStaffScheduleMigrationExecution(data) {
+  return staffSchemaMigrationPrepare("PHASE2", data);
+}
+
+function prepareAttendanceMigrationExecution(data) {
+  return staffSchemaMigrationPrepare("PHASE3", data);
+}
+
+function preparePayrollPhase4MigrationExecution(data) {
+  return staffSchemaMigrationPrepare("PHASE4", data);
+}
+
+function prepareBranchFoundationMigration(data) {
+  return staffSchemaMigrationPrepare("BRANCH_FOUNDATION", data);
+}
+
+function staffSchemaMigrationReadPreparedToken(phase, suppliedToken) {
+  var userProperties = PropertiesService.getUserProperties();
+  var key = staffSchemaMigrationTokenKey(phase);
+  var record = staffSchemaMigrationReadJson(userProperties, key);
+  if (!record || !suppliedToken || record.tokenHash !== staffSchemaMigrationHash(suppliedToken)) {
+    throw staffSchemaMigrationError("MIGRATION_TOKEN_INVALID", "Confirmation token is invalid or already consumed.");
+  }
+  if (Date.parse(record.expiresAt || "") <= Date.now()) {
+    userProperties.deleteProperty(key);
+    throw staffSchemaMigrationError("MIGRATION_TOKEN_EXPIRED", "Confirmation token has expired.");
+  }
+  return { key: key, record: record, store: userProperties };
+}
+
+function staffSchemaMigrationHeaderValues(sheet) {
+  var lastColumn = sheet.getLastColumn();
+  if (!lastColumn) return [];
+  return sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(function (value) {
+    return String(value == null ? "" : value).trim().toUpperCase()
+      .replace(/[\s-]+/g, "_").replace(/_+/g, "_");
+  });
+}
+
+function staffSchemaMigrationEnsureColumns(sheet, count) {
+  var maximum = sheet.getMaxColumns ? sheet.getMaxColumns() : sheet.getLastColumn();
+  if (maximum < count) sheet.insertColumnsAfter(Math.max(1, maximum), count - maximum);
+}
+
+function staffSchemaMigrationOperations(plan) {
+  var operations = [];
+  (plan.createSheets || []).forEach(function (item) {
+    operations.push({ type: "CREATE_SHEET", sheetName: item.sheetName, headers: item.headers || [] });
+  });
+  (plan.initializeBlankSheets || []).forEach(function (item) {
+    operations.push({ type: "INITIALIZE_BLANK_SHEET", sheetName: item.sheetName, headers: item.headers || [] });
+  });
+  (plan.rollback && plan.rollback.appendedColumnRanges || []).forEach(function (item) {
+    operations.push({
+      type: "APPEND_COLUMNS", sheetName: item.sheetName,
+      startColumn: item.startColumn, endColumn: item.endColumn, headers: item.headers || []
+    });
+  });
+  return operations;
+}
+
+function staffSchemaMigrationEnrichOperation(spreadsheet, operation) {
+  if (operation.type === "CREATE_SHEET") return operation;
+  var sheet = spreadsheet.getSheetByName(operation.sheetName);
+  if (!sheet) return operation;
+  var maximum = sheet.getMaxColumns ? sheet.getMaxColumns() : sheet.getLastColumn();
+  var required = operation.type === "APPEND_COLUMNS"
+    ? operation.endColumn : operation.headers.length;
+  operation.preExistingMaxColumns = maximum;
+  operation.insertedColumnCount = Math.max(0, required - maximum);
+  operation.insertedColumnStart = operation.insertedColumnCount
+    ? required - operation.insertedColumnCount + 1 : 0;
+  return operation;
+}
+
+function staffSchemaMigrationApplyOperation(spreadsheet, operation) {
+  var sheet;
+  if (operation.type === "CREATE_SHEET") {
+    if (spreadsheet.getSheetByName(operation.sheetName)) {
+      throw staffSchemaMigrationError("MIGRATION_STATE_CHANGED", "A planned missing sheet now exists.");
+    }
+    sheet = spreadsheet.insertSheet(operation.sheetName);
+    staffSchemaMigrationEnsureColumns(sheet, operation.headers.length);
+    if (operation.headers.length) {
+      sheet.getRange(1, 1, 1, operation.headers.length).setValues([operation.headers]);
+    }
+    return;
+  }
+  sheet = spreadsheet.getSheetByName(operation.sheetName);
+  if (!sheet) throw staffSchemaMigrationError("MIGRATION_STATE_CHANGED", "Planned sheet is missing.");
+  if (operation.type === "INITIALIZE_BLANK_SHEET") {
+    if (staffSchemaMigrationHeaderValues(sheet).filter(Boolean).length) {
+      throw staffSchemaMigrationError("MIGRATION_STATE_CHANGED", "Planned blank sheet is no longer blank.");
+    }
+    staffSchemaMigrationEnsureColumns(sheet, operation.headers.length);
+    sheet.getRange(1, 1, 1, operation.headers.length).setValues([operation.headers]);
+    return;
+  }
+  if (operation.type === "APPEND_COLUMNS") {
+    var headers = staffSchemaMigrationHeaderValues(sheet);
+    if (headers.length + 1 !== operation.startColumn) {
+      throw staffSchemaMigrationError("MIGRATION_STATE_CHANGED", "Append position changed after preview.");
+    }
+    staffSchemaMigrationEnsureColumns(sheet, operation.endColumn);
+    sheet.getRange(1, operation.startColumn, 1, operation.headers.length)
+      .setValues([operation.headers]);
+  }
+}
+
+function staffSchemaMigrationRangeHasDataBelow(sheet, startColumn, width) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return false;
+  var range = sheet.getRange(2, startColumn, lastRow - 1, width);
+  var hasValue = range.getValues().some(function (row) {
+    return row.some(function (value) { return value !== "" && value !== null; });
+  });
+  var hasFormula = typeof range.getFormulas === "function" &&
+    range.getFormulas().some(function (row) {
+      return row.some(function (formula) { return String(formula || "") !== ""; });
+    });
+  return hasValue || hasFormula;
+}
+
+function staffSchemaMigrationHeaderProof(headers) {
+  var normalized = (headers || []).map(function (value) {
+    return String(value == null ? "" : value).trim().toUpperCase()
+      .replace(/[\s-]+/g, "_").replace(/_+/g, "_");
+  });
+  return { headerCount: normalized.length, headerHash: staffSchemaMigrationHash(normalized) };
+}
+
+function staffSchemaMigrationHeadersMatch(sheet, startColumn, proof) {
+  if (!proof.headerCount) return true;
+  var actual = sheet.getRange(1, startColumn, 1, proof.headerCount).getValues()[0];
+  return staffSchemaMigrationHeaderProof(actual).headerHash === proof.headerHash;
+}
+
+function staffSchemaMigrationRollback(spreadsheet, journal) {
+  var failures = [];
+  var appended = (journal.appendedColumnRanges || []).slice().reverse();
+  appended.forEach(function (item) {
+    try {
+      var sheet = spreadsheet.getSheetByName(item.sheetName);
+      var width = item.endColumn - item.startColumn + 1;
+      if (!sheet) throw new Error("Append target sheet is missing.");
+      if (sheet.getLastColumn() < item.startColumn) return;
+      if (sheet.getLastColumn() !== item.endColumn ||
+          !staffSchemaMigrationHeadersMatch(sheet, item.startColumn, item) ||
+          staffSchemaMigrationRangeHasDataBelow(sheet, item.startColumn, width)) {
+        throw new Error("Appended columns are not provably unused.");
+      }
+      sheet.getRange(1, item.startColumn, 1, width).clearContent();
+      if (item.insertedColumnCount) {
+        sheet.deleteColumns(item.insertedColumnStart, item.insertedColumnCount);
+      }
+    } catch (error) {
+      failures.push({
+        operation: "APPEND_COLUMNS", sheetName: item.sheetName,
+        message: String(error.message || error).slice(0, STAFF_SCHEMA_MIGRATION_ERROR_MESSAGE_MAX_LENGTH)
+      });
+    }
+  });
+  (journal.initializedBlankSheets || []).slice().reverse().forEach(function (item) {
+    try {
+      var sheet = spreadsheet.getSheetByName(item.sheetName);
+      if (!sheet) throw new Error("Initialized sheet is missing.");
+      if (!staffSchemaMigrationHeaderValues(sheet).filter(Boolean).length) return;
+      if (sheet.getLastColumn() !== item.headerCount ||
+          !staffSchemaMigrationHeadersMatch(sheet, 1, item) ||
+          staffSchemaMigrationRangeHasDataBelow(sheet, 1, item.headerCount)) {
+        throw new Error("Initialized headers are not provably unused.");
+      }
+      sheet.getRange(1, 1, 1, item.headerCount).clearContent();
+      if (item.insertedColumnCount) {
+        sheet.deleteColumns(item.insertedColumnStart, item.insertedColumnCount);
+      }
+    } catch (error) {
+      failures.push({
+        operation: "INITIALIZE_BLANK_SHEET", sheetName: item.sheetName,
+        message: String(error.message || error).slice(0, STAFF_SCHEMA_MIGRATION_ERROR_MESSAGE_MAX_LENGTH)
+      });
+    }
+  });
+  (journal.createdSheets || []).slice().reverse().forEach(function (item) {
+    try {
+      var sheet = spreadsheet.getSheetByName(item.sheetName);
+      if (!sheet) return;
+      if (sheet.getLastRow() === 0) {
+        spreadsheet.deleteSheet(sheet);
+        return;
+      }
+      if (sheet.getLastColumn() !== item.headerCount ||
+          !staffSchemaMigrationHeadersMatch(sheet, 1, item) ||
+          sheet.getLastRow() > 1) {
+        throw new Error("Created sheet is not provably header-only.");
+      }
+      spreadsheet.deleteSheet(sheet);
+    } catch (error) {
+      failures.push({
+        operation: "CREATE_SHEET", sheetName: item.sheetName,
+        message: String(error.message || error).slice(0, STAFF_SCHEMA_MIGRATION_ERROR_MESSAGE_MAX_LENGTH)
+      });
+    }
+  });
+  return failures;
+}
+
+function staffSchemaMigrationRecordOperation(journal, operation) {
+  var proof = staffSchemaMigrationHeaderProof(operation.headers);
+  if (operation.type === "CREATE_SHEET") {
+    journal.createdSheetNames.push(operation.sheetName);
+    journal.createdSheets = journal.createdSheets || [];
+    journal.createdSheets.push({
+      sheetName: operation.sheetName,
+      headerCount: proof.headerCount,
+      headerHash: proof.headerHash
+    });
+  } else if (operation.type === "INITIALIZE_BLANK_SHEET") {
+    journal.initializedBlankSheets.push({
+      sheetName: operation.sheetName,
+      preExistingMaxColumns: operation.preExistingMaxColumns,
+      insertedColumnStart: operation.insertedColumnStart,
+      insertedColumnCount: operation.insertedColumnCount || 0,
+      headerCount: proof.headerCount,
+      headerHash: proof.headerHash
+    });
+  } else if (operation.type === "APPEND_COLUMNS") {
+    journal.appendedColumnRanges.push({
+      sheetName: operation.sheetName, startColumn: operation.startColumn,
+      endColumn: operation.endColumn,
+      preExistingMaxColumns: operation.preExistingMaxColumns,
+      insertedColumnStart: operation.insertedColumnStart,
+      insertedColumnCount: operation.insertedColumnCount || 0,
+      headerCount: proof.headerCount,
+      headerHash: proof.headerHash
+    });
+  }
+}
+
+function staffSchemaMigrationOperationProof(operation) {
+  var proof = staffSchemaMigrationHeaderProof(operation.headers);
+  return {
+    type: operation.type,
+    sheetName: operation.sheetName,
+    startColumn: operation.startColumn || 1,
+    endColumn: operation.endColumn || proof.headerCount,
+    preExistingMaxColumns: operation.preExistingMaxColumns,
+    insertedColumnStart: operation.insertedColumnStart || 0,
+    insertedColumnCount: operation.insertedColumnCount || 0,
+    headerCount: proof.headerCount,
+    headerHash: proof.headerHash
+  };
+}
+
+function staffSchemaMigrationExecute(phase, data) {
+  if (!data || typeof data !== "object") {
+    throw staffSchemaMigrationError(
+      "MIGRATION_CONFIRMATION_REQUIRED", "No-argument migration execution is prohibited."
+    );
+  }
+  var definition = staffSchemaMigrationPhaseDefinition(phase);
+  var requestId = String(data.requestId || "").trim();
+  var confirmationToken = String(data.confirmationToken || "").trim();
+  if (!requestId || !confirmationToken) {
+    throw staffSchemaMigrationError(
+      "MIGRATION_CONFIRMATION_REQUIRED", "requestId and confirmationToken are required."
+    );
+  }
+  var identity = staffSchemaMigrationIdentityAndOwner();
+  return staffSchemaMigrationTryLocks(function () {
+    var prepared = staffSchemaMigrationReadPreparedToken(definition.phase, confirmationToken);
+    var token = prepared.record;
+    if (token.phase !== definition.phase || token.requestId !== requestId ||
+        token.spreadsheetId !== identity.spreadsheet.getId() ||
+        token.actorIdentity !== identity.actorIdentity) {
+      throw staffSchemaMigrationError("MIGRATION_TOKEN_MISMATCH", "Confirmation token binding is invalid.");
+    }
+    var journalKey = staffSchemaMigrationJournalKey(
+      definition.phase, requestId, identity.spreadsheet.getId(), identity.actorIdentity
+    );
+    var journal = staffSchemaMigrationReadJson(PropertiesService.getScriptProperties(), journalKey);
+    if (!journal || journal.requestFingerprint !== token.requestFingerprint ||
+        journal.exactPlanHash !== token.exactPlanHash) {
+      throw staffSchemaMigrationError("MIGRATION_PREPARED_STATE_MISMATCH", "Prepared journal does not match token.");
+    }
+    if (journal.status === "COMMITTED") {
+      prepared.store.deleteProperty(prepared.key);
+      return journal.finalResult;
+    }
+    if (journal.status !== "PREPARED") {
+      throw staffSchemaMigrationError("MIGRATION_REQUEST_NOT_EXECUTABLE", "Migration request is not PREPARED.");
+    }
+    staffSchemaMigrationAssertExecutionOrder(definition, identity);
+    var plan = staffSchemaMigrationAssertPreview(definition.preview(), identity);
+    var planHash = staffSchemaMigrationPlanHash(plan);
+    var fingerprint = staffSchemaMigrationFingerprint(
+      definition, requestId, planHash, identity, journal.requestContext
+    );
+    if (planHash !== token.exactPlanHash || fingerprint !== token.requestFingerprint) {
+      throw staffSchemaMigrationError("MIGRATION_PLAN_HASH_MISMATCH", "Schema changed after preparation.");
+    }
+    prepared.store.deleteProperty(prepared.key);
+    journal.status = "APPLYING";
+    staffSchemaMigrationWriteJournal(journalKey, journal);
+    try {
+      staffSchemaMigrationOperations(plan).forEach(function (operation) {
+        operation = staffSchemaMigrationEnrichOperation(identity.spreadsheet, operation);
+        journal.inFlightOperation = staffSchemaMigrationOperationProof(operation);
+        staffSchemaMigrationRecordOperation(journal, operation);
+        staffSchemaMigrationWriteJournal(journalKey, journal);
+        staffSchemaMigrationApplyOperation(identity.spreadsheet, operation);
+        journal.writes += 1;
+        journal.inFlightOperation = null;
+        staffSchemaMigrationWriteJournal(journalKey, journal);
+      });
+      var verification = staffSchemaMigrationAssertPreview(definition.preview(), identity);
+      if (staffSchemaMigrationPendingOperations(verification) !== 0) {
+        throw staffSchemaMigrationError("MIGRATION_FINAL_VERIFICATION_FAILED", "Final schema is incomplete.");
+      }
+      var result = {
+        status: "COMMITTED", migrationId: definition.migrationId,
+        phase: definition.phase, requestId: requestId,
+        schemaVersion: journal.schemaVersion, exactPlanHash: planHash,
+        expectedSpreadsheetId: identity.spreadsheet.getId(), actorIdentity: identity.actorIdentity,
+        createdSheetNames: journal.createdSheetNames.slice(),
+        appendedColumnRanges: journal.appendedColumnRanges.slice(),
+        writes: journal.writes, historicalRowsTouched: 0,
+        completedTimestamp: staffSchemaMigrationNow()
+      };
+      journal.status = "COMMITTED";
+      journal.completedTimestamp = result.completedTimestamp;
+      journal.finalResult = result;
+      staffSchemaMigrationWriteJournal(journalKey, journal);
+      return result;
+    } catch (caught) {
+      journal.inFlightOperation = null;
+      journal.errorDetails.push(staffSchemaMigrationErrorDetail(caught));
+      var rollbackFailures = staffSchemaMigrationRollback(identity.spreadsheet, journal);
+      if (rollbackFailures.length) {
+        journal.status = "RECOVERY_REQUIRED";
+        journal.errorDetails = journal.errorDetails.concat(rollbackFailures);
+      } else {
+        journal.status = "ROLLED_BACK";
+        journal.completedTimestamp = staffSchemaMigrationNow();
+      }
+      staffSchemaMigrationWriteJournal(journalKey, journal);
+      if (rollbackFailures.length) {
+        throw staffSchemaMigrationError(
+          "MIGRATION_RECOVERY_REQUIRED", "Migration rollback could not be proven safe.", rollbackFailures
+        );
+      }
+      throw caught;
+    }
+  });
+}
+
+function executeStaffScheduleMigrationStaging(data) {
+  return staffSchemaMigrationExecute("PHASE2", data);
+}
+
+function executeAttendanceMigrationStaging(data) {
+  return staffSchemaMigrationExecute("PHASE3", data);
+}
+
+function executePayrollPhase4MigrationStaging(data) {
+  return staffSchemaMigrationExecute("PHASE4", data);
+}
+
+function executeBranchFoundationMigrationStaging(data) {
+  return staffSchemaMigrationExecute("BRANCH_FOUNDATION", data);
+}
+
+function staffSchemaMigrationExecutePrepared(phase) {
+  var definition = staffSchemaMigrationPhaseDefinition(phase);
+  var record = staffSchemaMigrationReadJson(
+    PropertiesService.getUserProperties(), staffSchemaMigrationTokenKey(definition.phase)
+  );
+  if (!record) {
+    throw staffSchemaMigrationError(
+      "MIGRATION_CONFIRMATION_REQUIRED", "Run the matching prepare function immediately before execution."
+    );
+  }
+  return staffSchemaMigrationExecute(definition.phase, {
+    requestId: record.requestId,
+    confirmationToken: record.token
+  });
+}
+
+function executePreparedStaffScheduleMigrationStaging() {
+  return staffSchemaMigrationExecutePrepared("PHASE2");
+}
+
+function executePreparedAttendanceMigrationStaging() {
+  return staffSchemaMigrationExecutePrepared("PHASE3");
+}
+
+function executePreparedPayrollPhase4MigrationStaging() {
+  return staffSchemaMigrationExecutePrepared("PHASE4");
+}
+
+function executePreparedBranchFoundationMigrationStaging() {
+  return staffSchemaMigrationExecutePrepared("BRANCH_FOUNDATION");
+}
+
+function staffSchemaMigrationDiagnostic(statuses) {
+  staffSchemaMigrationIdentityAndOwner();
+  var properties = PropertiesService.getScriptProperties().getProperties();
+  var results = Object.keys(properties).filter(function (key) {
+    return key.indexOf(STAFF_SCHEMA_MIGRATION_JOURNAL_PREFIX) === 0;
+  }).map(function (key) {
+    try { return JSON.parse(properties[key]); } catch (_error) { return null; }
+  }).filter(Boolean).filter(function (journal) {
+    return !statuses || statuses.indexOf(journal.status) !== -1;
+  }).map(function (journal) {
+    var manualRemediation = [];
+    if (["APPLYING", "RECOVERY_REQUIRED"].indexOf(journal.status) !== -1) {
+      manualRemediation.push(
+        "Do not rerun this phase. Preserve a Spreadsheet backup and compare every item below before any manual change."
+      );
+      (journal.createdSheets || []).forEach(function (item) {
+        manualRemediation.push(
+          "Created sheet " + item.sheetName + ": delete only if it is completely empty, or if it has no rows " +
+          "below row 1, its last used column equals " + item.headerCount +
+          ", and row 1 hash equals " + item.headerHash + "."
+        );
+      });
+      (journal.appendedColumnRanges || []).forEach(function (item) {
+        manualRemediation.push(
+          "Appended columns " + item.sheetName + "!" + item.startColumn + ":" + item.endColumn +
+          ": if they are still trailing, their header hash equals " + item.headerHash +
+          ", and every cell below row 1 has neither a value nor a formula, clear only the row 1 headers" +
+          (item.insertedColumnCount
+            ? " and delete only request-created physical columns " + item.insertedColumnStart + ":" + item.endColumn
+            : "; do not delete any physical column") + "."
+        );
+      });
+      (journal.initializedBlankSheets || []).forEach(function (item) {
+        manualRemediation.push(
+          "Initialized sheet " + item.sheetName + ": clear only row 1 columns 1:" + item.headerCount +
+          " if the header hash equals " + item.headerHash +
+          " and no value or formula exists below" +
+          (item.insertedColumnCount
+            ? "; delete only request-created physical columns " + item.insertedColumnStart + ":" + item.headerCount
+            : "; do not delete any physical column") + "."
+        );
+      });
+    }
+    return {
+      migrationId: journal.migrationId, schemaVersion: journal.schemaVersion,
+      phase: journal.phase, requestId: journal.requestId, actorIdentity: journal.actorIdentity,
+      expectedSpreadsheetId: journal.expectedSpreadsheetId,
+      startedTimestamp: journal.startedTimestamp, completedTimestamp: journal.completedTimestamp,
+      status: journal.status, exactPlanHash: journal.exactPlanHash,
+      createdSheetNames: journal.createdSheetNames || [],
+      appendedColumnRanges: journal.appendedColumnRanges || [],
+      initializedBlankSheets: journal.initializedBlankSheets || [],
+      inFlightOperation: journal.inFlightOperation || null,
+      errorDetails: journal.errorDetails || [], writes: journal.writes || 0,
+      manualRemediation: manualRemediation
+    };
+  });
+  console.log(JSON.stringify(results));
+  return results;
+}
+
+function diagnosticMigrationExecutionStatus() {
+  return staffSchemaMigrationDiagnostic(null);
+}
+
+function diagnosticMigrationRecoveryStatus() {
+  return staffSchemaMigrationDiagnostic(["APPLYING", "ROLLED_BACK", "RECOVERY_REQUIRED"]);
+}
+
+/* END staff-schema-migration-staging-executor.js */
+
+/* BEGIN core-staging-auth-bootstrap.js */
+/* global SpreadsheetApp, PropertiesService, LockService, Utilities, Session, DriveApp,
+  HtmlService, hashPassword, getCutHubEnvironmentConfig, assertStagingEnvironment,
+  staffSchemaMigrationHash, staffSchemaMigrationCanonical, staffSchemaMigrationWriteJournal,
+  staffSchemaMigrationReadJson, staffSchemaMigrationTryLocks, staffSchemaMigrationNow,
+  staffSchemaMigrationErrorDetail, console */
+
+var CORE_STAGING_BOOTSTRAP_SCHEMA_VERSION = "CORE_AUTH_BOOTSTRAP_V1";
+var CORE_STAGING_BOOTSTRAP_ID = "CORE_AUTH_STAGING_BOOTSTRAP";
+var CORE_STAGING_BOOTSTRAP_JOURNAL_PREFIX = "CORE_AUTH_BOOTSTRAP_JOURNAL_";
+var CORE_STAGING_BOOTSTRAP_TOKEN_KEY = "CORE_AUTH_BOOTSTRAP_TOKEN";
+var CORE_STAGING_BOOTSTRAP_CREDENTIAL_KEY = "CORE_AUTH_BOOTSTRAP_CREDENTIAL";
+var CORE_STAGING_BOOTSTRAP_TOKEN_TTL_MS = 5 * 60 * 1000;
+var CORE_STAGING_BOOTSTRAP_CREDENTIAL_TTL_MS = 10 * 60 * 1000;
+var CORE_STAGING_BOOTSTRAP_PASSWORD_MIN_LENGTH = 12;
+var CORE_STAGING_BOOTSTRAP_USERS_HEADERS = Object.freeze([
+  "USERNAME", "PASSWORD", "DISPLAY_NAME", "PERMISSIONS", "CREATED_AT", "PASSWORD_HASH"
+]);
+var CORE_STAGING_BOOTSTRAP_OPTIONAL_DASHBOARD_SHEETS = Object.freeze([
+  Object.freeze({
+    sheetName: "DATA",
+    absenceBehavior: "Dashboard invoice/stat endpoints return controlled errors; Promise.allSettled keeps the page open."
+  }),
+  Object.freeze({
+    sheetName: "DAILY_CLOSINGS",
+    absenceBehavior: "Daily-closing preview errors are caught by the Dashboard and rendered as an empty preview."
+  }),
+  Object.freeze({
+    sheetName: "EXPENSES",
+    absenceBehavior: "Dashboard aggregation safely treats the missing sheet as zero expenses."
+  }),
+  Object.freeze({
+    sheetName: "WITHDRAWLS",
+    absenceBehavior: "Dashboard aggregation safely treats the missing sheet as zero withdrawals."
+  })
+]);
+
+function coreStagingBootstrapError(code, message, details) {
+  var error = new Error(message || code);
+  error.code = code;
+  if (details !== undefined) error.details = details;
+  return error;
+}
+
+function coreStagingBootstrapIdentityAndOwner() {
+  var config = getCutHubEnvironmentConfig();
+  var environment = String(config.environment || "").trim().toLowerCase();
+  if (environment !== "staging") {
+    throw coreStagingBootstrapError(
+      "CORE_BOOTSTRAP_STAGING_ONLY", "Core Authentication bootstrap is restricted to Staging."
+    );
+  }
+  if (!config.spreadsheetId || !config.stagingSpreadsheetId ||
+      config.spreadsheetId !== config.stagingSpreadsheetId) {
+    throw coreStagingBootstrapError(
+      "CORE_BOOTSTRAP_STAGING_PIN_MISMATCH", "Expected and Staging Spreadsheet pins must match."
+    );
+  }
+  var strict = assertStagingEnvironment();
+  var effectiveEmail = "";
+  var activeEmail = "";
+  var ownerEmail = "";
+  try {
+    effectiveEmail = String(Session.getEffectiveUser().getEmail() || "").trim().toLowerCase();
+    activeEmail = String(Session.getActiveUser().getEmail() || "").trim().toLowerCase();
+    var file = DriveApp.getFileById(strict.spreadsheet.getId());
+    var owner = file && file.getOwner ? file.getOwner() : null;
+    ownerEmail = String(owner && owner.getEmail ? owner.getEmail() : "").trim().toLowerCase();
+  } catch (_error) {
+    effectiveEmail = "";
+    activeEmail = "";
+    ownerEmail = "";
+  }
+  if (!effectiveEmail || !activeEmail || !ownerEmail ||
+      effectiveEmail !== activeEmail || activeEmail !== ownerEmail) {
+    throw coreStagingBootstrapError(
+      "CORE_BOOTSTRAP_OWNER_REQUIRED",
+      "Only the verified interactive Staging Spreadsheet owner can control Core Authentication bootstrap."
+    );
+  }
+  if (!strict || !strict.spreadsheet ||
+      strict.spreadsheet.getId() !== config.spreadsheetId ||
+      strict.spreadsheet.getId() !== config.stagingSpreadsheetId) {
+    throw coreStagingBootstrapError(
+      "CORE_BOOTSTRAP_STAGING_IDENTITY_MISMATCH", "Strict Staging identity validation failed."
+    );
+  }
+  return {
+    config: strict.config,
+    spreadsheet: strict.spreadsheet,
+    actorIdentity: effectiveEmail
+  };
+}
+
+function coreStagingBootstrapHashText(value) {
+  return staffSchemaMigrationHash(String(value == null ? "" : value));
+}
+
+function coreStagingBootstrapCredentialFingerprint(passwordHash) {
+  return coreStagingBootstrapHashText("CORE_AUTH_CREDENTIAL:" + String(passwordHash || ""));
+}
+
+function coreStagingBootstrapValidPasswordHash(value) {
+  return /^[a-f0-9]{64}$/.test(String(value || ""));
+}
+
+function coreStagingBootstrapHeaders(sheet) {
+  var lastColumn = Math.max(0, Number(sheet.getLastColumn()) || 0);
+  if (!lastColumn) return [];
+  return sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(function (value) {
+    return String(value == null ? "" : value);
+  });
+}
+
+function coreStagingBootstrapHeadersExact(headers) {
+  if (!Array.isArray(headers) || headers.length < CORE_STAGING_BOOTSTRAP_USERS_HEADERS.length) {
+    return false;
+  }
+  return CORE_STAGING_BOOTSTRAP_USERS_HEADERS.every(function (header, index) {
+    return headers[index] === header;
+  });
+}
+
+function coreStagingBootstrapRowFingerprint(row) {
+  return staffSchemaMigrationHash((row || []).slice(0, 6));
+}
+
+function coreStagingBootstrapReadUsersState(spreadsheet) {
+  var sheet = spreadsheet.getSheetByName("USERS");
+  if (!sheet) {
+    return {
+      exists: false,
+      headersExact: false,
+      headers: [],
+      unknownTrailingColumns: [],
+      rows: [],
+      ownerRows: [],
+      errors: []
+    };
+  }
+  var headers = coreStagingBootstrapHeaders(sheet);
+  var errors = [];
+  if (typeof sheet.getRange(1, 1, 1, Math.max(1, headers.length)).getFormulas === "function") {
+    var headerFormulas = sheet.getRange(1, 1, 1, Math.max(1, headers.length)).getFormulas()[0];
+    if (headerFormulas.some(function (formula) { return String(formula || "") !== ""; })) {
+      errors.push({ code: "CORE_USERS_HEADER_FORMULA_UNSAFE" });
+    }
+  }
+  if (!coreStagingBootstrapHeadersExact(headers)) {
+    errors.push({
+      code: "CORE_USERS_HEADERS_INCOMPATIBLE",
+      message: "USERS columns 1-6 must match the approved exact positional header order."
+    });
+  }
+  var lastRow = Math.max(0, Number(sheet.getLastRow()) || 0);
+  var rows = lastRow < 2 ? [] : sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+  var formulas = lastRow < 2 || typeof sheet.getRange(2, 1, lastRow - 1, 6).getFormulas !== "function"
+    ? [] : sheet.getRange(2, 1, lastRow - 1, 6).getFormulas();
+  var usernames = {};
+  rows.forEach(function (row, index) {
+    var username = String(row[0] || "").trim();
+    var normalized = username.toLowerCase();
+    var password = String(row[1] || "");
+    var displayName = String(row[2] || "").trim();
+    var createdAt = row[4];
+    var passwordHash = String(row[5] || "").trim();
+    if (formulas[index] && formulas[index].some(function (formula) {
+      return String(formula || "") !== "";
+    })) {
+      errors.push({ code: "CORE_USERS_FORMULA_UNSAFE", rowNumber: index + 2 });
+    }
+    if (!username) {
+      errors.push({ code: "CORE_USERS_USERNAME_MISSING", rowNumber: index + 2 });
+      return;
+    }
+    if (usernames[normalized]) {
+      errors.push({ code: "CORE_USERS_USERNAME_DUPLICATE", rowNumber: index + 2 });
+    }
+    usernames[normalized] = true;
+    if (password) errors.push({ code: "CORE_USERS_PLAINTEXT_PRESENT", rowNumber: index + 2 });
+    if (!displayName) errors.push({ code: "CORE_USERS_DISPLAY_NAME_MISSING", rowNumber: index + 2 });
+    if (!createdAt || !Number.isFinite(Date.parse(String(createdAt)))) {
+      errors.push({ code: "CORE_USERS_CREATED_AT_INVALID", rowNumber: index + 2 });
+    }
+    if (!coreStagingBootstrapValidPasswordHash(passwordHash)) {
+      errors.push({ code: "CORE_USERS_PASSWORD_HASH_INVALID", rowNumber: index + 2 });
+    }
+  });
+  var ownerRows = rows.map(function (row, index) {
+    return { row: row, rowNumber: index + 2 };
+  }).filter(function (item) {
+    return String(item.row[0] || "").trim().toLowerCase() === "owner";
+  });
+  if (ownerRows.length > 1) {
+    errors.push({ code: "CORE_USERS_OWNER_DUPLICATE", count: ownerRows.length });
+  }
+  if (ownerRows.length === 1 && String(ownerRows[0].row[0] || "").trim() !== "owner") {
+    errors.push({ code: "CORE_USERS_OWNER_USERNAME_NOT_CANONICAL", rowNumber: ownerRows[0].rowNumber });
+  }
+  return {
+    exists: true,
+    headersExact: coreStagingBootstrapHeadersExact(headers),
+    headers: headers.slice(0, 6),
+    unknownTrailingColumns: headers.slice(6),
+    rows: rows,
+    ownerRows: ownerRows,
+    errors: errors
+  };
+}
+
+function coreStagingBootstrapPlanHash(plan) {
+  return staffSchemaMigrationHash({
+    schemaVersion: plan.schemaVersion,
+    dryRun: plan.dryRun,
+    writes: plan.writes,
+    identity: plan.identity,
+    approvedUsersHeaders: plan.approvedUsersHeaders,
+    mandatoryCoreSheets: plan.mandatoryCoreSheets,
+    createSheets: plan.createSheets,
+    createOwnerRecord: plan.createOwnerRecord,
+    ownerUsername: plan.ownerUsername,
+    ownerDisplayName: plan.ownerDisplayName,
+    credentialFingerprint: plan.credentialFingerprint,
+    preservedUnknownColumns: plan.preservedUnknownColumns,
+    errors: plan.errors,
+    blockers: plan.blockers,
+    safeToInitialize: plan.safeToInitialize,
+    completed: plan.completed
+  });
+}
+
+function coreStagingBootstrapOptionalDashboardState(spreadsheet) {
+  return CORE_STAGING_BOOTSTRAP_OPTIONAL_DASHBOARD_SHEETS.map(function (item) {
+    return {
+      sheetName: item.sheetName,
+      exists: !!spreadsheet.getSheetByName(item.sheetName),
+      mandatoryForPageOpen: false,
+      absenceBehavior: item.absenceBehavior
+    };
+  });
+}
+
+function previewCoreStagingBootstrap(data) {
+  data = data && typeof data === "object" ? data : {};
+  var identity = coreStagingBootstrapIdentityAndOwner();
+  if (!data.ownerDisplayName && !data.credentialFingerprint) {
+    var stagedCredential = coreStagingBootstrapCredentialRecord();
+    if (stagedCredential) {
+      try {
+        stagedCredential = coreStagingBootstrapValidateCredential(stagedCredential, identity);
+        data = {
+          ownerDisplayName: stagedCredential.ownerDisplayName,
+          credentialFingerprint: stagedCredential.credentialFingerprint
+        };
+      } catch (_credentialError) {
+        // Invalid or expired staged credentials remain a compact preview blocker and are never consumed here.
+      }
+    }
+  }
+  var users = coreStagingBootstrapReadUsersState(identity.spreadsheet);
+  var ownerDisplayName = String(data.ownerDisplayName || "").trim();
+  var credentialFingerprint = String(data.credentialFingerprint || "").trim();
+  var errors = users.errors.slice();
+  var blockers = [];
+  var createSheets = [];
+  var createOwnerRecord = false;
+  var ownerRows = users.ownerRows;
+  var missingMandatoryCoreSheets = users.exists ? [] : ["USERS"];
+  var missingRequiredUsersColumns = users.exists && users.headersExact ? [] :
+    CORE_STAGING_BOOTSTRAP_USERS_HEADERS.map(function (header, index) {
+      return { column: index + 1, header: header };
+    });
+  var incompatibleCoreSheets = users.exists && !users.headersExact ? ["USERS"] : [];
+
+  if (!users.exists) {
+    createSheets.push({ sheetName: "USERS", headers: CORE_STAGING_BOOTSTRAP_USERS_HEADERS.slice() });
+    createOwnerRecord = true;
+  } else if (users.headersExact && ownerRows.length === 0) {
+    if (users.rows.length) {
+      errors.push({
+        code: "CORE_USERS_EXISTING_DATA_WITHOUT_OWNER",
+        message: "Existing USERS data without an owner cannot be proven safe for automatic bootstrap."
+      });
+    } else {
+      createOwnerRecord = true;
+    }
+  }
+
+  if (createOwnerRecord) {
+    if (!ownerDisplayName) blockers.push({ code: "CORE_OWNER_DISPLAY_NAME_REQUIRED" });
+    if (!/^sha256:[a-f0-9]{64}$/.test(credentialFingerprint)) {
+      blockers.push({ code: "CORE_OWNER_CREDENTIAL_REQUIRED" });
+    }
+  }
+
+  var ownerRecordState = "MISSING";
+  if (ownerRows.length === 1) {
+    var owner = ownerRows[0].row;
+    var hasPlaintext = String(owner[1] || "") !== "";
+    var validHash = coreStagingBootstrapValidPasswordHash(String(owner[5] || "").trim());
+    ownerRecordState = validHash && !hasPlaintext ? "HASHED_ONLY" :
+      (validHash ? "HASHED_WITH_PLAINTEXT_RETAINED" : (hasPlaintext ? "PLAINTEXT_LEGACY" : "MISSING"));
+  } else if (ownerRows.length > 1) {
+    ownerRecordState = "DUPLICATE";
+  }
+
+  var completed = users.exists && users.headersExact && errors.length === 0 &&
+    ownerRows.length === 1 && ownerRecordState === "HASHED_ONLY";
+  var plan = {
+    schemaVersion: CORE_STAGING_BOOTSTRAP_SCHEMA_VERSION,
+    dryRun: true,
+    writes: 0,
+    identity: {
+      environment: identity.config.environment,
+      expectedSpreadsheetId: identity.config.spreadsheetId,
+      stagingSpreadsheetId: identity.config.stagingSpreadsheetId,
+      actualSpreadsheetId: identity.spreadsheet.getId(),
+      actorIdentity: identity.actorIdentity
+    },
+    approvedUsersHeaders: CORE_STAGING_BOOTSTRAP_USERS_HEADERS.slice(),
+    mandatoryCoreSheets: ["USERS"],
+    optionalDashboardDependencies: coreStagingBootstrapOptionalDashboardState(identity.spreadsheet),
+    createSheets: createSheets,
+    createOwnerRecord: createOwnerRecord,
+    ownerUsername: "owner",
+    ownerDisplayName: createOwnerRecord ? ownerDisplayName :
+      (ownerRows.length === 1 ? String(ownerRows[0].row[2] || "").trim() : ""),
+    credentialFingerprint: createOwnerRecord ? credentialFingerprint :
+      (ownerRows.length === 1 && coreStagingBootstrapValidPasswordHash(ownerRows[0].row[5])
+        ? coreStagingBootstrapCredentialFingerprint(String(ownerRows[0].row[5]).trim()) : ""),
+    missingMandatoryCoreSheets: missingMandatoryCoreSheets,
+    missingRequiredUsersColumns: missingRequiredUsersColumns,
+    incompatibleCoreSheets: incompatibleCoreSheets,
+    preservedUnknownColumns: users.headersExact ? users.unknownTrailingColumns.slice() : [],
+    ownerRecordCount: ownerRows.length,
+    ownerPasswordState: ownerRecordState,
+    plaintextPasswordCellEmpty: ownerRows.length === 1 ? String(ownerRows[0].row[1] || "") === "" : null,
+    errors: errors,
+    blockers: blockers,
+    safeToInitialize: errors.length === 0 && blockers.length === 0,
+    completed: completed
+  };
+  plan.exactPlanHash = coreStagingBootstrapPlanHash(plan);
+  return plan;
+}
+
+function previewStagingAuthenticationInitialization() {
+  var plan = previewCoreStagingBootstrap({});
+  return {
+    schemaVersion: plan.schemaVersion,
+    dryRun: plan.dryRun,
+    writes: plan.writes,
+    identity: plan.identity,
+    canonicalAuthenticationSheet: "USERS",
+    approvedUsersHeaders: plan.approvedUsersHeaders,
+    missingCoreSheets: plan.missingMandatoryCoreSheets,
+    missingColumns: plan.missingRequiredUsersColumns,
+    existingCompatibleSheets: plan.incompatibleCoreSheets.length || plan.missingMandatoryCoreSheets.length
+      ? [] : ["USERS"],
+    incompatibleSheets: plan.incompatibleCoreSheets,
+    optionalDashboardDependencies: plan.optionalDashboardDependencies,
+    ownerRecordCount: plan.ownerRecordCount,
+    passwordStorage: {
+      hashAlgorithm: "SHA-256",
+      salted: false,
+      plaintextFallbackAcceptedByLogin: true,
+      ownerPasswordState: plan.ownerPasswordState,
+      plaintextPasswordCellEmpty: plan.plaintextPasswordCellEmpty
+    },
+    safeToInitialize: plan.safeToInitialize,
+    completed: plan.completed,
+    blockers: plan.blockers,
+    errors: plan.errors
+  };
+}
+
+function diagnosticPreviewStagingAuthenticationInitialization() {
+  coreStagingBootstrapIdentityAndOwner();
+  var result = previewStagingAuthenticationInitialization();
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+function diagnosticPreviewCoreStagingBootstrap() {
+  coreStagingBootstrapIdentityAndOwner();
+  var result = previewCoreStagingBootstrap();
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+function coreStagingBootstrapCredentialRecord() {
+  return staffSchemaMigrationReadJson(
+    PropertiesService.getUserProperties(), CORE_STAGING_BOOTSTRAP_CREDENTIAL_KEY
+  );
+}
+
+function coreStagingBootstrapValidateCredential(record, identity) {
+  if (!record || !coreStagingBootstrapValidPasswordHash(record.passwordHash)) {
+    throw coreStagingBootstrapError(
+      "CORE_BOOTSTRAP_CREDENTIAL_REQUIRED", "Use the secure credential dialog before preparation."
+    );
+  }
+  if (Date.parse(record.expiresAt || "") <= Date.now()) {
+    throw coreStagingBootstrapError(
+      "CORE_BOOTSTRAP_CREDENTIAL_EXPIRED", "The staged owner credential has expired."
+    );
+  }
+  if (record.spreadsheetId !== identity.spreadsheet.getId() ||
+      record.actorIdentity !== identity.actorIdentity ||
+      record.ownerUsername !== "owner" || !String(record.ownerDisplayName || "").trim() ||
+      !String(record.requestId || "").trim()) {
+    throw coreStagingBootstrapError(
+      "CORE_BOOTSTRAP_CREDENTIAL_MISMATCH", "The staged owner credential binding is invalid."
+    );
+  }
+  if (record.credentialFingerprint !== coreStagingBootstrapCredentialFingerprint(record.passwordHash)) {
+    throw coreStagingBootstrapError(
+      "CORE_BOOTSTRAP_CREDENTIAL_MISMATCH", "The staged owner credential fingerprint is invalid."
+    );
+  }
+  return record;
+}
+
+function stageCoreStagingBootstrapCredential(data) {
+  if (!data || typeof data !== "object") {
+    throw coreStagingBootstrapError(
+      "CORE_BOOTSTRAP_CREDENTIAL_INPUT_REQUIRED", "Secure credential input is required."
+    );
+  }
+  var identity = coreStagingBootstrapIdentityAndOwner();
+  var password = data.password == null ? "" : String(data.password);
+  var confirmation = data.passwordConfirmation == null ? "" : String(data.passwordConfirmation);
+  var displayName = String(data.ownerDisplayName || "").trim();
+  var requestId = String(data.requestId || Utilities.getUuid() || "").trim();
+  if (password !== confirmation) {
+    throw coreStagingBootstrapError(
+      "PASSWORD_CONFIRMATION_MISMATCH", "Password confirmation does not match."
+    );
+  }
+  if (Array.from(password).length < CORE_STAGING_BOOTSTRAP_PASSWORD_MIN_LENGTH) {
+    throw coreStagingBootstrapError(
+      "PASSWORD_TOO_SHORT",
+      "Password must be at least " + CORE_STAGING_BOOTSTRAP_PASSWORD_MIN_LENGTH + " characters."
+    );
+  }
+  if (!displayName || displayName.length > 160 || !requestId || requestId.length > 160) {
+    throw coreStagingBootstrapError(
+      "CORE_BOOTSTRAP_CREDENTIAL_CONTEXT_INVALID", "Owner display name and requestId are required."
+    );
+  }
+  var passwordHash = hashPassword(password);
+  data.password = "";
+  data.passwordConfirmation = "";
+  password = "";
+  confirmation = "";
+  return staffSchemaMigrationTryLocks(function () {
+    var now = Date.now();
+    var record = {
+      requestId: requestId,
+      ownerUsername: "owner",
+      ownerDisplayName: displayName,
+      passwordHash: passwordHash,
+      credentialFingerprint: coreStagingBootstrapCredentialFingerprint(passwordHash),
+      spreadsheetId: identity.spreadsheet.getId(),
+      actorIdentity: identity.actorIdentity,
+      createdAt: new Date(now).toISOString(),
+      expiresAt: new Date(now + CORE_STAGING_BOOTSTRAP_CREDENTIAL_TTL_MS).toISOString()
+    };
+    var userProperties = PropertiesService.getUserProperties();
+    userProperties.setProperty(CORE_STAGING_BOOTSTRAP_CREDENTIAL_KEY, JSON.stringify(record));
+    userProperties.deleteProperty(CORE_STAGING_BOOTSTRAP_TOKEN_KEY);
+    passwordHash = "";
+    return {
+      status: "CREDENTIAL_STAGED",
+      requestId: requestId,
+      ownerUsername: "owner",
+      ownerDisplayName: displayName,
+      expiresAt: record.expiresAt
+    };
+  });
+}
+
+function openCoreStagingBootstrapCredentialDialog() {
+  coreStagingBootstrapIdentityAndOwner();
+  var html = '<!doctype html><html><head><base target="_top"><style>' +
+    'body{font:14px Arial,sans-serif;padding:18px;direction:rtl}label{display:block;margin:10px 0 4px}' +
+    'input{box-sizing:border-box;width:100%;padding:8px}button{margin-top:16px;padding:9px 16px}' +
+    '.hint{display:block;margin-top:4px;color:#555}#status{margin-top:12px;white-space:pre-wrap}</style></head><body>' +
+    '<h3>تهيئة مالك Staging</h3><label>اسم العرض</label><input id="display" autocomplete="name">' +
+    '<label>Request ID</label><input id="request" autocomplete="off">' +
+    '<label for="password">كلمة المرور</label><input id="password" name="password" type="password" ' +
+    'autocomplete="new-password" minlength="12" aria-describedby="password-requirements">' +
+    '<span id="password-requirements" class="hint">الحد الأدنى: 12 حرفًا. تُحفظ المسافات كما أُدخلت.</span>' +
+    '<label for="passwordConfirmation">تأكيد كلمة المرور</label>' +
+    '<input id="passwordConfirmation" name="passwordConfirmation" type="password" ' +
+    'autocomplete="new-password" minlength="12">' +
+    '<button id="submit" type="button">تجهيز الاعتماد المؤقت</button><div id="status"></div><script>' +
+    'document.getElementById("submit").onclick=function(){var b=this;b.disabled=true;' +
+    'var p=document.getElementById("password"),c=document.getElementById("passwordConfirmation"),' +
+    's=document.getElementById("status");' +
+    'if(p.value!==c.value){s.textContent="PASSWORD_CONFIRMATION_MISMATCH: تأكيد كلمة المرور غير مطابق.";' +
+    'b.disabled=false;return;}if(Array.from(p.value).length<12){' +
+    's.textContent="PASSWORD_TOO_SHORT: يجب ألا تقل كلمة المرور عن 12 حرفًا.";b.disabled=false;return;}' +
+    'var payload={ownerDisplayName:document.getElementById("display").value,' +
+    'requestId:document.getElementById("request").value,password:p.value,passwordConfirmation:c.value};' +
+    'google.script.run.withSuccessHandler(function(r){p.value="";c.value="";' +
+    's.textContent="تم تجهيز الاعتماد. Request ID: "+r.requestId;' +
+    'b.disabled=false;}).withFailureHandler(function(e){p.value="";c.value="";' +
+    's.textContent=e.message||"فشل التجهيز";b.disabled=false;})' +
+    '.stageCoreStagingBootstrapCredential(payload);};' +
+    '</script></body></html>';
+  SpreadsheetApp.getUi().showModalDialog(
+    HtmlService.createHtmlOutput(html).setWidth(460).setHeight(520),
+    "Core Authentication Bootstrap"
+  );
+  return { status: "CREDENTIAL_DIALOG_OPENED" };
+}
+
+function coreStagingBootstrapJournalKey(requestId, spreadsheetId, actorIdentity) {
+  return CORE_STAGING_BOOTSTRAP_JOURNAL_PREFIX +
+    coreStagingBootstrapHashText(spreadsheetId).slice(7) + "_" +
+    coreStagingBootstrapHashText(actorIdentity).slice(7) + "_" +
+    coreStagingBootstrapHashText(requestId).slice(7);
+}
+
+function coreStagingBootstrapRequestFingerprint(requestId, planHash, identity, credential) {
+  return staffSchemaMigrationHash({
+    bootstrapId: CORE_STAGING_BOOTSTRAP_ID,
+    requestId: requestId,
+    planHash: planHash,
+    spreadsheetId: identity.spreadsheet.getId(),
+    actorIdentity: identity.actorIdentity,
+    ownerUsername: credential.ownerUsername,
+    ownerDisplayName: credential.ownerDisplayName,
+    credentialFingerprint: credential.credentialFingerprint
+  });
+}
+
+function coreStagingBootstrapAssertPlan(plan) {
+  if (!plan || plan.dryRun !== true || Number(plan.writes) !== 0 ||
+      plan.safeToInitialize !== true || (plan.errors || []).length || (plan.blockers || []).length) {
+    throw coreStagingBootstrapError(
+      "CORE_BOOTSTRAP_PREVIEW_NOT_SAFE", "Core Authentication preview is not safe to execute."
+    );
+  }
+  return plan;
+}
+
+function coreStagingBootstrapPrepareSummary(plan, record, alreadyCommitted) {
+  return {
+    status: "PREPARED",
+    requestId: record.requestId,
+    ownerUsername: record.ownerUsername,
+    ownerDisplayName: record.ownerDisplayName,
+    expiresAt: record.expiresAt,
+    exactPlanHash: record.exactPlanHash,
+    spreadsheetId: record.spreadsheetId,
+    createSheetNames: (plan.createSheets || []).map(function (item) { return item.sheetName; }),
+    createOwnerRecord: plan.createOwnerRecord === true,
+    alreadyCommitted: alreadyCommitted === true
+  };
+}
+
+function prepareCoreStagingBootstrap(data) {
+  data = data && typeof data === "object" ? data : {};
+  var identity = coreStagingBootstrapIdentityAndOwner();
+  return staffSchemaMigrationTryLocks(function () {
+    var credential = coreStagingBootstrapValidateCredential(
+      coreStagingBootstrapCredentialRecord(), identity
+    );
+    if (data.requestId && String(data.requestId).trim() !== credential.requestId) {
+      throw coreStagingBootstrapError(
+        "CORE_BOOTSTRAP_REQUEST_ID_MISMATCH", "requestId does not match the staged credential."
+      );
+    }
+    var plan = coreStagingBootstrapAssertPlan(previewCoreStagingBootstrap({
+      ownerDisplayName: credential.ownerDisplayName,
+      credentialFingerprint: credential.credentialFingerprint
+    }));
+    var journalKey = coreStagingBootstrapJournalKey(
+      credential.requestId, identity.spreadsheet.getId(), identity.actorIdentity
+    );
+    var scriptProperties = PropertiesService.getScriptProperties();
+    var existing = staffSchemaMigrationReadJson(scriptProperties, journalKey);
+    if (existing && existing.credentialFingerprint !== credential.credentialFingerprint) {
+      throw coreStagingBootstrapError(
+        "CORE_BOOTSTRAP_REQUEST_ID_REUSED", "requestId is already bound to different bootstrap context."
+      );
+    }
+    if (!existing && plan.completed && plan.credentialFingerprint !== credential.credentialFingerprint) {
+      throw coreStagingBootstrapError(
+        "CORE_BOOTSTRAP_EXISTING_OWNER_CREDENTIAL_MISMATCH",
+        "The staged credential does not match the existing hash-only owner record."
+      );
+    }
+    if (existing && ["APPLYING", "RECOVERY_REQUIRED"].indexOf(existing.status) !== -1) {
+      throw coreStagingBootstrapError(
+        "CORE_BOOTSTRAP_REQUEST_NOT_PREPARABLE", "The request requires recovery before reuse."
+      );
+    }
+    var planHash = existing && existing.status === "COMMITTED" ? existing.exactPlanHash : plan.exactPlanHash;
+    var fingerprint = coreStagingBootstrapRequestFingerprint(
+      credential.requestId, planHash, identity, credential
+    );
+    if (existing && existing.requestFingerprint !== fingerprint) {
+      throw coreStagingBootstrapError(
+        "CORE_BOOTSTRAP_REQUEST_ID_REUSED", "requestId is already bound to different bootstrap context."
+      );
+    }
+    var token = Utilities.getUuid() + "-" + Utilities.getUuid();
+    var expiresAt = new Date(Date.now() + CORE_STAGING_BOOTSTRAP_TOKEN_TTL_MS).toISOString();
+    var tokenRecord = {
+      token: token,
+      tokenHash: coreStagingBootstrapHashText(token),
+      bootstrapId: CORE_STAGING_BOOTSTRAP_ID,
+      requestId: credential.requestId,
+      requestFingerprint: fingerprint,
+      exactPlanHash: planHash,
+      spreadsheetId: identity.spreadsheet.getId(),
+      actorIdentity: identity.actorIdentity,
+      ownerUsername: credential.ownerUsername,
+      ownerDisplayName: credential.ownerDisplayName,
+      credentialFingerprint: credential.credentialFingerprint,
+      expiresAt: expiresAt
+    };
+    var journal = existing && existing.status === "COMMITTED" ? existing : {
+      bootstrapId: CORE_STAGING_BOOTSTRAP_ID,
+      schemaVersion: CORE_STAGING_BOOTSTRAP_SCHEMA_VERSION,
+      requestId: credential.requestId,
+      actorIdentity: identity.actorIdentity,
+      expectedSpreadsheetId: identity.spreadsheet.getId(),
+      ownerUsername: credential.ownerUsername,
+      ownerDisplayName: credential.ownerDisplayName,
+      credentialFingerprint: credential.credentialFingerprint,
+      startedTimestamp: staffSchemaMigrationNow(),
+      completedTimestamp: "",
+      status: "PREPARED",
+      exactPlanHash: plan.exactPlanHash,
+      requestFingerprint: fingerprint,
+      operationIntents: [],
+      completedOperations: [],
+      createdSheetNames: [],
+      ownerRowsCreated: [],
+      inFlightOperation: null,
+      errorDetails: [],
+      writes: 0,
+      finalResult: null
+    };
+    if (journal.status !== "COMMITTED") staffSchemaMigrationWriteJournal(journalKey, journal);
+    PropertiesService.getUserProperties().setProperty(
+      CORE_STAGING_BOOTSTRAP_TOKEN_KEY, JSON.stringify(tokenRecord)
+    );
+    token = "";
+    var summary = coreStagingBootstrapPrepareSummary(
+      plan, tokenRecord, journal.status === "COMMITTED"
+    );
+    console.log(JSON.stringify({
+      status: summary.status,
+      requestId: summary.requestId,
+      ownerUsername: summary.ownerUsername,
+      ownerDisplayName: summary.ownerDisplayName,
+      expiresAt: summary.expiresAt,
+      exactPlanHash: summary.exactPlanHash,
+      spreadsheetId: summary.spreadsheetId,
+      createSheetNames: summary.createSheetNames,
+      createOwnerRecord: summary.createOwnerRecord,
+      alreadyCommitted: summary.alreadyCommitted
+    }));
+    return summary;
+  });
+}
+
+function coreStagingBootstrapReadPreparedToken(suppliedToken) {
+  var store = PropertiesService.getUserProperties();
+  var record = staffSchemaMigrationReadJson(store, CORE_STAGING_BOOTSTRAP_TOKEN_KEY);
+  if (!record || !suppliedToken || record.tokenHash !== coreStagingBootstrapHashText(suppliedToken)) {
+    throw coreStagingBootstrapError(
+      "CORE_BOOTSTRAP_TOKEN_INVALID", "Confirmation token is invalid or already consumed."
+    );
+  }
+  if (Date.parse(record.expiresAt || "") <= Date.now()) {
+    throw coreStagingBootstrapError("CORE_BOOTSTRAP_TOKEN_EXPIRED", "Confirmation token has expired.");
+  }
+  return { store: store, record: record };
+}
+
+function coreStagingBootstrapOperationProof(operation) {
+  return {
+    type: operation.type,
+    sheetName: "USERS",
+    headerHash: staffSchemaMigrationHash(CORE_STAGING_BOOTSTRAP_USERS_HEADERS),
+    headerCount: CORE_STAGING_BOOTSTRAP_USERS_HEADERS.length,
+    rowNumber: operation.rowNumber || 0,
+    rowFingerprint: operation.rowFingerprint || ""
+  };
+}
+
+function coreStagingBootstrapOperations(plan, credential) {
+  var operations = [];
+  if ((plan.createSheets || []).some(function (item) { return item.sheetName === "USERS"; })) {
+    operations.push({ type: "CREATE_USERS_SHEET" });
+  }
+  if (plan.createOwnerRecord) {
+    var row = [
+      "owner", "", credential.ownerDisplayName, "", staffSchemaMigrationNow(), credential.passwordHash
+    ];
+    operations.push({
+      type: "CREATE_OWNER_ROW",
+      rowNumber: 2,
+      row: row,
+      rowFingerprint: coreStagingBootstrapRowFingerprint(row)
+    });
+  }
+  return operations;
+}
+
+function coreStagingBootstrapTestPoint(name, details) {
+  if (typeof coreStagingBootstrapFailureInjector === "function") {
+    coreStagingBootstrapFailureInjector(name, details || {});
+  }
+}
+
+function coreStagingBootstrapApplyOperation(spreadsheet, operation) {
+  if (operation.type === "CREATE_USERS_SHEET") {
+    if (spreadsheet.getSheetByName("USERS")) {
+      throw coreStagingBootstrapError("CORE_BOOTSTRAP_STATE_CHANGED", "USERS now exists.");
+    }
+    var created = spreadsheet.insertSheet("USERS");
+    var maximum = Math.max(1, Number(created.getMaxColumns ? created.getMaxColumns() : 1) || 1);
+    if (maximum < CORE_STAGING_BOOTSTRAP_USERS_HEADERS.length) {
+      created.insertColumnsAfter(maximum, CORE_STAGING_BOOTSTRAP_USERS_HEADERS.length - maximum);
+    }
+    created.getRange(1, 1, 1, CORE_STAGING_BOOTSTRAP_USERS_HEADERS.length)
+      .setValues([CORE_STAGING_BOOTSTRAP_USERS_HEADERS.slice()]);
+    coreStagingBootstrapTestPoint("AFTER_USERS_SHEET_WRITE_BEFORE_PROGRESS", operation);
+    return;
+  }
+  if (operation.type === "CREATE_OWNER_ROW") {
+    var sheet = spreadsheet.getSheetByName("USERS");
+    if (!sheet || !coreStagingBootstrapHeadersExact(coreStagingBootstrapHeaders(sheet)) ||
+        sheet.getLastRow() >= 2) {
+      throw coreStagingBootstrapError(
+        "CORE_BOOTSTRAP_STATE_CHANGED", "USERS is no longer a compatible header-only sheet."
+      );
+    }
+    sheet.getRange(operation.rowNumber, 1, 1, 6).setValues([operation.row]);
+    coreStagingBootstrapTestPoint("AFTER_OWNER_ROW_WRITE_BEFORE_PROGRESS", operation);
+  }
+}
+
+function coreStagingBootstrapSheetHeaderProof(sheet) {
+  return staffSchemaMigrationHash(coreStagingBootstrapHeaders(sheet).slice(0, 6));
+}
+
+function coreStagingBootstrapRollback(spreadsheet, journal) {
+  var failures = [];
+  var intendedOwner = (journal.operationIntents || []).filter(function (item) {
+    return item.type === "CREATE_OWNER_ROW";
+  }).slice(-1)[0];
+  var intendedSheet = (journal.operationIntents || []).some(function (item) {
+    return item.type === "CREATE_USERS_SHEET";
+  });
+  try {
+    var sheet = spreadsheet.getSheetByName("USERS");
+    if (!sheet) return failures;
+    var headerProof = staffSchemaMigrationHash(CORE_STAGING_BOOTSTRAP_USERS_HEADERS);
+    var lastRow = Math.max(0, Number(sheet.getLastRow()) || 0);
+    if (intendedSheet) {
+      if (lastRow === 0) {
+        spreadsheet.deleteSheet(sheet);
+        return failures;
+      }
+      var usedHeaders = coreStagingBootstrapHeaders(sheet);
+      var headerFormulas = typeof sheet.getRange(1, 1, 1, Math.max(1, usedHeaders.length)).getFormulas === "function"
+        ? sheet.getRange(1, 1, 1, Math.max(1, usedHeaders.length)).getFormulas()[0] : [];
+      var requestOnlyHeaders = usedHeaders.length <= CORE_STAGING_BOOTSTRAP_USERS_HEADERS.length &&
+        usedHeaders.every(function (value, index) {
+          return value === "" || value === CORE_STAGING_BOOTSTRAP_USERS_HEADERS[index];
+        }) && !headerFormulas.some(function (formula) { return String(formula || "") !== ""; });
+      if (!requestOnlyHeaders) {
+        throw new Error("Request-created USERS headers or formulas changed; automatic rollback is unsafe.");
+      }
+      if (lastRow > 2) throw new Error("Request-created USERS has unexpected rows.");
+      if (lastRow === 2) {
+        if (!intendedOwner) throw new Error("Owner row has no matching operation intent.");
+        var createdRow = sheet.getRange(2, 1, 1, 6).getValues()[0];
+        var createdFormulas = typeof sheet.getRange(2, 1, 1, 6).getFormulas === "function"
+          ? sheet.getRange(2, 1, 1, 6).getFormulas()[0] : [];
+        if (coreStagingBootstrapRowFingerprint(createdRow) !== intendedOwner.rowFingerprint) {
+          throw new Error("Request-created owner row proof changed.");
+        }
+        if (createdFormulas.some(function (formula) { return String(formula || "") !== ""; })) {
+          throw new Error("Request-created owner row contains a formula.");
+        }
+      }
+      spreadsheet.deleteSheet(sheet);
+      return failures;
+    }
+    if (coreStagingBootstrapSheetHeaderProof(sheet) !== headerProof) {
+      throw new Error("USERS header proof changed; automatic rollback is unsafe.");
+    }
+    if (intendedOwner) {
+      if (lastRow !== intendedOwner.rowNumber) {
+        throw new Error("Owner row is not the exact trailing request-created row.");
+      }
+      var row = sheet.getRange(intendedOwner.rowNumber, 1, 1, 6).getValues()[0];
+      var rowFormulas = typeof sheet.getRange(intendedOwner.rowNumber, 1, 1, 6).getFormulas === "function"
+        ? sheet.getRange(intendedOwner.rowNumber, 1, 1, 6).getFormulas()[0] : [];
+      if (coreStagingBootstrapRowFingerprint(row) !== intendedOwner.rowFingerprint) {
+        throw new Error("Request-created owner row proof changed.");
+      }
+      if (rowFormulas.some(function (formula) { return String(formula || "") !== ""; })) {
+        throw new Error("Request-created owner row contains a formula.");
+      }
+      sheet.deleteRow(intendedOwner.rowNumber);
+    }
+  } catch (error) {
+    failures.push({
+      operation: "CORE_AUTH_ROLLBACK",
+      sheetName: "USERS",
+      message: String(error.message || error).slice(0, 500)
+    });
+  }
+  return failures;
+}
+
+function coreStagingBootstrapVerifyCompleted(identity, journal) {
+  var verification = previewCoreStagingBootstrap({});
+  if (verification.safeToInitialize !== true || verification.completed !== true ||
+      verification.dryRun !== true || Number(verification.writes) !== 0 ||
+      verification.missingMandatoryCoreSheets.length ||
+      verification.missingRequiredUsersColumns.length ||
+      verification.incompatibleCoreSheets.length ||
+      verification.ownerRecordCount !== 1 || verification.ownerPasswordState !== "HASHED_ONLY" ||
+      verification.plaintextPasswordCellEmpty !== true ||
+      verification.errors.length || verification.blockers.length ||
+      verification.identity.actualSpreadsheetId !== identity.spreadsheet.getId()) {
+    throw coreStagingBootstrapError(
+      "CORE_BOOTSTRAP_FINAL_VERIFICATION_FAILED", "Final Core Authentication verification failed."
+    );
+  }
+  var users = coreStagingBootstrapReadUsersState(identity.spreadsheet);
+  var currentFingerprint = coreStagingBootstrapCredentialFingerprint(
+    String(users.ownerRows[0].row[5] || "").trim()
+  );
+  if (currentFingerprint !== journal.credentialFingerprint) {
+    throw coreStagingBootstrapError(
+      "CORE_BOOTSTRAP_FINAL_CREDENTIAL_MISMATCH", "Final owner credential does not match preparation."
+    );
+  }
+  return verification;
+}
+
+function coreStagingBootstrapConsumeSecrets(prepared, credentialStore) {
+  prepared.store.deleteProperty(CORE_STAGING_BOOTSTRAP_TOKEN_KEY);
+  credentialStore.deleteProperty(CORE_STAGING_BOOTSTRAP_CREDENTIAL_KEY);
+}
+
+function executeCoreStagingBootstrap(data) {
+  if (!data || typeof data !== "object") {
+    throw coreStagingBootstrapError(
+      "CORE_BOOTSTRAP_CONFIRMATION_REQUIRED", "No-argument Core Authentication execution is prohibited."
+    );
+  }
+  var requestId = String(data.requestId || "").trim();
+  var confirmationToken = String(data.confirmationToken || "").trim();
+  if (!requestId || !confirmationToken) {
+    throw coreStagingBootstrapError(
+      "CORE_BOOTSTRAP_CONFIRMATION_REQUIRED", "requestId and confirmationToken are required."
+    );
+  }
+  var identity = coreStagingBootstrapIdentityAndOwner();
+  return staffSchemaMigrationTryLocks(function () {
+    var prepared = coreStagingBootstrapReadPreparedToken(confirmationToken);
+    var token = prepared.record;
+    var credentialStore = PropertiesService.getUserProperties();
+    var credential = coreStagingBootstrapValidateCredential(
+      coreStagingBootstrapCredentialRecord(), identity
+    );
+    if (token.bootstrapId !== CORE_STAGING_BOOTSTRAP_ID ||
+        token.requestId !== requestId || credential.requestId !== requestId ||
+        token.spreadsheetId !== identity.spreadsheet.getId() ||
+        token.actorIdentity !== identity.actorIdentity ||
+        token.ownerUsername !== credential.ownerUsername ||
+        token.ownerDisplayName !== credential.ownerDisplayName ||
+        token.credentialFingerprint !== credential.credentialFingerprint) {
+      throw coreStagingBootstrapError(
+        "CORE_BOOTSTRAP_TOKEN_MISMATCH", "Prepared token binding is invalid."
+      );
+    }
+    var journalKey = coreStagingBootstrapJournalKey(
+      requestId, identity.spreadsheet.getId(), identity.actorIdentity
+    );
+    var journal = staffSchemaMigrationReadJson(
+      PropertiesService.getScriptProperties(), journalKey
+    );
+    if (!journal || journal.requestFingerprint !== token.requestFingerprint ||
+        journal.exactPlanHash !== token.exactPlanHash ||
+        journal.credentialFingerprint !== credential.credentialFingerprint) {
+      throw coreStagingBootstrapError(
+        "CORE_BOOTSTRAP_PREPARED_STATE_MISMATCH", "Prepared journal does not match token."
+      );
+    }
+    if (journal.status === "COMMITTED") {
+      coreStagingBootstrapVerifyCompleted(identity, journal);
+      coreStagingBootstrapConsumeSecrets(prepared, credentialStore);
+      return journal.finalResult;
+    }
+    if (journal.status !== "PREPARED") {
+      throw coreStagingBootstrapError(
+        "CORE_BOOTSTRAP_REQUEST_NOT_EXECUTABLE", "Bootstrap request is not PREPARED."
+      );
+    }
+    var plan = coreStagingBootstrapAssertPlan(previewCoreStagingBootstrap({
+      ownerDisplayName: credential.ownerDisplayName,
+      credentialFingerprint: credential.credentialFingerprint
+    }));
+    var fingerprint = coreStagingBootstrapRequestFingerprint(
+      requestId, plan.exactPlanHash, identity, credential
+    );
+    if (plan.exactPlanHash !== token.exactPlanHash || fingerprint !== token.requestFingerprint) {
+      throw coreStagingBootstrapError(
+        "CORE_BOOTSTRAP_PLAN_HASH_MISMATCH", "Core schema changed after preparation."
+      );
+    }
+    coreStagingBootstrapConsumeSecrets(prepared, credentialStore);
+    journal.status = "APPLYING";
+    staffSchemaMigrationWriteJournal(journalKey, journal);
+    try {
+      var operations = coreStagingBootstrapOperations(plan, credential);
+      operations.forEach(function (operation) {
+        var proof = coreStagingBootstrapOperationProof(operation);
+        journal.inFlightOperation = proof;
+        journal.operationIntents.push(proof);
+        staffSchemaMigrationWriteJournal(journalKey, journal);
+        coreStagingBootstrapApplyOperation(identity.spreadsheet, operation);
+        journal.completedOperations.push(proof);
+        if (operation.type === "CREATE_USERS_SHEET") journal.createdSheetNames.push("USERS");
+        if (operation.type === "CREATE_OWNER_ROW") {
+          journal.ownerRowsCreated.push({
+            sheetName: "USERS", rowNumber: operation.rowNumber,
+            rowFingerprint: operation.rowFingerprint
+          });
+        }
+        journal.writes += 1;
+        journal.inFlightOperation = null;
+        staffSchemaMigrationWriteJournal(journalKey, journal);
+      });
+      coreStagingBootstrapTestPoint("AFTER_ALL_WRITES_BEFORE_VERIFICATION", {});
+      coreStagingBootstrapVerifyCompleted(identity, journal);
+      coreStagingBootstrapTestPoint("AFTER_VERIFICATION_BEFORE_COMMITTED", {});
+      var result = {
+        status: "COMMITTED",
+        bootstrapId: CORE_STAGING_BOOTSTRAP_ID,
+        schemaVersion: CORE_STAGING_BOOTSTRAP_SCHEMA_VERSION,
+        requestId: requestId,
+        expectedSpreadsheetId: identity.spreadsheet.getId(),
+        actorIdentity: identity.actorIdentity,
+        ownerUsername: "owner",
+        ownerDisplayName: journal.ownerDisplayName,
+        createdSheetNames: journal.createdSheetNames.slice(),
+        ownerRowsCreated: journal.ownerRowsCreated.map(function (item) {
+          return { sheetName: item.sheetName, rowNumber: item.rowNumber };
+        }),
+        writes: journal.writes,
+        completedTimestamp: staffSchemaMigrationNow()
+      };
+      journal.status = "COMMITTED";
+      journal.completedTimestamp = result.completedTimestamp;
+      journal.finalResult = result;
+      staffSchemaMigrationWriteJournal(journalKey, journal);
+      return result;
+    } catch (caught) {
+      journal.errorDetails.push(staffSchemaMigrationErrorDetail(caught));
+      var rollbackFailures = coreStagingBootstrapRollback(identity.spreadsheet, journal);
+      journal.inFlightOperation = null;
+      if (rollbackFailures.length) {
+        journal.status = "RECOVERY_REQUIRED";
+        journal.errorDetails = journal.errorDetails.concat(rollbackFailures);
+      } else {
+        journal.status = "ROLLED_BACK";
+        journal.completedTimestamp = staffSchemaMigrationNow();
+      }
+      staffSchemaMigrationWriteJournal(journalKey, journal);
+      if (rollbackFailures.length) {
+        throw coreStagingBootstrapError(
+          "CORE_BOOTSTRAP_RECOVERY_REQUIRED",
+          "Core Authentication rollback could not be proven safe.", rollbackFailures
+        );
+      }
+      throw caught;
+    }
+  });
+}
+
+function executePreparedCoreStagingBootstrap() {
+  var record = staffSchemaMigrationReadJson(
+    PropertiesService.getUserProperties(), CORE_STAGING_BOOTSTRAP_TOKEN_KEY
+  );
+  if (!record) {
+    throw coreStagingBootstrapError(
+      "CORE_BOOTSTRAP_CONFIRMATION_REQUIRED", "Run prepareCoreStagingBootstrap immediately before execution."
+    );
+  }
+  return executeCoreStagingBootstrap({
+    requestId: record.requestId,
+    confirmationToken: record.token
+  });
+}
+
+function coreStagingBootstrapDiagnostic(statuses) {
+  coreStagingBootstrapIdentityAndOwner();
+  var properties = PropertiesService.getScriptProperties().getProperties();
+  var records = Object.keys(properties).filter(function (key) {
+    return key.indexOf(CORE_STAGING_BOOTSTRAP_JOURNAL_PREFIX) === 0;
+  }).map(function (key) {
+    try { return JSON.parse(properties[key]); } catch (_error) { return null; }
+  }).filter(Boolean).filter(function (journal) {
+    return !statuses || statuses.indexOf(journal.status) !== -1;
+  }).map(function (journal) {
+    var remediation = [];
+    if (["APPLYING", "RECOVERY_REQUIRED"].indexOf(journal.status) !== -1) {
+      remediation.push("Do not rerun bootstrap until USERS is compared with the operation proofs.");
+      if ((journal.operationIntents || []).some(function (item) {
+        return item.type === "CREATE_USERS_SHEET";
+      })) {
+        remediation.push(
+          "Delete USERS only if it was created by this request, columns 1-6 exactly match the approved headers, " +
+          "and it contains no row except a provably matching request-created owner row."
+        );
+      } else if ((journal.operationIntents || []).some(function (item) {
+        return item.type === "CREATE_OWNER_ROW";
+      })) {
+        remediation.push(
+          "Delete only the exact trailing owner row if its stored row fingerprint still matches and no later row exists."
+        );
+      }
+    }
+    return {
+      bootstrapId: journal.bootstrapId,
+      schemaVersion: journal.schemaVersion,
+      requestId: journal.requestId,
+      actorIdentity: journal.actorIdentity,
+      expectedSpreadsheetId: journal.expectedSpreadsheetId,
+      ownerUsername: journal.ownerUsername,
+      ownerDisplayName: journal.ownerDisplayName,
+      startedTimestamp: journal.startedTimestamp,
+      completedTimestamp: journal.completedTimestamp,
+      status: journal.status,
+      exactPlanHash: journal.exactPlanHash,
+      createdSheetNames: journal.createdSheetNames || [],
+      ownerRowsCreated: (journal.ownerRowsCreated || []).map(function (item) {
+        return { sheetName: item.sheetName, rowNumber: item.rowNumber };
+      }),
+      inFlightOperation: journal.inFlightOperation ? {
+        type: journal.inFlightOperation.type,
+        sheetName: journal.inFlightOperation.sheetName,
+        rowNumber: journal.inFlightOperation.rowNumber || 0
+      } : null,
+      errorDetails: journal.errorDetails || [],
+      writes: journal.writes || 0,
+      manualRemediation: remediation
+    };
+  });
+  console.log(JSON.stringify(records));
+  return records;
+}
+
+function diagnosticCoreStagingBootstrapStatus() {
+  return coreStagingBootstrapDiagnostic(null);
+}
+
+function diagnosticCoreStagingBootstrapRecovery() {
+  return coreStagingBootstrapDiagnostic(["APPLYING", "ROLLED_BACK", "RECOVERY_REQUIRED"]);
+}
+
+/* END core-staging-auth-bootstrap.js */
 
 /* BEGIN booking-availability-phase5.js */
 (function (root, factory) {
@@ -7620,7 +10445,7 @@ function handleStaffPayrollAttendancePhase4Action(data) {
     const existing = existingSheets || {};
     const environment = text(identity && identity.environment).toLowerCase();
     const errors = [];
-    if (!environment || !["development", "test"].includes(environment)) {
+    if (!environment || !["development", "test", "staging"].includes(environment)) {
       errors.push({ code: "PHASE5_ENVIRONMENT_BLOCKED" });
     }
     if (!identity || !identity.expectedSpreadsheetId ||
@@ -7669,7 +10494,8 @@ function handleStaffPayrollAttendancePhase4Action(data) {
       if (missing.length) appendedColumns[name] = missing;
     });
     return Object.freeze({
-      phase: 5, version: VERSION, blocked: errors.length > 0, errors,
+      phase: 5, version: VERSION, environment, dryRun: true,
+      blocked: errors.length > 0, errors,
       plannedCreatedSheets: createdSheets, plannedAppendedColumns: appendedColumns,
       executionAllowed: false, writes: 0, historicalRowsTouched: 0
     });
@@ -7686,6 +10512,742 @@ function handleStaffPayrollAttendancePhase4Action(data) {
 });
 
 /* END booking-availability-phase5.js */
+
+/* BEGIN branch-foundation-staging.js */
+/* global BookingAvailabilityPhase5, getCutHubEnvironmentConfig, assertStagingEnvironment,
+  staffSchemaMigrationAssertOwner, schedulePhase2Headers, schedulePhase2ReadRows */
+
+var BRANCH_FOUNDATION_VERSION = "BRANCH_FOUNDATION_V1";
+var BRANCH_FOUNDATION_SHEET = "BOOKING_BRANCH_REGISTRY";
+var BRANCH_FOUNDATION_WEEKDAYS = [
+  "SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"
+];
+
+function branchFoundationPhase5Contract() {
+  if (typeof BookingAvailabilityPhase5 !== "undefined") return BookingAvailabilityPhase5;
+  if (typeof require === "function") return require("./booking-availability-phase5");
+  throw branchFoundationError("BRANCH_FOUNDATION_CONTRACT_MISSING", "Phase 5 contract is unavailable.");
+}
+
+function branchFoundationError(code, message, details) {
+  var error = new Error(message || code);
+  error.code = code;
+  if (details !== undefined) error.details = details;
+  return error;
+}
+
+function branchFoundationNormalizeHeader(value) {
+  return String(value == null ? "" : value).trim().toUpperCase()
+    .replace(/[\s-]+/g, "_").replace(/_+/g, "_");
+}
+
+function branchFoundationIdentity() {
+  var config = getCutHubEnvironmentConfig();
+  var environment = String(config.environment || "").trim().toLowerCase();
+  if (environment !== "staging") {
+    throw branchFoundationError(
+      "BRANCH_FOUNDATION_STAGING_ONLY", "Branch Foundation is restricted to Staging."
+    );
+  }
+  if (!config.spreadsheetId || !config.stagingSpreadsheetId ||
+      config.spreadsheetId !== config.stagingSpreadsheetId) {
+    throw branchFoundationError(
+      "BRANCH_FOUNDATION_STAGING_PIN_MISMATCH", "Staging spreadsheet pins must match."
+    );
+  }
+  var strict = assertStagingEnvironment();
+  if (!strict || !strict.spreadsheet ||
+      strict.spreadsheet.getId() !== config.spreadsheetId ||
+      strict.spreadsheet.getId() !== config.stagingSpreadsheetId) {
+    throw branchFoundationError(
+      "BRANCH_FOUNDATION_IDENTITY_MISMATCH", "Strict Staging identity validation failed."
+    );
+  }
+  var actor = staffSchemaMigrationAssertOwner(strict);
+  return {
+    environment: "staging",
+    expectedSpreadsheetId: config.spreadsheetId,
+    actualSpreadsheetId: strict.spreadsheet.getId(),
+    actorIdentity: actor.actorIdentity,
+    spreadsheet: strict.spreadsheet
+  };
+}
+
+function branchFoundationPlanMigration(existingHeaders, identity) {
+  var expected = branchFoundationPhase5Contract()
+    .SHEET_SCHEMAS[BRANCH_FOUNDATION_SHEET].slice();
+  var errors = [];
+  var createSheets = [];
+  var unchangedSheets = [];
+  var current = Array.isArray(existingHeaders) ? existingHeaders.map(branchFoundationNormalizeHeader) : null;
+  var normalizedExpected = expected.map(branchFoundationNormalizeHeader);
+  if (current === null) {
+    createSheets.push({ sheetName: BRANCH_FOUNDATION_SHEET, headers: expected });
+  } else {
+    var duplicates = current.filter(function (header, index) {
+      return header && current.indexOf(header) !== index;
+    });
+    var unknown = current.filter(function (header) {
+      return header && normalizedExpected.indexOf(header) === -1;
+    });
+    if (duplicates.length) {
+      errors.push({ code: "BRANCH_FOUNDATION_DUPLICATE_HEADERS", headers: duplicates });
+    }
+    if (unknown.length) {
+      errors.push({ code: "BRANCH_FOUNDATION_UNKNOWN_COLUMNS", headers: unknown });
+    }
+    if (current.length !== normalizedExpected.length || current.some(function (header, index) {
+      return header !== normalizedExpected[index];
+    })) {
+      errors.push({ code: "BRANCH_FOUNDATION_HEADER_ORDER_INCOMPATIBLE" });
+    }
+    if (!errors.length) unchangedSheets.push(BRANCH_FOUNDATION_SHEET);
+  }
+  return {
+    schemaVersion: BRANCH_FOUNDATION_VERSION,
+    version: BRANCH_FOUNDATION_VERSION,
+    dryRun: true,
+    writes: 0,
+    executionAllowed: false,
+    identity: {
+      environment: String(identity && identity.environment || ""),
+      expectedSpreadsheetId: String(identity && identity.expectedSpreadsheetId || ""),
+      actualSpreadsheetId: String(identity && identity.actualSpreadsheetId || "")
+    },
+    headerNormalization: "TRIM_UPPERCASE_SPACES_HYPHENS_TO_UNDERSCORE",
+    createSheets: createSheets,
+    initializeBlankSheets: [],
+    appendColumns: {},
+    unchangedSheets: unchangedSheets,
+    preservedUnknownColumns: {},
+    errors: errors,
+    rollback: {
+      createdSheets: createSheets.map(function (item) { return item.sheetName; }),
+      appendedColumnRanges: [],
+      historicalRowsTouched: 0
+    },
+    safe: errors.length === 0
+  };
+}
+
+function previewBranchFoundationMigration() {
+  var identity = branchFoundationIdentity();
+  var sheet = identity.spreadsheet.getSheetByName(BRANCH_FOUNDATION_SHEET);
+  var headers = sheet ? schedulePhase2Headers(sheet) : null;
+  return branchFoundationPlanMigration(headers, identity);
+}
+
+function diagnosticPreviewBranchFoundationMigration() {
+  var result = previewBranchFoundationMigration();
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+function branchConfigurationText(value) {
+  return String(value == null ? "" : value).trim();
+}
+
+function branchConfigurationBoolean(value, field, errors) {
+  if (typeof value !== "boolean") {
+    errors.push({ code: "BRANCH_CONFIGURATION_BOOLEAN_REQUIRED", field: field });
+    return false;
+  }
+  return value;
+}
+
+function branchConfigurationPreviewPlan(data, existingBranches) {
+  data = data && typeof data === "object" ? data : {};
+  existingBranches = Array.isArray(existingBranches) ? existingBranches : [];
+  var errors = [];
+  var branchId = branchConfigurationText(data.branchId);
+  var branchName = branchConfigurationText(data.branchName);
+  var timeZone = branchConfigurationText(data.timeZone);
+  var closureStatus = branchConfigurationText(data.closureStatus).toUpperCase();
+  var closureReason = branchConfigurationText(data.closureReason);
+  var hours = Array.isArray(data.weeklyOpeningHours) ? data.weeklyOpeningHours : null;
+  var active = branchConfigurationBoolean(data.active, "ACTIVE", errors);
+  var publicSelectable = branchConfigurationBoolean(
+    data.publicSelectable, "PUBLIC_SELECTABLE", errors
+  );
+  if (!branchId) errors.push({ code: "BRANCH_ID_REQUIRED" });
+  if (!branchName) errors.push({ code: "BRANCH_NAME_REQUIRED" });
+  if (!/^[A-Za-z_]+(?:\/[A-Za-z0-9_+\-]+)+$/.test(timeZone)) {
+    errors.push({ code: "BRANCH_TIME_ZONE_INVALID" });
+  }
+  if (["OPEN", "CLOSED"].indexOf(closureStatus) === -1) {
+    errors.push({ code: "BRANCH_CLOSURE_STATUS_INVALID" });
+  }
+  if (closureStatus === "CLOSED" && !closureReason) {
+    errors.push({ code: "BRANCH_CLOSURE_REASON_REQUIRED" });
+  }
+  var exactMatches = existingBranches.filter(function (branch) {
+    return branchConfigurationText(branch.branchId || branch.BRANCH_ID) === branchId;
+  });
+  var caseMatches = existingBranches.filter(function (branch) {
+    var existingId = branchConfigurationText(branch.branchId || branch.BRANCH_ID);
+    return existingId && branchId && existingId.toLowerCase() === branchId.toLowerCase() && existingId !== branchId;
+  });
+  if (exactMatches.length) errors.push({ code: "BRANCH_ID_DUPLICATE" });
+  if (caseMatches.length) errors.push({ code: "BRANCH_ID_CASE_AMBIGUOUS" });
+  if (active && existingBranches.some(function (branch) {
+    return (branch.active === true || String(branch.ACTIVE).toLowerCase() === "true");
+  })) {
+    errors.push({ code: "SINGLE_BRANCH_ACTIVE_LIMIT" });
+  }
+  if (!hours || !hours.length) {
+    errors.push({ code: "BRANCH_WEEKLY_HOURS_REQUIRED" });
+  } else {
+    var seen = {};
+    hours.forEach(function (item, index) {
+      var weekday = branchConfigurationText(item && item.weekday).toUpperCase();
+      var openTime = branchConfigurationText(item && item.openTime);
+      var closeTime = branchConfigurationText(item && item.closeTime);
+      if (BRANCH_FOUNDATION_WEEKDAYS.indexOf(weekday) === -1) {
+        errors.push({ code: "BRANCH_WEEKDAY_INVALID", index: index });
+      } else if (seen[weekday]) {
+        errors.push({ code: "BRANCH_WEEKDAY_DUPLICATE", weekday: weekday });
+      }
+      seen[weekday] = true;
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(openTime) ||
+          !/^([01]\d|2[0-3]):[0-5]\d$/.test(closeTime) || openTime === closeTime) {
+        errors.push({ code: "BRANCH_HOURS_INVALID", index: index });
+      }
+    });
+  }
+  return {
+    version: "BRANCH_CONFIGURATION_PREVIEW_V1",
+    dryRun: true,
+    writes: 0,
+    safe: errors.length === 0,
+    errors: errors,
+    proposedBranch: {
+      branchId: branchId,
+      branchName: branchName,
+      timeZone: timeZone,
+      active: active,
+      publicSelectable: publicSelectable,
+      closureStatus: closureStatus,
+      closureReason: closureReason
+    },
+    weeklyOpeningHours: hours || [],
+    operations: errors.length ? [] : [{ type: "CREATE_BRANCH", branchId: branchId }].concat(
+      (hours || []).map(function (item) {
+        return { type: "CREATE_BRANCH_HOURS", branchId: branchId,
+          weekday: branchConfigurationText(item.weekday).toUpperCase() };
+      })
+    )
+  };
+}
+
+function previewBranchConfigurationStaging(data) {
+  var identity = branchFoundationIdentity();
+  var sheet = identity.spreadsheet.getSheetByName(BRANCH_FOUNDATION_SHEET);
+  if (!sheet) {
+    throw branchFoundationError(
+      "BRANCH_FOUNDATION_SCHEMA_NOT_READY", "BOOKING_BRANCH_REGISTRY is required first."
+    );
+  }
+  var headers = schedulePhase2Headers(sheet).map(branchFoundationNormalizeHeader);
+  var expected = branchFoundationPhase5Contract().SHEET_SCHEMAS[BRANCH_FOUNDATION_SHEET]
+    .map(branchFoundationNormalizeHeader);
+  if (headers.length !== expected.length || headers.some(function (header, index) {
+    return header !== expected[index];
+  })) {
+    throw branchFoundationError(
+      "BRANCH_FOUNDATION_SCHEMA_INCOMPATIBLE", "Branch registry headers are incompatible."
+    );
+  }
+  return branchConfigurationPreviewPlan(data, schedulePhase2ReadRows(BRANCH_FOUNDATION_SHEET));
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    VERSION: BRANCH_FOUNDATION_VERSION,
+    SHEET: BRANCH_FOUNDATION_SHEET,
+    WEEKDAYS: BRANCH_FOUNDATION_WEEKDAYS,
+    planMigration: branchFoundationPlanMigration,
+    previewConfiguration: branchConfigurationPreviewPlan
+  };
+}
+
+/* END branch-foundation-staging.js */
+
+/* BEGIN branch-registry-row-staging.js */
+/* global BookingAvailabilityPhase5, PropertiesService, Utilities, console,
+  branchFoundationIdentity, branchFoundationNormalizeHeader,
+  staffSchemaMigrationTryLocks, staffSchemaMigrationHash,
+  staffSchemaMigrationJournalKey, staffSchemaMigrationTokenKey,
+  staffSchemaMigrationReadJson, staffSchemaMigrationWriteJournal,
+  staffSchemaMigrationNow, staffSchemaMigrationError */
+
+var BRANCH_REGISTRY_ROW_VERSION = "CANONICAL_BRANCH_REGISTRY_ROW_V1";
+var BRANCH_REGISTRY_ROW_PHASE = "BRANCH_REGISTRY_ROW";
+var BRANCH_REGISTRY_ROW_SHEET = "BOOKING_BRANCH_REGISTRY";
+var BRANCH_REGISTRY_ROW_TOKEN_TTL_MS = 5 * 60 * 1000;
+var BRANCH_REGISTRY_ROW_APPROVED = Object.freeze({
+  BRANCH_ID: "CUT_HUB_MAIN",
+  BRANCH_NAME: "CUT HUB POS STAGING",
+  ACTIVE: true,
+  TIME_ZONE: "Africa/Cairo",
+  PUBLIC_SELECTABLE: true,
+  CLOSURE_STATUS: "OPEN",
+  CLOSURE_REASON: ""
+});
+
+function branchRegistryRowContract() {
+  if (typeof BookingAvailabilityPhase5 !== "undefined") return BookingAvailabilityPhase5;
+  if (typeof require === "function") return require("./booking-availability-phase5");
+  throw new Error("Booking Availability contract is unavailable.");
+}
+
+function branchRegistryRowExpectedHeaders() {
+  return branchRegistryRowContract().SHEET_SCHEMAS[BRANCH_REGISTRY_ROW_SHEET].slice();
+}
+
+function branchRegistryRowNormalized(value) {
+  if (typeof branchFoundationNormalizeHeader === "function") {
+    return branchFoundationNormalizeHeader(value);
+  }
+  return String(value == null ? "" : value).trim().toUpperCase()
+    .replace(/[\s-]+/g, "_").replace(/_+/g, "_");
+}
+
+function branchRegistryRowBusinessValues(row) {
+  row = Array.isArray(row) ? row : [];
+  return {
+    BRANCH_ID: String(row[0] == null ? "" : row[0]).trim(),
+    BRANCH_NAME: String(row[1] == null ? "" : row[1]).trim(),
+    ACTIVE: row[2] === true || String(row[2]).trim().toLowerCase() === "true",
+    TIME_ZONE: String(row[3] == null ? "" : row[3]).trim(),
+    PUBLIC_SELECTABLE: row[4] === true || String(row[4]).trim().toLowerCase() === "true",
+    CLOSURE_STATUS: String(row[5] == null ? "" : row[5]).trim().toUpperCase(),
+    CLOSURE_REASON: String(row[6] == null ? "" : row[6]).trim()
+  };
+}
+
+function branchRegistryRowBusinessEqual(left, right) {
+  return Object.keys(BRANCH_REGISTRY_ROW_APPROVED).every(function (key) {
+    return left[key] === right[key];
+  });
+}
+
+function branchRegistryRowPreviewPlan(headers, rows, identity) {
+  var expectedHeaders = branchRegistryRowExpectedHeaders();
+  var normalizedHeaders = Array.isArray(headers) ? headers.map(branchRegistryRowNormalized) : [];
+  var normalizedExpected = expectedHeaders.map(branchRegistryRowNormalized);
+  var errors = [];
+  if (normalizedHeaders.length !== normalizedExpected.length ||
+      normalizedHeaders.some(function (header, index) {
+        return header !== normalizedExpected[index];
+      })) {
+    errors.push({ code: "BRANCH_REGISTRY_HEADERS_INCOMPATIBLE" });
+  }
+  rows = Array.isArray(rows) ? rows : [];
+  var exactMatches = rows.filter(function (row) {
+    return String(row[0] == null ? "" : row[0]).trim() === BRANCH_REGISTRY_ROW_APPROVED.BRANCH_ID;
+  });
+  var caseVariants = rows.filter(function (row) {
+    var branchId = String(row[0] == null ? "" : row[0]).trim();
+    return branchId && branchId !== BRANCH_REGISTRY_ROW_APPROVED.BRANCH_ID &&
+      branchId.toLowerCase() === BRANCH_REGISTRY_ROW_APPROVED.BRANCH_ID.toLowerCase();
+  });
+  if (exactMatches.length > 1) {
+    errors.push({ code: "BRANCH_REGISTRY_DUPLICATE_ID", count: exactMatches.length });
+  } else if (exactMatches.length === 1 && !branchRegistryRowBusinessEqual(
+    branchRegistryRowBusinessValues(exactMatches[0]), BRANCH_REGISTRY_ROW_APPROVED
+  )) {
+    errors.push({ code: "BRANCH_REGISTRY_ID_CONFLICT" });
+  }
+  if (caseVariants.length) {
+    errors.push({ code: "BRANCH_REGISTRY_CASE_AMBIGUOUS", count: caseVariants.length });
+  }
+  var identical = exactMatches.length === 1 && errors.length === 0;
+  var operations = [];
+  if (!errors.length && !identical) {
+    operations.push({
+      type: "APPEND_ROW",
+      sheetName: BRANCH_REGISTRY_ROW_SHEET,
+      values: {
+        BRANCH_ID: BRANCH_REGISTRY_ROW_APPROVED.BRANCH_ID,
+        BRANCH_NAME: BRANCH_REGISTRY_ROW_APPROVED.BRANCH_NAME,
+        ACTIVE: BRANCH_REGISTRY_ROW_APPROVED.ACTIVE,
+        TIME_ZONE: BRANCH_REGISTRY_ROW_APPROVED.TIME_ZONE,
+        PUBLIC_SELECTABLE: BRANCH_REGISTRY_ROW_APPROVED.PUBLIC_SELECTABLE,
+        CLOSURE_STATUS: BRANCH_REGISTRY_ROW_APPROVED.CLOSURE_STATUS,
+        CLOSURE_REASON: BRANCH_REGISTRY_ROW_APPROVED.CLOSURE_REASON,
+        CREATED_AT: "SERVER_TIMESTAMP",
+        CREATED_BY: "VERIFIED_ACTOR",
+        UPDATED_AT: "SERVER_TIMESTAMP",
+        UPDATED_BY: "VERIFIED_ACTOR",
+        LAST_REQUEST_ID: "EXECUTION_REQUEST_ID"
+      }
+    });
+  }
+  return {
+    schemaVersion: BRANCH_REGISTRY_ROW_VERSION,
+    version: BRANCH_REGISTRY_ROW_VERSION,
+    dryRun: true,
+    writes: 0,
+    identity: {
+      environment: String(identity && identity.environment || ""),
+      expectedSpreadsheetId: String(identity && identity.expectedSpreadsheetId || ""),
+      actualSpreadsheetId: String(identity && identity.actualSpreadsheetId || "")
+    },
+    sheetName: BRANCH_REGISTRY_ROW_SHEET,
+    expectedHeaders: expectedHeaders,
+    registryStateFingerprint: branchRegistryRowContract().hash({
+      headers: normalizedHeaders,
+      rows: rows
+    }),
+    proposedBranch: Object.assign({}, BRANCH_REGISTRY_ROW_APPROVED),
+    operations: operations,
+    unchanged: identical,
+    errors: errors,
+    safe: errors.length === 0
+  };
+}
+
+function branchRegistryRowReadState(identity) {
+  var sheet = identity.spreadsheet.getSheetByName(BRANCH_REGISTRY_ROW_SHEET);
+  if (!sheet) {
+    throw staffSchemaMigrationError(
+      "BRANCH_REGISTRY_SCHEMA_NOT_READY", "BOOKING_BRANCH_REGISTRY is required."
+    );
+  }
+  var lastColumn = sheet.getLastColumn();
+  var headers = lastColumn ? sheet.getRange(1, 1, 1, lastColumn).getValues()[0] : [];
+  var lastRow = sheet.getLastRow();
+  var rows = lastRow > 1
+    ? sheet.getRange(2, 1, lastRow - 1, Math.max(1, lastColumn)).getValues()
+    : [];
+  return { sheet: sheet, headers: headers, rows: rows };
+}
+
+function previewCanonicalBranchRegistryRow() {
+  var identity = branchFoundationIdentity();
+  var state = branchRegistryRowReadState(identity);
+  return branchRegistryRowPreviewPlan(state.headers, state.rows, identity);
+}
+
+function diagnosticPreviewCanonicalBranchRegistryRow() {
+  var result = previewCanonicalBranchRegistryRow();
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+function branchRegistryRowPlanHash(plan) {
+  return staffSchemaMigrationHash({
+    schemaVersion: plan.schemaVersion,
+    identity: plan.identity,
+    sheetName: plan.sheetName,
+    expectedHeaders: plan.expectedHeaders,
+    registryStateFingerprint: plan.registryStateFingerprint,
+    proposedBranch: plan.proposedBranch,
+    operations: plan.operations,
+    unchanged: plan.unchanged,
+    errors: plan.errors,
+    safe: plan.safe,
+    dryRun: plan.dryRun,
+    writes: plan.writes
+  });
+}
+
+function branchRegistryRowAssertPlan(plan) {
+  if (!plan || plan.safe !== true || plan.dryRun !== true || Number(plan.writes) !== 0 ||
+      !Array.isArray(plan.errors) || plan.errors.length !== 0 ||
+      !Array.isArray(plan.operations) || plan.operations.length > 1) {
+    throw staffSchemaMigrationError(
+      "BRANCH_REGISTRY_PREVIEW_NOT_SAFE", "Canonical branch row preview is not executable."
+    );
+  }
+  return plan;
+}
+
+function branchRegistryRowFingerprint(requestId, planHash, identity) {
+  return staffSchemaMigrationHash({
+    phase: BRANCH_REGISTRY_ROW_PHASE,
+    version: BRANCH_REGISTRY_ROW_VERSION,
+    requestId: requestId,
+    planHash: planHash,
+    spreadsheetId: identity.spreadsheet.getId(),
+    actorIdentity: identity.actorIdentity,
+    approvedBranch: BRANCH_REGISTRY_ROW_APPROVED
+  });
+}
+
+function branchRegistryRowPrepare(data) {
+  data = data && typeof data === "object" ? data : {};
+  var requestId = String(data.requestId || "").trim();
+  if (!requestId || requestId.length > 160) {
+    throw staffSchemaMigrationError(
+      "BRANCH_REGISTRY_REQUEST_ID_REQUIRED", "An explicit requestId is required."
+    );
+  }
+  var identity = branchFoundationIdentity();
+  return staffSchemaMigrationTryLocks(function () {
+    var journalKey = staffSchemaMigrationJournalKey(
+      BRANCH_REGISTRY_ROW_PHASE, requestId,
+      identity.spreadsheet.getId(), identity.actorIdentity
+    );
+    var scriptStore = PropertiesService.getScriptProperties();
+    var existing = staffSchemaMigrationReadJson(scriptStore, journalKey);
+    if (existing && ["APPLYING", "RECOVERY_REQUIRED"].indexOf(existing.status) !== -1) {
+      throw staffSchemaMigrationError(
+        "BRANCH_REGISTRY_REQUEST_NOT_PREPARABLE", "The request requires recovery."
+      );
+    }
+    var plan = branchRegistryRowAssertPlan(previewCanonicalBranchRegistryRow());
+    var livePlanHash = branchRegistryRowPlanHash(plan);
+    var bindingPlanHash = existing && existing.status === "COMMITTED"
+      ? existing.exactPlanHash : livePlanHash;
+    var fingerprint = branchRegistryRowFingerprint(requestId, bindingPlanHash, identity);
+    if (existing && existing.requestFingerprint !== fingerprint) {
+      throw staffSchemaMigrationError(
+        "BRANCH_REGISTRY_REQUEST_ID_REUSED", "requestId is bound to different state."
+      );
+    }
+    var rawToken = Utilities.getUuid() + "-" + Utilities.getUuid();
+    var tokenRecord = {
+      token: rawToken,
+      tokenHash: staffSchemaMigrationHash(rawToken),
+      phase: BRANCH_REGISTRY_ROW_PHASE,
+      requestId: requestId,
+      exactPlanHash: bindingPlanHash,
+      requestFingerprint: fingerprint,
+      spreadsheetId: identity.spreadsheet.getId(),
+      actorIdentity: identity.actorIdentity,
+      expiresAt: new Date(Date.now() + BRANCH_REGISTRY_ROW_TOKEN_TTL_MS).toISOString()
+    };
+    var journal = existing && existing.status === "COMMITTED" ? existing : {
+      migrationId: BRANCH_REGISTRY_ROW_VERSION,
+      schemaVersion: BRANCH_REGISTRY_ROW_VERSION,
+      phase: BRANCH_REGISTRY_ROW_PHASE,
+      requestId: requestId,
+      actorIdentity: identity.actorIdentity,
+      expectedSpreadsheetId: identity.spreadsheet.getId(),
+      startedTimestamp: staffSchemaMigrationNow(),
+      completedTimestamp: "",
+      status: "PREPARED",
+      exactPlanHash: livePlanHash,
+      requestFingerprint: fingerprint,
+      createdSheetNames: [],
+      appendedColumnRanges: [],
+      insertedRows: [],
+      errorDetails: [],
+      writes: 0,
+      finalResult: null
+    };
+    if (journal.status !== "COMMITTED") staffSchemaMigrationWriteJournal(journalKey, journal);
+    PropertiesService.getUserProperties().setProperty(
+      staffSchemaMigrationTokenKey(BRANCH_REGISTRY_ROW_PHASE), JSON.stringify(tokenRecord)
+    );
+    return {
+      tokenIssued: true,
+      expiresAt: tokenRecord.expiresAt,
+      requestId: requestId,
+      phase: BRANCH_REGISTRY_ROW_PHASE,
+      exactPlanHash: bindingPlanHash,
+      operationCount: plan.operations.length,
+      operationSummary: plan.operations.map(function (operation) {
+        return {
+          type: operation.type,
+          sheetName: operation.sheetName,
+          branchId: operation.values && operation.values.BRANCH_ID || ""
+        };
+      }),
+      proposedBranch: plan.proposedBranch,
+      alreadyCommitted: journal.status === "COMMITTED"
+    };
+  });
+}
+
+function prepareCanonicalBranchRegistryRow() {
+  var result = branchRegistryRowPrepare({ requestId: Utilities.getUuid() });
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+function branchRegistryRowValues(identity, requestId, timestamp) {
+  return [
+    BRANCH_REGISTRY_ROW_APPROVED.BRANCH_ID,
+    BRANCH_REGISTRY_ROW_APPROVED.BRANCH_NAME,
+    BRANCH_REGISTRY_ROW_APPROVED.ACTIVE,
+    BRANCH_REGISTRY_ROW_APPROVED.TIME_ZONE,
+    BRANCH_REGISTRY_ROW_APPROVED.PUBLIC_SELECTABLE,
+    BRANCH_REGISTRY_ROW_APPROVED.CLOSURE_STATUS,
+    BRANCH_REGISTRY_ROW_APPROVED.CLOSURE_REASON,
+    timestamp,
+    identity.actorIdentity,
+    timestamp,
+    identity.actorIdentity,
+    requestId
+  ];
+}
+
+function branchRegistryRowValuesEqual(left, right) {
+  return Array.isArray(left) && Array.isArray(right) && left.length === right.length &&
+    left.every(function (value, index) { return value === right[index]; });
+}
+
+function branchRegistryRowRollback(sheet, journal) {
+  var operation = journal.inFlightOperation || (journal.insertedRows || [])[0];
+  if (!operation) return [];
+  try {
+    if (sheet.getLastRow() < operation.rowNumber) return [];
+    if (sheet.getLastRow() !== operation.rowNumber) {
+      throw new Error("Inserted row is no longer the last row.");
+    }
+    var actual = sheet.getRange(operation.rowNumber, 1, 1, operation.values.length).getValues()[0];
+    if (!branchRegistryRowValuesEqual(actual, operation.values)) {
+      throw new Error("Inserted row no longer matches the request proof.");
+    }
+    sheet.deleteRow(operation.rowNumber);
+    return [];
+  } catch (error) {
+    return [{
+      operation: "APPEND_ROW",
+      rowNumber: operation.rowNumber,
+      message: String(error && error.message || error).slice(0, 500)
+    }];
+  }
+}
+
+function branchRegistryRowExecutePrepared() {
+  var identity = branchFoundationIdentity();
+  return staffSchemaMigrationTryLocks(function () {
+    var tokenKey = staffSchemaMigrationTokenKey(BRANCH_REGISTRY_ROW_PHASE);
+    var userStore = PropertiesService.getUserProperties();
+    var token = staffSchemaMigrationReadJson(userStore, tokenKey);
+    if (!token || token.phase !== BRANCH_REGISTRY_ROW_PHASE || !token.token ||
+        token.tokenHash !== staffSchemaMigrationHash(token.token)) {
+      throw staffSchemaMigrationError(
+        "BRANCH_REGISTRY_TOKEN_INVALID", "Prepared token is missing or invalid."
+      );
+    }
+    if (Date.parse(token.expiresAt || "") <= Date.now()) {
+      userStore.deleteProperty(tokenKey);
+      throw staffSchemaMigrationError("BRANCH_REGISTRY_TOKEN_EXPIRED", "Prepared token expired.");
+    }
+    if (token.spreadsheetId !== identity.spreadsheet.getId() ||
+        token.actorIdentity !== identity.actorIdentity) {
+      throw staffSchemaMigrationError(
+        "BRANCH_REGISTRY_TOKEN_MISMATCH", "Prepared token identity does not match."
+      );
+    }
+    var journalKey = staffSchemaMigrationJournalKey(
+      BRANCH_REGISTRY_ROW_PHASE, token.requestId,
+      identity.spreadsheet.getId(), identity.actorIdentity
+    );
+    var journal = staffSchemaMigrationReadJson(
+      PropertiesService.getScriptProperties(), journalKey
+    );
+    if (!journal || journal.requestFingerprint !== token.requestFingerprint ||
+        journal.exactPlanHash !== token.exactPlanHash) {
+      throw staffSchemaMigrationError(
+        "BRANCH_REGISTRY_PREPARED_STATE_MISMATCH", "Prepared journal does not match token."
+      );
+    }
+    if (journal.status === "COMMITTED") {
+      userStore.deleteProperty(tokenKey);
+      return journal.finalResult;
+    }
+    if (journal.status !== "PREPARED") {
+      throw staffSchemaMigrationError(
+        "BRANCH_REGISTRY_REQUEST_NOT_EXECUTABLE", "Request is not PREPARED."
+      );
+    }
+    var plan = branchRegistryRowAssertPlan(previewCanonicalBranchRegistryRow());
+    var planHash = branchRegistryRowPlanHash(plan);
+    var fingerprint = branchRegistryRowFingerprint(token.requestId, planHash, identity);
+    if (planHash !== token.exactPlanHash || fingerprint !== token.requestFingerprint) {
+      throw staffSchemaMigrationError(
+        "BRANCH_REGISTRY_PLAN_DRIFT", "Branch registry state changed after preparation."
+      );
+    }
+    userStore.deleteProperty(tokenKey);
+    journal.status = "APPLYING";
+    staffSchemaMigrationWriteJournal(journalKey, journal);
+    var state = branchRegistryRowReadState(identity);
+    try {
+      if (plan.operations.length === 1) {
+        var timestamp = new Date().toISOString();
+        var values = branchRegistryRowValues(identity, token.requestId, timestamp);
+        var operation = {
+          type: "APPEND_ROW",
+          sheetName: BRANCH_REGISTRY_ROW_SHEET,
+          rowNumber: state.sheet.getLastRow() + 1,
+          values: values
+        };
+        journal.inFlightOperation = operation;
+        staffSchemaMigrationWriteJournal(journalKey, journal);
+        state.sheet.getRange(operation.rowNumber, 1, 1, values.length).setValues([values]);
+        journal.insertedRows.push(operation);
+        journal.inFlightOperation = null;
+        journal.writes = 1;
+        staffSchemaMigrationWriteJournal(journalKey, journal);
+      }
+      var verification = branchRegistryRowAssertPlan(previewCanonicalBranchRegistryRow());
+      if (!verification.unchanged || verification.operations.length !== 0) {
+        throw staffSchemaMigrationError(
+          "BRANCH_REGISTRY_FINAL_VERIFICATION_FAILED", "Canonical branch row verification failed."
+        );
+      }
+      var result = {
+        status: "COMMITTED",
+        migrationId: BRANCH_REGISTRY_ROW_VERSION,
+        phase: BRANCH_REGISTRY_ROW_PHASE,
+        requestId: token.requestId,
+        exactPlanHash: planHash,
+        spreadsheetId: identity.spreadsheet.getId(),
+        actorIdentity: identity.actorIdentity,
+        branchId: BRANCH_REGISTRY_ROW_APPROVED.BRANCH_ID,
+        insertedRowNumber: journal.insertedRows.length
+          ? journal.insertedRows[0].rowNumber : 0,
+        writes: journal.writes,
+        completedTimestamp: staffSchemaMigrationNow()
+      };
+      journal.status = "COMMITTED";
+      journal.completedTimestamp = result.completedTimestamp;
+      journal.finalResult = result;
+      staffSchemaMigrationWriteJournal(journalKey, journal);
+      return result;
+    } catch (caught) {
+      journal.errorDetails.push({
+        code: String(caught && caught.code || "BRANCH_REGISTRY_EXECUTION_FAILED").slice(0, 120),
+        message: String(caught && caught.message || caught).slice(0, 500)
+      });
+      var rollbackFailures = branchRegistryRowRollback(state.sheet, journal);
+      journal.inFlightOperation = rollbackFailures.length ? journal.inFlightOperation : null;
+      journal.status = rollbackFailures.length ? "RECOVERY_REQUIRED" : "ROLLED_BACK";
+      if (rollbackFailures.length) journal.errorDetails = journal.errorDetails.concat(rollbackFailures);
+      else journal.completedTimestamp = staffSchemaMigrationNow();
+      staffSchemaMigrationWriteJournal(journalKey, journal);
+      if (rollbackFailures.length) {
+        throw staffSchemaMigrationError(
+          "BRANCH_REGISTRY_RECOVERY_REQUIRED",
+          "Canonical branch row rollback could not be proven safe.", rollbackFailures
+        );
+      }
+      throw caught;
+    }
+  });
+}
+
+function executePreparedCanonicalBranchRegistryRowStaging() {
+  var result = branchRegistryRowExecutePrepared();
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    VERSION: BRANCH_REGISTRY_ROW_VERSION,
+    APPROVED: BRANCH_REGISTRY_ROW_APPROVED,
+    previewPlan: branchRegistryRowPreviewPlan
+  };
+}
+
+/* END branch-registry-row-staging.js */
 
 /* BEGIN booking-availability-phase5-gas.js */
 /* global BookingAvailabilityPhase5, StaffAttendancePhase3, StaffSchedulingPhase2,
@@ -7753,8 +11315,8 @@ function bookingAvailabilityPhase5AssertIdentity(options) {
     spreadsheetError.code = "AVAILABILITY_SPREADSHEET_IDENTITY_MISMATCH";
     throw spreadsheetError;
   }
-  if (data.preview && ["production", "staging"].indexOf(config.environment) !== -1) {
-    var previewError = new Error("Phase 5 migration preview cannot access staging or production.");
+  if (data.preview && config.environment === "production") {
+    var previewError = new Error("Phase 5 preview cannot access production.");
     previewError.code = "PHASE5_ENVIRONMENT_BLOCKED";
     throw previewError;
   }
@@ -8309,6 +11871,7 @@ function bookingAvailabilityPhase5CommittedResultForRequest(requestId) {
   if (String(matches[0].status).toUpperCase() === "COMMITTED") {
     return bookingAvailabilityPhase5TransactionResult(matches[0]);
   }
+  if (bookingAvailabilityPhase5TransactionSafelyRetryable(matches[0])) return null;
   var error = BookingAvailabilityPhase5.availabilityError(
     "AVAILABILITY_RECOVERY_REQUIRED", "The original request has a durable recovery state.");
   error.details = {
@@ -8317,6 +11880,31 @@ function bookingAvailabilityPhase5CommittedResultForRequest(requestId) {
     recoveryRequired: matches[0].recoveryRequired === true
   };
   throw error;
+}
+
+function bookingAvailabilityPhase5TransactionSafelyRetryable(record) {
+  if (!record || String(record.status || "").toUpperCase() !== "COMPENSATED" ||
+      record.recoveryRequired === true ||
+      String(record.recoveryRequired || "").toUpperCase() === "TRUE") return false;
+  var compensation = record.compensationState || {};
+  return compensation.completed === true ||
+    String(compensation.completed || "").toUpperCase() === "TRUE";
+}
+
+function bookingAvailabilityPhase5BusinessFailureHasNoEffect(error) {
+  return !!error && (error.businessMutationState === "NOT_STARTED" ||
+    error.noBusinessMutation === true);
+}
+
+function bookingAvailabilityPhase5RetryHistory(record) {
+  var compensation = record && record.compensationState || {};
+  var history = Array.isArray(compensation.retryHistory) ? compensation.retryHistory.slice(-9) : [];
+  history.push({
+    status: record.status, errorCode: record.errorCode, errorMessage: record.errorMessage,
+    writeBoundary: record.writeBoundary, compensationCompleted: compensation.completed === true,
+    compensationSteps: compensation.steps || [], updatedAt: record.updatedAt
+  });
+  return history;
 }
 
 function bookingAvailabilityPhase5TransactionResult(record) {
@@ -8334,34 +11922,50 @@ function bookingAvailabilityPhase5RunTransaction(options) {
       "AVAILABILITY_TRANSACTION_REQUEST_INVALID", "A valid transaction request ID is required.");
   }
   var prior = bookingAvailabilityPhase5FindTransaction(action, requestId);
+  var retryHistory = [];
   if (prior) {
     var status = String(prior.status || "").toUpperCase();
     if (status === "COMMITTED") return bookingAvailabilityPhase5TransactionResult(prior);
-    var recovery = BookingAvailabilityPhase5.availabilityError(
-      "AVAILABILITY_RECOVERY_REQUIRED", "The original request requires deterministic recovery.");
-    recovery.details = {
-      transactionId: prior.transactionId, status: status,
-      writeBoundary: prior.writeBoundary, recoveryRequired: true
-    };
-    throw recovery;
+    if (bookingAvailabilityPhase5TransactionSafelyRetryable(prior)) {
+      retryHistory = bookingAvailabilityPhase5RetryHistory(prior);
+    } else {
+      var recovery = BookingAvailabilityPhase5.availabilityError(
+        "AVAILABILITY_RECOVERY_REQUIRED", "The original request requires deterministic recovery.");
+      recovery.details = {
+        transactionId: prior.transactionId, status: status,
+        writeBoundary: prior.writeBoundary, recoveryRequired: true
+      };
+      throw recovery;
+    }
   }
   var identity = bookingAvailabilityPhase5AssertIdentity();
   var actor = options.actor || bookingAvailabilityPhase5Actor(data, true);
   var now = bookingAvailabilityPhase5Now();
-  var transaction = {
+  var transaction = prior || {
     transactionId: "BAT-" + Utilities.getUuid(), requestId: requestId, action: action,
+    createdAt: now
+  };
+  Object.assign(transaction, {
+    requestId: requestId, action: action,
     entityType: options.entityType || "", entityId: options.entityId || "",
     branchId: options.branchId || "", date: options.date || "",
     actorId: actor ? actor.actorId : "public", environment: identity.config.environment,
     status: "INTENT", writeBoundary: "INTENT", beforeState: options.beforeState || {},
     businessState: {}, versionState: {}, auditState: {}, result: {},
-    errorCode: "", errorMessage: "", compensationState: {},
-    recoveryRequired: false, createdAt: now, updatedAt: now
-  };
+    errorCode: "", errorMessage: "",
+    compensationState: { retryCount: retryHistory.length, retryHistory: retryHistory },
+    recoveryRequired: false, updatedAt: now
+  });
   bookingAvailabilityPhase5SaveTransaction(transaction);
-  bookingAvailabilityPhase5FailurePoint(data, "INTENT");
   var businessResult;
+  var businessAttempted = false;
   try {
+    bookingAvailabilityPhase5FailurePoint(data, "INTENT");
+    transaction.status = "BUSINESS_STARTED";
+    transaction.writeBoundary = "BUSINESS_STARTED";
+    transaction.updatedAt = bookingAvailabilityPhase5Now();
+    bookingAvailabilityPhase5SaveTransaction(transaction);
+    businessAttempted = true;
     businessResult = options.business(transaction);
     transaction.entityId = transaction.entityId ||
       bookingAvailabilityPhase5Text(businessResult && (businessResult.id ||
@@ -8400,23 +12004,33 @@ function bookingAvailabilityPhase5RunTransaction(options) {
     if (String(transaction.status).toUpperCase() === "COMMITTED") {
       return transaction.result || {};
     }
-    var compensation = { attempted: true, completed: false, steps: [] };
+    var compensation = {
+      attempted: true, completed: false, steps: [],
+      retryCount: Number(transaction.compensationState && transaction.compensationState.retryCount) || 0,
+      retryHistory: transaction.compensationState && transaction.compensationState.retryHistory || []
+    };
     try {
-      if (options.compensateAudit && transaction.auditState) {
+      if (options.compensateAudit && transaction.auditState &&
+          Object.keys(transaction.auditState).length) {
         options.compensateAudit(transaction.auditState, transaction);
         compensation.steps.push("AUDIT");
       }
-      if (options.compensateVersion && transaction.versionState) {
+      if (options.compensateVersion && transaction.versionState &&
+          Object.keys(transaction.versionState).length) {
         options.compensateVersion(transaction.versionState, transaction);
         compensation.steps.push("VERSION");
       }
-      if (options.compensateBusiness && businessResult) {
+      if (!businessAttempted) {
+        compensation.steps.push("BUSINESS_NOT_STARTED");
+      } else if (bookingAvailabilityPhase5BusinessFailureHasNoEffect(error)) {
+        compensation.steps.push("BUSINESS_NOT_WRITTEN");
+      } else if (options.compensateBusiness) {
         options.compensateBusiness(businessResult, transaction);
         compensation.steps.push("BUSINESS");
-      } else if (businessResult && !options.compensateBusiness) {
+      } else {
         throw BookingAvailabilityPhase5.availabilityError(
           "AVAILABILITY_COMPENSATION_UNAVAILABLE",
-          "Business compensation is not available for this mutation.");
+          "Business compensation is not available for an attempted mutation.");
       }
       bookingAvailabilityPhase5FailurePoint(data, "COMPENSATION");
       compensation.completed = true;
@@ -8504,6 +12118,44 @@ function bookingAvailabilityPhase5IncrementVersion(kind, branchId, date, actor) 
   var generation = bookingAvailabilityPhase5IncrementGeneration(
     generationKind, generationScope, generationId, actor, "");
   return { before: before, after: current, generation: generation };
+}
+
+function bookingAvailabilityPhase5IncrementVersionOnly(kind, branchId, date, actor) {
+  var fieldByKind = {
+    booking: "bookingVersion", schedule: "scheduleVersion",
+    attendance: "attendanceOperationalVersion",
+    operationalOverride: "operationalOverrideVersion",
+    service: "serviceVersion", branchHours: "branchHoursVersion"
+  };
+  var field = fieldByKind[kind];
+  if (!field || !bookingAvailabilityPhase5Text(branchId) ||
+      !bookingAvailabilityPhase5ValidDate(date)) {
+    throw BookingAvailabilityPhase5.availabilityError(
+      "AVAILABILITY_VERSION_SCOPE_INVALID", "Availability version scope is invalid.");
+  }
+  bookingAvailabilityPhase5RequireSheet("BOOKING_AVAILABILITY_VERSIONS");
+  var rows = schedulePhase2ReadRows("BOOKING_AVAILABILITY_VERSIONS").filter(function (item) {
+    return bookingAvailabilityPhase5Text(item.branchId) === bookingAvailabilityPhase5Text(branchId) &&
+      bookingAvailabilityPhase5Text(item.date) === bookingAvailabilityPhase5Text(date);
+  });
+  if (rows.length > 1) throw BookingAvailabilityPhase5.availabilityError(
+    "AVAILABILITY_VERSION_AMBIGUOUS", "Availability version scope is ambiguous.");
+  var before = rows[0] ? JSON.parse(JSON.stringify(rows[0])) : null;
+  var current = rows[0] || {
+    versionId: "BAV-" + bookingAvailabilityPhase5Text(branchId) + "-" + date,
+    branchId: branchId, date: date, bookingVersion: 0, scheduleVersion: 0,
+    attendanceOperationalVersion: 0, operationalOverrideVersion: 0,
+    serviceVersion: 0, branchHoursVersion: 0
+  };
+  current[field] = BookingAvailabilityPhase5.nextGeneration(current[field], 0).value;
+  current.updatedAt = bookingAvailabilityPhase5Now();
+  current.updatedBy = actor ? actor.actorId : "system";
+  schedulePhase2Save(
+    "BOOKING_AVAILABILITY_VERSIONS",
+    BookingAvailabilityPhase5.SHEET_SCHEMAS.BOOKING_AVAILABILITY_VERSIONS,
+    "VERSION_ID", current
+  );
+  return { before: before, after: current };
 }
 
 function bookingAvailabilityPhase5CreateOverride(data, actor) {
@@ -8615,7 +12267,7 @@ function bookingAvailabilityPhase5CreateOverride(data, actor) {
     var attendance = bookingAvailabilityPhase5Attendance(staffMatches[0], date);
     var record = {
       operationalOverrideId: "BOV-" + Utilities.getUuid(),
-      branchId: branchId, staffId: record.staffId, date: date,
+      branchId: branchId, staffId: staffId, date: date,
       startTime: startTime, endTime: endTime, status: "ACTIVE",
       reason: reason, sourceAttendanceDayId: attendance.attendanceDayId,
       sourceEventIds: attendance.sourceEventIds,
@@ -8963,6 +12615,122 @@ function publishOperationalMutationUnderCurrentLock(kind, data, result) {
   return bookingAvailabilityPhase5AfterMutationUnderLock(kind, data, result);
 }
 
+function bookingAvailabilityPhase5PolicyDates(effectiveFrom, effectiveTo) {
+  var start = bookingAvailabilityPhase5Text(effectiveFrom);
+  var end = bookingAvailabilityPhase5Text(effectiveTo);
+  if (!bookingAvailabilityPhase5ValidDate(start) ||
+      (end && !bookingAvailabilityPhase5ValidDate(end)) || (end && end < start)) {
+    throw BookingAvailabilityPhase5.availabilityError(
+      "AVAILABILITY_POLICY_DATE_SCOPE_INVALID", "Work Policy date scope is invalid.");
+  }
+  if (!end) return [];
+  var dates = [];
+  var cursor = new Date(start + "T00:00:00Z");
+  var finalDate = new Date(end + "T00:00:00Z");
+  while (cursor <= finalDate) {
+    if (dates.length >= 366) throw BookingAvailabilityPhase5.availabilityError(
+      "AVAILABILITY_POLICY_DATE_SCOPE_TOO_LARGE",
+      "Work Policy date scope exceeds the bounded invalidation contract.");
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+function bookingAvailabilityPhase5ResolveWorkPolicyScope(data, result) {
+  var action = bookingAvailabilityPhase5Text(data && data.action);
+  if (["createWorkPolicy", "deactivateWorkPolicy"].indexOf(action) === -1) return null;
+  var policy = result && result.workPolicy;
+  var staffId = bookingAvailabilityPhase5Text(policy && policy.staffId);
+  if (!staffId) throw BookingAvailabilityPhase5.availabilityError(
+    "AVAILABILITY_POLICY_STAFF_SCOPE_INVALID", "Work Policy staff scope is invalid.");
+  var matches = schedulePhase2ReadStaff().filter(function (item) {
+    return bookingAvailabilityPhase5Text(item.staffId) === staffId;
+  });
+  if (matches.length !== 1 || !bookingAvailabilityPhase5Text(matches[0].branchId)) {
+    throw BookingAvailabilityPhase5.availabilityError(
+      matches.length > 1 ? "AVAILABILITY_POLICY_STAFF_SCOPE_AMBIGUOUS" :
+        "AVAILABILITY_POLICY_STAFF_BRANCH_REQUIRED",
+      "Work Policy staff must resolve to exactly one canonical branch.");
+  }
+  var branchId = bookingAvailabilityPhase5Text(matches[0].branchId);
+  var suppliedBranchId = bookingAvailabilityPhase5Text(data && data.branchId);
+  if (suppliedBranchId && suppliedBranchId !== branchId) {
+    throw BookingAvailabilityPhase5.availabilityError(
+      "AVAILABILITY_POLICY_BRANCH_SCOPE_MISMATCH",
+      "Client-supplied branch scope cannot override canonical STAFF authority.");
+  }
+  bookingAvailabilityPhase5Branch(branchId, { allowClosed: true });
+  var effectiveFrom = bookingAvailabilityPhase5Text(policy.effectiveFrom);
+  var effectiveTo = bookingAvailabilityPhase5Text(policy.effectiveTo);
+  return {
+    policyId: bookingAvailabilityPhase5Text(policy.policyId), staffId: staffId,
+    branchId: branchId, effectiveFrom: effectiveFrom, effectiveTo: effectiveTo,
+    dates: bookingAvailabilityPhase5PolicyDates(effectiveFrom, effectiveTo)
+  };
+}
+
+function bookingAvailabilityPhase5PreflightWorkPolicyScope(data) {
+  if (bookingAvailabilityPhase5Text(data && data.action) !== "createWorkPolicy") return null;
+  var input = data && data.policy || {};
+  var staffId = bookingAvailabilityPhase5Text(input.staffId || input.STAFF_ID || data.staffId);
+  if (!staffId) return null;
+  var matches = schedulePhase2ReadStaff().filter(function (item) {
+    return bookingAvailabilityPhase5Text(item.staffId) === staffId;
+  });
+  if (matches.length !== 1 || !bookingAvailabilityPhase5Text(matches[0].branchId)) {
+    throw BookingAvailabilityPhase5.availabilityError(
+      matches.length > 1 ? "AVAILABILITY_POLICY_STAFF_SCOPE_AMBIGUOUS" :
+        "AVAILABILITY_POLICY_STAFF_BRANCH_REQUIRED",
+      "Work Policy staff must resolve to exactly one canonical branch.");
+  }
+  var branchId = bookingAvailabilityPhase5Text(matches[0].branchId);
+  var suppliedBranchId = bookingAvailabilityPhase5Text(data && data.branchId);
+  if (suppliedBranchId && suppliedBranchId !== branchId) {
+    throw BookingAvailabilityPhase5.availabilityError(
+      "AVAILABILITY_POLICY_BRANCH_SCOPE_MISMATCH",
+      "Client-supplied branch scope cannot override canonical STAFF authority.");
+  }
+  bookingAvailabilityPhase5Branch(branchId, { allowClosed: true });
+  return { branchId: branchId, staffId: staffId };
+}
+
+function bookingAvailabilityPhase5InvalidateWorkPolicy(scope, actor, requestId) {
+  var generation = bookingAvailabilityPhase5IncrementGeneration(
+    "attendance", "BRANCH", scope.branchId, actor, requestId);
+  var versions = scope.dates.map(function (date) {
+    return bookingAvailabilityPhase5IncrementVersionOnly(
+      "attendance", scope.branchId, date, actor);
+  });
+  return {
+    kind: "WORK_POLICY", scopeType: "BRANCH", branchId: scope.branchId,
+    staffId: scope.staffId, effectiveFrom: scope.effectiveFrom,
+    effectiveTo: scope.effectiveTo, affectedDates: scope.dates,
+    generation: generation, versions: versions
+  };
+}
+
+function bookingAvailabilityPhase5WorkPolicyAudit(scope, actor, requestId) {
+  var matches = schedulePhase2ReadRows("BOOKING_AVAILABILITY_AUDIT").filter(function (item) {
+    return bookingAvailabilityPhase5Text(item.requestId) === requestId &&
+      bookingAvailabilityPhase5Text(item.entityId) === scope.policyId &&
+      bookingAvailabilityPhase5Text(item.action) === "WORK_POLICY_AVAILABILITY_INVALIDATED";
+  });
+  if (matches.length > 1) throw BookingAvailabilityPhase5.availabilityError(
+    "AVAILABILITY_POLICY_AUDIT_AMBIGUOUS", "Work Policy invalidation audit is ambiguous.");
+  if (matches.length === 1) return matches[0];
+  return bookingAvailabilityPhase5AppendAudit({
+    action: "WORK_POLICY_AVAILABILITY_INVALIDATED", entityType: "STAFF_WORK_POLICY",
+    entityId: scope.policyId, branchId: scope.branchId, staffId: scope.staffId,
+    date: scope.effectiveFrom, actorId: actor ? actor.actorId : "system",
+    actorRole: actor ? actor.role : "SYSTEM", reasonCode: "WORK_POLICY_SCOPE_CHANGED",
+    sourceIds: [scope.policyId], afterState: {
+      effectiveFrom: scope.effectiveFrom, effectiveTo: scope.effectiveTo,
+      affectedDates: scope.dates
+    }, requestId: requestId
+  });
+}
+
 function bookingAvailabilityPhase5RunOperationalMutationTransaction(kind, data, callback) {
   if (bookingAvailabilityPhase5Flags().engine === "LEGACY") return callback();
   var requestId = bookingAvailabilityPhase5Text(data && (data.clientRequestId || data.requestId));
@@ -8973,15 +12741,36 @@ function bookingAvailabilityPhase5RunOperationalMutationTransaction(kind, data, 
     });
   }
   var actor = bookingAvailabilityPhase5Actor(data, true);
+  var policyPreflight = bookingAvailabilityPhase5PreflightWorkPolicyScope(data);
   return bookingAvailabilityPhase5RunTransaction({
     data: data, requestId: requestId,
     action: String(kind).toUpperCase() + "_AVAILABILITY_INVALIDATION",
     entityType: String(kind).toUpperCase() + "_MUTATION",
-    branchId: bookingAvailabilityPhase5Text(data && data.branchId),
+    branchId: policyPreflight ? policyPreflight.branchId :
+      bookingAvailabilityPhase5Text(data && data.branchId),
     date: bookingAvailabilityPhase5Text(data && data.date),
     actor: actor, beforeState: {},
-    business: function () { return callback(); },
-    version: function (result) {
+    business: function () {
+      try {
+        return callback();
+      } catch (error) {
+        var domainCode = String(error && error.code || "").toUpperCase();
+        if (domainCode !== "SCHEDULE_COMPENSATION_FAILED" &&
+            domainCode !== "ATTENDANCE_COMPENSATION_FAILED") {
+          error.noBusinessMutation = true;
+        }
+        throw error;
+      }
+    },
+    version: function (result, transaction) {
+      var policyScope = bookingAvailabilityPhase5ResolveWorkPolicyScope(data, result);
+      if (policyScope) {
+        transaction.branchId = policyScope.branchId;
+        transaction.date = policyScope.effectiveFrom;
+        transaction.entityType = "STAFF_WORK_POLICY";
+        transaction.entityId = policyScope.policyId;
+        return bookingAvailabilityPhase5InvalidateWorkPolicy(policyScope, actor, requestId);
+      }
       var day = result && (result.attendanceDay || result.day);
       var record = result && (result.override || result.scheduleOverride || result.record);
       var branchId = bookingAvailabilityPhase5Text(
@@ -8996,6 +12785,9 @@ function bookingAvailabilityPhase5RunOperationalMutationTransaction(kind, data, 
       return bookingAvailabilityPhase5IncrementVersion(kind, branchId, date, actor);
     },
     audit: function (result) {
+      var policyScope = bookingAvailabilityPhase5ResolveWorkPolicyScope(data, result);
+      if (policyScope) return bookingAvailabilityPhase5WorkPolicyAudit(
+        policyScope, actor, requestId);
       var day = result && (result.attendanceDay || result.day);
       var record = result && (result.override || result.scheduleOverride || result.record);
       var branchId = bookingAvailabilityPhase5Text(
@@ -9016,6 +12808,138 @@ function bookingAvailabilityPhase5RunOperationalMutationTransaction(kind, data, 
       });
     },
     response: function (result) { return result; }
+  });
+}
+
+function bookingAvailabilityPhase5RecoverWorkPolicyTransaction(data, actor) {
+  if (!actor || !actor.owner) throw BookingAvailabilityPhase5.availabilityError(
+    "AVAILABILITY_OWNER_REQUIRED", "Only owner can recover availability transactions.");
+  var transactionId = bookingAvailabilityPhase5Text(data.transactionId);
+  var originalRequestId = bookingAvailabilityPhase5Text(data.originalRequestId);
+  var recoveryRequestId = bookingAvailabilityPhase5Text(data.requestId);
+  if (!transactionId || !bookingAvailabilityPhase5ValidRequestId(originalRequestId) ||
+      !bookingAvailabilityPhase5ValidRequestId(recoveryRequestId)) {
+    throw BookingAvailabilityPhase5.availabilityError(
+      "AVAILABILITY_RECOVERY_REQUEST_INVALID", "Recovery transaction and request identity are required.");
+  }
+  return bookingAvailabilityPhase5WithLock(function () {
+    var matches = schedulePhase2ReadRows("BOOKING_AVAILABILITY_TRANSACTIONS").filter(function (item) {
+      return bookingAvailabilityPhase5Text(item.transactionId) === transactionId &&
+        bookingAvailabilityPhase5Text(item.requestId) === originalRequestId;
+    });
+    if (matches.length !== 1) throw BookingAvailabilityPhase5.availabilityError(
+      matches.length ? "AVAILABILITY_TRANSACTION_AMBIGUOUS" : "AVAILABILITY_TRANSACTION_NOT_FOUND",
+      "Recovery transaction was not found uniquely.");
+    var transaction = matches[0];
+    if (String(transaction.status).toUpperCase() === "COMMITTED") {
+      return { recovered: true, replay: true, transactionId: transactionId,
+        result: bookingAvailabilityPhase5TransactionResult(transaction) };
+    }
+    if (String(transaction.status).toUpperCase() === "COMPENSATED" &&
+        transaction.recoveryRequired !== true &&
+        String(transaction.recoveryRequired || "").toUpperCase() !== "TRUE") {
+      return { recovered: true, replay: true, compensated: true,
+        transactionId: transactionId, result: {} };
+    }
+    var transactionAction = String(transaction.action || "").toUpperCase();
+    var domainPrefix = transactionAction === "SCHEDULE_AVAILABILITY_INVALIDATION"
+      ? "SCHEDULE" : transactionAction === "ATTENDANCE_AVAILABILITY_INVALIDATION"
+        ? "ATTENDANCE" : "";
+    var domainRecoveryMarker = domainPrefix
+      ? PropertiesService.getScriptProperties().getProperty(
+        domainPrefix + "_RECOVERY_" + originalRequestId) : "";
+    var compensation = transaction.compensationState || {};
+    var emptyOperationalState = [transaction.businessState, transaction.versionState,
+      transaction.auditState, transaction.result].every(function (value) {
+        return !value || !Object.keys(value).length;
+      });
+    var domainCompensationFailed = String(transaction.errorCode || "").toUpperCase() ===
+      domainPrefix + "_COMPENSATION_FAILED";
+    if (String(transaction.status).toUpperCase() === "RECOVERY_REQUIRED" &&
+        domainPrefix && emptyOperationalState && !domainRecoveryMarker &&
+        !domainCompensationFailed &&
+        String(compensation.errorCode || "").toUpperCase() ===
+          "AVAILABILITY_COMPENSATION_UNAVAILABLE") {
+      transaction.compensationState = {
+        attempted: true, completed: true,
+        steps: ["BUSINESS_ROLLED_BACK_BY_DOMAIN_TRANSACTION"],
+        retryCount: Number(compensation.retryCount) || 0,
+        retryHistory: compensation.retryHistory || []
+      };
+      transaction.status = "COMPENSATED";
+      transaction.writeBoundary = "RECOVERY_COMPENSATED";
+      transaction.recoveryRequired = false;
+      transaction.updatedAt = bookingAvailabilityPhase5Now();
+      bookingAvailabilityPhase5SaveTransaction(transaction);
+      return { recovered: true, replay: false, compensated: true,
+        transactionId: transactionId, result: {} };
+    }
+    if (String(transaction.status).toUpperCase() !== "RECOVERY_REQUIRED" ||
+        bookingAvailabilityPhase5Text(transaction.action) !== "ATTENDANCE_AVAILABILITY_INVALIDATION" ||
+        bookingAvailabilityPhase5Text(transaction.errorCode) !== "AVAILABILITY_GENERATION_SCOPE_INVALID") {
+      throw BookingAvailabilityPhase5.availabilityError(
+        "AVAILABILITY_RECOVERY_STATE_UNSUPPORTED",
+        "Only the proven Work Policy invalidation recovery state is supported.");
+    }
+    var result = transaction.businessState;
+    var policy = result && result.workPolicy;
+    if (!policy || ["CREATE_WORK_POLICY_OK", "DEACTIVATE_WORK_POLICY_OK"].indexOf(
+        bookingAvailabilityPhase5Text(result.code)) === -1) {
+      throw BookingAvailabilityPhase5.availabilityError(
+        "AVAILABILITY_RECOVERY_BUSINESS_EVIDENCE_INVALID",
+        "Committed Work Policy business evidence is missing.");
+    }
+    var policyRows = schedulePhase2ReadRows("STAFF_WORK_POLICIES").filter(function (item) {
+      return bookingAvailabilityPhase5Text(item.policyId) ===
+        bookingAvailabilityPhase5Text(policy.policyId);
+    });
+    var idempotencyRows = schedulePhase2ReadRows("STAFF_ATTENDANCE_IDEMPOTENCY").filter(function (item) {
+      return bookingAvailabilityPhase5Text(item.requestId) === originalRequestId &&
+        String(item.status || "").toUpperCase() === "COMPLETED";
+    });
+    if (policyRows.length !== 1 || idempotencyRows.length !== 1) {
+      throw BookingAvailabilityPhase5.availabilityError(
+        "AVAILABILITY_RECOVERY_BUSINESS_EVIDENCE_INVALID",
+        "Work Policy and idempotency evidence must each exist exactly once.");
+    }
+    var originalAction = bookingAvailabilityPhase5Text(idempotencyRows[0].action);
+    var scope = bookingAvailabilityPhase5ResolveWorkPolicyScope(
+      { action: originalAction }, result);
+    if (!transaction.versionState || !Object.keys(transaction.versionState).length) {
+      transaction.versionState = bookingAvailabilityPhase5InvalidateWorkPolicy(
+        scope, actor, originalRequestId);
+      transaction.status = "VERSION_WRITTEN";
+      transaction.writeBoundary = "RECOVERY_VERSION";
+      transaction.branchId = scope.branchId;
+      transaction.date = scope.effectiveFrom;
+      transaction.entityType = "STAFF_WORK_POLICY";
+      transaction.entityId = scope.policyId;
+      transaction.updatedAt = bookingAvailabilityPhase5Now();
+      bookingAvailabilityPhase5SaveTransaction(transaction);
+    }
+    if (!transaction.auditState || !Object.keys(transaction.auditState).length) {
+      transaction.auditState = bookingAvailabilityPhase5WorkPolicyAudit(
+        scope, actor, originalRequestId);
+      transaction.status = "AUDIT_WRITTEN";
+      transaction.writeBoundary = "RECOVERY_AUDIT";
+      transaction.updatedAt = bookingAvailabilityPhase5Now();
+      bookingAvailabilityPhase5SaveTransaction(transaction);
+    }
+    transaction.result = result;
+    transaction.status = "COMMITTED";
+    transaction.writeBoundary = "RECOVERED";
+    transaction.errorCode = "";
+    transaction.errorMessage = "";
+    transaction.recoveryRequired = false;
+    transaction.compensationState = {
+      recovered: true, recoveryRequestId: recoveryRequestId,
+      recoveredAt: bookingAvailabilityPhase5Now(), recoveredBy: actor.actorId
+    };
+    transaction.updatedAt = bookingAvailabilityPhase5Now();
+    bookingAvailabilityPhase5SaveTransaction(transaction);
+    return { recovered: true, replay: false, transactionId: transactionId,
+      branchId: scope.branchId, staffId: scope.staffId,
+      affectedDates: scope.dates, result: result };
   });
 }
 
@@ -9601,16 +13525,17 @@ function bookingAvailabilityPhase5DetectorFreshContext(unit) {
 }
 
 function previewBookingNoCheckInTriggerInstallation(data) {
-  bookingAvailabilityPhase5AssertIdentity({ preview: true });
+  var identity = bookingAvailabilityPhase5AssertIdentity({ preview: true });
   var actor = bookingAvailabilityPhase5Actor(data);
   if (!actor.owner) throw BookingAvailabilityPhase5.availabilityError(
     "AVAILABILITY_OWNER_REQUIRED", "Only owner can preview the detector trigger.");
   return {
+    environment: identity.config.environment, dryRun: true,
     executionAllowed: false, installed: false, writes: 0, checkpointWrites: 0,
     handler: "runBookingNoCheckInDetector", cadenceMinutes: 5,
     limits: bookingAvailabilityPhase5DetectorLimits(data),
     checkpoint: { mode: "REPRODUCIBLE_TOKEN", durableWritesEnabled: false },
-    requiredGates: ["development-or-test", "PHASE5", "planned-enabled",
+    requiredGates: ["non-production", "PHASE5", "planned-enabled",
       "attendance-live-enabled", "conflict-resolution-enabled", "detector-enabled"],
     note: "Preview only. No conflicts, audits, checkpoints, generations, data, or ScriptApp triggers are written."
   };
@@ -9874,6 +13799,12 @@ function handleBookingAvailabilityPhase5Action(data) {
       return jsonOutput({
         status: "success",
         branch: bookingAvailabilityPhase5SaveBranchConfiguration(data, actor)
+      });
+    }
+    if (data.action === "recoverBookingAvailabilityTransaction") {
+      return jsonOutput({
+        status: "success",
+        recovery: bookingAvailabilityPhase5RecoverWorkPolicyTransaction(data, actor)
       });
     }
     if (data.action === "previewBookingNoCheckInTriggerInstallation") {
