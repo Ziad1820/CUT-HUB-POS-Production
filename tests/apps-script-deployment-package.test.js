@@ -9,6 +9,11 @@ const root = path.resolve(__dirname, "..");
 const config = JSON.parse(fs.readFileSync(
   path.join(root, "config/apps-script-deployment-package.json"), "utf8"));
 
+test("the aggregate generator canonicalizes every input line ending to LF", () => {
+  assert.equal(builder.normalizeLineEndings("a\r\nb\rc\n"), "a\nb\nc\n");
+  assert.equal(builder.normalizeLineEndings("\uFEFFa\r\n"), "a\n");
+});
+
 test("the intended two-file Apps Script package has no duplicate globals or routers", () => {
   const result = validator.validatePackage();
   assert.equal(result.valid, true, JSON.stringify(result.errors));

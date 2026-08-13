@@ -22,21 +22,27 @@ const SOURCE_ORDER = Object.freeze([
 ]);
 const OUTPUT_NAME = "booking-availability-phase5-apps-script-bundle.gs";
 
+function normalizeLineEndings(source) {
+  return String(source).replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+}
+
 function buildBundle(options = {}) {
   const sources = SOURCE_ORDER.map(name => ({
     name,
-    source: fs.readFileSync(path.join(__dirname, name), "utf8").replace(/^\uFEFF/, "")
+    source: normalizeLineEndings(
+      fs.readFileSync(path.join(__dirname, name), "utf8")
+    )
   }));
-  const bundle = [
+  const bundle = normalizeLineEndings([
     "/* GENERATED FILE. Upload this bundle instead of the constituent Phase 1-5 modules. */",
     "/* Order: schema -> Phase 1 core -> Phase 2 -> Phase 3 -> Phase 4 -> Staging schema executor -> Core Auth bootstrap -> Phase 5 contract -> Branch Foundation -> Canonical branch row -> Phase 5 GAS. */",
     ...sources.map(item => `\n/* BEGIN ${item.name} */\n${item.source}\n/* END ${item.name} */`)
-  ].join("\n");
+  ].join("\n"));
   const outputPath = path.join(__dirname, OUTPUT_NAME);
-  if (options.write !== false) fs.writeFileSync(outputPath, bundle, "utf8");
+  if (options.write !== false) fs.writeFileSync(outputPath, bundle, { encoding: "utf8" });
   return { bundle, outputPath, sourceOrder: [...SOURCE_ORDER] };
 }
 
 if (require.main === module) console.log(`Built ${buildBundle().outputPath}`);
 
-module.exports = { SOURCE_ORDER, OUTPUT_NAME, buildBundle };
+module.exports = { SOURCE_ORDER, OUTPUT_NAME, normalizeLineEndings, buildBundle };
