@@ -10,10 +10,11 @@ const authSource = fs.readFileSync(path.join(
   __dirname, "../public/assets/js/core/auth.js"), "utf8");
 const apiSource = fs.readFileSync(path.join(
   __dirname, "../public/assets/js/core/api.js"), "utf8");
+const layout = require("../public/assets/js/utils/layout.js");
 
-function authForPermissions(permissions) {
+function authForPermissions(permissions, username = "limited-user") {
   const session = JSON.stringify({
-    user: { username: "limited-user", displayName: "Limited", permissions },
+    user: { username, displayName: "Limited", permissions },
     sessionToken: "session-token"
   });
   const sessionStorage = {
@@ -32,8 +33,57 @@ function authForPermissions(permissions) {
     URL, URLSearchParams, Promise, setTimeout, clearTimeout
   });
   vm.runInContext(`${authSource}\nglobalThis.__auth = RomeoAuth;`, context);
-  return { auth: context.__auth, location };
+  return { auth: context.__auth, location, window: context.window };
 }
+
+test("auth publishes the runtime API for the shared layout", () => {
+  const { auth, window } = authForPermissions(["access_dashboard"]);
+  assert.equal(window.RomeoAuth, auth);
+  assert.equal(window.RomeoAuth.hasPermission("access_dashboard"), true);
+});
+
+test("owner receives the complete canonical navigation", () => {
+  const { auth } = authForPermissions([], "owner");
+  const navigation = layout.buildNavigation({
+    language: "en",
+    currentPage: "dashboard.html",
+    hasPermission: auth.hasPermission
+  });
+  assert.deepEqual(
+    navigation.map(item => item.href),
+    layout.NAVIGATION_ITEMS.map(item => item.href)
+  );
+});
+
+test("restricted user sees only explicitly authorized navigation", () => {
+  const { auth } = authForPermissions(["access_dashboard", "view_bookings"]);
+  const navigation = layout.buildNavigation({
+    language: "en",
+    currentPage: "dashboard.html",
+    hasPermission: auth.hasPermission
+  });
+  assert.deepEqual(navigation.map(item => item.href), ["dashboard.html", "bookings.html"]);
+});
+
+test("legacy comma-separated and JSON permission strings normalize safely", () => {
+  for (const permissions of [
+    "access_dashboard, view_bookings",
+    '["access_dashboard", "view_bookings"]'
+  ]) {
+    const { auth } = authForPermissions(permissions);
+    assert.equal(auth.hasPermission("access_dashboard"), true);
+    assert.equal(auth.hasPermission("view_bookings"), true);
+    assert.equal(auth.hasPermission("manage_users"), false);
+  }
+});
+
+test("missing, empty, and unknown permissions fail closed", () => {
+  for (const permissions of [undefined, "", "unknown_permission"]) {
+    const { auth } = authForPermissions(permissions);
+    assert.equal(auth.hasPermission("access_dashboard"), false);
+    assert.equal(auth.hasPermission("manage_users"), false);
+  }
+});
 
 [
   ["payroll_attendance.view", "payroll-attendance.html"],

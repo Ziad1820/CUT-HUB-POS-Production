@@ -69,11 +69,35 @@ const RomeoAuth = (() => {
     return String(user && user.username || "").trim().toLowerCase() === OWNER_USERNAME;
   }
 
+  function normalizePermissions(value) {
+    let permissions = [];
+    if (Array.isArray(value)) {
+      permissions = value;
+    } else if (typeof value === "string") {
+      const serialized = value.trim();
+      if (serialized.startsWith("[")) {
+        try {
+          const parsed = JSON.parse(serialized);
+          permissions = Array.isArray(parsed) ? parsed : [];
+        } catch (_error) {
+          permissions = serialized.split(",");
+        }
+      } else {
+        permissions = serialized.split(",");
+      }
+    }
+
+    return [...new Set(permissions
+      .filter(permission => typeof permission === "string")
+      .map(permission => permission.trim())
+      .filter(Boolean))];
+  }
+
   function normalizeUser(user) {
     const normalized = {
       username: String(user.username || "").trim(),
       displayName: String(user.displayName || user.username || "").trim(),
-      permissions: Array.isArray(user.permissions) ? user.permissions : []
+      permissions: normalizePermissions(user.permissions)
     };
 
     if (isOwnerUser(normalized)) {
@@ -364,3 +388,7 @@ const RomeoAuth = (() => {
     updateUser
   };
 })();
+
+if (typeof window !== "undefined") {
+  window.RomeoAuth = RomeoAuth;
+}
