@@ -202,6 +202,9 @@ function listFiles(directory) {
 
 function secretFindings(directory) {
   const findings = [];
+  const productionRuntimeConfig = "frontend/assets/js/core/runtime-config.js";
+  const approvedPublicApiUrl =
+    "https://script.google.com/macros/s/AKfycbzWjM4X4JDTXRYe14oHL8m1Ex3GT9B8kMT6q8yp9eNMw6F6eSEY4zCXTYkyIL7K1ejR/exec";
   const binaryExtensions = new Set([".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf"]);
   const patterns = [
     ["WINDOWS_ABSOLUTE_PATH", /(?:^|[\s"'`(])([A-Za-z]:[\\/][^\s"'`)]+)/m],
@@ -220,6 +223,10 @@ function secretFindings(directory) {
     if (binaryExtensions.has(path.extname(lower))) continue;
     const text = fs.readFileSync(path.join(directory, relative), "utf8");
     for (const [category, expression] of patterns) {
+      if (category === "APPS_SCRIPT_DEPLOYMENT_URL" && relative === productionRuntimeConfig) {
+        const urls = text.match(/https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec/ig) || [];
+        if (urls.length === 1 && urls[0] === approvedPublicApiUrl) continue;
+      }
       if (expression.test(text)) findings.push({ file: relative, category });
     }
   }
