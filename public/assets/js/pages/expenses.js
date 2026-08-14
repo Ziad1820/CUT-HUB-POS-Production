@@ -42,14 +42,16 @@
     const clearDateFilterBtn = document.getElementById("clearDateFilterBtn");
 
     let expenseList = [];
+    let expenseLoadRequestId = 0;
     let selectedExpenseIds = new Set();
     let selectedCategoryId = EXPENSE_CATEGORIES[0]?.id || null;
 
     populateCategorySelect();
 
     if (!elements.expenseDate.value) {
-      elements.expenseDate.value = new Date().toISOString().slice(0, 10);
+      elements.expenseDate.value = RomeoDateRange.today();
     }
+    RomeoDateRange.setCurrentMonth(elements.filterFromDate, elements.filterToDate);
 
     function normalizeAmount(value) {
       const amount = Number(value || 0);
@@ -117,8 +119,18 @@
     }
 
     async function loadExpensesFromSheet() {
+      const requestId = ++expenseLoadRequestId;
+      const range = RomeoDateRange.validate(elements.filterFromDate.value, elements.filterToDate.value);
+      if (!range.ok) {
+        expenseList = [];
+        selectedExpenseIds.clear();
+        renderAll();
+        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("اختر تاريخ بداية ونهاية صحيحين.", range.message)}</div>`;
+        return;
+      }
       try {
-        const data = await RomeoApi.request({ action: "getExpenses" });
+        const data = await RomeoApi.request({ action: "getExpenses", fromDate: range.fromDate, toDate: range.toDate });
+        if (requestId !== expenseLoadRequestId) return;
         if (data.status !== "success") {
           throw new Error(data.message || "Failed to load expenses");
         }
@@ -126,9 +138,14 @@
         expenseList = Array.isArray(data.expenses)
           ? data.expenses.map(normalizeExpenseFromSheet)
           : [];
+        selectedExpenseIds.clear();
         renderAll();
       } catch (error) {
+        if (requestId !== expenseLoadRequestId) return;
         console.error(error);
+        expenseList = [];
+        selectedExpenseIds.clear();
+        renderAll();
         elements.historyList.innerHTML = `<div class="history-empty">${localizeText("تعذر تحميل المصروفات من الشيت.", "Could not load expenses from the sheet.")}</div>`;
       }
     }
@@ -668,15 +685,12 @@
       }
       renderHistory();
     });
-    applyDateFilterBtn.addEventListener("click", renderAll);
+    applyDateFilterBtn.addEventListener("click", loadExpensesFromSheet);
     clearDateFilterBtn.addEventListener("click", () => {
-      elements.filterFromDate.value = "";
-      elements.filterToDate.value = "";
+      RomeoDateRange.setCurrentMonth(elements.filterFromDate, elements.filterToDate);
       selectedExpenseIds.clear();
-      renderAll();
+      loadExpensesFromSheet();
     });
-    elements.filterFromDate.addEventListener("change", renderAll);
-    elements.filterToDate.addEventListener("change", renderAll);
     elements.historyList.addEventListener("change", event => {
       const checkbox = event.target.closest("[data-select-id]");
       if (!checkbox) return;

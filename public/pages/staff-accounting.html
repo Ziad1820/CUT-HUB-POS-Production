@@ -503,6 +503,15 @@
       </aside>
 
       <main class="main-panel">
+        <section class="panel">
+          <div class="form-grid">
+            <label class="field"><span data-i18n-ar="من تاريخ" data-i18n-en="From Date">من تاريخ</span><input id="staffFromDate" type="date"></label>
+            <label class="field"><span data-i18n-ar="إلى تاريخ" data-i18n-en="To Date">إلى تاريخ</span><input id="staffToDate" type="date"></label>
+          </div>
+          <div class="actions"><button type="button" class="primary" id="staffApplyRange" data-i18n-ar="تطبيق الفترة" data-i18n-en="Apply Period">تطبيق الفترة</button></div>
+          <p class="muted" data-i18n-ar="الفترة تطبق على المبيعات والعملاء والنسبة والسحوبات والصافي؛ الراتب والمكافآت والخصومات قيم إعداد ثابتة." data-i18n-en="The period applies to sales, clients, commission, withdrawals, and net; salary, bonus, and deductions remain configured values.">الفترة تطبق على المبيعات والعملاء والنسبة والسحوبات والصافي؛ الراتب والمكافآت والخصومات قيم إعداد ثابتة.</p>
+          <div id="staffRangeStatus" role="status" aria-live="polite"></div>
+        </section>
         <section class="panel hero">
           <div>
             <h2 id="employeeTitle">Select Staff</h2>
@@ -666,6 +675,7 @@
   <script src="../assets/js/core/runtime-config.js"></script>
   <script src="../assets/js/core/api.js"></script>
   <script src="../assets/js/core/auth.js"></script>
+  <script src="../assets/js/utils/date-range.js?v=20260813-1"></script>
   <script src="../assets/js/core/staff-import-preview.js"></script>
   <script src="../assets/js/utils/layout.js"></script>
   <script id="legacyStaffSnapshotExportLogic">
@@ -814,6 +824,10 @@
       overallStaff: document.getElementById("overallStaff"),
       overallNet: document.getElementById("overallNet"),
       overallPackage: document.getElementById("overallPackage"),
+      fromDate: document.getElementById("staffFromDate"),
+      toDate: document.getElementById("staffToDate"),
+      applyRange: document.getElementById("staffApplyRange"),
+      rangeStatus: document.getElementById("staffRangeStatus"),
       fields: {
         name: document.getElementById("staffName"),
         code: document.getElementById("staffCode"),
@@ -930,6 +944,14 @@
     let selectedId = staffList[0]?.id || null;
     let staffClientRequestId = 0;
     let staffSalesRequestId = 0;
+    let staffPeriodRequestId = 0;
+    let withdrawalsPeriodRequestId = 0;
+
+    RomeoDateRange.setCurrentMonth(elements.fromDate, elements.toDate);
+
+    function selectedDateRange() {
+      return RomeoDateRange.validate(elements.fromDate.value, elements.toDate.value);
+    }
 
     async function loadStaffFromSheet() {
       try {
@@ -970,8 +992,16 @@
     }
 
     async function loadWithdrawalsFromSheet() {
+      const requestId = ++withdrawalsPeriodRequestId;
       try {
-        const data = await RomeoApi.request({ action: "getWithdrawals" });
+        const range = selectedDateRange();
+        if (!range.ok) throw new Error(range.message);
+        const data = await RomeoApi.request({
+          action: "getWithdrawals",
+          fromDate: range.fromDate,
+          toDate: range.toDate
+        });
+        if (requestId !== withdrawalsPeriodRequestId) return;
         if (data.status !== "success" || !Array.isArray(data.withdrawals)) {
           return;
         }
@@ -979,6 +1009,7 @@
         withdrawalsList = data.withdrawals.map(normalizeWithdrawalRecord);
         renderAll();
       } catch (error) {
+        if (requestId !== withdrawalsPeriodRequestId) return;
         console.warn("Withdrawals sheet sync is not available yet.", error);
       }
     }
@@ -1101,15 +1132,20 @@
       elements.sumClients.textContent = "Loading...";
 
       try {
+        const range = selectedDateRange();
+        if (!range.ok) throw new Error(range.message);
         const data = await RomeoApi.request({
           action: "staffClientCount",
-          barber: getBarberSheetName(staff)
+          barber: getBarberSheetName(staff),
+          fromDate: range.fromDate,
+          toDate: range.toDate
         });
         if (data.status !== "success") {
           throw new Error(data.message || "Ã˜ÂªÃ˜Â¹Ã˜Â°Ã˜Â± Ã˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž Ã˜Â¹Ã˜Â¯Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€žÃ˜Â§Ã˜Â¡");
         }
 
         if (requestId === staffClientRequestId && selectedId === staff.id) {
+          staff.customers = numberValue(data.totalClients);
           elements.sumClients.textContent = formatMoney(data.totalClients);
         }
       } catch (error) {
@@ -1125,9 +1161,13 @@
       elements.sumSales.textContent = "Loading...";
 
       try {
+        const range = selectedDateRange();
+        if (!range.ok) throw new Error(range.message);
         const data = await RomeoApi.request({
           action: "staffTotalSales",
-          barber: getBarberSheetName(staff)
+          barber: getBarberSheetName(staff),
+          fromDate: range.fromDate,
+          toDate: range.toDate
         });
         if (data.status !== "success") {
           throw new Error(data.message || "Failed to load total sales");
@@ -1146,6 +1186,83 @@
           elements.sumSales.textContent = "0";
         }
       }
+    }
+
+    async function loadStaffPeriodActivity() {
+      const range = selectedDateRange();
+      if (!range.ok) {
+        elements.rangeStatus.textContent = localizeText("اختر فترة صحيحة.", range.message);
+        return false;
+      }
+
+      const requestId = ++staffPeriodRequestId;
+      elements.applyRange.disabled = true;
+      elements.rangeStatus.textContent = localizeText("جاري تحميل نشاط الفترة...", "Loading period activity...");
+
+      try {
+        const summaries = await Promise.all(staffList.map(async staff => {
+          const barber = getBarberSheetName(staff);
+          const [clients, sales] = await Promise.all([
+            RomeoApi.request({
+              action: "staffClientCount",
+              barber,
+              fromDate: range.fromDate,
+              toDate: range.toDate
+            }),
+            RomeoApi.request({
+              action: "staffTotalSales",
+              barber,
+              fromDate: range.fromDate,
+              toDate: range.toDate
+            })
+          ]);
+          if (clients.status !== "success" || sales.status !== "success") {
+            throw new Error(clients.message || sales.message || "Failed to load staff period activity.");
+          }
+          return {
+            id: staff.id,
+            customers: numberValue(clients.totalClients),
+            totalSales: numberValue(sales.totalSales)
+          };
+        }));
+
+        if (requestId !== staffPeriodRequestId) return false;
+        const byId = new Map(summaries.map(summary => [String(summary.id), summary]));
+        staffList.forEach(staff => {
+          const summary = byId.get(String(staff.id));
+          staff.customers = summary ? summary.customers : 0;
+          staff.totalSales = summary ? summary.totalSales : 0;
+        });
+        elements.rangeStatus.textContent = localizeText(
+          `الفترة: ${range.fromDate} إلى ${range.toDate}`,
+          `Period: ${range.fromDate} to ${range.toDate}`
+        );
+        renderAll();
+        return true;
+      } catch (error) {
+        console.error(error);
+        if (requestId === staffPeriodRequestId) {
+          elements.rangeStatus.textContent = localizeText("تعذر تحميل نشاط الفترة.", error.message);
+        }
+        return false;
+      } finally {
+        if (requestId === staffPeriodRequestId) elements.applyRange.disabled = false;
+      }
+    }
+
+    async function loadSelectedPeriod() {
+      const range = selectedDateRange();
+      if (!range.ok) {
+        elements.rangeStatus.textContent = localizeText("اختر فترة صحيحة.", range.message);
+        return;
+      }
+      withdrawalsList = [];
+      staffList.forEach(staff => {
+        staff.customers = 0;
+        staff.totalSales = 0;
+      });
+      renderAll();
+      await Promise.all([loadWithdrawalsFromSheet(), loadStaffPeriodActivity()]);
     }
 
     function renderEmployeeList() {
@@ -1220,8 +1337,6 @@
       elements.fields.percentage.value = numberValue(staff.percentage);
       elements.fields.salary.value = staff.salary;
       elements.fields.isBarber.checked = staff.isBarber !== false;
-      fetchStaffClientCount(staff);
-      fetchStaffTotalSales(staff);
       refreshSelectedFinancialSummary(staff);
     }
 
@@ -1405,6 +1520,20 @@
     });
 
     elements.searchInput.addEventListener("input", renderEmployeeList);
+    elements.applyRange.addEventListener("click", loadSelectedPeriod);
+    [elements.fromDate, elements.toDate].forEach(input => input.addEventListener("change", () => {
+      ++staffPeriodRequestId;
+      ++withdrawalsPeriodRequestId;
+      withdrawalsList = [];
+      staffList.forEach(staff => {
+        staff.customers = 0;
+        staff.totalSales = 0;
+      });
+      elements.rangeStatus.textContent = selectedDateRange().ok
+        ? localizeText("اضغط تطبيق الفترة لتحديث الحسابات.", "Apply the period to refresh accounts.")
+        : localizeText("اختر فترة صحيحة.", selectedDateRange().message);
+      renderAll();
+    }));
     addStaffBtn.addEventListener("click", addStaff);
     resetBtn.addEventListener("click", resetData);
     importPreviewBtn.addEventListener("click", openImportPreview);
@@ -1419,8 +1548,7 @@
 
     applyPageLanguage();
     renderAll();
-    loadStaffFromSheet();
-    loadWithdrawalsFromSheet();
+    loadStaffFromSheet().then(loadSelectedPeriod);
   </script>
   <script id="legacyStaffSnapshotExportUi">
     // TEMPORARY STAFF BOOTSTRAP SUPPORT: isolated from normal STAFF save/import behavior.

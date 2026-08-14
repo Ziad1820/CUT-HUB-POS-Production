@@ -4154,22 +4154,75 @@ function updateInvoice(data) {
   }
 }
 
+function getOptionalDateRange(data, filters, requireBoth) {
+  const source = filters || {};
+  const rawFrom = source.fromDate || data.fromDate || data.startDate || "";
+  const rawTo = source.toDate || data.toDate || data.endDate || "";
+  const hasFrom = String(rawFrom || "").trim() !== "";
+  const hasTo = String(rawTo || "").trim() !== "";
+  if (!hasFrom && !hasTo) return null;
+  if (requireBoth && (!hasFrom || !hasTo)) throw new Error("Both fromDate and toDate are required.");
+
+  const fromDate = hasFrom ? getDateKey(rawFrom, TIME_ZONE) : "";
+  const toDate = hasTo ? getDateKey(rawTo, TIME_ZONE) : "";
+  if ((hasFrom && !isCanonicalDateKey(fromDate)) || (hasTo && !isCanonicalDateKey(toDate))) {
+    throw new Error("A valid date range is required.");
+  }
+  if (fromDate && toDate && fromDate > toDate) throw new Error("fromDate must not be after toDate.");
+  return { fromDate, toDate };
+}
+
+function isCanonicalDateKey(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1) return false;
+  return day <= new Date(year, month, 0).getDate();
+}
+
+function isDateInOptionalRange(value, range) {
+  if (!range) return true;
+  const dateKey = getDateKey(value, TIME_ZONE);
+  return Boolean(dateKey) &&
+    (!range.fromDate || dateKey >= range.fromDate) &&
+    (!range.toDate || dateKey <= range.toDate);
+}
+
 function getInvoices(data) {
+  const filters = data.filters || {};
+  let range;
+  try {
+    range = getOptionalDateRange(data, filters);
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
   const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
   if (!sheet) {
-    return jsonOutput({ status: "error", message: "Sheet DATA not found" });
+    return jsonOutput({
+      status: "success",
+      invoices: [],
+      hasMore: false,
+      nextOffset: 0,
+      totalMatches: 0,
+      filterOptions: { barbers: [], paymentMethods: [] }
+    });
   }
 
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) {
-    return jsonOutput({ status: "success", invoices: [], hasMore: false, nextOffset: 0, totalMatches: 0 });
+    return jsonOutput({
+      status: "success",
+      invoices: [],
+      hasMore: false,
+      nextOffset: 0,
+      totalMatches: 0,
+      filterOptions: { barbers: [], paymentMethods: [] }
+    });
   }
-
-  const filters = data.filters || {};
   const search = String(filters.search || data.search || "").trim().toLowerCase();
   const targetDate = String(filters.date || data.date || data.dateKey || "").trim();
-  const fromDate = String(filters.fromDate || data.fromDate || data.startDate || "").trim();
-  const toDate = String(filters.toDate || data.toDate || data.endDate || "").trim();
   const targetBarber = String(filters.barber || data.barber || "").trim();
   const targetPayment = String(filters.payment || data.payment || data.paymentMethod || "").trim();
   const limit = Math.min(Math.max(Number(data.limit) || 100, 1), 500);
@@ -4217,8 +4270,7 @@ function getInvoices(data) {
     if (invoice.barber) barberOptions[invoice.barber] = true;
     if (invoice.paymentMethod) paymentOptions[invoice.paymentMethod] = true;
     if (targetDate && invoice.dateKey !== targetDate) continue;
-    if (fromDate && invoice.dateKey < fromDate) continue;
-    if (toDate && invoice.dateKey > toDate) continue;
+    if (!isDateInOptionalRange(invoice.dateKey, range)) continue;
     if (targetBarber && invoice.barber !== targetBarber) continue;
     if (targetPayment && invoice.paymentMethod !== targetPayment) continue;
     if (search) {
@@ -4377,16 +4429,18 @@ function createWithdrawal(data) {
 }
 
 function getWithdrawals(data) {
-  const sheet = SpreadsheetApp.getActive().getSheetByName("WITHDRAWLS");
-  if (!sheet) {
-    return jsonOutput({ status: "error", message: "Sheet WITHDRAWLS not found" });
+  let range;
+  try {
+    range = getOptionalDateRange(data, null, true);
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
   }
-
-  const lastRow = sheet.getLastRow();
-  if (lastRow < 2) {
+  const sheet = SpreadsheetApp.getActive().getSheetByName("WITHDRAWLS");
+  if (!sheet || sheet.getLastRow() < 2) {
     return jsonOutput({ status: "success", withdrawals: [] });
   }
 
+  const lastRow = sheet.getLastRow();
   const rows = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
   const withdrawals = rows.map((row, index) => {
     const rowNumber = index + 2;
@@ -4401,7 +4455,7 @@ function getWithdrawals(data) {
       note: row[2] || "",
       date: getDateKey(row[3], TIME_ZONE)
     };
-  }).reverse();
+  }).filter(withdrawal => isDateInOptionalRange(withdrawal.date, range)).reverse();
 
   return jsonOutput({ status: "success", withdrawals });
 }
@@ -4497,16 +4551,18 @@ function createExpense(data) {
 }
 
 function getExpenses(data) {
-  const sheet = SpreadsheetApp.getActive().getSheetByName("EXPENSES");
-  if (!sheet) {
-    return jsonOutput({ status: "error", message: "Sheet EXPENSES not found" });
+  let range;
+  try {
+    range = getOptionalDateRange(data, null, true);
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
   }
-
-  const lastRow = sheet.getLastRow();
-  if (lastRow < 2) {
+  const sheet = SpreadsheetApp.getActive().getSheetByName("EXPENSES");
+  if (!sheet || sheet.getLastRow() < 2) {
     return jsonOutput({ status: "success", expenses: [] });
   }
 
+  const lastRow = sheet.getLastRow();
   const rows = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
   const expenses = rows.map((row, index) => {
     const rowNumber = index + 2;
@@ -4521,7 +4577,7 @@ function getExpenses(data) {
       note: row[3] || "",
       date: getDateKey(row[4], TIME_ZONE)
     };
-  }).reverse();
+  }).filter(expense => isDateInOptionalRange(expense.date, range)).reverse();
 
   return jsonOutput({ status: "success", expenses });
 }
@@ -4811,13 +4867,22 @@ function getCustomerLookup() {
 
 function getStaffClientCount(data) {
   const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
+  let range;
+  try {
+    range = getOptionalDateRange(data, null, true);
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
+  if (!sheet) {
+    return jsonOutput({ status: "success", totalClients: 0 });
+  }
   const barber = normalizeBarberName(data.barber);
   const rows = getSheetRangeFromRow2(sheet, 1, 10, true);
 
   const count = rows.filter(row => {
     const hasData = row.some(cell => String(cell || "").trim() !== "");
     const rowBarber = normalizeBarberName(row[9]);
-    return hasData && rowBarber === barber;
+    return hasData && rowBarber === barber && isDateInOptionalRange(row[0], range);
   }).length;
 
   return jsonOutput({ status: "success", totalClients: count });
@@ -4834,9 +4899,15 @@ function normalizeBarberName(value) {
 }
 
 function getStaffTotalSales(data) {
+  let range;
+  try {
+    range = getOptionalDateRange(data, null, true);
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
   const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
   if (!sheet) {
-    return jsonOutput({ status: "error", message: "Sheet DATA not found" });
+    return jsonOutput({ status: "success", totalSales: 0 });
   }
 
   const barber = normalizeBarberName(data.barber);
@@ -4846,7 +4917,7 @@ function getStaffTotalSales(data) {
     const hasData = row.some(cell => cell !== "" && cell !== null);
     const rowBarber = normalizeBarberName(row[9]);
 
-    if (!hasData || rowBarber !== barber) return sum;
+    if (!hasData || rowBarber !== barber || !isDateInOptionalRange(row[0], range)) return sum;
 
     return sum + parseSheetAmount(row[5]);
   }, 0);
