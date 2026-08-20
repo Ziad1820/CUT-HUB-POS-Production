@@ -146,7 +146,17 @@ function doPost(e) {
 
   if (!isPublicAction(data.action)) {
     const sessionToken = getSessionToken(data);
-    if (!sessionToken || !getAuthenticatedUser(data)) {
+    let authenticatedUser = null;
+    try {
+      authenticatedUser = sessionToken ? getAuthenticatedUser(data) : null;
+    } catch (error) {
+      return jsonOutput({
+        status: "error",
+        code: error.code || "AUTHENTICATION_SCHEMA_ERROR",
+        message: error.message || "Authentication schema validation failed."
+      });
+    }
+    if (!sessionToken || !authenticatedUser) {
       return jsonOutput({
         status: "error",
         sessionExpired: true,
@@ -683,6 +693,15 @@ function deleteActivityLogs(data) {
   }
 }
 
+const USERS_HEADER_CONTRACT = Object.freeze([
+  Object.freeze({ name: "USERNAME", aliases: Object.freeze(["USERNAME"]) }),
+  Object.freeze({ name: "PASSWORD", aliases: Object.freeze(["PASSWORD"]) }),
+  Object.freeze({ name: "DISPLAY_NAME", aliases: Object.freeze(["DISPLAY_NAME", "DISPLAY NAME"]) }),
+  Object.freeze({ name: "PERMISSIONS", aliases: Object.freeze(["PERMISSIONS"]) }),
+  Object.freeze({ name: "CREATED_AT", aliases: Object.freeze(["CREATED_AT", "CREATED AT"]) }),
+  Object.freeze({ name: "PASSWORD_HASH", aliases: Object.freeze(["PASSWORD_HASH", "PASSWORD HASH"]) })
+]);
+
 function getUsersSheet() {
   const sheet = SpreadsheetApp.getActive().getSheetByName("USERS");
   if (!sheet) {
@@ -703,6 +722,23 @@ function ensureUsersSheetColumns(sheet) {
   if (!hashHeader) {
     sheet.getRange(1, 6).setValue("PASSWORD_HASH");
   }
+}
+
+function getUsersSheetReadOnly() {
+  const sheet = SpreadsheetApp.getActive().getSheetByName("USERS");
+  if (!sheet) {
+    throw schemaContractError(
+      "USERS_SCHEMA_NOT_READY", "Sheet USERS not found.", { sheetName: "USERS" });
+  }
+  inspectPositionalSheetSchema(sheet, {
+    sheetName: "USERS",
+    label: "USERS",
+    contract: USERS_HEADER_CONTRACT,
+    notReadyCode: "USERS_SCHEMA_NOT_READY",
+    incompatibleCode: "USERS_SCHEMA_INCOMPATIBLE",
+    duplicateCode: "USERS_SCHEMA_DUPLICATE_HEADERS"
+  });
+  return sheet;
 }
 
 function parsePermissions(value) {
@@ -792,7 +828,7 @@ function ensureUserPasswordHash(user, password) {
 }
 
 function readUsersFromSheet() {
-  const sheet = getUsersSheet();
+  const sheet = getUsersSheetReadOnly();
   const lastRow = sheet.getLastRow();
 
   if (lastRow < 2) return [];
@@ -868,6 +904,13 @@ function loginUser(data) {
       expiresAt: session.expiresAt
     });
   } catch (error) {
+    if (error && /^USERS_SCHEMA_/.test(String(error.code || ""))) {
+      return jsonOutput({
+        status: "error",
+        code: "AUTHENTICATION_SERVICE_UNAVAILABLE",
+        message: "Authentication service is temporarily unavailable."
+      });
+    }
     return jsonOutput({ status: "error", message: error.message });
   }
 }
@@ -1478,6 +1521,96 @@ function normalizeSheetHeader(value) {
     .toLowerCase()
     .replace(/\s+/g, " ")
     .replace(/[\s_-]+/g, "");
+}
+
+function schemaContractError(code, message, details) {
+  const error = new Error(message);
+  error.code = code;
+  if (details !== undefined) error.details = details;
+  return error;
+}
+
+function inspectPositionalSheetSchema(sheet, options) {
+  const contract = options.contract || [];
+  const lastColumn = sheet && typeof sheet.getLastColumn === "function"
+    ? sheet.getLastColumn() : 0;
+  if (lastColumn < contract.length) {
+    throw schemaContractError(
+      options.notReadyCode,
+      `${options.label} schema is missing required columns.`,
+      { sheetName: options.sheetName, requiredColumns: contract.length, actualColumns: lastColumn }
+    );
+  }
+
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+  const normalized = headers.map(normalizeSheetHeader);
+  const duplicateNormalized = normalized.filter((header, index) =>
+    header && normalized.indexOf(header) !== index);
+  if (duplicateNormalized.length) {
+    throw schemaContractError(
+      options.duplicateCode,
+      `${options.label} schema contains duplicate headers.`,
+      { sheetName: options.sheetName, headers: [...new Set(duplicateNormalized)] }
+    );
+  }
+
+  contract.forEach((field, index) => {
+    const accepted = (field.aliases || [field.name]).map(normalizeSheetHeader);
+    const matches = normalized.reduce((result, header, headerIndex) => {
+      if (accepted.indexOf(header) !== -1) result.push(headerIndex + 1);
+      return result;
+    }, []);
+    if (matches.length > 1) {
+      throw schemaContractError(
+        options.duplicateCode,
+        `${options.label} schema contains an ambiguous ${field.name} header.`,
+        { sheetName: options.sheetName, header: field.name, columns: matches }
+      );
+    }
+    if (accepted.indexOf(normalized[index]) === -1) {
+      throw schemaContractError(
+        options.incompatibleCode,
+        `${options.label} protected header ${field.name} is missing or displaced.`,
+        { sheetName: options.sheetName, header: field.name, expectedColumn: index + 1 }
+      );
+    }
+  });
+
+  return { headers, normalized };
+}
+
+function inspectNamedSheetSchema(sheet, options) {
+  const lastColumn = sheet && typeof sheet.getLastColumn === "function"
+    ? sheet.getLastColumn() : 0;
+  if (lastColumn < 1) {
+    throw schemaContractError(
+      options.notReadyCode,
+      `${options.label} schema is not initialized.`,
+      { sheetName: options.sheetName }
+    );
+  }
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0]
+    .map((header) => String(header || "").trim());
+  const canonicalize = options.canonicalize || normalizeSheetHeader;
+  const keys = headers.map(canonicalize);
+  const duplicateKeys = keys.filter((key, index) => key && keys.indexOf(key) !== index);
+  if (duplicateKeys.length) {
+    throw schemaContractError(
+      options.duplicateCode,
+      `${options.label} schema contains duplicate or ambiguous headers.`,
+      { sheetName: options.sheetName, headers: [...new Set(duplicateKeys)] }
+    );
+  }
+  const expectedKeys = (options.expectedHeaders || []).map(canonicalize);
+  const missing = expectedKeys.filter((key) => keys.indexOf(key) === -1);
+  if (missing.length) {
+    throw schemaContractError(
+      options.notReadyCode,
+      `${options.label} schema is missing required headers.`,
+      { sheetName: options.sheetName, missingHeaders: missing }
+    );
+  }
+  return { headers, keys };
 }
 
 function findEquivalentHeaderColumn(headers, aliases) {
@@ -2650,7 +2783,11 @@ function getStaff() {
 
     return jsonOutput({ status: "success", staff });
   } catch (error) {
-    return jsonOutput({ status: "error", message: error.message });
+    return jsonOutput({
+      status: "error",
+      ...(error && error.code ? { code: error.code } : {}),
+      message: error.message
+    });
   }
 }
 
@@ -2792,6 +2929,24 @@ function ensureAttendanceHeaders(sheet) {
   if (!hasHeaders || !matches) {
     headerRange.setValues([ATTENDANCE_HEADERS]);
   }
+}
+
+function getAttendanceSheetReadOnly() {
+  const sheet = SpreadsheetApp.getActive().getSheetByName("ATTENDANCE");
+  if (!sheet) {
+    throw schemaContractError(
+      "ATTENDANCE_SCHEMA_NOT_READY", "Sheet ATTENDANCE not found.",
+      { sheetName: "ATTENDANCE" });
+  }
+  inspectPositionalSheetSchema(sheet, {
+    sheetName: "ATTENDANCE",
+    label: "Legacy ATTENDANCE",
+    contract: ATTENDANCE_HEADERS.map((header) => ({ name: header, aliases: [header] })),
+    notReadyCode: "ATTENDANCE_SCHEMA_NOT_READY",
+    incompatibleCode: "ATTENDANCE_SCHEMA_INCOMPATIBLE",
+    duplicateCode: "ATTENDANCE_SCHEMA_DUPLICATE_HEADERS"
+  });
+  return sheet;
 }
 
 function normalizeLookupKey(value) {
@@ -3094,7 +3249,7 @@ function getAttendanceRecords(data) {
     const permissionError = requirePermission(data, "view_attendance", "You do not have permission to view attendance.");
     if (permissionError) return permissionError;
 
-    const sheet = getAttendanceSheet();
+    const sheet = getAttendanceSheetReadOnly();
     const lastRow = sheet.getLastRow();
     if (lastRow < 2) {
       return jsonOutput({ status: "success", records: [] });
@@ -3119,7 +3274,11 @@ function getAttendanceRecords(data) {
 
     return jsonOutput({ status: "success", records });
   } catch (error) {
-    return jsonOutput({ status: "error", message: error.message });
+    return jsonOutput({
+      status: "error",
+      ...(error && error.code ? { code: error.code } : {}),
+      message: error.message
+    });
   }
 }
 
@@ -3194,7 +3353,7 @@ function getApprovedAttendanceTotalsForCurrentMonth() {
   try {
     const today = getCairoDateKey();
     const monthKey = today.slice(0, 7);
-    const sheet = getAttendanceSheet();
+    const sheet = getAttendanceSheetReadOnly();
     const lastRow = sheet.getLastRow();
     if (lastRow < 2) return {};
 
@@ -3210,6 +3369,7 @@ function getApprovedAttendanceTotalsForCurrentMonth() {
       return totals;
     }, {});
   } catch (error) {
+    if (error && /^ATTENDANCE_SCHEMA_/.test(String(error.code || ""))) throw error;
     return {};
   }
 }
@@ -3877,6 +4037,46 @@ function getLockedDateError(value, entityLabel) {
   return `${entityLabel} is inside locked month ${monthLabel}. Delete the monthly closing first.`;
 }
 
+const DATA_INVOICE_READ_HEADER_CONTRACT = Object.freeze([
+  Object.freeze({ name: "DATE", aliases: Object.freeze(["DATE", "INVOICE DATE", "INVOICE_DATE"]) }),
+  Object.freeze({ name: "CUSTOMER", aliases: Object.freeze(["CUSTOMER", "CUSTOMER NAME", "CUSTOMER_NAME", "NAME"]) }),
+  Object.freeze({ name: "PHONE", aliases: Object.freeze(["PHONE", "CUSTOMER PHONE", "CUSTOMER_PHONE"]) }),
+  Object.freeze({ name: "SERVICES", aliases: Object.freeze(["SERVICES", "SERVICE"]) }),
+  Object.freeze({ name: "PDF", aliases: Object.freeze(["PDF", "PDF URL", "PDF_URL", "INVOICE PDF", "INVOICE_PDF"]) }),
+  Object.freeze({ name: "TOTAL", aliases: Object.freeze(["TOTAL"]) }),
+  Object.freeze({ name: "PAID_AMOUNT", aliases: Object.freeze(["PAID", "PAID AMOUNT", "PAID_AMOUNT"]) }),
+  Object.freeze({ name: "TIP_AMOUNT", aliases: Object.freeze(["TIP", "TIP AMOUNT", "TIP_AMOUNT"]) }),
+  Object.freeze({ name: "PAYMENT", aliases: Object.freeze(["PAYMENT", "PAYMENT METHOD", "PAYMENT_METHOD"]) }),
+  Object.freeze({ name: "BARBER", aliases: Object.freeze(["BARBER", "STAFF", "EMPLOYEE"]) }),
+  Object.freeze({ name: "NOTES", aliases: Object.freeze(["NOTE", "NOTES"]) }),
+  Object.freeze({ name: "DISCOUNT_PERCENT", aliases: Object.freeze(["DISCOUNT", "DISCOUNT PERCENT", "DISCOUNT_PERCENT"]) }),
+  Object.freeze({ name: "DISCOUNT_AMOUNT", aliases: Object.freeze(["DISCOUNT AMOUNT", "DISCOUNT_AMOUNT"]) })
+]);
+
+function inspectDataInvoiceSchemaReadOnly(sheet) {
+  const inspected = inspectPositionalSheetSchema(sheet, {
+    sheetName: "DATA",
+    label: "Invoice DATA",
+    contract: DATA_INVOICE_READ_HEADER_CONTRACT,
+    notReadyCode: "INVOICE_SCHEMA_NOT_READY",
+    incompatibleCode: "INVOICE_SCHEMA_INCOMPATIBLE",
+    duplicateCode: "INVOICE_SCHEMA_DUPLICATE_HEADERS"
+  });
+  const requestIdAliases = INVOICE_REQUEST_ID_HEADER_ALIASES.map(normalizeSheetHeader);
+  const requestIdColumns = inspected.normalized.reduce((columns, header, index) => {
+    if (requestIdAliases.indexOf(header) !== -1) columns.push(index + 1);
+    return columns;
+  }, []);
+  if (requestIdColumns.length > 1) {
+    throw schemaContractError(
+      "INVOICE_SCHEMA_DUPLICATE_HEADERS",
+      "Invoice DATA schema contains ambiguous invoice request ID headers.",
+      { sheetName: "DATA", columns: requestIdColumns }
+    );
+  }
+  return { headers: inspected.headers, invoiceRequestIdColumn: requestIdColumns[0] || 0 };
+}
+
 function ensureDataInvoiceColumns(sheet) {
   const requiredColumns = 13;
   const currentColumns = sheet.getMaxColumns();
@@ -4219,12 +4419,19 @@ function getInvoices(data) {
   const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
   if (!sheet) {
     return jsonOutput({
-      status: "success",
-      invoices: [],
-      hasMore: false,
-      nextOffset: 0,
-      totalMatches: 0,
-      filterOptions: { barbers: [], paymentMethods: [] }
+      status: "error",
+      code: "INVOICE_SCHEMA_NOT_READY",
+      message: "Sheet DATA not found."
+    });
+  }
+
+  try {
+    inspectDataInvoiceSchemaReadOnly(sheet);
+  } catch (error) {
+    return jsonOutput({
+      status: "error",
+      code: error.code || "INVOICE_SCHEMA_INCOMPATIBLE",
+      message: error.message || "Invoice DATA schema is incompatible."
     });
   }
 
@@ -4245,7 +4452,6 @@ function getInvoices(data) {
   const targetPayment = String(filters.payment || data.payment || data.paymentMethod || "").trim();
   const limit = Math.min(Math.max(Number(data.limit) || 100, 1), 500);
   const offset = Math.max(Number(data.offset) || 0, 0);
-  ensureDataInvoiceColumns(sheet);
   const rows = sheet.getRange(2, 1, lastRow - 1, Math.min(sheet.getLastColumn(), 13)).getValues();
   const matches = [];
   const barberOptions = {};
@@ -5209,6 +5415,23 @@ function getBookingsSheetV2() {
   return sheet;
 }
 
+function getBookingsSheetV2ReadOnly() {
+  const sheet = SpreadsheetApp.getActive().getSheetByName("Bookings");
+  if (!sheet) {
+    throw schemaContractError(
+      "BOOKING_SCHEMA_NOT_READY", "Sheet Bookings not found.", { sheetName: "Bookings" });
+  }
+  inspectNamedSheetSchema(sheet, {
+    sheetName: "Bookings",
+    label: "Bookings",
+    expectedHeaders: BOOKING_HEADERS_V2,
+    canonicalize: canonicalBookingHeaderKey,
+    notReadyCode: "BOOKING_SCHEMA_NOT_READY",
+    duplicateCode: "BOOKING_SCHEMA_DUPLICATE_HEADERS"
+  });
+  return sheet;
+}
+
 function getBarberScheduleSheet() {
   const ss = SpreadsheetApp.getActive();
   let sheet = ss.getSheetByName("BARBER_SCHEDULE");
@@ -5221,6 +5444,24 @@ function getBarberScheduleSheet() {
   if (!current.some((value) => String(value || "").trim())) {
     sheet.getRange(1, 1, 1, BARBER_SCHEDULE_HEADERS.length).setValues([BARBER_SCHEDULE_HEADERS]);
   }
+  return sheet;
+}
+
+function getBarberScheduleSheetReadOnly() {
+  const sheet = SpreadsheetApp.getActive().getSheetByName("BARBER_SCHEDULE");
+  if (!sheet) {
+    throw schemaContractError(
+      "BARBER_SCHEDULE_SCHEMA_NOT_READY", "Sheet BARBER_SCHEDULE not found.",
+      { sheetName: "BARBER_SCHEDULE" });
+  }
+  inspectPositionalSheetSchema(sheet, {
+    sheetName: "BARBER_SCHEDULE",
+    label: "BARBER_SCHEDULE",
+    contract: BARBER_SCHEDULE_HEADERS.map((header) => ({ name: header, aliases: [header] })),
+    notReadyCode: "BARBER_SCHEDULE_SCHEMA_NOT_READY",
+    incompatibleCode: "BARBER_SCHEDULE_SCHEMA_INCOMPATIBLE",
+    duplicateCode: "BARBER_SCHEDULE_SCHEMA_DUPLICATE_HEADERS"
+  });
   return sheet;
 }
 
@@ -5706,7 +5947,7 @@ function normalizeScheduleWeekday(value) {
 }
 
 function getScheduleForBarber(barber, dateKey, barbers) {
-  const sheet = getBarberScheduleSheet();
+  const sheet = getBarberScheduleSheetReadOnly();
   const weekday = bookingWeekday(dateKey);
   let matching = null;
   if (sheet.getLastRow() >= 2) {
@@ -5732,7 +5973,7 @@ function getScheduleForBarber(barber, dateKey, barbers) {
 }
 
 function getAttendanceOverride(barber, dateKey, barbers) {
-  const sheet = getAttendanceSheet();
+  const sheet = getAttendanceSheetReadOnly();
   if (sheet.getLastRow() < 2) return null;
   const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, ATTENDANCE_HEADERS.length).getValues();
   const matches = rows.filter((row) => {
@@ -5807,6 +6048,14 @@ function bookingStatusIsTerminal(status) {
 }
 
 function getAllBookingsV2() {
+  const sheet = getBookingsSheetV2ReadOnly();
+  if (sheet.getLastRow() < 2) return [];
+  const headers = getBookingHeadersV2(sheet);
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues()
+    .map((row, index) => bookingFromRowV2(row, index + 2, headers));
+}
+
+function getAllBookingsV2ForWrite() {
   const sheet = getBookingsSheetV2();
   if (sheet.getLastRow() < 2) return [];
   const headers = getBookingHeadersV2(sheet);
@@ -6305,7 +6554,7 @@ function createPublicBookingRequest(data) {
       bookingRequestId: clientRequestId, employeeId, date: dateKey, time
     }, (diagnostic) => {
       const sheet = getBookingsSheetV2();
-      const bookings = getAllBookingsV2();
+      const bookings = getAllBookingsV2ForWrite();
       const existing = findBookingByClientRequestId(bookings, clientRequestId);
       const retry = bookingIdempotencyResult(existing, fingerprint, publicBookingCreationResponse);
       if (retry) return retry;
@@ -6393,10 +6642,11 @@ function createPublicBookingRequest(data) {
   }
 }
 
-function findBookingByTrackingToken(token) {
+function findBookingByTrackingToken(token, options) {
   const cleanToken = String(token || "").trim().toUpperCase();
   if (!cleanToken) return null;
-  const sheet = getBookingsSheetV2();
+  const sheet = options && options.forWrite
+    ? getBookingsSheetV2() : getBookingsSheetV2ReadOnly();
   if (sheet.getLastRow() < 2) return null;
   const headers = getBookingHeadersV2(sheet);
   const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
@@ -6446,7 +6696,7 @@ function respondToBookingProposal(data) {
     if (committedRetry) {
       return jsonOutput({ status: "success", booking: publicBookingView(committedRetry) });
     }
-    const found = findBookingByTrackingToken(data.trackingToken);
+    const found = findBookingByTrackingToken(data.trackingToken, { forWrite: true });
     if (!found || found.booking.status !== "proposed") return jsonOutput({ status: "error", message: "There is no active appointment proposal." });
     if (!verifyBookingTrackingPhone(found.booking, data.phoneLast4)) return trackingVerificationError();
     const response = String(data.response || "").trim().toLowerCase();
@@ -6470,7 +6720,7 @@ function respondToBookingProposal(data) {
       if (!trustedServices.ok) {
         return jsonOutput({ status: "error", code: trustedServices.code, message: trustedServices.message });
       }
-      const bookings = getAllBookingsV2();
+      const bookings = getAllBookingsV2ForWrite();
       const appointment = validateBookingAppointmentV2({
         employeeId: booking.employeeId, employeeName: booking.employee,
         branchId: booking.branchId,
@@ -6565,7 +6815,7 @@ function createBookingV2(data) {
     }, (diagnostic) => {
     const sheet = getBookingsSheetV2();
     const now = getCairoDateTime();
-    const bookings = getAllBookingsV2();
+    const bookings = getAllBookingsV2ForWrite();
     const existing = findBookingByClientRequestId(bookings, clientRequestId);
     const retry = bookingIdempotencyResult(existing, fingerprint, internalBookingCreationResponse);
     if (retry) return retry;
@@ -6797,7 +7047,7 @@ function updateBookingV2(data) {
         preparationMinutes: trustedServices.preparationMinutes,
         cleanupMinutes: trustedServices.cleanupMinutes,
         serviceSetHash: trustedServices.serviceSetHash,
-        excludeId: booking.id, bookings: getAllBookingsV2(), barbers: publicBookingBarbers(),
+        excludeId: booking.id, bookings: getAllBookingsV2ForWrite(), barbers: publicBookingBarbers(),
         audience: "internal", requestData: data
       });
       if (!appointment.ok) return jsonOutput({ status: "error", code: appointment.code, message: appointment.message });
@@ -6898,6 +7148,25 @@ function getBookingRatingsSheet() {
   return sheet;
 }
 
+function getBookingRatingsSheetReadOnly(optional) {
+  const sheet = SpreadsheetApp.getActive().getSheetByName("BOOKING_RATINGS");
+  if (!sheet) {
+    if (optional) return null;
+    throw schemaContractError(
+      "BOOKING_RATINGS_SCHEMA_NOT_READY", "Sheet BOOKING_RATINGS not found.",
+      { sheetName: "BOOKING_RATINGS" });
+  }
+  inspectNamedSheetSchema(sheet, {
+    sheetName: "BOOKING_RATINGS",
+    label: "BOOKING_RATINGS",
+    expectedHeaders: BOOKING_RATING_HEADERS,
+    canonicalize: normalizeBookingHeader,
+    notReadyCode: "BOOKING_RATINGS_SCHEMA_NOT_READY",
+    duplicateCode: "BOOKING_RATINGS_SCHEMA_DUPLICATE_HEADERS"
+  });
+  return sheet;
+}
+
 function initializeBookingStagingEnvironment() {
   assertStagingEnvironment();
   const sheets = [
@@ -6970,7 +7239,8 @@ function appendBookingRatingRow(sheet, rating) {
 }
 
 function getAllBookingRatings() {
-  const sheet = getBookingRatingsSheet();
+  const sheet = getBookingRatingsSheetReadOnly(true);
+  if (!sheet) return [];
   if (sheet.getLastRow() < 2) return [];
   const headers = getRatingHeaders(sheet);
   return sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues()
@@ -7032,7 +7302,7 @@ function submitBookingRating(data) {
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(10000);
-    const found = findBookingByTrackingToken(data.trackingToken);
+    const found = findBookingByTrackingToken(data.trackingToken, { forWrite: true });
     if (!found || !verifyBookingTrackingPhone(found.booking, data.phoneLast4)) return trackingVerificationError();
     if (found.booking.status !== "done") {
       return jsonOutput({ status: "error", code: "BOOKING_NOT_COMPLETED", message: "Only completed bookings can be rated." });
@@ -7077,7 +7347,7 @@ function getBookingRating(data) {
     const rating = getAllBookingRatings().find((item) => item.bookingId === found.booking.id);
     return jsonOutput({ status: "success", rating: rating ? publicRatingView(rating) : null });
   } catch (error) {
-    return jsonOutput({ status: "error", message: error.message });
+    return bookingPublicErrorResponse(error, "BOOKING_RATING_READ_FAILED");
   }
 }
 
@@ -7113,7 +7383,7 @@ function getBarberRatings(data) {
     if (!employeeId) return jsonOutput({ status: "error", message: "employeeId is required." });
     return jsonOutput({ status: "success", ...calculatePublicBarberRatingSummary(employeeId) });
   } catch (error) {
-    return jsonOutput({ status: "error", message: error.message });
+    return bookingPublicErrorResponse(error, "BOOKING_RATINGS_READ_FAILED");
   }
 }
 
@@ -7162,7 +7432,7 @@ function getRatingsAdmin(data) {
       lowestRatings: allRatings.filter((item) => item.rating <= 2).slice(-10).reverse().map(publicRatingView)
     });
   } catch (error) {
-    return jsonOutput({ status: "error", message: error.message });
+    return bookingErrorResponse(error, "BOOKING_RATINGS_ADMIN_READ_FAILED");
   }
 }
 

@@ -119,7 +119,7 @@ function createBookingHarness(options = {}) {
     return sheet;
   };
   context.getBookingHeadersV2 = () => BOOKING_HEADERS;
-  context.getAllBookingsV2 = () => {
+  context.getAllBookingsV2 = context.getAllBookingsV2ForWrite = () => {
     order.push("reload");
     return existing;
   };
@@ -569,7 +569,7 @@ test("public creation retries duplicate server IDs and tracking tokens under its
     { serviceId: "svc-1", name: "Haircut", durationMinutes: 30, price: 100 }
   ];
   context.publicBookingBarbers = () => [barber];
-  context.getAllBookingsV2 = () => {
+  context.getAllBookingsV2 = context.getAllBookingsV2ForWrite = () => {
     order.push("reload");
     return existing;
   };
@@ -1091,7 +1091,7 @@ test("all public/internal creation combinations serialize and reject overlaps", 
     assert.equal(first.status, "success");
     assert.ok(["SLOT_UNAVAILABLE", "BOOKING_LOCK_TIMEOUT"].includes(second.code));
     assert.equal(harness.sheet.getLastRow(), 2);
-    const stored = harness.context.getAllBookingsV2();
+    const stored = harness.context.getAllBookingsV2ForWrite();
     assert.equal(stored.filter((booking) => harness.context.bookingBlocksSlot(booking)).length, 1);
   };
   run("public", "public");
