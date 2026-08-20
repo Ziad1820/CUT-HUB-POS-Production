@@ -104,6 +104,24 @@ function parsePostRequestData(e) {
   return data;
 }
 
+const PUBLIC_ACTIONS = Object.freeze([
+  "loginUser",
+  "logoutUser",
+  "logout",
+  "listPublicBookingBranches",
+  "getPublicBookingOptions",
+  "createPublicBookingRequest",
+  "getPublicBookingStatus",
+  "respondToBookingProposal",
+  "submitBookingRating",
+  "getBookingRating",
+  "getBarberRatings"
+]);
+
+function isPublicAction(action) {
+  return PUBLIC_ACTIONS.indexOf(String(action || "").trim()) !== -1;
+}
+
 function doPost(e) {
   try {
     validateCutHubRequestEnvironment();
@@ -126,11 +144,9 @@ function doPost(e) {
     });
   }
 
-  if (data.action === "stagingIdentity") return stagingIdentity();
-
-  if (data.action !== "loginUser" && data.action !== "logoutUser" && data.action !== "logout") {
+  if (!isPublicAction(data.action)) {
     const sessionToken = getSessionToken(data);
-    if (sessionToken && !getAuthenticatedUser(data)) {
+    if (!sessionToken || !getAuthenticatedUser(data)) {
       return jsonOutput({
         status: "error",
         sessionExpired: true,
@@ -139,6 +155,8 @@ function doPost(e) {
       });
     }
   }
+
+  if (data.action === "stagingIdentity") return stagingIdentity();
 
   if (data.action === "invoice") return createInvoice(data);
   if (data.action === "getInvoices") return getInvoices(data);
