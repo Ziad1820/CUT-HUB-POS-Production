@@ -283,7 +283,7 @@ test("stagingIdentity is unavailable outside staging", () => {
   }
 });
 
-test("doPost enforces spreadsheet identity for staging and production routing", () => {
+test("doPost enforces environment identity before the SEC-01 authentication gate", () => {
   const staging = createHarness({ properties: stagingProperties() });
   const identity = outputJson(staging.context.doPost({
     postData: {
@@ -291,7 +291,8 @@ test("doPost enforces spreadsheet identity for staging and production routing", 
       contents: "{\"action\":\"stagingIdentity\"}"
     }
   }));
-  assert.equal(identity.spreadsheetId, STAGING_ID);
+  assert.equal(identity.authRequired, true);
+  assert.equal(Object.prototype.hasOwnProperty.call(identity, "spreadsheetId"), false);
 
   const invalidStaging = createHarness({
     properties: stagingProperties(),
@@ -309,12 +310,14 @@ test("doPost enforces spreadsheet identity for staging and production routing", 
     }),
     activeSpreadsheetId: PRODUCTION_ID
   });
-  production.context.getTotalIncome = () => ({ status: "success", total: 42 });
+  let protectedCalls = 0;
+  production.context.getTotalIncome = () => { protectedCalls += 1; return { status: "success", total: 42 }; };
   production.context.jsonOutput = (value) => value;
   const validProduction = production.context.doPost({
     postData: { contents: JSON.stringify({ action: "totalIncome" }) }
   });
-  assert.deepEqual(JSON.parse(JSON.stringify(validProduction)), { status: "success", total: 42 });
+  assert.equal(validProduction.authRequired, true);
+  assert.equal(protectedCalls, 0);
 
   const productionOnStaging = createHarness({
     properties: stagingProperties({
@@ -335,7 +338,7 @@ test("doPost enforces spreadsheet identity for staging and production routing", 
   assert.equal(missingIdentity.code, "STAGING_CONFIGURATION_INVALID");
 });
 
-test("doPost accepts original JSON stagingIdentity requests and contains parse failures", () => {
+test("doPost parses original JSON but keeps stagingIdentity protected and contains parse failures", () => {
   const staging = createHarness({ properties: stagingProperties() });
   const original = outputJson(staging.context.doPost({
     postData: {
@@ -343,8 +346,8 @@ test("doPost accepts original JSON stagingIdentity requests and contains parse f
       contents: "{\"action\":\"stagingIdentity\"}"
     }
   }));
-  assert.equal(original.environment, "staging");
-  assert.equal(original.spreadsheetId, STAGING_ID);
+  assert.equal(original.authRequired, true);
+  assert.equal(Object.prototype.hasOwnProperty.call(original, "spreadsheetId"), false);
 
   const malformed = outputJson(staging.context.doPost({
     postData: {

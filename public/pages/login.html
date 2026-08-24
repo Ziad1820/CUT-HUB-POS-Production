@@ -307,26 +307,13 @@
       statusBox.className = "status error";
     }
 
-    loginForm.addEventListener("submit", async event => {
-      event.preventDefault();
-      statusBox.textContent = "جاري تسجيل الدخول...";
-      statusBox.className = "status";
-
-      const result = await RomeoAuth.login(
-        document.getElementById("username").value.trim(),
-        document.getElementById("password").value
-      );
-
-      if (!result.success) {
-        statusBox.textContent = result.message;
-        statusBox.className = "status error";
-        return;
-      }
-
-      splash.classList.add("active");
-      setTimeout(() => {
-        window.location.href = RomeoAuth.getReturnTo();
-      }, 1000);
+    RomeoAuth.initializeLoginPage({
+      form: loginForm,
+      statusBox,
+      splash,
+      submitButton: loginForm.querySelector('[type="submit"]'),
+      usernameInput: document.getElementById("username"),
+      passwordInput: document.getElementById("password")
     });
   </script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>

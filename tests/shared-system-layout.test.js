@@ -74,3 +74,19 @@ test("existing Attendance, Scheduling, and Settlement feature modules remain wir
     assert.match(html, new RegExp(script.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
 });
+
+test("shared logout fallback never clears local state without authoritative revocation", () => {
+  const source = fs.readFileSync(
+    path.join(root, "public/assets/js/utils/layout.js"), "utf8"
+  );
+  const handler = source.match(
+    /if \(logoutButton\) logoutButton\.addEventListener\("click",[\s\S]*?\n    \}\);/
+  )?.[0] || "";
+  assert.ok(handler);
+  assert.match(handler, /await root\.RomeoAuth\.logout\(\)/);
+  assert.match(handler, /logoutButton\.disabled = true/);
+  assert.match(handler, /result\.success !== true/);
+  assert.match(handler, /result\.inProgress !== true/);
+  assert.doesNotMatch(handler, /removeItem\(|location\.replace\(/);
+  assert.match(handler, /تعذر تأكيد تسجيل الخروج/);
+});

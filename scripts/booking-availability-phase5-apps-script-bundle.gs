@@ -8853,7 +8853,9 @@ function coreStagingBootstrapCredentialFingerprint(passwordHash) {
 }
 
 function coreStagingBootstrapValidPasswordHash(value) {
-  return /^[a-f0-9]{64}$/.test(String(value || ""));
+  var text = String(value || "");
+  var runtimeOptions = typeof auth01RuntimeOptions === "function" ? auth01RuntimeOptions() : null;
+  return !!auth01ParseModernCredential(text, runtimeOptions || undefined) || /^[a-f0-9]{64}$/.test(text);
 }
 
 function coreStagingBootstrapHeaders(sheet) {
@@ -9113,9 +9115,10 @@ function previewStagingAuthenticationInitialization() {
     optionalDashboardDependencies: plan.optionalDashboardDependencies,
     ownerRecordCount: plan.ownerRecordCount,
     passwordStorage: {
-      hashAlgorithm: "SHA-256",
-      salted: false,
-      plaintextFallbackAcceptedByLogin: true,
+      hashAlgorithm: "PBKDF2-HMAC-SHA-256",
+      credentialFormat: "cuthub$1",
+      salted: true,
+      plaintextFallbackAcceptedByLogin: false,
       ownerPasswordState: plan.ownerPasswordState,
       plaintextPasswordCellEmpty: plan.plaintextPasswordCellEmpty
     },
@@ -9200,7 +9203,8 @@ function stageCoreStagingBootstrapCredential(data) {
       "CORE_BOOTSTRAP_CREDENTIAL_CONTEXT_INVALID", "Owner display name and requestId are required."
     );
   }
-  var passwordHash = hashPassword(password);
+  var runtimeOptions = typeof auth01RuntimeOptions === "function" ? auth01RuntimeOptions() : null;
+  var passwordHash = createModernCredential(password, runtimeOptions || undefined);
   data.password = "";
   data.passwordConfirmation = "";
   password = "";

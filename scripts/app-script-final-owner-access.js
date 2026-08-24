@@ -150,6 +150,13 @@ function doPost(e) {
     try {
       authenticatedUser = sessionToken ? getAuthenticatedUser(data) : null;
     } catch (error) {
+      if (error && /^AUTH01_/.test(String(error.code || ""))) {
+        return jsonOutput({
+          status: "error",
+          code: "AUTHENTICATION_SERVICE_UNAVAILABLE",
+          message: "Authentication service is temporarily unavailable."
+        });
+      }
       return jsonOutput({
         status: "error",
         code: error.code || "AUTHENTICATION_SCHEMA_ERROR",
@@ -368,20 +375,54 @@ function getSessionToken(data) {
   return String(data.sessionToken || data.token || data.authToken || "").trim();
 }
 
+function auth01RequestCorrelationId(data) {
+  const value = String(data && data.authRequestId || "").trim();
+  return value.length >= 8 && value.length <= 128 &&
+    /^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(value) ? value : "";
+}
+
+function auth01CorrelatedJsonOutput(payload, authRequestId) {
+  const response = Object.assign({}, payload || {});
+  if (authRequestId) response.authRequestId = authRequestId;
+  return jsonOutput(response);
+}
+
+function isValidSessionToken(token) {
+  const value = String(token || "").trim();
+  return value.length > 0 && value.length <= 256 && /^[A-Za-z0-9._:-]+$/.test(value);
+}
+
+function removeSessionCacheBestEffort(sessionKey) {
+  try {
+    CacheService.getScriptCache().remove(sessionKey);
+    return { attempted: true, failed: false };
+  } catch (error) {
+    return { attempted: true, failed: true };
+  }
+}
+
 function createSessionForUser(user) {
   cleanupExpiredSessions();
   const token = `${Utilities.getUuid()}-${Utilities.getUuid()}`;
+  const credentialEpoch = auth01ReadCredentialEpoch(user.username);
+  const identifierKeyFingerprint = auth01CurrentIdentifierFingerprint();
   const session = {
     username: user.username,
+    credentialEpoch,
+    identifierKeyFingerprint,
     createdAt: getCairoDateTime(),
     expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString()
   };
   const serializedSession = JSON.stringify(session);
 
   PropertiesService.getScriptProperties().setProperty(SESSION_CACHE_PREFIX + token, serializedSession);
-  CacheService
-    .getScriptCache()
-    .put(SESSION_CACHE_PREFIX + token, serializedSession, SESSION_CACHE_MAX_SECONDS);
+  try {
+    CacheService
+      .getScriptCache()
+      .put(SESSION_CACHE_PREFIX + token, serializedSession, SESSION_CACHE_MAX_SECONDS);
+  } catch (error) {
+    // Cache is acceleration only; the authoritative property was committed.
+  }
 
   return { token, expiresAt: session.expiresAt };
 }
@@ -400,43 +441,158 @@ function cleanupExpiredSessions() {
       // Invalid session records are removed below.
     }
     properties.deleteProperty(key);
-    CacheService.getScriptCache().remove(key);
+    removeSessionCacheBestEffort(key);
   });
 }
 
 function readSessionRecord(token) {
-  if (!token) return null;
+  if (!isValidSessionToken(token)) return null;
 
   const sessionKey = SESSION_CACHE_PREFIX + token;
-  const cache = CacheService.getScriptCache();
-  const properties = PropertiesService.getScriptProperties();
-  const raw = cache.get(sessionKey) || properties.getProperty(sessionKey);
-  if (!raw) return null;
+  let properties;
+  let raw;
+
+  try {
+    properties = PropertiesService.getScriptProperties();
+    // Script Properties is authoritative. A positive cache entry can never
+    // resurrect a session whose durable property is absent.
+    raw = properties.getProperty(sessionKey);
+  } catch (error) {
+    return null;
+  }
+
+  if (!raw) {
+    removeSessionCacheBestEffort(sessionKey);
+    return null;
+  }
 
   try {
     const session = JSON.parse(raw);
     const expiresAt = Date.parse(session.expiresAt || "");
     if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
-      cache.remove(sessionKey);
-      properties.deleteProperty(sessionKey);
+      try { properties.deleteProperty(sessionKey); } catch (error) {}
+      removeSessionCacheBestEffort(sessionKey);
       return null;
     }
 
     const remainingSeconds = Math.max(1, Math.floor((expiresAt - Date.now()) / 1000));
-    cache.put(sessionKey, raw, Math.min(remainingSeconds, SESSION_CACHE_MAX_SECONDS));
+    try {
+      CacheService.getScriptCache().put(
+        sessionKey,
+        raw,
+        Math.min(remainingSeconds, SESSION_CACHE_MAX_SECONDS)
+      );
+    } catch (error) {
+      // Cache is acceleration only; authoritative validation already passed.
+    }
     return session;
   } catch (error) {
-    cache.remove(sessionKey);
-    properties.deleteProperty(sessionKey);
+    try { properties.deleteProperty(sessionKey); } catch (deleteError) {}
+    removeSessionCacheBestEffort(sessionKey);
     return null;
   }
 }
 
+function revokeSession(token) {
+  const normalizedToken = String(token || "").trim();
+  if (!isValidSessionToken(normalizedToken)) {
+    return {
+      ok: false,
+      code: "INVALID_SESSION_TOKEN",
+      revoked: false,
+      alreadyRevoked: false,
+      cacheRemovalAttempted: false,
+      cacheRemovalFailed: false
+    };
+  }
+
+  const sessionKey = SESSION_CACHE_PREFIX + normalizedToken;
+  let properties;
+  try {
+    properties = PropertiesService.getScriptProperties();
+  } catch (error) {
+    return {
+      ok: false,
+      code: "SESSION_PROPERTY_READ_FAILED",
+      revoked: false,
+      alreadyRevoked: false,
+      cacheRemovalAttempted: false,
+      cacheRemovalFailed: false
+    };
+  }
+  let existing;
+
+  try {
+    existing = properties.getProperty(sessionKey);
+  } catch (error) {
+    return {
+      ok: false,
+      code: "SESSION_PROPERTY_READ_FAILED",
+      revoked: false,
+      alreadyRevoked: false,
+      cacheRemovalAttempted: false,
+      cacheRemovalFailed: false
+    };
+  }
+
+  if (existing == null) {
+    const cacheResult = removeSessionCacheBestEffort(sessionKey);
+    return {
+      ok: true,
+      revoked: true,
+      alreadyRevoked: true,
+      cacheRemovalAttempted: cacheResult.attempted,
+      cacheRemovalFailed: cacheResult.failed
+    };
+  }
+
+  try {
+    properties.deleteProperty(sessionKey);
+  } catch (error) {
+    return {
+      ok: false,
+      code: "SESSION_PROPERTY_DELETE_FAILED",
+      revoked: false,
+      alreadyRevoked: false,
+      cacheRemovalAttempted: false,
+      cacheRemovalFailed: false
+    };
+  }
+
+  try {
+    if (properties.getProperty(sessionKey) != null) {
+      return {
+        ok: false,
+        code: "SESSION_PROPERTY_DELETE_UNVERIFIED",
+        revoked: false,
+        alreadyRevoked: false,
+        cacheRemovalAttempted: false,
+        cacheRemovalFailed: false
+      };
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      code: "SESSION_PROPERTY_DELETE_UNVERIFIED",
+      revoked: false,
+      alreadyRevoked: false,
+      cacheRemovalAttempted: false,
+      cacheRemovalFailed: false
+    };
+  }
+
+  const cacheResult = removeSessionCacheBestEffort(sessionKey);
+  return {
+    ok: true,
+    revoked: true,
+    alreadyRevoked: false,
+    cacheRemovalAttempted: cacheResult.attempted,
+    cacheRemovalFailed: cacheResult.failed
+  };
+}
+
 function deleteSession(token) {
-  if (!token) return;
-  const sessionKey = SESSION_CACHE_PREFIX + token;
-  CacheService.getScriptCache().remove(sessionKey);
-  PropertiesService.getScriptProperties().deleteProperty(sessionKey);
+  return revokeSession(token);
 }
 
 function getAuthenticatedUser(data) {
@@ -444,10 +600,25 @@ function getAuthenticatedUser(data) {
   const session = readSessionRecord(token);
   if (!session || !session.username) return null;
 
-  const sessionUsername = String(session.username || "").trim().toLowerCase();
-  return readUsersFromSheet().find(user =>
-    String(user.username || "").trim().toLowerCase() === sessionUsername
+  const sessionUsername = auth01CanonicalUsername(session.username);
+  const user = readUsersFromSheet().find(item =>
+    auth01CanonicalUsername(item.username) === sessionUsername
   ) || null;
+  if (!user) return null;
+
+  const sessionEpoch = session.credentialEpoch == null ? 0 : Number(session.credentialEpoch);
+  const currentFingerprint = auth01CurrentIdentifierFingerprint();
+  if (typeof session.identifierKeyFingerprint !== "string" ||
+      session.identifierKeyFingerprint !== currentFingerprint) {
+    deleteSession(token);
+    return null;
+  }
+  const currentEpoch = auth01ReadCredentialEpoch(user.username);
+  if (!Number.isSafeInteger(sessionEpoch) || sessionEpoch < 0 || sessionEpoch !== currentEpoch) {
+    deleteSession(token);
+    return null;
+  }
+  return user;
 }
 
 function getActor(data) {
@@ -777,19 +948,707 @@ function sanitizeUser(user) {
   };
 }
 
+// AUTH-01 cryptographic primitives implement RFC 8018 PBKDF2 using the
+// SHA-256/HMAC construction specified by FIPS 180-4 and RFC 2104. The code is
+// deliberately self-contained for the Apps Script V8 runtime and is verified
+// by published PBKDF2-HMAC-SHA-256 known-answer vectors in the AUTH-01 suite.
+const AUTH01_CREDENTIAL_POLICY = Object.freeze({
+  formatVersion: 1,
+  algorithm: "pbkdf2-sha256",
+  iterations: 600000,
+  allowedIterations: Object.freeze([600000]),
+  maximumIterations: 1200000,
+  saltBytes: 16,
+  derivedKeyBytes: 32
+});
+const AUTH01_IDENTIFIER_KEY_PROPERTY = "AUTH01:IDKEY:v1";
+const AUTH01_IDENTIFIER_FINGERPRINT_PROPERTY = "AUTH01:IDKEYFP:v1";
+const AUTH01_EPOCH_PREFIX = "AUTH01:EPOCH:v1:";
+const AUTH01_MIGRATION_PREFIX = "AUTH01:MIG:v1:";
+const AUTH01_MIGRATION_JOURNAL_POLICY = Object.freeze({
+  attentionAfterMs: 24 * 60 * 60 * 1000,
+  terminalRetentionMs: 7 * 24 * 60 * 60 * 1000,
+  earliestValidTimestampMs: Date.UTC(2000, 0, 1),
+  maximumInventoryScan: 200,
+  inventoryPageSize: 100,
+  maximumCleanupBatch: 25,
+  maximumTotalJournals: 180,
+  maximumUnresolvedJournals: 40,
+  maximumRecoveryRequiredJournals: 20,
+  maximumSerializedBytes: 2048
+});
+const AUTH01_MODERN_PREFIX = "cuthub$";
+const AUTH01_CREDENTIAL_STATES = Object.freeze({
+  MODERN_V1: "MODERN_V1",
+  LEGACY_SHA256: "LEGACY_SHA256",
+  LEGACY_PLAINTEXT: "LEGACY_PLAINTEXT",
+  INVALID: "INVALID",
+  EMPTY: "EMPTY"
+});
+const AUTH01_PLAINTEXT_COMPATIBILITY_DEFAULT = false;
+const AUTH01_SHA256_K = Object.freeze([
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
+  0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+  0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
+  0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147,
+  0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+  0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+  0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
+  0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+  0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+]);
+
+function auth01Error(code, message, details) {
+  const error = new Error(message || code);
+  error.code = code;
+  if (details) error.details = details;
+  return error;
+}
+
+function auth01CredentialPolicy(options) {
+  const override = options && options.testPolicy;
+  if (!override) return AUTH01_CREDENTIAL_POLICY;
+  return {
+    formatVersion: 1,
+    algorithm: "pbkdf2-sha256",
+    iterations: Number(override.iterations),
+    allowedIterations: (override.allowedIterations || [Number(override.iterations)]).slice(),
+    maximumIterations: Number(override.maximumIterations || override.iterations),
+    saltBytes: 16,
+    derivedKeyBytes: 32
+  };
+}
+
+function auth01NormalizeModernPassword(password) {
+  const value = String(password == null ? "" : password);
+  return typeof value.normalize === "function" ? value.normalize("NFC") : value;
+}
+
+function auth01Utf8Bytes(value) {
+  const text = String(value == null ? "" : value);
+  const bytes = [];
+  for (let index = 0; index < text.length; index++) {
+    let point = text.codePointAt(index);
+    if (point > 0xffff) index++;
+    if (point >= 0xd800 && point <= 0xdfff) point = 0xfffd;
+    if (point <= 0x7f) bytes.push(point);
+    else if (point <= 0x7ff) {
+      bytes.push(0xc0 | (point >>> 6), 0x80 | (point & 0x3f));
+    } else if (point <= 0xffff) {
+      bytes.push(0xe0 | (point >>> 12), 0x80 | ((point >>> 6) & 0x3f), 0x80 | (point & 0x3f));
+    } else {
+      bytes.push(
+        0xf0 | (point >>> 18), 0x80 | ((point >>> 12) & 0x3f),
+        0x80 | ((point >>> 6) & 0x3f), 0x80 | (point & 0x3f)
+      );
+    }
+  }
+  return bytes;
+}
+
+function auth01RotateRight(value, bits) {
+  return (value >>> bits) | (value << (32 - bits));
+}
+
+const AUTH01_SHA256_IV = Object.freeze([
+    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+    0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
+]);
+const AUTH01_SHA256_WORDS = new Uint32Array(64);
+
+// SHA-256/HMAC/PBKDF2 structure adapted from @noble/hashes 2.3.0 (MIT),
+// pinned npm shasum 505fd39c3134a37e67c8c4e6c6049a496154879c. The compact
+// implementation remains self-contained for Apps Script V8 and is checked by
+// published PBKDF2-HMAC-SHA-256 known-answer vectors. The SHA-256 round core is
+// mechanically unrolled to reduce V8 loop overhead without changing the algorithm.
+function auth01Sha256Rounds(hash) {
+  const w = AUTH01_SHA256_WORDS;
+  { const x=w[1], y=w[14]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[16]=(w[0]+s0+w[9]+s1)>>>0; }
+  { const x=w[2], y=w[15]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[17]=(w[1]+s0+w[10]+s1)>>>0; }
+  { const x=w[3], y=w[16]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[18]=(w[2]+s0+w[11]+s1)>>>0; }
+  { const x=w[4], y=w[17]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[19]=(w[3]+s0+w[12]+s1)>>>0; }
+  { const x=w[5], y=w[18]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[20]=(w[4]+s0+w[13]+s1)>>>0; }
+  { const x=w[6], y=w[19]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[21]=(w[5]+s0+w[14]+s1)>>>0; }
+  { const x=w[7], y=w[20]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[22]=(w[6]+s0+w[15]+s1)>>>0; }
+  { const x=w[8], y=w[21]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[23]=(w[7]+s0+w[16]+s1)>>>0; }
+  { const x=w[9], y=w[22]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[24]=(w[8]+s0+w[17]+s1)>>>0; }
+  { const x=w[10], y=w[23]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[25]=(w[9]+s0+w[18]+s1)>>>0; }
+  { const x=w[11], y=w[24]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[26]=(w[10]+s0+w[19]+s1)>>>0; }
+  { const x=w[12], y=w[25]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[27]=(w[11]+s0+w[20]+s1)>>>0; }
+  { const x=w[13], y=w[26]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[28]=(w[12]+s0+w[21]+s1)>>>0; }
+  { const x=w[14], y=w[27]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[29]=(w[13]+s0+w[22]+s1)>>>0; }
+  { const x=w[15], y=w[28]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[30]=(w[14]+s0+w[23]+s1)>>>0; }
+  { const x=w[16], y=w[29]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[31]=(w[15]+s0+w[24]+s1)>>>0; }
+  { const x=w[17], y=w[30]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[32]=(w[16]+s0+w[25]+s1)>>>0; }
+  { const x=w[18], y=w[31]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[33]=(w[17]+s0+w[26]+s1)>>>0; }
+  { const x=w[19], y=w[32]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[34]=(w[18]+s0+w[27]+s1)>>>0; }
+  { const x=w[20], y=w[33]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[35]=(w[19]+s0+w[28]+s1)>>>0; }
+  { const x=w[21], y=w[34]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[36]=(w[20]+s0+w[29]+s1)>>>0; }
+  { const x=w[22], y=w[35]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[37]=(w[21]+s0+w[30]+s1)>>>0; }
+  { const x=w[23], y=w[36]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[38]=(w[22]+s0+w[31]+s1)>>>0; }
+  { const x=w[24], y=w[37]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[39]=(w[23]+s0+w[32]+s1)>>>0; }
+  { const x=w[25], y=w[38]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[40]=(w[24]+s0+w[33]+s1)>>>0; }
+  { const x=w[26], y=w[39]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[41]=(w[25]+s0+w[34]+s1)>>>0; }
+  { const x=w[27], y=w[40]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[42]=(w[26]+s0+w[35]+s1)>>>0; }
+  { const x=w[28], y=w[41]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[43]=(w[27]+s0+w[36]+s1)>>>0; }
+  { const x=w[29], y=w[42]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[44]=(w[28]+s0+w[37]+s1)>>>0; }
+  { const x=w[30], y=w[43]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[45]=(w[29]+s0+w[38]+s1)>>>0; }
+  { const x=w[31], y=w[44]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[46]=(w[30]+s0+w[39]+s1)>>>0; }
+  { const x=w[32], y=w[45]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[47]=(w[31]+s0+w[40]+s1)>>>0; }
+  { const x=w[33], y=w[46]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[48]=(w[32]+s0+w[41]+s1)>>>0; }
+  { const x=w[34], y=w[47]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[49]=(w[33]+s0+w[42]+s1)>>>0; }
+  { const x=w[35], y=w[48]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[50]=(w[34]+s0+w[43]+s1)>>>0; }
+  { const x=w[36], y=w[49]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[51]=(w[35]+s0+w[44]+s1)>>>0; }
+  { const x=w[37], y=w[50]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[52]=(w[36]+s0+w[45]+s1)>>>0; }
+  { const x=w[38], y=w[51]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[53]=(w[37]+s0+w[46]+s1)>>>0; }
+  { const x=w[39], y=w[52]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[54]=(w[38]+s0+w[47]+s1)>>>0; }
+  { const x=w[40], y=w[53]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[55]=(w[39]+s0+w[48]+s1)>>>0; }
+  { const x=w[41], y=w[54]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[56]=(w[40]+s0+w[49]+s1)>>>0; }
+  { const x=w[42], y=w[55]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[57]=(w[41]+s0+w[50]+s1)>>>0; }
+  { const x=w[43], y=w[56]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[58]=(w[42]+s0+w[51]+s1)>>>0; }
+  { const x=w[44], y=w[57]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[59]=(w[43]+s0+w[52]+s1)>>>0; }
+  { const x=w[45], y=w[58]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[60]=(w[44]+s0+w[53]+s1)>>>0; }
+  { const x=w[46], y=w[59]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[61]=(w[45]+s0+w[54]+s1)>>>0; }
+  { const x=w[47], y=w[60]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[62]=(w[46]+s0+w[55]+s1)>>>0; }
+  { const x=w[48], y=w[61]; const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3); const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10); w[63]=(w[47]+s0+w[56]+s1)>>>0; }
+  let a=hash[0], b=hash[1], c=hash[2], d=hash[3], e=hash[4], f=hash[5], g=hash[6], h=hash[7];
+  { const s1=((e>>>6)|(e<<26))^((e>>>11)|(e<<21))^((e>>>25)|(e<<7)); const ch=(e&f)^(~e&g); const t1=(h+s1+ch+0x428a2f98+w[0])>>>0; const s0=((a>>>2)|(a<<30))^((a>>>13)|(a<<19))^((a>>>22)|(a<<10)); const maj=(a&b)^(a&c)^(b&c); d=(d+t1)>>>0; h=(t1+s0+maj)>>>0; }
+  { const s1=((d>>>6)|(d<<26))^((d>>>11)|(d<<21))^((d>>>25)|(d<<7)); const ch=(d&e)^(~d&f); const t1=(g+s1+ch+0x71374491+w[1])>>>0; const s0=((h>>>2)|(h<<30))^((h>>>13)|(h<<19))^((h>>>22)|(h<<10)); const maj=(h&a)^(h&b)^(a&b); c=(c+t1)>>>0; g=(t1+s0+maj)>>>0; }
+  { const s1=((c>>>6)|(c<<26))^((c>>>11)|(c<<21))^((c>>>25)|(c<<7)); const ch=(c&d)^(~c&e); const t1=(f+s1+ch+0xb5c0fbcf+w[2])>>>0; const s0=((g>>>2)|(g<<30))^((g>>>13)|(g<<19))^((g>>>22)|(g<<10)); const maj=(g&h)^(g&a)^(h&a); b=(b+t1)>>>0; f=(t1+s0+maj)>>>0; }
+  { const s1=((b>>>6)|(b<<26))^((b>>>11)|(b<<21))^((b>>>25)|(b<<7)); const ch=(b&c)^(~b&d); const t1=(e+s1+ch+0xe9b5dba5+w[3])>>>0; const s0=((f>>>2)|(f<<30))^((f>>>13)|(f<<19))^((f>>>22)|(f<<10)); const maj=(f&g)^(f&h)^(g&h); a=(a+t1)>>>0; e=(t1+s0+maj)>>>0; }
+  { const s1=((a>>>6)|(a<<26))^((a>>>11)|(a<<21))^((a>>>25)|(a<<7)); const ch=(a&b)^(~a&c); const t1=(d+s1+ch+0x3956c25b+w[4])>>>0; const s0=((e>>>2)|(e<<30))^((e>>>13)|(e<<19))^((e>>>22)|(e<<10)); const maj=(e&f)^(e&g)^(f&g); h=(h+t1)>>>0; d=(t1+s0+maj)>>>0; }
+  { const s1=((h>>>6)|(h<<26))^((h>>>11)|(h<<21))^((h>>>25)|(h<<7)); const ch=(h&a)^(~h&b); const t1=(c+s1+ch+0x59f111f1+w[5])>>>0; const s0=((d>>>2)|(d<<30))^((d>>>13)|(d<<19))^((d>>>22)|(d<<10)); const maj=(d&e)^(d&f)^(e&f); g=(g+t1)>>>0; c=(t1+s0+maj)>>>0; }
+  { const s1=((g>>>6)|(g<<26))^((g>>>11)|(g<<21))^((g>>>25)|(g<<7)); const ch=(g&h)^(~g&a); const t1=(b+s1+ch+0x923f82a4+w[6])>>>0; const s0=((c>>>2)|(c<<30))^((c>>>13)|(c<<19))^((c>>>22)|(c<<10)); const maj=(c&d)^(c&e)^(d&e); f=(f+t1)>>>0; b=(t1+s0+maj)>>>0; }
+  { const s1=((f>>>6)|(f<<26))^((f>>>11)|(f<<21))^((f>>>25)|(f<<7)); const ch=(f&g)^(~f&h); const t1=(a+s1+ch+0xab1c5ed5+w[7])>>>0; const s0=((b>>>2)|(b<<30))^((b>>>13)|(b<<19))^((b>>>22)|(b<<10)); const maj=(b&c)^(b&d)^(c&d); e=(e+t1)>>>0; a=(t1+s0+maj)>>>0; }
+  { const s1=((e>>>6)|(e<<26))^((e>>>11)|(e<<21))^((e>>>25)|(e<<7)); const ch=(e&f)^(~e&g); const t1=(h+s1+ch+0xd807aa98+w[8])>>>0; const s0=((a>>>2)|(a<<30))^((a>>>13)|(a<<19))^((a>>>22)|(a<<10)); const maj=(a&b)^(a&c)^(b&c); d=(d+t1)>>>0; h=(t1+s0+maj)>>>0; }
+  { const s1=((d>>>6)|(d<<26))^((d>>>11)|(d<<21))^((d>>>25)|(d<<7)); const ch=(d&e)^(~d&f); const t1=(g+s1+ch+0x12835b01+w[9])>>>0; const s0=((h>>>2)|(h<<30))^((h>>>13)|(h<<19))^((h>>>22)|(h<<10)); const maj=(h&a)^(h&b)^(a&b); c=(c+t1)>>>0; g=(t1+s0+maj)>>>0; }
+  { const s1=((c>>>6)|(c<<26))^((c>>>11)|(c<<21))^((c>>>25)|(c<<7)); const ch=(c&d)^(~c&e); const t1=(f+s1+ch+0x243185be+w[10])>>>0; const s0=((g>>>2)|(g<<30))^((g>>>13)|(g<<19))^((g>>>22)|(g<<10)); const maj=(g&h)^(g&a)^(h&a); b=(b+t1)>>>0; f=(t1+s0+maj)>>>0; }
+  { const s1=((b>>>6)|(b<<26))^((b>>>11)|(b<<21))^((b>>>25)|(b<<7)); const ch=(b&c)^(~b&d); const t1=(e+s1+ch+0x550c7dc3+w[11])>>>0; const s0=((f>>>2)|(f<<30))^((f>>>13)|(f<<19))^((f>>>22)|(f<<10)); const maj=(f&g)^(f&h)^(g&h); a=(a+t1)>>>0; e=(t1+s0+maj)>>>0; }
+  { const s1=((a>>>6)|(a<<26))^((a>>>11)|(a<<21))^((a>>>25)|(a<<7)); const ch=(a&b)^(~a&c); const t1=(d+s1+ch+0x72be5d74+w[12])>>>0; const s0=((e>>>2)|(e<<30))^((e>>>13)|(e<<19))^((e>>>22)|(e<<10)); const maj=(e&f)^(e&g)^(f&g); h=(h+t1)>>>0; d=(t1+s0+maj)>>>0; }
+  { const s1=((h>>>6)|(h<<26))^((h>>>11)|(h<<21))^((h>>>25)|(h<<7)); const ch=(h&a)^(~h&b); const t1=(c+s1+ch+0x80deb1fe+w[13])>>>0; const s0=((d>>>2)|(d<<30))^((d>>>13)|(d<<19))^((d>>>22)|(d<<10)); const maj=(d&e)^(d&f)^(e&f); g=(g+t1)>>>0; c=(t1+s0+maj)>>>0; }
+  { const s1=((g>>>6)|(g<<26))^((g>>>11)|(g<<21))^((g>>>25)|(g<<7)); const ch=(g&h)^(~g&a); const t1=(b+s1+ch+0x9bdc06a7+w[14])>>>0; const s0=((c>>>2)|(c<<30))^((c>>>13)|(c<<19))^((c>>>22)|(c<<10)); const maj=(c&d)^(c&e)^(d&e); f=(f+t1)>>>0; b=(t1+s0+maj)>>>0; }
+  { const s1=((f>>>6)|(f<<26))^((f>>>11)|(f<<21))^((f>>>25)|(f<<7)); const ch=(f&g)^(~f&h); const t1=(a+s1+ch+0xc19bf174+w[15])>>>0; const s0=((b>>>2)|(b<<30))^((b>>>13)|(b<<19))^((b>>>22)|(b<<10)); const maj=(b&c)^(b&d)^(c&d); e=(e+t1)>>>0; a=(t1+s0+maj)>>>0; }
+  { const s1=((e>>>6)|(e<<26))^((e>>>11)|(e<<21))^((e>>>25)|(e<<7)); const ch=(e&f)^(~e&g); const t1=(h+s1+ch+0xe49b69c1+w[16])>>>0; const s0=((a>>>2)|(a<<30))^((a>>>13)|(a<<19))^((a>>>22)|(a<<10)); const maj=(a&b)^(a&c)^(b&c); d=(d+t1)>>>0; h=(t1+s0+maj)>>>0; }
+  { const s1=((d>>>6)|(d<<26))^((d>>>11)|(d<<21))^((d>>>25)|(d<<7)); const ch=(d&e)^(~d&f); const t1=(g+s1+ch+0xefbe4786+w[17])>>>0; const s0=((h>>>2)|(h<<30))^((h>>>13)|(h<<19))^((h>>>22)|(h<<10)); const maj=(h&a)^(h&b)^(a&b); c=(c+t1)>>>0; g=(t1+s0+maj)>>>0; }
+  { const s1=((c>>>6)|(c<<26))^((c>>>11)|(c<<21))^((c>>>25)|(c<<7)); const ch=(c&d)^(~c&e); const t1=(f+s1+ch+0x0fc19dc6+w[18])>>>0; const s0=((g>>>2)|(g<<30))^((g>>>13)|(g<<19))^((g>>>22)|(g<<10)); const maj=(g&h)^(g&a)^(h&a); b=(b+t1)>>>0; f=(t1+s0+maj)>>>0; }
+  { const s1=((b>>>6)|(b<<26))^((b>>>11)|(b<<21))^((b>>>25)|(b<<7)); const ch=(b&c)^(~b&d); const t1=(e+s1+ch+0x240ca1cc+w[19])>>>0; const s0=((f>>>2)|(f<<30))^((f>>>13)|(f<<19))^((f>>>22)|(f<<10)); const maj=(f&g)^(f&h)^(g&h); a=(a+t1)>>>0; e=(t1+s0+maj)>>>0; }
+  { const s1=((a>>>6)|(a<<26))^((a>>>11)|(a<<21))^((a>>>25)|(a<<7)); const ch=(a&b)^(~a&c); const t1=(d+s1+ch+0x2de92c6f+w[20])>>>0; const s0=((e>>>2)|(e<<30))^((e>>>13)|(e<<19))^((e>>>22)|(e<<10)); const maj=(e&f)^(e&g)^(f&g); h=(h+t1)>>>0; d=(t1+s0+maj)>>>0; }
+  { const s1=((h>>>6)|(h<<26))^((h>>>11)|(h<<21))^((h>>>25)|(h<<7)); const ch=(h&a)^(~h&b); const t1=(c+s1+ch+0x4a7484aa+w[21])>>>0; const s0=((d>>>2)|(d<<30))^((d>>>13)|(d<<19))^((d>>>22)|(d<<10)); const maj=(d&e)^(d&f)^(e&f); g=(g+t1)>>>0; c=(t1+s0+maj)>>>0; }
+  { const s1=((g>>>6)|(g<<26))^((g>>>11)|(g<<21))^((g>>>25)|(g<<7)); const ch=(g&h)^(~g&a); const t1=(b+s1+ch+0x5cb0a9dc+w[22])>>>0; const s0=((c>>>2)|(c<<30))^((c>>>13)|(c<<19))^((c>>>22)|(c<<10)); const maj=(c&d)^(c&e)^(d&e); f=(f+t1)>>>0; b=(t1+s0+maj)>>>0; }
+  { const s1=((f>>>6)|(f<<26))^((f>>>11)|(f<<21))^((f>>>25)|(f<<7)); const ch=(f&g)^(~f&h); const t1=(a+s1+ch+0x76f988da+w[23])>>>0; const s0=((b>>>2)|(b<<30))^((b>>>13)|(b<<19))^((b>>>22)|(b<<10)); const maj=(b&c)^(b&d)^(c&d); e=(e+t1)>>>0; a=(t1+s0+maj)>>>0; }
+  { const s1=((e>>>6)|(e<<26))^((e>>>11)|(e<<21))^((e>>>25)|(e<<7)); const ch=(e&f)^(~e&g); const t1=(h+s1+ch+0x983e5152+w[24])>>>0; const s0=((a>>>2)|(a<<30))^((a>>>13)|(a<<19))^((a>>>22)|(a<<10)); const maj=(a&b)^(a&c)^(b&c); d=(d+t1)>>>0; h=(t1+s0+maj)>>>0; }
+  { const s1=((d>>>6)|(d<<26))^((d>>>11)|(d<<21))^((d>>>25)|(d<<7)); const ch=(d&e)^(~d&f); const t1=(g+s1+ch+0xa831c66d+w[25])>>>0; const s0=((h>>>2)|(h<<30))^((h>>>13)|(h<<19))^((h>>>22)|(h<<10)); const maj=(h&a)^(h&b)^(a&b); c=(c+t1)>>>0; g=(t1+s0+maj)>>>0; }
+  { const s1=((c>>>6)|(c<<26))^((c>>>11)|(c<<21))^((c>>>25)|(c<<7)); const ch=(c&d)^(~c&e); const t1=(f+s1+ch+0xb00327c8+w[26])>>>0; const s0=((g>>>2)|(g<<30))^((g>>>13)|(g<<19))^((g>>>22)|(g<<10)); const maj=(g&h)^(g&a)^(h&a); b=(b+t1)>>>0; f=(t1+s0+maj)>>>0; }
+  { const s1=((b>>>6)|(b<<26))^((b>>>11)|(b<<21))^((b>>>25)|(b<<7)); const ch=(b&c)^(~b&d); const t1=(e+s1+ch+0xbf597fc7+w[27])>>>0; const s0=((f>>>2)|(f<<30))^((f>>>13)|(f<<19))^((f>>>22)|(f<<10)); const maj=(f&g)^(f&h)^(g&h); a=(a+t1)>>>0; e=(t1+s0+maj)>>>0; }
+  { const s1=((a>>>6)|(a<<26))^((a>>>11)|(a<<21))^((a>>>25)|(a<<7)); const ch=(a&b)^(~a&c); const t1=(d+s1+ch+0xc6e00bf3+w[28])>>>0; const s0=((e>>>2)|(e<<30))^((e>>>13)|(e<<19))^((e>>>22)|(e<<10)); const maj=(e&f)^(e&g)^(f&g); h=(h+t1)>>>0; d=(t1+s0+maj)>>>0; }
+  { const s1=((h>>>6)|(h<<26))^((h>>>11)|(h<<21))^((h>>>25)|(h<<7)); const ch=(h&a)^(~h&b); const t1=(c+s1+ch+0xd5a79147+w[29])>>>0; const s0=((d>>>2)|(d<<30))^((d>>>13)|(d<<19))^((d>>>22)|(d<<10)); const maj=(d&e)^(d&f)^(e&f); g=(g+t1)>>>0; c=(t1+s0+maj)>>>0; }
+  { const s1=((g>>>6)|(g<<26))^((g>>>11)|(g<<21))^((g>>>25)|(g<<7)); const ch=(g&h)^(~g&a); const t1=(b+s1+ch+0x06ca6351+w[30])>>>0; const s0=((c>>>2)|(c<<30))^((c>>>13)|(c<<19))^((c>>>22)|(c<<10)); const maj=(c&d)^(c&e)^(d&e); f=(f+t1)>>>0; b=(t1+s0+maj)>>>0; }
+  { const s1=((f>>>6)|(f<<26))^((f>>>11)|(f<<21))^((f>>>25)|(f<<7)); const ch=(f&g)^(~f&h); const t1=(a+s1+ch+0x14292967+w[31])>>>0; const s0=((b>>>2)|(b<<30))^((b>>>13)|(b<<19))^((b>>>22)|(b<<10)); const maj=(b&c)^(b&d)^(c&d); e=(e+t1)>>>0; a=(t1+s0+maj)>>>0; }
+  { const s1=((e>>>6)|(e<<26))^((e>>>11)|(e<<21))^((e>>>25)|(e<<7)); const ch=(e&f)^(~e&g); const t1=(h+s1+ch+0x27b70a85+w[32])>>>0; const s0=((a>>>2)|(a<<30))^((a>>>13)|(a<<19))^((a>>>22)|(a<<10)); const maj=(a&b)^(a&c)^(b&c); d=(d+t1)>>>0; h=(t1+s0+maj)>>>0; }
+  { const s1=((d>>>6)|(d<<26))^((d>>>11)|(d<<21))^((d>>>25)|(d<<7)); const ch=(d&e)^(~d&f); const t1=(g+s1+ch+0x2e1b2138+w[33])>>>0; const s0=((h>>>2)|(h<<30))^((h>>>13)|(h<<19))^((h>>>22)|(h<<10)); const maj=(h&a)^(h&b)^(a&b); c=(c+t1)>>>0; g=(t1+s0+maj)>>>0; }
+  { const s1=((c>>>6)|(c<<26))^((c>>>11)|(c<<21))^((c>>>25)|(c<<7)); const ch=(c&d)^(~c&e); const t1=(f+s1+ch+0x4d2c6dfc+w[34])>>>0; const s0=((g>>>2)|(g<<30))^((g>>>13)|(g<<19))^((g>>>22)|(g<<10)); const maj=(g&h)^(g&a)^(h&a); b=(b+t1)>>>0; f=(t1+s0+maj)>>>0; }
+  { const s1=((b>>>6)|(b<<26))^((b>>>11)|(b<<21))^((b>>>25)|(b<<7)); const ch=(b&c)^(~b&d); const t1=(e+s1+ch+0x53380d13+w[35])>>>0; const s0=((f>>>2)|(f<<30))^((f>>>13)|(f<<19))^((f>>>22)|(f<<10)); const maj=(f&g)^(f&h)^(g&h); a=(a+t1)>>>0; e=(t1+s0+maj)>>>0; }
+  { const s1=((a>>>6)|(a<<26))^((a>>>11)|(a<<21))^((a>>>25)|(a<<7)); const ch=(a&b)^(~a&c); const t1=(d+s1+ch+0x650a7354+w[36])>>>0; const s0=((e>>>2)|(e<<30))^((e>>>13)|(e<<19))^((e>>>22)|(e<<10)); const maj=(e&f)^(e&g)^(f&g); h=(h+t1)>>>0; d=(t1+s0+maj)>>>0; }
+  { const s1=((h>>>6)|(h<<26))^((h>>>11)|(h<<21))^((h>>>25)|(h<<7)); const ch=(h&a)^(~h&b); const t1=(c+s1+ch+0x766a0abb+w[37])>>>0; const s0=((d>>>2)|(d<<30))^((d>>>13)|(d<<19))^((d>>>22)|(d<<10)); const maj=(d&e)^(d&f)^(e&f); g=(g+t1)>>>0; c=(t1+s0+maj)>>>0; }
+  { const s1=((g>>>6)|(g<<26))^((g>>>11)|(g<<21))^((g>>>25)|(g<<7)); const ch=(g&h)^(~g&a); const t1=(b+s1+ch+0x81c2c92e+w[38])>>>0; const s0=((c>>>2)|(c<<30))^((c>>>13)|(c<<19))^((c>>>22)|(c<<10)); const maj=(c&d)^(c&e)^(d&e); f=(f+t1)>>>0; b=(t1+s0+maj)>>>0; }
+  { const s1=((f>>>6)|(f<<26))^((f>>>11)|(f<<21))^((f>>>25)|(f<<7)); const ch=(f&g)^(~f&h); const t1=(a+s1+ch+0x92722c85+w[39])>>>0; const s0=((b>>>2)|(b<<30))^((b>>>13)|(b<<19))^((b>>>22)|(b<<10)); const maj=(b&c)^(b&d)^(c&d); e=(e+t1)>>>0; a=(t1+s0+maj)>>>0; }
+  { const s1=((e>>>6)|(e<<26))^((e>>>11)|(e<<21))^((e>>>25)|(e<<7)); const ch=(e&f)^(~e&g); const t1=(h+s1+ch+0xa2bfe8a1+w[40])>>>0; const s0=((a>>>2)|(a<<30))^((a>>>13)|(a<<19))^((a>>>22)|(a<<10)); const maj=(a&b)^(a&c)^(b&c); d=(d+t1)>>>0; h=(t1+s0+maj)>>>0; }
+  { const s1=((d>>>6)|(d<<26))^((d>>>11)|(d<<21))^((d>>>25)|(d<<7)); const ch=(d&e)^(~d&f); const t1=(g+s1+ch+0xa81a664b+w[41])>>>0; const s0=((h>>>2)|(h<<30))^((h>>>13)|(h<<19))^((h>>>22)|(h<<10)); const maj=(h&a)^(h&b)^(a&b); c=(c+t1)>>>0; g=(t1+s0+maj)>>>0; }
+  { const s1=((c>>>6)|(c<<26))^((c>>>11)|(c<<21))^((c>>>25)|(c<<7)); const ch=(c&d)^(~c&e); const t1=(f+s1+ch+0xc24b8b70+w[42])>>>0; const s0=((g>>>2)|(g<<30))^((g>>>13)|(g<<19))^((g>>>22)|(g<<10)); const maj=(g&h)^(g&a)^(h&a); b=(b+t1)>>>0; f=(t1+s0+maj)>>>0; }
+  { const s1=((b>>>6)|(b<<26))^((b>>>11)|(b<<21))^((b>>>25)|(b<<7)); const ch=(b&c)^(~b&d); const t1=(e+s1+ch+0xc76c51a3+w[43])>>>0; const s0=((f>>>2)|(f<<30))^((f>>>13)|(f<<19))^((f>>>22)|(f<<10)); const maj=(f&g)^(f&h)^(g&h); a=(a+t1)>>>0; e=(t1+s0+maj)>>>0; }
+  { const s1=((a>>>6)|(a<<26))^((a>>>11)|(a<<21))^((a>>>25)|(a<<7)); const ch=(a&b)^(~a&c); const t1=(d+s1+ch+0xd192e819+w[44])>>>0; const s0=((e>>>2)|(e<<30))^((e>>>13)|(e<<19))^((e>>>22)|(e<<10)); const maj=(e&f)^(e&g)^(f&g); h=(h+t1)>>>0; d=(t1+s0+maj)>>>0; }
+  { const s1=((h>>>6)|(h<<26))^((h>>>11)|(h<<21))^((h>>>25)|(h<<7)); const ch=(h&a)^(~h&b); const t1=(c+s1+ch+0xd6990624+w[45])>>>0; const s0=((d>>>2)|(d<<30))^((d>>>13)|(d<<19))^((d>>>22)|(d<<10)); const maj=(d&e)^(d&f)^(e&f); g=(g+t1)>>>0; c=(t1+s0+maj)>>>0; }
+  { const s1=((g>>>6)|(g<<26))^((g>>>11)|(g<<21))^((g>>>25)|(g<<7)); const ch=(g&h)^(~g&a); const t1=(b+s1+ch+0xf40e3585+w[46])>>>0; const s0=((c>>>2)|(c<<30))^((c>>>13)|(c<<19))^((c>>>22)|(c<<10)); const maj=(c&d)^(c&e)^(d&e); f=(f+t1)>>>0; b=(t1+s0+maj)>>>0; }
+  { const s1=((f>>>6)|(f<<26))^((f>>>11)|(f<<21))^((f>>>25)|(f<<7)); const ch=(f&g)^(~f&h); const t1=(a+s1+ch+0x106aa070+w[47])>>>0; const s0=((b>>>2)|(b<<30))^((b>>>13)|(b<<19))^((b>>>22)|(b<<10)); const maj=(b&c)^(b&d)^(c&d); e=(e+t1)>>>0; a=(t1+s0+maj)>>>0; }
+  { const s1=((e>>>6)|(e<<26))^((e>>>11)|(e<<21))^((e>>>25)|(e<<7)); const ch=(e&f)^(~e&g); const t1=(h+s1+ch+0x19a4c116+w[48])>>>0; const s0=((a>>>2)|(a<<30))^((a>>>13)|(a<<19))^((a>>>22)|(a<<10)); const maj=(a&b)^(a&c)^(b&c); d=(d+t1)>>>0; h=(t1+s0+maj)>>>0; }
+  { const s1=((d>>>6)|(d<<26))^((d>>>11)|(d<<21))^((d>>>25)|(d<<7)); const ch=(d&e)^(~d&f); const t1=(g+s1+ch+0x1e376c08+w[49])>>>0; const s0=((h>>>2)|(h<<30))^((h>>>13)|(h<<19))^((h>>>22)|(h<<10)); const maj=(h&a)^(h&b)^(a&b); c=(c+t1)>>>0; g=(t1+s0+maj)>>>0; }
+  { const s1=((c>>>6)|(c<<26))^((c>>>11)|(c<<21))^((c>>>25)|(c<<7)); const ch=(c&d)^(~c&e); const t1=(f+s1+ch+0x2748774c+w[50])>>>0; const s0=((g>>>2)|(g<<30))^((g>>>13)|(g<<19))^((g>>>22)|(g<<10)); const maj=(g&h)^(g&a)^(h&a); b=(b+t1)>>>0; f=(t1+s0+maj)>>>0; }
+  { const s1=((b>>>6)|(b<<26))^((b>>>11)|(b<<21))^((b>>>25)|(b<<7)); const ch=(b&c)^(~b&d); const t1=(e+s1+ch+0x34b0bcb5+w[51])>>>0; const s0=((f>>>2)|(f<<30))^((f>>>13)|(f<<19))^((f>>>22)|(f<<10)); const maj=(f&g)^(f&h)^(g&h); a=(a+t1)>>>0; e=(t1+s0+maj)>>>0; }
+  { const s1=((a>>>6)|(a<<26))^((a>>>11)|(a<<21))^((a>>>25)|(a<<7)); const ch=(a&b)^(~a&c); const t1=(d+s1+ch+0x391c0cb3+w[52])>>>0; const s0=((e>>>2)|(e<<30))^((e>>>13)|(e<<19))^((e>>>22)|(e<<10)); const maj=(e&f)^(e&g)^(f&g); h=(h+t1)>>>0; d=(t1+s0+maj)>>>0; }
+  { const s1=((h>>>6)|(h<<26))^((h>>>11)|(h<<21))^((h>>>25)|(h<<7)); const ch=(h&a)^(~h&b); const t1=(c+s1+ch+0x4ed8aa4a+w[53])>>>0; const s0=((d>>>2)|(d<<30))^((d>>>13)|(d<<19))^((d>>>22)|(d<<10)); const maj=(d&e)^(d&f)^(e&f); g=(g+t1)>>>0; c=(t1+s0+maj)>>>0; }
+  { const s1=((g>>>6)|(g<<26))^((g>>>11)|(g<<21))^((g>>>25)|(g<<7)); const ch=(g&h)^(~g&a); const t1=(b+s1+ch+0x5b9cca4f+w[54])>>>0; const s0=((c>>>2)|(c<<30))^((c>>>13)|(c<<19))^((c>>>22)|(c<<10)); const maj=(c&d)^(c&e)^(d&e); f=(f+t1)>>>0; b=(t1+s0+maj)>>>0; }
+  { const s1=((f>>>6)|(f<<26))^((f>>>11)|(f<<21))^((f>>>25)|(f<<7)); const ch=(f&g)^(~f&h); const t1=(a+s1+ch+0x682e6ff3+w[55])>>>0; const s0=((b>>>2)|(b<<30))^((b>>>13)|(b<<19))^((b>>>22)|(b<<10)); const maj=(b&c)^(b&d)^(c&d); e=(e+t1)>>>0; a=(t1+s0+maj)>>>0; }
+  { const s1=((e>>>6)|(e<<26))^((e>>>11)|(e<<21))^((e>>>25)|(e<<7)); const ch=(e&f)^(~e&g); const t1=(h+s1+ch+0x748f82ee+w[56])>>>0; const s0=((a>>>2)|(a<<30))^((a>>>13)|(a<<19))^((a>>>22)|(a<<10)); const maj=(a&b)^(a&c)^(b&c); d=(d+t1)>>>0; h=(t1+s0+maj)>>>0; }
+  { const s1=((d>>>6)|(d<<26))^((d>>>11)|(d<<21))^((d>>>25)|(d<<7)); const ch=(d&e)^(~d&f); const t1=(g+s1+ch+0x78a5636f+w[57])>>>0; const s0=((h>>>2)|(h<<30))^((h>>>13)|(h<<19))^((h>>>22)|(h<<10)); const maj=(h&a)^(h&b)^(a&b); c=(c+t1)>>>0; g=(t1+s0+maj)>>>0; }
+  { const s1=((c>>>6)|(c<<26))^((c>>>11)|(c<<21))^((c>>>25)|(c<<7)); const ch=(c&d)^(~c&e); const t1=(f+s1+ch+0x84c87814+w[58])>>>0; const s0=((g>>>2)|(g<<30))^((g>>>13)|(g<<19))^((g>>>22)|(g<<10)); const maj=(g&h)^(g&a)^(h&a); b=(b+t1)>>>0; f=(t1+s0+maj)>>>0; }
+  { const s1=((b>>>6)|(b<<26))^((b>>>11)|(b<<21))^((b>>>25)|(b<<7)); const ch=(b&c)^(~b&d); const t1=(e+s1+ch+0x8cc70208+w[59])>>>0; const s0=((f>>>2)|(f<<30))^((f>>>13)|(f<<19))^((f>>>22)|(f<<10)); const maj=(f&g)^(f&h)^(g&h); a=(a+t1)>>>0; e=(t1+s0+maj)>>>0; }
+  { const s1=((a>>>6)|(a<<26))^((a>>>11)|(a<<21))^((a>>>25)|(a<<7)); const ch=(a&b)^(~a&c); const t1=(d+s1+ch+0x90befffa+w[60])>>>0; const s0=((e>>>2)|(e<<30))^((e>>>13)|(e<<19))^((e>>>22)|(e<<10)); const maj=(e&f)^(e&g)^(f&g); h=(h+t1)>>>0; d=(t1+s0+maj)>>>0; }
+  { const s1=((h>>>6)|(h<<26))^((h>>>11)|(h<<21))^((h>>>25)|(h<<7)); const ch=(h&a)^(~h&b); const t1=(c+s1+ch+0xa4506ceb+w[61])>>>0; const s0=((d>>>2)|(d<<30))^((d>>>13)|(d<<19))^((d>>>22)|(d<<10)); const maj=(d&e)^(d&f)^(e&f); g=(g+t1)>>>0; c=(t1+s0+maj)>>>0; }
+  { const s1=((g>>>6)|(g<<26))^((g>>>11)|(g<<21))^((g>>>25)|(g<<7)); const ch=(g&h)^(~g&a); const t1=(b+s1+ch+0xbef9a3f7+w[62])>>>0; const s0=((c>>>2)|(c<<30))^((c>>>13)|(c<<19))^((c>>>22)|(c<<10)); const maj=(c&d)^(c&e)^(d&e); f=(f+t1)>>>0; b=(t1+s0+maj)>>>0; }
+  { const s1=((f>>>6)|(f<<26))^((f>>>11)|(f<<21))^((f>>>25)|(f<<7)); const ch=(f&g)^(~f&h); const t1=(a+s1+ch+0xc67178f2+w[63])>>>0; const s0=((b>>>2)|(b<<30))^((b>>>13)|(b<<19))^((b>>>22)|(b<<10)); const maj=(b&c)^(b&d)^(c&d); e=(e+t1)>>>0; a=(t1+s0+maj)>>>0; }
+  hash[0]=(hash[0]+a)>>>0; hash[1]=(hash[1]+b)>>>0; hash[2]=(hash[2]+c)>>>0; hash[3]=(hash[3]+d)>>>0;
+  hash[4]=(hash[4]+e)>>>0; hash[5]=(hash[5]+f)>>>0; hash[6]=(hash[6]+g)>>>0; hash[7]=(hash[7]+h)>>>0;
+}
+
+function auth01Sha256Compress(hash, bytes, offset) {
+  const words = AUTH01_SHA256_WORDS;
+  for (let index = 0; index < 16; index++) {
+    const at = offset + index * 4;
+    words[index] = (
+      (bytes[at] << 24) | (bytes[at + 1] << 16) |
+      (bytes[at + 2] << 8) | bytes[at + 3]
+    ) >>> 0;
+  }
+  auth01Sha256Rounds(hash);
+}
+
+function auth01Sha256FromState(prefixState, prefixLength, input) {
+  const message = Uint8Array.from(input || [], value => Number(value) & 0xff);
+  const totalLength = prefixLength + message.length;
+  const paddedLength = Math.ceil((message.length + 1 + 8) / 64) * 64;
+  const padded = new Uint8Array(paddedLength);
+  padded.set(message);
+  padded[message.length] = 0x80;
+  const bitLength = totalLength * 8;
+  const high = Math.floor(bitLength / 0x100000000);
+  const low = bitLength >>> 0;
+  const at = padded.length - 8;
+  padded[at] = (high >>> 24) & 0xff; padded[at + 1] = (high >>> 16) & 0xff;
+  padded[at + 2] = (high >>> 8) & 0xff; padded[at + 3] = high & 0xff;
+  padded[at + 4] = (low >>> 24) & 0xff; padded[at + 5] = (low >>> 16) & 0xff;
+  padded[at + 6] = (low >>> 8) & 0xff; padded[at + 7] = low & 0xff;
+  const hash = prefixState.slice();
+  for (let offset = 0; offset < padded.length; offset += 64) {
+    auth01Sha256Compress(hash, padded, offset);
+  }
+  return hash;
+}
+
+function auth01Sha256StateToBytes(hash) {
+  const output = [];
+  hash.forEach(word => {
+    output.push((word >>> 24) & 0xff, (word >>> 16) & 0xff, (word >>> 8) & 0xff, word & 0xff);
+  });
+  return output;
+}
+
+function auth01Sha256Bytes(input) {
+  return auth01Sha256StateToBytes(auth01Sha256FromState(AUTH01_SHA256_IV, 0, input));
+}
+
+function auth01PrepareHmacSha256(keyInput) {
+  let key = Array.prototype.slice.call(keyInput || []).map(value => Number(value) & 0xff);
+  if (key.length > 64) key = auth01Sha256Bytes(key);
+  const innerPad = new Uint8Array(64);
+  const outerPad = new Uint8Array(64);
+  for (let index = 0; index < 64; index++) {
+    const value = index < key.length ? key[index] : 0;
+    innerPad[index] = value ^ 0x36;
+    outerPad[index] = value ^ 0x5c;
+  }
+  const innerState = AUTH01_SHA256_IV.slice();
+  const outerState = AUTH01_SHA256_IV.slice();
+  auth01Sha256Compress(innerState, innerPad, 0);
+  auth01Sha256Compress(outerState, outerPad, 0);
+  const innerBlock = new Uint8Array(64);
+  const outerBlock = new Uint8Array(64);
+  const innerHashScratch = new Uint32Array(8);
+  const outerHashScratch = new Uint32Array(8);
+
+  function digestInto(messageInput, output) {
+    const message = messageInput || [];
+    if (message.length <= 55) {
+      innerBlock.fill(0);
+      for (let index = 0; index < message.length; index++) innerBlock[index] = Number(message[index]) & 0xff;
+      innerBlock[message.length] = 0x80;
+      const innerBits = (64 + message.length) * 8;
+      innerBlock[60] = (innerBits >>> 24) & 0xff; innerBlock[61] = (innerBits >>> 16) & 0xff;
+      innerBlock[62] = (innerBits >>> 8) & 0xff; innerBlock[63] = innerBits & 0xff;
+      for (let index = 0; index < 8; index++) innerHashScratch[index] = innerState[index];
+      auth01Sha256Compress(innerHashScratch, innerBlock, 0);
+
+      outerBlock.fill(0);
+      for (let index = 0; index < 8; index++) {
+        const word = innerHashScratch[index];
+        const at = index * 4;
+        outerBlock[at] = (word >>> 24) & 0xff; outerBlock[at + 1] = (word >>> 16) & 0xff;
+        outerBlock[at + 2] = (word >>> 8) & 0xff; outerBlock[at + 3] = word & 0xff;
+      }
+      outerBlock[32] = 0x80;
+      outerBlock[62] = 0x03;
+      outerBlock[63] = 0x00;
+      for (let index = 0; index < 8; index++) outerHashScratch[index] = outerState[index];
+      auth01Sha256Compress(outerHashScratch, outerBlock, 0);
+      for (let index = 0; index < 8; index++) {
+        const word = outerHashScratch[index];
+        const at = index * 4;
+        output[at] = (word >>> 24) & 0xff; output[at + 1] = (word >>> 16) & 0xff;
+        output[at + 2] = (word >>> 8) & 0xff; output[at + 3] = word & 0xff;
+      }
+      return output;
+    }
+    const innerDigest = auth01Sha256StateToBytes(
+      auth01Sha256FromState(innerState, 64, message)
+    );
+    const result = auth01Sha256StateToBytes(auth01Sha256FromState(outerState, 64, innerDigest));
+    for (let index = 0; index < result.length; index++) output[index] = result[index];
+    return output;
+  }
+  // Fast path for PBKDF2 U2..Uc: every message is exactly one 32-byte HMAC output.
+  // This preserves HMAC-SHA-256 semantics while avoiding generic message packing
+  // in the 599,999 repeated rounds of the 600k runtime policy.
+  function digest32Into(message, output) {
+    const words = AUTH01_SHA256_WORDS;
+    words[0] = ((message[0] << 24) | (message[1] << 16) | (message[2] << 8) | message[3]) >>> 0;
+    words[1] = ((message[4] << 24) | (message[5] << 16) | (message[6] << 8) | message[7]) >>> 0;
+    words[2] = ((message[8] << 24) | (message[9] << 16) | (message[10] << 8) | message[11]) >>> 0;
+    words[3] = ((message[12] << 24) | (message[13] << 16) | (message[14] << 8) | message[15]) >>> 0;
+    words[4] = ((message[16] << 24) | (message[17] << 16) | (message[18] << 8) | message[19]) >>> 0;
+    words[5] = ((message[20] << 24) | (message[21] << 16) | (message[22] << 8) | message[23]) >>> 0;
+    words[6] = ((message[24] << 24) | (message[25] << 16) | (message[26] << 8) | message[27]) >>> 0;
+    words[7] = ((message[28] << 24) | (message[29] << 16) | (message[30] << 8) | message[31]) >>> 0;
+    words[8] = 0x80000000; words[9] = 0; words[10] = 0; words[11] = 0;
+    words[12] = 0; words[13] = 0; words[14] = 0; words[15] = 0x00000300;
+    for (let index = 0; index < 8; index++) innerHashScratch[index] = innerState[index];
+    auth01Sha256Rounds(innerHashScratch);
+
+    words[0] = innerHashScratch[0]; words[1] = innerHashScratch[1];
+    words[2] = innerHashScratch[2]; words[3] = innerHashScratch[3];
+    words[4] = innerHashScratch[4]; words[5] = innerHashScratch[5];
+    words[6] = innerHashScratch[6]; words[7] = innerHashScratch[7];
+    words[8] = 0x80000000; words[9] = 0; words[10] = 0; words[11] = 0;
+    words[12] = 0; words[13] = 0; words[14] = 0; words[15] = 0x00000300;
+    for (let index = 0; index < 8; index++) outerHashScratch[index] = outerState[index];
+    auth01Sha256Rounds(outerHashScratch);
+
+    for (let index = 0; index < 8; index++) {
+      const word = outerHashScratch[index];
+      const at = index * 4;
+      output[at] = (word >>> 24) & 0xff; output[at + 1] = (word >>> 16) & 0xff;
+      output[at + 2] = (word >>> 8) & 0xff; output[at + 3] = word & 0xff;
+    }
+    return output;
+  }
+
+  const prepared = function auth01PreparedHmac(messageInput) {
+    return Array.from(digestInto(messageInput, new Uint8Array(32)));
+  };
+  prepared.digestInto = digestInto;
+  prepared.digest32Into = digest32Into;
+  return prepared;
+}
+
+function auth01HmacSha256Bytes(keyInput, messageInput) {
+  return auth01PrepareHmacSha256(keyInput)(messageInput);
+}
+
+function auth01Pbkdf2HmacSha256(passwordBytes, saltBytes, iterations, derivedKeyLength) {
+  const count = Number(iterations);
+  const length = Number(derivedKeyLength);
+  if (!Number.isSafeInteger(count) || count < 1 || !Number.isSafeInteger(length) || length < 1 || length > 1024) {
+    throw auth01Error("AUTH01_KDF_PARAMETERS_INVALID", "PBKDF2 parameters are invalid.");
+  }
+  const hmac = auth01PrepareHmacSha256(passwordBytes);
+  const output = [];
+  const salt = Array.prototype.slice.call(saltBytes || []);
+  const blocks = Math.ceil(length / 32);
+  for (let blockIndex = 1; blockIndex <= blocks; blockIndex++) {
+    const block = salt.concat([
+      (blockIndex >>> 24) & 0xff, (blockIndex >>> 16) & 0xff,
+      (blockIndex >>> 8) & 0xff, blockIndex & 0xff
+    ]);
+    let current = hmac.digestInto(block, new Uint8Array(32));
+    let next = new Uint8Array(32);
+    const derived = current.slice();
+    for (let round = 1; round < count; round++) {
+      hmac.digest32Into(current, next);
+      const swap = current; current = next; next = swap;
+      for (let index = 0; index < derived.length; index++) derived[index] ^= current[index];
+    }
+    for (let index = 0; index < derived.length && output.length < length; index++) output.push(derived[index]);
+  }
+  return output;
+}
+
+function auth01SignedBytes(bytes) {
+  return Array.prototype.slice.call(bytes || []).map(value => {
+    const normalized = Number(value) & 0xff;
+    return normalized > 127 ? normalized - 256 : normalized;
+  });
+}
+
+function auth01Base64UrlEncode(bytes) {
+  return String(Utilities.base64EncodeWebSafe(auth01SignedBytes(bytes)) || "").replace(/=+$/g, "");
+}
+
+function auth01Base64UrlDecodeCanonical(value) {
+  const text = String(value || "");
+  if (!text || !/^[A-Za-z0-9_-]+$/.test(text) || /=/.test(text)) return null;
+  try {
+    const bytes = Array.prototype.slice.call(Utilities.base64DecodeWebSafe(text))
+      .map(item => Number(item) & 0xff);
+    return auth01Base64UrlEncode(bytes) === text ? bytes : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function auth01BytesToHex(bytes) {
+  return Array.prototype.slice.call(bytes || []).map(value => (`0${(Number(value) & 0xff).toString(16)}`).slice(-2)).join("");
+}
+
+function auth01HexToBytes(value) {
+  const text = String(value || "");
+  if (!/^[a-f0-9]+$/.test(text) || text.length % 2) return null;
+  const bytes = [];
+  for (let index = 0; index < text.length; index += 2) bytes.push(parseInt(text.slice(index, index + 2), 16));
+  return bytes;
+}
+
+function auth01ConstantTimeEqual(left, right) {
+  const a = Array.prototype.slice.call(left || []);
+  const b = Array.prototype.slice.call(right || []);
+  if (a.length !== b.length) return false;
+  let difference = 0;
+  for (let index = 0; index < a.length; index++) difference |= (Number(a[index]) & 0xff) ^ (Number(b[index]) & 0xff);
+  return difference === 0;
+}
+
+function auth01GenerateSalt(options) {
+  if (options && typeof options.randomBytes === "function") {
+    const injected = Array.prototype.slice.call(options.randomBytes(16) || []);
+    if (injected.length !== 16) throw auth01Error("AUTH01_SALT_GENERATION_FAILED", "Injected salt must be 16 bytes.");
+    return injected.map(value => Number(value) & 0xff);
+  }
+  const material = `${Utilities.getUuid()}|${Utilities.getUuid()}`;
+  return auth01Sha256Bytes(auth01Utf8Bytes(material)).slice(0, 16);
+}
+
+function auth01EncodeModernCredential(iterations, salt, verifier) {
+  return `cuthub$1$pbkdf2-sha256$i=${iterations},l=32$${auth01Base64UrlEncode(salt)}$${auth01Base64UrlEncode(verifier)}`;
+}
+
+function auth01ParseModernCredential(value, options) {
+  const text = String(value || "");
+  if (text.length > 256) return null;
+  const parts = text.split("$");
+  if (parts.length !== 6 || parts[0] !== "cuthub" || parts[1] !== "1" || parts[2] !== "pbkdf2-sha256") return null;
+  const parameterMatch = /^i=([1-9][0-9]*),l=32$/.exec(parts[3]);
+  if (!parameterMatch) return null;
+  const iterations = Number(parameterMatch[1]);
+  const policy = auth01CredentialPolicy(options);
+  if (!Number.isSafeInteger(iterations) || iterations > policy.maximumIterations ||
+      policy.allowedIterations.indexOf(iterations) === -1) return null;
+  const salt = auth01Base64UrlDecodeCanonical(parts[4]);
+  const verifier = auth01Base64UrlDecodeCanonical(parts[5]);
+  if (!salt || salt.length !== 16 || !verifier || verifier.length !== 32) return null;
+  const canonical = auth01EncodeModernCredential(iterations, salt, verifier);
+  if (canonical !== text) return null;
+  return { version: 1, algorithm: "pbkdf2-sha256", iterations, length: 32, salt, verifier, encoded: text };
+}
+
+function createModernCredential(password, options) {
+  const policy = auth01CredentialPolicy(options);
+  if (policy.allowedIterations.indexOf(policy.iterations) === -1 || policy.iterations > policy.maximumIterations) {
+    throw auth01Error("AUTH01_KDF_POLICY_INVALID", "The credential policy is invalid.");
+  }
+  const salt = auth01GenerateSalt(options);
+  const passwordBytes = auth01Utf8Bytes(auth01NormalizeModernPassword(password));
+  const verifier = auth01Pbkdf2HmacSha256(passwordBytes, salt, policy.iterations, 32);
+  return auth01EncodeModernCredential(policy.iterations, salt, verifier);
+}
+
+function auth01ClassifyCredential(user, options) {
+  const password = String(user && user.password != null ? user.password : "");
+  const passwordHash = String(user && user.passwordHash != null ? user.passwordHash : "").trim();
+  const plaintextResidue = !!password && !!passwordHash;
+  const modern = passwordHash ? auth01ParseModernCredential(passwordHash, options) : null;
+  let state = AUTH01_CREDENTIAL_STATES.EMPTY;
+  if (modern) state = AUTH01_CREDENTIAL_STATES.MODERN_V1;
+  else if (/^[a-f0-9]{64}$/.test(passwordHash)) state = AUTH01_CREDENTIAL_STATES.LEGACY_SHA256;
+  else if (passwordHash) state = AUTH01_CREDENTIAL_STATES.INVALID;
+  else if (password) state = AUTH01_CREDENTIAL_STATES.LEGACY_PLAINTEXT;
+  return { state, plaintextResidue, modern, passwordHashPresent: !!passwordHash, passwordPresent: !!password };
+}
+
 function hashPassword(password) {
   const digest = Utilities.computeDigest(
     Utilities.DigestAlgorithm.SHA_256,
     String(password || ""),
     Utilities.Charset.UTF_8
   );
+  return auth01BytesToHex(digest);
+}
 
-  return digest
-    .map(byte => {
-      const value = byte < 0 ? byte + 256 : byte;
-      return (`0${value.toString(16)}`).slice(-2);
-    })
-    .join("");
+function auth01VerifyCredential(user, password, options) {
+  const classification = auth01ClassifyCredential(user, options);
+  const plainPassword = String(password || "");
+  if (classification.state === AUTH01_CREDENTIAL_STATES.MODERN_V1) {
+    const parsed = classification.modern;
+    const candidate = auth01Pbkdf2HmacSha256(
+      auth01Utf8Bytes(auth01NormalizeModernPassword(password)), parsed.salt,
+      parsed.iterations, parsed.length
+    );
+    return { ok: auth01ConstantTimeEqual(candidate, parsed.verifier), state: classification.state, classification };
+  }
+  if (classification.state === AUTH01_CREDENTIAL_STATES.LEGACY_SHA256) {
+    const stored = auth01HexToBytes(String(user.passwordHash || "").trim());
+    const candidate = auth01HexToBytes(hashPassword(plainPassword));
+    return {
+      ok: !!stored && !!candidate && auth01ConstantTimeEqual(stored, candidate),
+      state: classification.state,
+      classification,
+      migrationEligible: true
+    };
+  }
+  if (classification.state === AUTH01_CREDENTIAL_STATES.LEGACY_PLAINTEXT) {
+    const allowed = !!(options && options.allowLegacyPlaintext);
+    const storedDigest = auth01Sha256Bytes(auth01Utf8Bytes(String(user.password || "")));
+    const candidateDigest = auth01Sha256Bytes(auth01Utf8Bytes(plainPassword));
+    return {
+      ok: allowed && auth01ConstantTimeEqual(storedDigest, candidateDigest),
+      state: classification.state,
+      classification,
+      migrationEligible: allowed
+    };
+  }
+  return { ok: false, state: classification.state, classification, migrationEligible: false };
+}
+
+function auth01RunDummyModernVerification(password, options) {
+  const parsed = auth01ParseModernCredential(auth01DummyModernCredential(options), options);
+  const candidate = auth01Pbkdf2HmacSha256(
+    auth01Utf8Bytes(auth01NormalizeModernPassword(password)), parsed.salt,
+    parsed.iterations, parsed.length
+  );
+  auth01ConstantTimeEqual(candidate, parsed.verifier);
+}
+
+function verifyPassword(user, password) {
+  return auth01VerifyCredential(user, password, {
+    allowLegacyPlaintext: AUTH01_PLAINTEXT_COMPATIBILITY_DEFAULT
+  }).ok;
+}
+
+function auth01CanonicalUsername(username) {
+  const value = String(username == null ? "" : username).trim();
+  const normalized = typeof value.normalize === "function" ? value.normalize("NFC") : value;
+  return normalized.toLowerCase();
+}
+
+function auth01FindCanonicalUsernameCollisions(users) {
+  const seen = {};
+  const collisions = [];
+  (users || []).forEach(user => {
+    const stored = String(user && user.username != null ? user.username : "");
+    const canonical = auth01CanonicalUsername(stored);
+    if (!canonical) return;
+    if (Object.prototype.hasOwnProperty.call(seen, canonical) && seen[canonical] !== stored) {
+      collisions.push({ canonical, usernames: [seen[canonical], stored] });
+    } else {
+      seen[canonical] = stored;
+    }
+  });
+  return collisions;
+}
+
+function auth01GenerateIdentifierKey(options) {
+  if (options && typeof options.randomBytes === "function") {
+    const bytes = Array.prototype.slice.call(options.randomBytes(32) || []);
+    if (bytes.length !== 32) throw auth01Error("AUTH01_IDENTIFIER_KEY_INVALID", "Identifier key must be 32 bytes.");
+    return auth01Base64UrlEncode(bytes);
+  }
+  const material = `${Utilities.getUuid()}|${Utilities.getUuid()}|${Utilities.getUuid()}|${Utilities.getUuid()}`;
+  return auth01Base64UrlEncode(auth01Sha256Bytes(auth01Utf8Bytes(material)));
+}
+
+function auth01IdentifierKeyFingerprint(rawKey) {
+  const bytes = auth01Base64UrlDecodeCanonical(rawKey);
+  if (!bytes || bytes.length !== 32) {
+    throw auth01Error("AUTH01_IDENTIFIER_KEY_INVALID", "Authentication identifier configuration is invalid.");
+  }
+  return auth01Base64UrlEncode(auth01Sha256Bytes(
+    auth01Utf8Bytes("CUT-HUB-POS|AUTH01:IDKEY:v1|").concat(bytes)
+  ));
+}
+
+function auth01ProvisionIdentifierKey(options) {
+  const properties = auth01ScriptProperties(options);
+  const lock = auth01AcquireScriptLock(options);
+  try {
+    const existingKey = properties.getProperty(AUTH01_IDENTIFIER_KEY_PROPERTY);
+    const existingFingerprint = properties.getProperty(AUTH01_IDENTIFIER_FINGERPRINT_PROPERTY);
+    if (existingKey || existingFingerprint) {
+      if (!existingKey || !existingFingerprint ||
+          auth01IdentifierKeyFingerprint(existingKey) !== existingFingerprint) {
+        throw auth01Error("AUTH01_IDENTIFIER_KEY_CONTINUITY_INVALID", "Authentication identifier continuity is invalid.");
+      }
+      return { created: false, fingerprint: existingFingerprint };
+    }
+    const key = auth01GenerateIdentifierKey(options);
+    const fingerprint = auth01IdentifierKeyFingerprint(key);
+    properties.setProperty(AUTH01_IDENTIFIER_KEY_PROPERTY, key);
+    properties.setProperty(AUTH01_IDENTIFIER_FINGERPRINT_PROPERTY, fingerprint);
+    if (properties.getProperty(AUTH01_IDENTIFIER_KEY_PROPERTY) !== key ||
+        properties.getProperty(AUTH01_IDENTIFIER_FINGERPRINT_PROPERTY) !== fingerprint) {
+      throw auth01Error("AUTH01_IDENTIFIER_KEY_WRITE_FAILED", "Authentication identifier configuration could not be verified.");
+    }
+    return { created: true, fingerprint };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function auth01ScriptProperties(options) {
+  return options && options.properties ? options.properties : PropertiesService.getScriptProperties();
+}
+
+function auth01IdentifierKeyBytes(options) {
+  const properties = auth01ScriptProperties(options);
+  const raw = properties.getProperty(AUTH01_IDENTIFIER_KEY_PROPERTY);
+  const storedFingerprint = properties.getProperty(AUTH01_IDENTIFIER_FINGERPRINT_PROPERTY);
+  const bytes = auth01Base64UrlDecodeCanonical(raw);
+  if (!bytes || bytes.length !== 32 || !storedFingerprint) {
+    throw auth01Error("AUTH01_IDENTIFIER_KEY_MISSING", "Authentication identifier configuration is unavailable.");
+  }
+  const actualFingerprint = auth01IdentifierKeyFingerprint(raw);
+  if (!auth01ConstantTimeEqual(
+    auth01Utf8Bytes(actualFingerprint), auth01Utf8Bytes(storedFingerprint)
+  )) {
+    throw auth01Error("AUTH01_IDENTIFIER_KEY_CONTINUITY_INVALID", "Authentication identifier continuity is invalid.");
+  }
+  return bytes;
+}
+
+function auth01CurrentIdentifierFingerprint(options) {
+  auth01IdentifierKeyBytes(options);
+  return auth01ScriptProperties(options).getProperty(AUTH01_IDENTIFIER_FINGERPRINT_PROPERTY);
+}
+
+function auth01OpaqueUserId(username, options) {
+  const canonical = auth01CanonicalUsername(username);
+  if (!canonical) throw auth01Error("AUTH01_USERNAME_INVALID", "User identifier is invalid.");
+  return auth01Base64UrlEncode(auth01HmacSha256Bytes(
+    auth01IdentifierKeyBytes(options), auth01Utf8Bytes(canonical)
+  ));
+}
+
+function auth01EpochPropertyKey(username, options) {
+  return AUTH01_EPOCH_PREFIX + auth01OpaqueUserId(username, options);
+}
+
+function auth01ReadCredentialEpoch(username, options) {
+  const raw = auth01ScriptProperties(options).getProperty(auth01EpochPropertyKey(username, options));
+  if (raw == null || raw === "") return 0;
+  const epoch = Number(raw);
+  if (!Number.isSafeInteger(epoch) || epoch < 0) {
+    throw auth01Error("AUTH01_CREDENTIAL_EPOCH_INVALID", "Credential epoch state is invalid.");
+  }
+  return epoch;
+}
+
+function auth01IncrementCredentialEpoch(username, options) {
+  const properties = auth01ScriptProperties(options);
+  const key = auth01EpochPropertyKey(username, options);
+  const current = auth01ReadCredentialEpoch(username, options);
+  const next = current + 1;
+  properties.setProperty(key, String(next));
+  if (auth01ReadCredentialEpoch(username, options) !== next) {
+    throw auth01Error("AUTH01_CREDENTIAL_EPOCH_WRITE_FAILED", "Credential epoch could not be verified.");
+  }
+  return next;
 }
 
 function resetOwnerPasswordEmergency() {
@@ -806,25 +1665,8 @@ function resetOwnerPasswordEmergency() {
     throw new Error("Owner user was not found in USERS sheet.");
   }
 
-  sheet.getRange(owner.rowNumber, 2).setValue("");
-  sheet.getRange(owner.rowNumber, 6).setValue(hashPassword(NEW_OWNER_PASSWORD));
-  SpreadsheetApp.flush();
+  auth01ReplaceCredential(owner, NEW_OWNER_PASSWORD, Object.assign({}, auth01RuntimeOptions() || {}, { sheet }));
   Logger.log("Owner password was reset successfully.");
-}
-
-function verifyPassword(user, password) {
-  const plainPassword = String(password || "");
-  const storedHash = String(user.passwordHash || "").trim();
-  if (storedHash && storedHash === hashPassword(plainPassword)) return true;
-
-  return String(user.password || "") === plainPassword;
-}
-
-function ensureUserPasswordHash(user, password) {
-  if (!user || !user.rowNumber || user.passwordHash) return;
-
-  const sheet = getUsersSheet();
-  sheet.getRange(user.rowNumber, 6).setValue(hashPassword(password));
 }
 
 function readUsersFromSheet() {
@@ -853,6 +1695,816 @@ function readUsersFromSheet() {
     .filter(user => user.username);
 }
 
+function auth01AcquireScriptLock(options) {
+  const lock = options && options.lock ? options.lock : LockService.getScriptLock();
+  if (!lock || typeof lock.tryLock !== "function" || !lock.tryLock(30000)) {
+    throw auth01Error("AUTH01_LOCK_UNAVAILABLE", "Authentication service is temporarily unavailable.");
+  }
+  return lock;
+}
+
+function auth01FindCurrentUser(expected) {
+  const canonical = auth01CanonicalUsername(expected && expected.username);
+  return readUsersFromSheet().find(user =>
+    user.rowNumber === Number(expected && expected.rowNumber) &&
+    auth01CanonicalUsername(user.username) === canonical
+  ) || null;
+}
+
+function auth01CredentialCells(sheet, rowNumber) {
+  return {
+    password: String(sheet.getRange(rowNumber, 2).getValue() || ""),
+    passwordHash: String(sheet.getRange(rowNumber, 6).getValue() || "").trim()
+  };
+}
+
+function auth01WriteMigrationJournal(properties, key, record) {
+  const now = new Date().toISOString();
+  const safe = {
+    version: 1,
+    requestId: String(record.requestId || ""),
+    opaqueUserId: String(record.opaqueUserId || ""),
+    rowNumber: Number(record.rowNumber || 0),
+    sourceState: String(record.sourceState || ""),
+    targetState: AUTH01_CREDENTIAL_STATES.MODERN_V1,
+    status: String(record.status || "PREPARED"),
+    phase: String(record.phase || "PREPARED"),
+    createdAt: String(record.createdAt || now),
+    updatedAt: now,
+    recoveryRequired: !!record.recoveryRequired
+  };
+  const serialized = JSON.stringify(safe);
+  if (serialized.length > AUTH01_MIGRATION_JOURNAL_POLICY.maximumSerializedBytes) {
+    throw auth01Error("AUTH01_MIGRATION_JOURNAL_TOO_LARGE", "Migration recovery state is invalid.");
+  }
+  properties.setProperty(key, serialized);
+  return safe;
+}
+
+function auth01ParseMigrationJournal(raw, now) {
+  let journal;
+  try { journal = JSON.parse(String(raw || "")); } catch (error) {
+    throw auth01Error("AUTH01_MIGRATION_JOURNAL_CORRUPT", "Migration recovery state is invalid.");
+  }
+  const expected = [
+    "createdAt", "opaqueUserId", "phase", "recoveryRequired", "requestId", "rowNumber",
+    "sourceState", "status", "targetState", "updatedAt", "version"
+  ];
+  if (!journal || Array.isArray(journal) || typeof journal !== "object" ||
+      Object.keys(journal).sort().join("|") !== expected.sort().join("|") || journal.version !== 1 ||
+      ["PREPARED", "APPLYING", "RECOVERY_REQUIRED", "COMMITTED", "ABORTED"].indexOf(journal.status) === -1 ||
+      typeof journal.phase !== "string" || journal.phase.length > 64 ||
+      typeof journal.requestId !== "string" || !/^[A-Za-z0-9._:-]{1,128}$/.test(journal.requestId) ||
+      typeof journal.opaqueUserId !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(journal.opaqueUserId) ||
+      !Number.isSafeInteger(journal.rowNumber) || journal.rowNumber < 2 ||
+      Object.keys(AUTH01_CREDENTIAL_STATES).map(key => AUTH01_CREDENTIAL_STATES[key])
+        .indexOf(journal.sourceState) === -1 ||
+      journal.targetState !== AUTH01_CREDENTIAL_STATES.MODERN_V1 ||
+      typeof journal.recoveryRequired !== "boolean" ||
+      journal.recoveryRequired !== (journal.status === "RECOVERY_REQUIRED")) {
+    throw auth01Error("AUTH01_MIGRATION_JOURNAL_CORRUPT", "Migration recovery state is invalid.");
+  }
+  const createdAt = Date.parse(journal.createdAt);
+  const updatedAt = Date.parse(journal.updatedAt);
+  if (!Number.isFinite(createdAt) || !Number.isFinite(updatedAt) || createdAt > updatedAt ||
+      createdAt < AUTH01_MIGRATION_JOURNAL_POLICY.earliestValidTimestampMs ||
+      updatedAt > now + 5 * 60 * 1000) {
+    throw auth01Error("AUTH01_MIGRATION_JOURNAL_CORRUPT", "Migration recovery state is invalid.");
+  }
+  return journal;
+}
+
+function auth01MigrationJournalSnapshot(options) {
+  const properties = auth01ScriptProperties(options);
+  const now = auth01Now(options);
+  let all;
+  try { all = properties.getProperties(); } catch (error) {
+    throw auth01Error("AUTH01_MIGRATION_JOURNAL_STORE_UNAVAILABLE", "Migration recovery inventory is unavailable.");
+  }
+  const keys = Object.keys(all).filter(key => key.indexOf(AUTH01_MIGRATION_PREFIX) === 0).sort();
+  const items = [];
+  const counts = { total: keys.length, unresolved: 0, recoveryRequired: 0, malformed: 0, terminal: 0 };
+  keys.forEach(key => {
+    try {
+      const journal = auth01ParseMigrationJournal(all[key], now);
+      const unresolved = ["PREPARED", "APPLYING", "RECOVERY_REQUIRED"].indexOf(journal.status) !== -1;
+      const terminal = journal.status === "COMMITTED" || journal.status === "ABORTED";
+      if (unresolved) counts.unresolved += 1;
+      if (journal.status === "RECOVERY_REQUIRED") counts.recoveryRequired += 1;
+      if (terminal) counts.terminal += 1;
+      items.push({
+        key, status: journal.status, phase: journal.phase, updatedAt: journal.updatedAt,
+        attentionRequired: unresolved && (journal.status === "RECOVERY_REQUIRED" ||
+          now - Date.parse(journal.updatedAt) >= AUTH01_MIGRATION_JOURNAL_POLICY.attentionAfterMs),
+        malformed: false, terminal
+      });
+    } catch (error) {
+      counts.malformed += 1;
+      items.push({ key, status: "MALFORMED", attentionRequired: true, malformed: true, terminal: false });
+    }
+  });
+  return { properties, now, keys, items, counts };
+}
+
+function auth01MigrationJournalInventory(options) {
+  const snapshot = auth01MigrationJournalSnapshot(options);
+  const maximumScan = Math.min(
+    AUTH01_MIGRATION_JOURNAL_POLICY.maximumInventoryScan,
+    Math.max(1, Number(options && options.maximumScan) || AUTH01_MIGRATION_JOURNAL_POLICY.maximumInventoryScan)
+  );
+  const start = Math.max(0, Number(options && options.inventoryOffset) || 0);
+  const pageSize = Math.min(
+    AUTH01_MIGRATION_JOURNAL_POLICY.inventoryPageSize, maximumScan,
+    Math.max(1, Number(options && options.inventoryPageSize) || AUTH01_MIGRATION_JOURNAL_POLICY.inventoryPageSize)
+  );
+  const inventory = snapshot.items.slice(start, start + pageSize);
+  inventory.total = snapshot.counts.total;
+  inventory.unresolved = snapshot.counts.unresolved;
+  inventory.recoveryRequired = snapshot.counts.recoveryRequired;
+  inventory.malformed = snapshot.counts.malformed;
+  inventory.overflow = Math.max(0, snapshot.counts.total - (start + inventory.length));
+  inventory.nextOffset = start + inventory.length < snapshot.counts.total ? start + inventory.length : null;
+  return inventory;
+}
+
+function auth01CleanupTerminalMigrationJournals(options) {
+  const snapshot = auth01MigrationJournalSnapshot(options);
+  let deleted = 0;
+  for (let index = 0; index < snapshot.items.length; index++) {
+    const item = snapshot.items[index];
+    if (deleted >= AUTH01_MIGRATION_JOURNAL_POLICY.maximumCleanupBatch) break;
+    if (item.malformed || !item.terminal) continue;
+    const journal = auth01ParseMigrationJournal(snapshot.properties.getProperty(item.key), snapshot.now);
+    if (snapshot.now - Date.parse(journal.updatedAt) >= AUTH01_MIGRATION_JOURNAL_POLICY.terminalRetentionMs) {
+      snapshot.properties.deleteProperty(item.key);
+      deleted += 1;
+    }
+  }
+  return {
+    scanned: snapshot.items.length, deleted, retained: snapshot.items.length - deleted,
+    totalBefore: snapshot.counts.total, overflow: Math.max(0, snapshot.counts.total - AUTH01_MIGRATION_JOURNAL_POLICY.maximumInventoryScan)
+  };
+}
+
+function auth01EnsureMigrationJournalAdmission(options) {
+  let snapshot = auth01MigrationJournalSnapshot(options);
+  if (snapshot.counts.malformed > 0) {
+    throw auth01Error("AUTH01_MIGRATION_JOURNAL_ATTENTION_REQUIRED", "Migration recovery state requires operator attention.");
+  }
+  const policy = AUTH01_MIGRATION_JOURNAL_POLICY;
+  const needsCapacity = snapshot.counts.total >= policy.maximumTotalJournals;
+  if (needsCapacity && snapshot.counts.terminal > 0) {
+    auth01CleanupTerminalMigrationJournals(options);
+    snapshot = auth01MigrationJournalSnapshot(options);
+  }
+  if (snapshot.counts.total >= policy.maximumTotalJournals ||
+      snapshot.counts.unresolved >= policy.maximumUnresolvedJournals ||
+      snapshot.counts.recoveryRequired >= policy.maximumRecoveryRequiredJournals) {
+    throw auth01Error("AUTH01_MIGRATION_JOURNAL_CAPACITY_EXHAUSTED", "Migration recovery capacity is unavailable.");
+  }
+  return snapshot.counts;
+}
+
+function auth01MigrationResultUser(current, modernCredential) {
+  return Object.assign({}, current, { password: "", passwordHash: modernCredential });
+}
+
+function auth01MigrateCredential(user, password, verification, options) {
+  if (!verification || !verification.ok ||
+      [AUTH01_CREDENTIAL_STATES.LEGACY_SHA256, AUTH01_CREDENTIAL_STATES.LEGACY_PLAINTEXT]
+        .indexOf(verification.state) === -1) {
+    throw auth01Error("AUTH01_MIGRATION_SOURCE_INVALID", "Credential migration source is invalid.");
+  }
+  const modernCredential = createModernCredential(password, options);
+  const lock = auth01AcquireScriptLock(options);
+  const properties = auth01ScriptProperties(options);
+  const requestId = String((options && options.requestId) || Utilities.getUuid());
+  const journalKey = AUTH01_MIGRATION_PREFIX + requestId;
+  const sheet = options && options.sheet ? options.sheet : getUsersSheet();
+  let journal = null;
+  let current = null;
+  try {
+    current = auth01FindCurrentUser(user);
+    if (!current) throw auth01Error("AUTH01_MIGRATION_ROW_CHANGED", "Credential row changed before migration.");
+    const currentClassification = auth01ClassifyCredential(current, options);
+    if (currentClassification.state === AUTH01_CREDENTIAL_STATES.MODERN_V1) {
+      const committed = auth01VerifyCredential(current, password, options);
+      if (!committed.ok) throw auth01Error("AUTH01_MIGRATION_ROW_CHANGED", "Credential changed before migration.");
+      if (currentClassification.plaintextResidue) {
+        sheet.getRange(current.rowNumber, 2).setValue("");
+        SpreadsheetApp.flush();
+        if (auth01CredentialCells(sheet, current.rowNumber).password !== "") {
+          throw auth01Error("AUTH01_MIGRATION_RECOVERY_REQUIRED", "Plaintext cleanup requires recovery.");
+        }
+      }
+      return auth01MigrationResultUser(current, current.passwordHash);
+    }
+    if (currentClassification.state !== verification.state ||
+        current.passwordHash !== String(user.passwordHash || "") ||
+        current.password !== String(user.password || "")) {
+      throw auth01Error("AUTH01_MIGRATION_ROW_CHANGED", "Credential row changed before migration.");
+    }
+
+    auth01EnsureMigrationJournalAdmission(options);
+    journal = auth01WriteMigrationJournal(properties, journalKey, {
+      requestId,
+      opaqueUserId: auth01OpaqueUserId(current.username, options),
+      rowNumber: current.rowNumber,
+      sourceState: currentClassification.state,
+      status: "APPLYING",
+      phase: "PREPARED"
+    });
+    sheet.getRange(current.rowNumber, 6).setValue(modernCredential);
+    SpreadsheetApp.flush();
+    let cells = auth01CredentialCells(sheet, current.rowNumber);
+    if (cells.passwordHash !== modernCredential) {
+      if (cells.passwordHash === current.passwordHash && cells.password === current.password) {
+        properties.deleteProperty(journalKey);
+        throw auth01Error("AUTH01_MIGRATION_WRITE_FAILED", "Credential migration did not start.");
+      }
+      auth01WriteMigrationJournal(properties, journalKey, Object.assign({}, journal, {
+        status: "RECOVERY_REQUIRED", phase: "HASH_WRITE_UNPROVEN", recoveryRequired: true
+      }));
+      throw auth01Error("AUTH01_MIGRATION_RECOVERY_REQUIRED", "Credential migration requires recovery.");
+    }
+    journal = auth01WriteMigrationJournal(properties, journalKey, Object.assign({}, journal, {
+      status: "APPLYING", phase: "MODERN_HASH_VERIFIED"
+    }));
+    sheet.getRange(current.rowNumber, 2).setValue("");
+    SpreadsheetApp.flush();
+    cells = auth01CredentialCells(sheet, current.rowNumber);
+    if (cells.passwordHash !== modernCredential || cells.password !== "") {
+      auth01WriteMigrationJournal(properties, journalKey, Object.assign({}, journal, {
+        status: "RECOVERY_REQUIRED", phase: "PLAINTEXT_CLEAR_UNPROVEN", recoveryRequired: true
+      }));
+      throw auth01Error("AUTH01_MIGRATION_RECOVERY_REQUIRED", "Credential migration requires recovery.");
+    }
+    const persisted = auth01VerifyCredential(
+      auth01MigrationResultUser(current, modernCredential), password, options
+    );
+    if (!persisted.ok) {
+      auth01WriteMigrationJournal(properties, journalKey, Object.assign({}, journal, {
+        status: "RECOVERY_REQUIRED", phase: "POST_WRITE_VERIFY_FAILED", recoveryRequired: true
+      }));
+      throw auth01Error("AUTH01_MIGRATION_RECOVERY_REQUIRED", "Credential migration requires recovery.");
+    }
+    properties.deleteProperty(journalKey);
+    return auth01MigrationResultUser(current, modernCredential);
+  } catch (error) {
+    if (!journal || error.code === "AUTH01_MIGRATION_RECOVERY_REQUIRED") throw error;
+    let cells = null;
+    try { cells = current ? auth01CredentialCells(sheet, current.rowNumber) : null; } catch (readError) {}
+    if (cells && cells.passwordHash === modernCredential && cells.password === "") {
+      properties.deleteProperty(journalKey);
+      return auth01MigrationResultUser(current, modernCredential);
+    }
+    if (cells && cells.passwordHash === current.passwordHash && cells.password === current.password) {
+      properties.deleteProperty(journalKey);
+      throw error;
+    }
+    auth01WriteMigrationJournal(properties, journalKey, Object.assign({}, journal, {
+      status: "RECOVERY_REQUIRED", phase: "UNEXPECTED_FAILURE", recoveryRequired: true
+    }));
+    throw auth01Error("AUTH01_MIGRATION_RECOVERY_REQUIRED", "Credential migration requires recovery.");
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function auth01ReplaceCredential(user, password, options) {
+  const modernCredential = createModernCredential(password, options);
+  const lock = auth01AcquireScriptLock(options);
+  const properties = auth01ScriptProperties(options);
+  const requestId = String((options && options.requestId) || Utilities.getUuid());
+  const journalKey = AUTH01_MIGRATION_PREFIX + requestId;
+  const sheet = options && options.sheet ? options.sheet : getUsersSheet();
+  let journal = null;
+  let current = null;
+  try {
+    current = auth01FindCurrentUser(user);
+    if (!current) throw auth01Error("AUTH01_PASSWORD_CHANGE_ROW_CHANGED", "Credential row changed before password update.");
+    auth01EnsureMigrationJournalAdmission(options);
+    journal = auth01WriteMigrationJournal(properties, journalKey, {
+      requestId,
+      opaqueUserId: auth01OpaqueUserId(current.username, options),
+      rowNumber: current.rowNumber,
+      sourceState: auth01ClassifyCredential(current, options).state,
+      status: "APPLYING",
+      phase: "PREPARED"
+    });
+    const credentialEpoch = auth01IncrementCredentialEpoch(current.username, options);
+    journal = auth01WriteMigrationJournal(properties, journalKey, Object.assign({}, journal, {
+      status: "APPLYING", phase: "EPOCH_INCREMENTED"
+    }));
+    sheet.getRange(current.rowNumber, 6).setValue(modernCredential);
+    SpreadsheetApp.flush();
+    let cells = auth01CredentialCells(sheet, current.rowNumber);
+    if (cells.passwordHash !== modernCredential) {
+      if (cells.passwordHash === current.passwordHash && cells.password === current.password) {
+        properties.deleteProperty(journalKey);
+        throw auth01Error("AUTH01_PASSWORD_CHANGE_WRITE_FAILED", "Password update did not start.");
+      }
+      auth01WriteMigrationJournal(properties, journalKey, Object.assign({}, journal, {
+        status: "RECOVERY_REQUIRED", phase: "HASH_WRITE_UNPROVEN", recoveryRequired: true
+      }));
+      throw auth01Error("AUTH01_MIGRATION_RECOVERY_REQUIRED", "Password update requires recovery.");
+    }
+    sheet.getRange(current.rowNumber, 2).setValue("");
+    SpreadsheetApp.flush();
+    cells = auth01CredentialCells(sheet, current.rowNumber);
+    const updated = auth01MigrationResultUser(current, modernCredential);
+    if (cells.password !== "" || cells.passwordHash !== modernCredential ||
+        !auth01VerifyCredential(updated, password, options).ok) {
+      auth01WriteMigrationJournal(properties, journalKey, Object.assign({}, journal, {
+        status: "RECOVERY_REQUIRED", phase: "POST_WRITE_VERIFY_FAILED", recoveryRequired: true
+      }));
+      throw auth01Error("AUTH01_MIGRATION_RECOVERY_REQUIRED", "Password update requires recovery.");
+    }
+    properties.deleteProperty(journalKey);
+    return { user: updated, credentialEpoch };
+  } catch (error) {
+    if (!journal || error.code === "AUTH01_MIGRATION_RECOVERY_REQUIRED") throw error;
+    let cells = null;
+    try { cells = current ? auth01CredentialCells(sheet, current.rowNumber) : null; } catch (readError) {}
+    if (cells && cells.passwordHash === modernCredential && cells.password === "") {
+      properties.deleteProperty(journalKey);
+      return {
+        user: auth01MigrationResultUser(current, modernCredential),
+        credentialEpoch: auth01ReadCredentialEpoch(current.username, options)
+      };
+    }
+    if (cells && cells.passwordHash === current.passwordHash && cells.password === current.password) {
+      properties.deleteProperty(journalKey);
+      throw error;
+    }
+    auth01WriteMigrationJournal(properties, journalKey, Object.assign({}, journal, {
+      status: "RECOVERY_REQUIRED", phase: "UNEXPECTED_FAILURE", recoveryRequired: true
+    }));
+    throw auth01Error("AUTH01_MIGRATION_RECOVERY_REQUIRED", "Password update requires recovery.");
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+const AUTH01_THROTTLE_GLOBAL_KEY = "AUTH01:RL:v1:G";
+const AUTH01_THROTTLE_ACCOUNT_PREFIX = "AUTH01:RL:v1:A:";
+const AUTH01_THROTTLE_CACHE_PREFIX = "AUTH01:RL:C:v1:";
+const AUTH01_THROTTLE_RECOVERY_PREFIX = "AUTH01:RL:RECOVERY:v1:";
+const AUTH01_THROTTLE_STATE_MAX_BYTES = 8192;
+const AUTH01_THROTTLE_HISTORY_HORIZON_MS = 400 * 24 * 60 * 60 * 1000;
+const AUTH01_THROTTLE_CLOCK_SKEW_MS = 5 * 60 * 1000;
+// Availability/security guarantee: denied requests cannot extend blockedUntil,
+// and every individual account/global cooldown is bounded by the configured
+// maximum. Re-blocking requires a fresh full threshold of reserved failures in
+// a newly opened window; one sparse request cannot perpetuate an existing block.
+// This deliberately does NOT claim that a password-only endpoint can guarantee
+// a legitimate caller a verification slot against a continuously active attacker
+// who knows the same username and races every fresh budget. Without an additional
+// trusted signal (for example a challenge/device factor), those callers are
+// indistinguishable before password verification. That sustained-race condition
+// is an explicit residual availability risk, not a throttle-state lockout.
+// The AUTH-01 objective here is bounded application rate limiting with no
+// attacker-extendable single-probe state and a hard bound on PBKDF2 work per
+// window.
+const AUTH01_THROTTLE_POLICY = Object.freeze({
+  accountFailureThreshold: 5,
+  accountWindowMs: 15 * 60 * 1000,
+  accountInitialCooldownMs: 30 * 1000,
+  accountMaximumCooldownMs: 15 * 60 * 1000,
+  globalFailureThreshold: 100,
+  globalUnknownFailureThreshold: 80,
+  globalWindowMs: 5 * 60 * 1000,
+  globalInitialCooldownMs: 60 * 1000,
+  globalMaximumCooldownMs: 5 * 60 * 1000,
+  reservationTtlMs: 2 * 60 * 1000,
+  maximumReservations: 120
+});
+
+function auth01ThrottlePolicy(options) {
+  const override = options && options.throttlePolicy;
+  const policy = override ? Object.assign({}, AUTH01_THROTTLE_POLICY, override) : AUTH01_THROTTLE_POLICY;
+  if (override && !Object.prototype.hasOwnProperty.call(override, "globalUnknownFailureThreshold")) {
+    policy.globalUnknownFailureThreshold = Math.max(
+      1, Math.min(policy.globalFailureThreshold, Math.floor(policy.globalFailureThreshold * 0.8))
+    );
+  }
+  const positiveIntegers = [
+    "accountFailureThreshold", "accountWindowMs", "accountInitialCooldownMs",
+    "accountMaximumCooldownMs", "globalFailureThreshold", "globalUnknownFailureThreshold",
+    "globalWindowMs", "globalInitialCooldownMs", "globalMaximumCooldownMs",
+    "reservationTtlMs", "maximumReservations"
+  ];
+  if (positiveIntegers.some(key => !Number.isSafeInteger(policy[key]) || policy[key] < 1) ||
+      policy.globalUnknownFailureThreshold > policy.globalFailureThreshold ||
+      policy.accountInitialCooldownMs > policy.accountMaximumCooldownMs ||
+      policy.globalInitialCooldownMs > policy.globalMaximumCooldownMs ||
+      policy.maximumReservations < Math.max(policy.accountFailureThreshold, policy.globalFailureThreshold)) {
+    throw auth01Error("AUTH01_THROTTLE_POLICY_INVALID", "Authentication throttle policy is invalid.");
+  }
+  return policy;
+}
+
+function auth01Now(options) {
+  const now = options && typeof options.now === "function" ? Number(options.now()) : Date.now();
+  if (!Number.isSafeInteger(now) || now < 0) {
+    throw auth01Error("AUTH01_TIME_INVALID", "Authentication service time is invalid.");
+  }
+  return now;
+}
+
+function auth01ThrottleCache(options) {
+  try {
+    return options && options.cache ? options.cache : CacheService.getScriptCache();
+  } catch (error) {
+    return null;
+  }
+}
+
+function auth01ThrottleLock(options) {
+  const lock = options && typeof options.lockFactory === "function"
+    ? options.lockFactory()
+    : (options && options.lock ? options.lock : LockService.getScriptLock());
+  if (!lock || typeof lock.tryLock !== "function" || !lock.tryLock(5000)) {
+    throw auth01Error("AUTH01_THROTTLE_LOCK_UNAVAILABLE", "Authentication service is temporarily unavailable.");
+  }
+  return lock;
+}
+
+function auth01EmptyThrottleState(now, scope) {
+  return {
+    version: 1,
+    scope,
+    status: "OPEN",
+    windowStartedAt: now,
+    failures: 0,
+    unknownFailures: 0,
+    backoffLevel: 0,
+    blockedUntil: 0,
+    reservations: {},
+    finalizations: {},
+    updatedAt: now
+  };
+}
+
+function auth01ThrottleInteger(value, minimum, maximum) {
+  return Number.isSafeInteger(value) && value >= minimum && value <= maximum;
+}
+
+function auth01ThrottleRecordIdValid(value) {
+  return typeof value === "string" && /^[A-Za-z0-9._:-]{1,128}$/.test(value);
+}
+
+function auth01EncodeThrottleFinalization(outcome, finalizedAt) {
+  return ({ failure: "F", success: "S", system: "E" })[outcome] + ":" + finalizedAt;
+}
+
+function auth01DecodeThrottleFinalization(value) {
+  const match = /^([FSE]):([0-9]{1,16})$/.exec(String(value || ""));
+  if (!match) return null;
+  return {
+    outcome: ({ F: "failure", S: "success", E: "system" })[match[1]],
+    finalizedAt: Number(match[2])
+  };
+}
+
+function auth01ValidateThrottleState(state, raw, now, scope, policy) {
+  const expected = [
+    "backoffLevel", "blockedUntil", "failures", "finalizations", "reservations",
+    "scope", "status", "unknownFailures", "updatedAt", "version", "windowStartedAt"
+  ];
+  const maximumCooldown = scope === "GLOBAL"
+    ? policy.globalMaximumCooldownMs : policy.accountMaximumCooldownMs;
+  const maximumFailures = scope === "GLOBAL"
+    ? policy.globalFailureThreshold : policy.accountFailureThreshold;
+  if (!state || Array.isArray(state) || typeof state !== "object" || state.version !== 1 ||
+      state.scope !== scope || ["OPEN", "BLOCKED"].indexOf(state.status) === -1 ||
+      Object.keys(state).sort().join("|") !== expected.sort().join("|") ||
+      typeof raw !== "string" || raw.length > AUTH01_THROTTLE_STATE_MAX_BYTES ||
+      !auth01ThrottleInteger(state.windowStartedAt, 0, now + AUTH01_THROTTLE_CLOCK_SKEW_MS) ||
+      state.windowStartedAt < Math.max(0, now - AUTH01_THROTTLE_HISTORY_HORIZON_MS) ||
+      !auth01ThrottleInteger(state.updatedAt, state.windowStartedAt, now + AUTH01_THROTTLE_CLOCK_SKEW_MS) ||
+      !auth01ThrottleInteger(state.failures, 0, maximumFailures) ||
+      !auth01ThrottleInteger(state.unknownFailures, 0, state.failures) ||
+      (scope === "ACCOUNT" && state.unknownFailures !== 0) ||
+      (scope === "GLOBAL" && state.unknownFailures > policy.globalUnknownFailureThreshold) ||
+      state.backoffLevel !== 0 ||
+      !auth01ThrottleInteger(state.blockedUntil, 0, now + maximumCooldown) ||
+      (state.status === "BLOCKED") !== (state.blockedUntil > 0) ||
+      (state.blockedUntil && state.blockedUntil < state.updatedAt) ||
+      !state.reservations || Array.isArray(state.reservations) || typeof state.reservations !== "object" ||
+      !state.finalizations || Array.isArray(state.finalizations) || typeof state.finalizations !== "object") {
+    throw auth01Error("AUTH01_THROTTLE_STATE_CORRUPT", "Authentication throttle state is invalid.");
+  }
+  const reservationIds = Object.keys(state.reservations);
+  const finalizationIds = Object.keys(state.finalizations);
+  const finalizationSet = {};
+  finalizationIds.forEach(id => { finalizationSet[id] = true; });
+  if (reservationIds.some(id => finalizationSet[id])) {
+    throw auth01Error("AUTH01_THROTTLE_STATE_CORRUPT", "Authentication throttle reservation/finalization state overlaps.");
+  }
+  if (reservationIds.length > policy.maximumReservations ||
+      finalizationIds.length > policy.maximumReservations ||
+      reservationIds.length + finalizationIds.length > policy.maximumReservations) {
+    throw auth01Error("AUTH01_THROTTLE_STATE_CORRUPT", "Authentication throttle state is invalid.");
+  }
+  reservationIds.forEach(id => {
+    const item = state.reservations[id];
+    if (!auth01ThrottleRecordIdValid(id) || !item || Array.isArray(item) ||
+        Object.keys(item).sort().join("|") !== (scope === "GLOBAL" ? "expiresAt|kind" : "expiresAt") ||
+        (scope === "GLOBAL" && ["K", "U"].indexOf(item.kind) === -1) ||
+        !auth01ThrottleInteger(item.expiresAt, state.updatedAt, now + policy.reservationTtlMs)) {
+      throw auth01Error("AUTH01_THROTTLE_STATE_CORRUPT", "Authentication throttle reservation is invalid.");
+    }
+  });
+  finalizationIds.forEach(id => {
+    const item = auth01DecodeThrottleFinalization(state.finalizations[id]);
+    if (!auth01ThrottleRecordIdValid(id) || !item ||
+        !auth01ThrottleInteger(item.finalizedAt, Math.max(0, now - AUTH01_THROTTLE_HISTORY_HORIZON_MS),
+          now + AUTH01_THROTTLE_CLOCK_SKEW_MS)) {
+      throw auth01Error("AUTH01_THROTTLE_STATE_CORRUPT", "Authentication throttle finalization is invalid.");
+    }
+  });
+  return state;
+}
+
+function auth01NormalizeThrottleState(state, now, windowMs, scope, policy) {
+  const retainedFinalizations = {};
+  Object.keys(state.finalizations).forEach(id => {
+    const finalization = auth01DecodeThrottleFinalization(state.finalizations[id]);
+    if (finalization && finalization.finalizedAt + policy.reservationTtlMs > now) {
+      retainedFinalizations[id] = state.finalizations[id];
+    }
+  });
+  const blockExpired = state.status === "BLOCKED" && state.blockedUntil <= now;
+  const windowExpired = now - state.windowStartedAt >= windowMs;
+  if (blockExpired || (state.status === "OPEN" && windowExpired)) {
+    state = auth01EmptyThrottleState(now, scope);
+    state.finalizations = retainedFinalizations;
+  } else {
+    Object.keys(state.reservations).forEach(id => {
+      if (state.reservations[id].expiresAt <= now) delete state.reservations[id];
+    });
+    state.finalizations = retainedFinalizations;
+    state.updatedAt = now;
+  }
+  return state;
+}
+
+function auth01ThrottleRecoveryMarker(properties, key, code, now) {
+  const markerKey = AUTH01_THROTTLE_RECOVERY_PREFIX + auth01Base64UrlEncode(
+    auth01Sha256Bytes(auth01Utf8Bytes(key))
+  );
+  const marker = JSON.stringify({ version: 1, code: String(code), detectedAt: now });
+  try { properties.setProperty(markerKey, marker); } catch (error) {}
+}
+
+function auth01ReadThrottleState(properties, key, now, windowMs, scope, policy) {
+  let raw;
+  try { raw = properties.getProperty(key); } catch (error) {
+    throw auth01Error("AUTH01_THROTTLE_STORE_UNAVAILABLE", "Authentication service is temporarily unavailable.");
+  }
+  if (raw == null || raw === "") return auth01EmptyThrottleState(now, scope);
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch (error) {
+    auth01ThrottleRecoveryMarker(properties, key, "MALFORMED_JSON", now);
+    throw auth01Error("AUTH01_THROTTLE_STATE_CORRUPT", "Authentication throttle state is invalid.");
+  }
+  try {
+    auth01ValidateThrottleState(parsed, raw, now, scope, policy);
+  } catch (error) {
+    auth01ThrottleRecoveryMarker(properties, key, error.code || "INVALID_SCHEMA", now);
+    throw error;
+  }
+  return auth01NormalizeThrottleState(parsed, now, windowMs, scope, policy);
+}
+
+function auth01WriteThrottleState(properties, key, state, now, scope, policy) {
+  try {
+    const raw = JSON.stringify(state);
+    auth01ValidateThrottleState(state, raw, now, scope, policy);
+    properties.setProperty(key, raw);
+  } catch (error) {
+    if (error && error.code === "AUTH01_THROTTLE_STATE_CORRUPT") throw error;
+    throw auth01Error("AUTH01_THROTTLE_STORE_UNAVAILABLE", "Authentication service is temporarily unavailable.");
+  }
+}
+
+function auth01CacheKeyForProperty(propertyKey) {
+  if (propertyKey === AUTH01_THROTTLE_GLOBAL_KEY) return AUTH01_THROTTLE_CACHE_PREFIX + "G";
+  return AUTH01_THROTTLE_CACHE_PREFIX + "A:" + propertyKey.slice(AUTH01_THROTTLE_ACCOUNT_PREFIX.length);
+}
+
+function auth01CacheBlockedUntil(cache, propertyKey) {
+  if (!cache) return 0;
+  try { return Math.max(0, Number(cache.get(auth01CacheKeyForProperty(propertyKey))) || 0); }
+  catch (error) { return 0; }
+}
+
+function auth01CacheBlock(cache, propertyKey, blockedUntil, now) {
+  if (!cache || blockedUntil <= now) return;
+  try {
+    cache.put(
+      auth01CacheKeyForProperty(propertyKey), String(blockedUntil),
+      Math.max(1, Math.min(21600, Math.ceil((blockedUntil - now) / 1000)))
+    );
+  } catch (error) {
+    // Cache is acceleration only; durable state remains authoritative.
+  }
+}
+
+function auth01CacheClear(cache, propertyKey) {
+  if (!cache) return;
+  try { cache.remove(auth01CacheKeyForProperty(propertyKey)); } catch (error) {}
+}
+
+function auth01ApplyThrottleFailure(state, now, threshold, windowMs, initialCooldown, maximumCooldown, kind) {
+  state.failures = Math.min(threshold, state.failures + 1);
+  if (state.scope === "GLOBAL" && kind === "U") {
+    state.unknownFailures = Math.min(state.failures, state.unknownFailures + 1);
+  }
+  if (state.failures < threshold) return;
+  auth01StartThrottleCooldown(state, now, threshold, windowMs, initialCooldown, maximumCooldown);
+}
+
+function auth01StartThrottleCooldown(state, now, threshold, windowMs, initialCooldown, maximumCooldown) {
+  state.backoffLevel = Math.min(32, Math.max(0, state.failures - threshold));
+  const cooldown = Math.min(maximumCooldown, initialCooldown * Math.pow(2, state.backoffLevel));
+  state.blockedUntil = Math.min(
+    now + maximumCooldown,
+    Math.max(now + cooldown, state.windowStartedAt + windowMs)
+  );
+  state.status = "BLOCKED";
+}
+
+function auth01ReserveLoginAttempt(knownUsername, options) {
+  const policy = auth01ThrottlePolicy(options);
+  const now = auth01Now(options);
+  const properties = auth01ScriptProperties(options);
+  const cache = auth01ThrottleCache(options);
+  const accountKey = knownUsername
+    ? AUTH01_THROTTLE_ACCOUNT_PREFIX + auth01OpaqueUserId(knownUsername, options)
+    : "";
+  const cacheKeys = [AUTH01_THROTTLE_GLOBAL_KEY].concat(accountKey ? [accountKey] : []);
+  if (cacheKeys.some(key => auth01CacheBlockedUntil(cache, key) > now)) {
+    return { allowed: false, reason: "COOLDOWN" };
+  }
+  const lock = auth01ThrottleLock(options);
+  try {
+    const globalState = auth01ReadThrottleState(
+      properties, AUTH01_THROTTLE_GLOBAL_KEY, now, policy.globalWindowMs, "GLOBAL", policy
+    );
+    const accountState = accountKey
+      ? auth01ReadThrottleState(properties, accountKey, now, policy.accountWindowMs, "ACCOUNT", policy)
+      : null;
+    const globalInflight = Object.keys(globalState.reservations).length;
+    const globalUnknownInflight = Object.keys(globalState.reservations)
+      .filter(id => globalState.reservations[id].kind === "U").length;
+    const accountInflight = accountState ? Object.keys(accountState.reservations).length : 0;
+    const unknownLaneDenied = !accountKey &&
+      globalState.unknownFailures + globalUnknownInflight >= policy.globalUnknownFailureThreshold;
+    let globalDenied = globalState.status === "BLOCKED" ||
+      globalInflight >= policy.maximumReservations ||
+      globalState.failures + globalInflight >= policy.globalFailureThreshold;
+    if (unknownLaneDenied && !globalDenied) {
+      auth01WriteThrottleState(properties, AUTH01_THROTTLE_GLOBAL_KEY, globalState, now, "GLOBAL", policy);
+      return { allowed: false, reason: "GLOBAL_UNKNOWN_LIMIT" };
+    }
+    if (globalDenied) {
+      if (globalState.status !== "BLOCKED") {
+        auth01StartThrottleCooldown(
+          globalState, now, policy.globalFailureThreshold,
+          policy.globalWindowMs,
+          policy.globalInitialCooldownMs, policy.globalMaximumCooldownMs
+        );
+      }
+      auth01WriteThrottleState(properties, AUTH01_THROTTLE_GLOBAL_KEY, globalState, now, "GLOBAL", policy);
+      auth01CacheBlock(cache, AUTH01_THROTTLE_GLOBAL_KEY, globalState.blockedUntil, now);
+      return { allowed: false, reason: "GLOBAL_LIMIT" };
+    }
+    let accountDenied = !!accountState && accountInflight >= policy.accountFailureThreshold;
+    if (accountState && !accountDenied) {
+      accountDenied = accountState.status === "BLOCKED" ||
+        accountState.failures + accountInflight >= policy.accountFailureThreshold;
+    }
+    if (accountState && accountDenied) {
+      if (accountState.status !== "BLOCKED") {
+        auth01StartThrottleCooldown(
+          accountState, now, policy.accountFailureThreshold,
+          policy.accountWindowMs,
+          policy.accountInitialCooldownMs, policy.accountMaximumCooldownMs
+        );
+      }
+      auth01WriteThrottleState(properties, accountKey, accountState, now, "ACCOUNT", policy);
+      auth01CacheBlock(cache, accountKey, accountState.blockedUntil, now);
+      return { allowed: false, reason: "ACCOUNT_LIMIT" };
+    }
+    const reservationId = String((options && options.reservationId) || Utilities.getUuid());
+    const expiresAt = now + policy.reservationTtlMs;
+    if (!auth01ThrottleRecordIdValid(reservationId)) {
+      throw auth01Error("AUTH01_THROTTLE_RESERVATION_INVALID", "Authentication service is temporarily unavailable.");
+    }
+    if (globalState.reservations[reservationId] || globalState.finalizations[reservationId] ||
+        (accountState && (accountState.reservations[reservationId] || accountState.finalizations[reservationId]))) {
+      throw auth01Error("AUTH01_THROTTLE_RESERVATION_COLLISION", "Authentication service is temporarily unavailable.");
+    }
+    globalState.reservations[reservationId] = { expiresAt, kind: accountKey ? "K" : "U" };
+    auth01WriteThrottleState(properties, AUTH01_THROTTLE_GLOBAL_KEY, globalState, now, "GLOBAL", policy);
+    if (accountState) {
+      accountState.reservations[reservationId] = { expiresAt };
+      auth01WriteThrottleState(properties, accountKey, accountState, now, "ACCOUNT", policy);
+    }
+    return { allowed: true, reservationId, accountKey, createdAt: now };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function auth01FinalizeLoginAttempt(reservation, outcome, options) {
+  if (!reservation || !reservation.allowed || !reservation.reservationId) return;
+  if (["failure", "success", "system"].indexOf(outcome) === -1) {
+    throw auth01Error("AUTH01_THROTTLE_OUTCOME_INVALID", "Authentication service is temporarily unavailable.");
+  }
+  const policy = auth01ThrottlePolicy(options);
+  const now = auth01Now(options);
+  const properties = auth01ScriptProperties(options);
+  const cache = auth01ThrottleCache(options);
+  const lock = auth01ThrottleLock(options);
+  try {
+    const globalState = auth01ReadThrottleState(
+      properties, AUTH01_THROTTLE_GLOBAL_KEY, now, policy.globalWindowMs, "GLOBAL", policy
+    );
+    const globalFinal = auth01DecodeThrottleFinalization(globalState.finalizations[reservation.reservationId]);
+    if (globalFinal && globalFinal.outcome !== outcome) {
+      throw auth01Error("AUTH01_THROTTLE_FINALIZATION_CONFLICT", "Authentication service is temporarily unavailable.");
+    }
+    const globalReservation = globalState.reservations[reservation.reservationId] || null;
+    const globalReserved = !!globalReservation;
+    if (!globalFinal && globalReserved) {
+      delete globalState.reservations[reservation.reservationId];
+      globalState.finalizations[reservation.reservationId] = auth01EncodeThrottleFinalization(outcome, now);
+    }
+    if (!globalFinal && globalReserved && outcome === "failure") {
+      auth01ApplyThrottleFailure(
+        globalState, now, policy.globalFailureThreshold,
+        policy.globalWindowMs,
+        policy.globalInitialCooldownMs, policy.globalMaximumCooldownMs,
+        globalReservation.kind
+      );
+    }
+    auth01WriteThrottleState(properties, AUTH01_THROTTLE_GLOBAL_KEY, globalState, now, "GLOBAL", policy);
+    auth01CacheBlock(cache, AUTH01_THROTTLE_GLOBAL_KEY, globalState.blockedUntil, now);
+
+    if (reservation.accountKey) {
+      const accountState = auth01ReadThrottleState(
+        properties, reservation.accountKey, now, policy.accountWindowMs, "ACCOUNT", policy
+      );
+      const accountFinal = auth01DecodeThrottleFinalization(accountState.finalizations[reservation.reservationId]);
+      if (accountFinal && accountFinal.outcome !== outcome) {
+        throw auth01Error("AUTH01_THROTTLE_FINALIZATION_CONFLICT", "Authentication service is temporarily unavailable.");
+      }
+      const accountReserved = !!accountState.reservations[reservation.reservationId];
+      if (!accountFinal && accountReserved) {
+        delete accountState.reservations[reservation.reservationId];
+        accountState.finalizations[reservation.reservationId] = auth01EncodeThrottleFinalization(outcome, now);
+        if (outcome === "success") {
+          accountState.failures = 0;
+          accountState.backoffLevel = 0;
+          accountState.blockedUntil = 0;
+          accountState.status = "OPEN";
+          accountState.windowStartedAt = now;
+          auth01CacheClear(cache, reservation.accountKey);
+        } else if (outcome === "failure") {
+          auth01ApplyThrottleFailure(
+            accountState, now, policy.accountFailureThreshold,
+            policy.accountWindowMs,
+            policy.accountInitialCooldownMs, policy.accountMaximumCooldownMs
+          );
+        }
+      }
+      auth01WriteThrottleState(properties, reservation.accountKey, accountState, now, "ACCOUNT", policy);
+      auth01CacheBlock(cache, reservation.accountKey, accountState.blockedUntil, now);
+    }
+  } catch (error) {
+    if (error && /^AUTH01_/.test(String(error.code || ""))) throw error;
+    throw auth01Error("AUTH01_THROTTLE_STORE_UNAVAILABLE", "Authentication service is temporarily unavailable.");
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function auth01DummyModernCredential(options) {
+  const policy = auth01CredentialPolicy(options);
+  return auth01EncodeModernCredential(
+    policy.iterations, new Array(16).fill(0), new Array(32).fill(0)
+  );
+}
+
+function auth01RuntimeOptions() {
+  // Production code has no request-controlled override. Unit/benchmark harnesses
+  // may replace this function inside their isolated VM only.
+  return null;
+}
+
 function getUsersFromSheet(data) {
   try {
     if (!actorCanManageUsers(data || {})) {
@@ -870,23 +2522,58 @@ function getUsersFromSheet(data) {
 }
 
 function loginUser(data) {
+  let reservation = null;
+  let finalized = false;
+  const authRequestId = auth01RequestCorrelationId(data);
+  const respond = payload => auth01CorrelatedJsonOutput(payload, authRequestId);
   try {
-    const username = String(data.username || "").trim();
+    const username = String(data.username || "");
     const password = String(data.password || "");
-
-    const user = readUsersFromSheet().find(item =>
-      item.username === username &&
-      verifyPassword(item, password)
-    );
-
-    if (!user) {
-      return jsonOutput({
+    const canonicalUsername = auth01CanonicalUsername(username);
+    const users = readUsersFromSheet();
+    if (auth01FindCanonicalUsernameCollisions(users).length) {
+      throw auth01Error("AUTH01_USERNAME_COLLISION", "Authentication service is temporarily unavailable.");
+    }
+    let user = users.find(item => auth01CanonicalUsername(item.username) === canonicalUsername) || null;
+    const runtimeOptions = auth01RuntimeOptions() || {};
+    // Key continuity is a service-wide precondition, including unknown-user
+    // attempts, so a broken identifier namespace cannot become an enumeration
+    // oracle or create fresh epoch-zero state.
+    auth01IdentifierKeyBytes(runtimeOptions);
+    reservation = auth01ReserveLoginAttempt(user ? user.username : "", runtimeOptions);
+    if (!reservation.allowed) {
+      return respond({
         status: "error",
         message: "Invalid username or password."
       });
     }
 
-    ensureUserPasswordHash(user, password);
+    const verification = user
+      ? auth01VerifyCredential(user, password, Object.assign({}, runtimeOptions, {
+        allowLegacyPlaintext: !!runtimeOptions.allowLegacyPlaintext
+      }))
+      : auth01VerifyCredential(
+        { password: "", passwordHash: auth01DummyModernCredential(runtimeOptions) },
+        password,
+        runtimeOptions
+      );
+    // Verification-class requests always pay at least one active-policy PBKDF2.
+    // Throttle-denied requests are a separate class and perform no KDF. This
+    // narrows user/credential-state timing without turning global denial into a
+    // PBKDF2 amplification path.
+    if (user && verification.state !== AUTH01_CREDENTIAL_STATES.MODERN_V1) {
+      auth01RunDummyModernVerification(password, runtimeOptions);
+    }
+    if (!user || !verification.ok) {
+      auth01FinalizeLoginAttempt(reservation, "failure", runtimeOptions);
+      finalized = true;
+      return respond({ status: "error", message: "Invalid username or password." });
+    }
+    if (verification.migrationEligible) {
+      user = auth01MigrateCredential(user, password, verification, runtimeOptions);
+    }
+    auth01FinalizeLoginAttempt(reservation, "success", runtimeOptions);
+    finalized = true;
     const session = createSessionForUser(user);
 
     logActivity(
@@ -897,42 +2584,72 @@ function loginUser(data) {
       `User logged in: ${user.displayName || user.username}`
     );
 
-    return jsonOutput({
+    return respond({
       status: "success",
       user: sanitizeUser(user),
       sessionToken: session.token,
-      expiresAt: session.expiresAt
+      expiresAt: session.expiresAt,
+      sessionCreated: true
     });
   } catch (error) {
+    if (reservation && reservation.allowed && !finalized) {
+      try { auth01FinalizeLoginAttempt(reservation, "system", auth01RuntimeOptions() || {}); }
+      catch (finalizeError) {}
+    }
     if (error && /^USERS_SCHEMA_/.test(String(error.code || ""))) {
-      return jsonOutput({
+      return respond({
         status: "error",
         code: "AUTHENTICATION_SERVICE_UNAVAILABLE",
         message: "Authentication service is temporarily unavailable."
       });
     }
-    return jsonOutput({ status: "error", message: error.message });
+    if (error && /^AUTH01_/.test(String(error.code || ""))) {
+      return respond({
+        status: "error",
+        code: "AUTHENTICATION_SERVICE_UNAVAILABLE",
+        message: "Authentication service is temporarily unavailable."
+      });
+    }
+    return respond({ status: "error", message: "Authentication service is temporarily unavailable." });
   }
 }
 
 function logoutUser(data) {
-  try {
-    const actor = getActor(data || {});
+  const request = data || {};
+  const authRequestId = auth01RequestCorrelationId(request);
+  const respond = payload => auth01CorrelatedJsonOutput(payload, authRequestId);
+  let actor = { userName: "system", displayName: "system" };
+  try { actor = getActor(request); } catch (error) {}
 
+  const revocation = revokeSession(getSessionToken(request));
+  if (!revocation.ok || !revocation.revoked) {
+    return respond({
+      status: "error",
+      code: revocation.code || "SESSION_REVOCATION_FAILED",
+      revoked: false,
+      message: "Session revocation could not be confirmed. Please retry."
+    });
+  }
+
+  try {
     logActivity(
-      data,
+      request,
       "logout",
       "system",
       actor.userName,
       `User logged out: ${actor.displayName || actor.userName}`
     );
-
-    deleteSession(getSessionToken(data || {}));
-
-    return jsonOutput({ status: "success" });
   } catch (error) {
-    return jsonOutput({ status: "error", message: error.message });
+    Logger.log("Logout activity log failed: " + error.message);
   }
+
+  return respond({
+    status: "success",
+    revoked: true,
+    alreadyRevoked: !!revocation.alreadyRevoked,
+    cacheRemovalAttempted: !!revocation.cacheRemovalAttempted,
+    cacheRemovalFailed: !!revocation.cacheRemovalFailed
+  });
 }
 
 function createUserInSheet(data) {
@@ -958,7 +2675,7 @@ function createUserInSheet(data) {
     }
 
     const users = readUsersFromSheet();
-    if (users.some(user => user.username === username)) {
+    if (users.some(user => auth01CanonicalUsername(user.username) === auth01CanonicalUsername(username))) {
       return jsonOutput({
         status: "error",
         message: "Username already exists."
@@ -973,8 +2690,21 @@ function createUserInSheet(data) {
       displayName,
       stringifyPermissions(finalPermissions),
       getCairoDateKey(),
-      hashPassword(password)
+      createModernCredential(password, auth01RuntimeOptions() || undefined)
     ]);
+    SpreadsheetApp.flush();
+    const persistedRow = sheet.getLastRow();
+    const persisted = sheet.getRange(persistedRow, 1, 1, 6).getValues()[0];
+    const persistedUser = {
+      username: String(persisted[0] || "").trim(),
+      password: String(persisted[1] || ""),
+      passwordHash: String(persisted[5] || "").trim()
+    };
+    if (auth01CanonicalUsername(persistedUser.username) !== auth01CanonicalUsername(username) ||
+        persistedUser.password !== "" ||
+        !auth01VerifyCredential(persistedUser, password, auth01RuntimeOptions() || undefined).ok) {
+      throw auth01Error("AUTH01_USER_CREATE_WRITE_UNPROVEN", "User credential write could not be verified.");
+    }
 
     logActivity(
       data,
@@ -1028,16 +2758,13 @@ function updateUserInSheet(data) {
       Array.isArray(data.permissions) ? data.permissions : user.permissions
     );
 
-    sheet.getRange(user.rowNumber, 2, 1, 3).setValues([[
-      password ? "" : user.password,
+    if (password) auth01ReplaceCredential(
+      user, password, Object.assign({}, auth01RuntimeOptions() || {}, { sheet })
+    );
+    sheet.getRange(user.rowNumber, 3, 1, 2).setValues([[
       displayName,
       stringifyPermissions(permissions)
     ]]);
-    if (password) {
-      sheet.getRange(user.rowNumber, 6).setValue(hashPassword(password));
-    } else if (!user.passwordHash && user.password) {
-      ensureUserPasswordHash(user, user.password);
-    }
 
     logActivity(
       data,
@@ -1452,7 +3179,7 @@ function legacyPreviewStagingAuthenticationInitialization() {
   if (incompatibleSheets.length) blockers.push("EXISTING_CORE_SHEET_INCOMPATIBLE");
 
   return {
-    schemaVersion: "CORE_AUTH_PREVIEW_V1",
+    schemaVersion: "CORE_AUTH_PREVIEW_V2",
     dryRun: true,
     writes: 0,
     identity: {
@@ -1482,14 +3209,17 @@ function legacyPreviewStagingAuthenticationInitialization() {
       { column: 3, field: "DISPLAY_NAME", requiredValue: "non-empty display name", requiredForLogin: false },
       { column: 4, field: "PERMISSIONS", requiredValue: "owner permissions are implicit", requiredForLogin: false },
       { column: 5, field: "CREATED_AT", requiredValue: "creation timestamp", requiredForLogin: false },
-      { column: 6, field: "PASSWORD_HASH", requiredValue: "SHA-256 hex digest", requiredForLogin: true }
+      { column: 6, field: "PASSWORD_HASH", requiredValue: "canonical cuthub$1 modern credential", requiredForLogin: true }
     ],
     passwordStorage: {
-      hashAlgorithm: "SHA-256",
-      salted: false,
-      plaintextFallbackAccepted: true,
-      successfulLegacyLoginAddsHash: true,
-      successfulLegacyLoginClearsPlaintext: false,
+      hashAlgorithm: "PBKDF2-HMAC-SHA-256",
+      credentialFormat: "cuthub$1",
+      candidateIterations: AUTH01_CREDENTIAL_POLICY.iterations,
+      stagingBenchmarkRequired: true,
+      salted: true,
+      plaintextFallbackAccepted: false,
+      successfulLegacyLoginMigratesForward: true,
+      successfulLegacyLoginClearsPlaintext: true,
       ownerRecord
     },
     initializationRequired,
@@ -7833,7 +9563,5 @@ function parseSheetAmount(value) {
   const num = parseFloat(text.replace(/[^\d.-]/g, ""));
   return isFinite(num) ? num : 0;
 }
-
-
 
 

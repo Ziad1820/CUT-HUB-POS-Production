@@ -186,16 +186,30 @@
     });
 
     const logoutButton = sidebar.querySelector("#logoutBtn");
-    if (logoutButton) logoutButton.addEventListener("click", event => {
+    if (logoutButton) logoutButton.addEventListener("click", async event => {
       event.preventDefault();
       event.stopPropagation();
       if (root.RomeoAuth && typeof root.RomeoAuth.logout === "function") {
-        root.RomeoAuth.logout();
+        if (logoutButton.disabled) return;
+        logoutButton.disabled = true;
+        logoutButton.setAttribute("aria-busy", "true");
+        let result = null;
+        try {
+          result = await root.RomeoAuth.logout();
+        } catch (error) {
+          if (typeof root.alert === "function") {
+            root.alert("تعذر تأكيد تسجيل الخروج من الخادم. يرجى المحاولة مرة أخرى.");
+          }
+        }
+        if (!result || (result.success !== true && result.inProgress !== true)) {
+          logoutButton.disabled = false;
+          logoutButton.setAttribute("aria-busy", "false");
+        }
         return;
       }
-      if (root.localStorage) root.localStorage.removeItem("romeo-pos-session");
-      if (root.sessionStorage) root.sessionStorage.removeItem("romeo-pos-session");
-      root.location.replace("login.html");
+      if (typeof root.alert === "function") {
+        root.alert("تعذر تأكيد تسجيل الخروج من الخادم. يرجى المحاولة مرة أخرى.");
+      }
     });
     root.document.addEventListener("keydown", event => {
       if (event.key === "Escape") closeSidebar();

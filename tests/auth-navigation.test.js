@@ -11,6 +11,8 @@ const authSource = fs.readFileSync(path.join(
 const apiSource = fs.readFileSync(path.join(
   __dirname, "../public/assets/js/core/api.js"), "utf8");
 const layout = require("../public/assets/js/utils/layout.js");
+const loginPageSource = fs.readFileSync(path.join(
+  __dirname, "../public/pages/login.html"), "utf8");
 
 function authForPermissions(permissions, username = "limited-user") {
   const session = JSON.stringify({
@@ -36,10 +38,145 @@ function authForPermissions(permissions, username = "limited-user") {
   return { auth: context.__auth, location, window: context.window };
 }
 
+function logoutHarness(request, options = {}) {
+  let sessionValue = options.missingSession ? null : JSON.stringify({
+    user: { username: "owner", displayName: "Owner", permissions: [] },
+    sessionToken: "00000000-0000-4000-8000-000000000001-00000000-0000-4000-8000-000000000002"
+  });
+  const removals = [];
+  const alerts = [];
+  const warnings = [];
+  const sessionStorage = {
+    getItem(key) { return key === "romeo-pos-session" ? sessionValue : null; },
+    setItem(key, value) { if (key === "romeo-pos-session") sessionValue = String(value); },
+    removeItem(key) {
+      removals.push(["session", key]);
+      if (key === "romeo-pos-session") sessionValue = null;
+    }
+  };
+  const localStorage = {
+    getItem() { return null; }, setItem() {},
+    removeItem(key) { removals.push(["local", key]); }
+  };
+  const location = {
+    pathname: "/pages/dashboard.html",
+    href: "https://example.test/pages/dashboard.html",
+    replace(value) { this.href = value; }
+  };
+  const RomeoApi = {
+    async request(payload) {
+      const result = await request(payload);
+      if (options.echoCorrelation === false || !result || typeof result !== "object") return result;
+      return { ...result, authRequestId: payload.authRequestId };
+    }
+  };
+  const window = {
+    location,
+    RomeoApi,
+    alert(message) { alerts.push(message); }
+  };
+  const context = vm.createContext({
+    window, location, RomeoApi, sessionStorage, localStorage,
+    alert: window.alert, console: { warn(message) { warnings.push(message); } },
+    URL, URLSearchParams, Promise, setTimeout, clearTimeout
+  });
+  vm.runInContext(`${authSource}\nglobalThis.__auth = RomeoAuth;`, context);
+  return {
+    auth: context.__auth,
+    location,
+    alerts,
+    warnings,
+    removals,
+    hasSession: () => sessionValue !== null,
+    sessionValue: () => sessionValue
+  };
+}
+
+function loginPageHarness(request) {
+  let sessionValue = null;
+  let handler = null;
+  let handlerRegistrations = 0;
+  let requestSequence = 0;
+  const observations = [];
+  const scheduled = [];
+  const navigations = [];
+  const attributes = {};
+  const form = {
+    dataset: {},
+    addEventListener(type, next) {
+      assert.equal(type, "submit");
+      handlerRegistrations += 1;
+      handler = next;
+    },
+    querySelector() { return button; }
+  };
+  const button = {
+    disabled: false,
+    setAttribute(name, value) { attributes[name] = String(value); }
+  };
+  const usernameInput = { value: "owner" };
+  const passwordInput = { value: "secret" };
+  const statusBox = { textContent: "", className: "status" };
+  const splash = { activations: 0, classList: { add() { splash.activations += 1; } } };
+  const sessionStorage = {
+    getItem(key) { return key === "romeo-pos-session" ? sessionValue : null; },
+    setItem(key, value) { if (key === "romeo-pos-session") sessionValue = String(value); },
+    removeItem(key) { if (key === "romeo-pos-session") sessionValue = null; }
+  };
+  const localStorage = { getItem() { return null; }, setItem() {}, removeItem() {} };
+  const location = { pathname: "/pages/login.html", search: "", href: "https://example.test/pages/login.html" };
+  const RomeoApi = {
+    async request(payload) {
+      const result = await request(payload);
+      return result && typeof result === "object"
+        ? { ...result, authRequestId: payload.authRequestId }
+        : result;
+    }
+  };
+  const window = {
+    location,
+    RomeoApi,
+    crypto: { randomUUID() { requestSequence += 1; return `00000000-0000-4000-8000-${String(requestSequence).padStart(12, "0")}`; } },
+    CustomEvent: function CustomEvent(type, init) { this.type = type; this.detail = init.detail; },
+    dispatchEvent(event) { observations.push(event.detail); },
+    alert() {}
+  };
+  const context = vm.createContext({
+    window, location, RomeoApi, sessionStorage, localStorage,
+    alert: window.alert, console, URL, URLSearchParams, Promise, setTimeout, clearTimeout
+  });
+  vm.runInContext(`${authSource}\nglobalThis.__auth = RomeoAuth;`, context);
+  const options = {
+    form, button, submitButton: button, usernameInput, passwordInput, statusBox, splash,
+    schedule(callback) { scheduled.push(callback); },
+    navigate(target) { navigations.push(target); }
+  };
+  return {
+    auth: context.__auth,
+    attributes,
+    button,
+    form,
+    handlerRegistrations: () => handlerRegistrations,
+    initialize: () => context.__auth.initializeLoginPage(options),
+    navigations,
+    observations,
+    scheduled,
+    sessionValue: () => sessionValue,
+    splash,
+    statusBox,
+    submit: () => handler({ preventDefault() {} })
+  };
+}
+
 test("auth publishes the runtime API for the shared layout", () => {
   const { auth, window } = authForPermissions(["access_dashboard"]);
   assert.equal(window.RomeoAuth, auth);
   assert.equal(window.RomeoAuth.hasPermission("access_dashboard"), true);
+});
+
+test("login page delegates idempotent binding to the canonical auth module", () => {
+  assert.match(loginPageSource, /RomeoAuth\.initializeLoginPage\(/);
+  assert.doesNotMatch(loginPageSource, /loginForm\.addEventListener\("submit"/);
 });
 
 test("owner receives the complete canonical navigation", () => {
@@ -173,4 +310,281 @@ test("missing runtime API endpoint fails closed before any network request", asy
     error => Boolean(error && error.message)
   );
   assert.equal(fetchCalls, 0);
+});
+
+test("API wrapper preserves auth correlation and token fields in one awaited POST", async () => {
+  const calls = [];
+  const location = {
+    pathname: "/pages/dashboard.html", href: "https://example.test/pages/dashboard.html",
+    replace(value) { this.href = value; }
+  };
+  const storage = {
+    getItem() { return null; }, removeItem() {}, setItem() {}
+  };
+  const window = {
+    location,
+    ROMEO_API_URL: "https://script.google.com/macros/s/staging-test/exec",
+    addEventListener() {}, dispatchEvent() {}
+  };
+  const context = vm.createContext({
+    window, location, localStorage: storage, sessionStorage: storage,
+    document: { readyState: "complete", body: null, addEventListener() {} },
+    navigator: { onLine: true }, CustomEvent: function CustomEvent() {},
+    async fetch(url, options) {
+      calls.push({ url, options });
+      return { ok: true, async json() { return { status: "success", revoked: true }; } };
+    },
+    URL, JSON, Promise, Error
+  });
+  vm.runInContext(apiSource, context);
+  const result = await context.window.RomeoApi.request({
+    action: "logoutUser",
+    authRequestId: "logout-wrapper-correlation-001",
+    sessionToken: "test-token"
+  });
+  assert.equal(result.revoked, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.method, "POST");
+  assert.equal(calls[0].options.keepalive, true);
+  assert.equal(calls[0].options.headers["Content-Type"], "text/plain;charset=utf-8");
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    action: "logoutUser",
+    authRequestId: "logout-wrapper-correlation-001",
+    sessionToken: "test-token"
+  });
+});
+
+function successfulLoginResponse() {
+  return {
+    status: "success",
+    user: { username: "owner", displayName: "Owner", permissions: [] },
+    sessionToken: "test-session-token",
+    sessionCreated: true
+  };
+}
+
+test("single login submit issues exactly one correlated request and schedules one navigation", async () => {
+  const requests = [];
+  const h = loginPageHarness(async payload => {
+    requests.push(payload);
+    return successfulLoginResponse();
+  });
+  assert.equal(h.initialize(), true);
+  await h.submit();
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].action, "loginUser");
+  assert.match(requests[0].authRequestId, /^login-/);
+  assert.equal(h.button.disabled, true);
+  assert.equal(h.scheduled.length, 1);
+  h.scheduled[0]();
+  assert.deepEqual(h.navigations, ["dashboard.html"]);
+  assert.ok(h.sessionValue());
+});
+
+test("double click and repeated Enter while pending each produce zero duplicate requests", async () => {
+  for (const interaction of ["double-click", "enter-repeat"]) {
+    let calls = 0;
+    let resolveRequest;
+    const h = loginPageHarness(() => {
+      calls += 1;
+      return new Promise(resolve => { resolveRequest = resolve; });
+    });
+    h.initialize();
+    const first = h.submit();
+    const duplicate = h.submit();
+    await duplicate;
+    assert.equal(calls, 1, interaction);
+    assert.equal(h.button.disabled, true, interaction);
+    resolveRequest(successfulLoginResponse());
+    await first;
+    assert.equal(h.scheduled.length, 1, interaction);
+  }
+});
+
+test("failed login unlocks the UI and permits one later deliberate retry", async () => {
+  let calls = 0;
+  const h = loginPageHarness(async () => {
+    calls += 1;
+    return calls === 1
+      ? { status: "error", message: "Invalid username or password." }
+      : successfulLoginResponse();
+  });
+  h.initialize();
+  await h.submit();
+  assert.equal(calls, 1);
+  assert.equal(h.button.disabled, false);
+  assert.equal(h.attributes["aria-busy"], "false");
+  assert.equal(h.statusBox.className, "status error");
+  await h.submit();
+  assert.equal(calls, 2);
+  assert.equal(h.button.disabled, true);
+  assert.equal(h.scheduled.length, 1);
+});
+
+test("successful login blocks re-entry and navigates exactly once", async () => {
+  let calls = 0;
+  const h = loginPageHarness(async () => { calls += 1; return successfulLoginResponse(); });
+  h.initialize();
+  await h.submit();
+  await h.submit();
+  assert.equal(calls, 1);
+  assert.equal(h.scheduled.length, 1);
+  h.scheduled[0]();
+  assert.equal(h.navigations.length, 1);
+  assert.equal(h.splash.activations, 1);
+});
+
+test("duplicate login-page initialization registers one effective submit handler", () => {
+  const h = loginPageHarness(async () => successfulLoginResponse());
+  assert.equal(h.initialize(), true);
+  assert.equal(h.initialize(), false);
+  assert.equal(h.handlerRegistrations(), 1);
+  assert.equal(h.form.dataset.authLoginReady, "true");
+});
+
+test("independent completed login page contexts may each create a separate session", async () => {
+  let calls = 0;
+  const request = async () => { calls += 1; return successfulLoginResponse(); };
+  const first = loginPageHarness(request);
+  const second = loginPageHarness(request);
+  first.initialize();
+  second.initialize();
+  await first.submit();
+  await second.submit();
+  assert.equal(calls, 2);
+  assert.equal(first.scheduled.length, 1);
+  assert.equal(second.scheduled.length, 1);
+});
+
+test("explicit logout keeps the token until authoritative success then clears and redirects", async () => {
+  let resolveRequest;
+  let capturedToken = "";
+  let capturedRequestId = "";
+  const h = logoutHarness(payload => {
+    capturedToken = payload.sessionToken;
+    capturedRequestId = payload.authRequestId;
+    assert.equal(payload.action, "logoutUser");
+    return new Promise(resolve => { resolveRequest = resolve; });
+  });
+
+  const pending = h.auth.logout();
+  await Promise.resolve();
+  assert.ok(capturedToken);
+  assert.match(capturedRequestId, /^logout-/);
+  assert.equal(h.hasSession(), true);
+  assert.equal(h.location.href, "https://example.test/pages/dashboard.html");
+
+  resolveRequest({ status: "success", revoked: true, alreadyRevoked: false });
+  const result = await pending;
+  assert.equal(result.success, true);
+  assert.equal(result.revoked, true);
+  assert.equal(h.hasSession(), false);
+  assert.equal(h.location.href, "login.html");
+  assert.equal(h.alerts.length, 0);
+});
+
+test("logout rejects a mismatched correlation response and retains local state", async () => {
+  const h = logoutHarness(async payload => ({
+    status: "success", revoked: true, authRequestId: `${payload.authRequestId}-mismatch`
+  }), { echoCorrelation: false });
+  const result = await h.auth.logout();
+  assert.equal(result.success, false);
+  assert.equal(result.revoked, false);
+  assert.equal(h.hasSession(), true);
+  assert.equal(h.location.href, "https://example.test/pages/dashboard.html");
+});
+
+test("network rejection retains authenticated state and surfaces deterministic failure", async () => {
+  const h = logoutHarness(async () => { throw new Error("network down"); });
+  const result = await h.auth.logout();
+  assert.equal(result.success, false);
+  assert.equal(result.revoked, false);
+  assert.equal(h.hasSession(), true);
+  assert.equal(h.location.href, "https://example.test/pages/dashboard.html");
+  assert.equal(h.alerts.length, 1);
+  assert.doesNotMatch(h.warnings.join(" "), /00000000|sessionToken/);
+});
+
+test("timeout-style transport rejection does not present logout as complete", async () => {
+  const h = logoutHarness(async () => { throw new Error("timeout"); });
+  const result = await h.auth.logout();
+  assert.equal(result.success, false);
+  assert.equal(h.hasSession(), true);
+  assert.notEqual(h.location.href, "login.html");
+});
+
+test("backend error and explicit revocation failure retain state for retry", async () => {
+  for (const response of [
+    { status: "error", code: "SESSION_PROPERTY_DELETE_FAILED", revoked: false },
+    { status: "success", revoked: false }
+  ]) {
+    const h = logoutHarness(async () => response);
+    const result = await h.auth.logout();
+    assert.equal(result.success, false);
+    assert.equal(h.hasSession(), true);
+    assert.equal(h.location.href, "https://example.test/pages/dashboard.html");
+    assert.equal(h.alerts.length, 1);
+  }
+});
+
+test("activity-log failure does not affect a server-confirmed revocation", async () => {
+  const h = logoutHarness(async () => ({
+    status: "success", revoked: true, alreadyRevoked: false, activityLogFailed: true
+  }));
+  const result = await h.auth.logout();
+  assert.equal(result.success, true);
+  assert.equal(h.hasSession(), false);
+  assert.equal(h.location.href, "login.html");
+});
+
+test("cache removal failure still completes after authoritative revocation", async () => {
+  const h = logoutHarness(async () => ({
+    status: "success", revoked: true, alreadyRevoked: false, cacheRemovalFailed: true
+  }));
+  const result = await h.auth.logout();
+  assert.equal(result.success, true);
+  assert.equal(result.cacheRemovalFailed, true);
+  assert.equal(h.hasSession(), false);
+  assert.equal(h.location.href, "login.html");
+});
+
+test("already-revoked idempotent response permits local completion", async () => {
+  const h = logoutHarness(async () => ({
+    status: "success", revoked: true, alreadyRevoked: true
+  }));
+  const result = await h.auth.logout();
+  assert.equal(result.success, true);
+  assert.equal(result.alreadyRevoked, true);
+  assert.equal(h.hasSession(), false);
+  assert.equal(h.location.href, "login.html");
+});
+
+test("concurrent logout attempts issue one request and preserve state until it completes", async () => {
+  let calls = 0;
+  let resolveRequest;
+  const h = logoutHarness(() => {
+    calls += 1;
+    return new Promise(resolve => { resolveRequest = resolve; });
+  });
+  const first = h.auth.logout();
+  const second = await h.auth.logout();
+  assert.equal(calls, 1);
+  assert.equal(second.success, false);
+  assert.equal(second.inProgress, true);
+  assert.equal(h.hasSession(), true);
+  assert.equal(h.alerts.length, 0);
+
+  resolveRequest({ status: "success", revoked: true });
+  assert.equal((await first).success, true);
+  assert.equal(h.hasSession(), false);
+});
+
+test("missing local token fails safely without redirecting", async () => {
+  let calls = 0;
+  const h = logoutHarness(async () => { calls += 1; }, { missingSession: true });
+  const result = await h.auth.logout();
+  assert.equal(result.success, false);
+  assert.equal(calls, 0);
+  assert.notEqual(h.location.href, "login.html");
+  assert.equal(h.alerts.length, 1);
 });

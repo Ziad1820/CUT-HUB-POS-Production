@@ -53,7 +53,9 @@ function makeHarness(options = {}) {
     CUT_HUB_ENVIRONMENT: state.environment,
     CUT_HUB_SPREADSHEET_ID: state.spreadsheetId,
     CUT_HUB_STAGING_SPREADSHEET_ID: state.stagingSpreadsheetId,
-    CUT_HUB_BACKEND_VERSION: "test"
+    CUT_HUB_BACKEND_VERSION: "test",
+    "AUTH01:IDKEY:v1": Buffer.alloc(32, 7).toString("base64url"),
+    "AUTH01:IDKEYFP:v1": "9xFfse5gsBd1s31RTEeNj10Y61xk6FcvOX_0RvbnO5s"
   }, () => { state.scriptPropertyWrites += 1; });
   const userProperties = makeStore({}, () => { state.userPropertyWrites += 1; });
 
@@ -205,6 +207,14 @@ function makeHarness(options = {}) {
         return Array.from(crypto.createHash("sha256").update(String(value), "utf8").digest())
           .map(byte => byte > 127 ? byte - 256 : byte);
       },
+      base64EncodeWebSafe(bytes) {
+        return Buffer.from(Array.from(bytes, byte => byte & 255)).toString("base64")
+          .replace(/\+/g, "-").replace(/\//g, "_");
+      },
+      base64DecodeWebSafe(value) {
+        return Array.from(Buffer.from(String(value).replace(/-/g, "+").replace(/_/g, "/"), "base64"))
+          .map(byte => byte > 127 ? byte - 256 : byte);
+      },
       newBlob(value) { return { getBytes: () => Array.from(Buffer.from(String(value), "utf8")) }; },
       getUuid() { state.uuid += 1; return `uuid-${state.uuid}`; },
       formatDate() { return "2026-08-02 12:00:00"; }
@@ -212,6 +222,10 @@ function makeHarness(options = {}) {
   };
   vm.createContext(context);
   vm.runInContext(routerSource, context, { filename: "app-script-final-owner-access.js" });
+  context.auth01RuntimeOptions = () => ({
+    testPolicy: { iterations: 2, allowedIterations: [2], maximumIterations: 2 },
+    randomBytes: length => Array.from({ length }, (_, index) => index + 1)
+  });
   vm.runInContext(executorSource, context, { filename: "staff-schema-migration-staging-executor.js" });
   vm.runInContext(bootstrapSource, context, { filename: "core-staging-auth-bootstrap.js" });
   context.coreStagingBootstrapFailureInjector = (point) => {
@@ -372,8 +386,17 @@ test("credential validation distinguishes matching, mismatch, minimum length, sp
     password: spacedPassword, passwordConfirmation: spacedPassword
   });
   const spacedRecord = JSON.parse(spaces.userProperties.getProperty("CORE_AUTH_BOOTSTRAP_CREDENTIAL"));
-  assert.equal(spacedRecord.passwordHash, spaces.context.hashPassword(spacedPassword));
-  assert.notEqual(spacedRecord.passwordHash, spaces.context.hashPassword(spacedPassword.trim()));
+  assert.ok(spaces.context.auth01ParseModernCredential(
+    spacedRecord.passwordHash, spaces.context.auth01RuntimeOptions()
+  ));
+  assert.equal(spaces.context.auth01VerifyCredential(
+    { passwordHash: spacedRecord.passwordHash, password: "" },
+    spacedPassword, spaces.context.auth01RuntimeOptions()
+  ).ok, true);
+  assert.equal(spaces.context.auth01VerifyCredential(
+    { passwordHash: spacedRecord.passwordHash, password: "" },
+    spacedPassword.trim(), spaces.context.auth01RuntimeOptions()
+  ).ok, false);
 
   const unicodePassword = "كلمة-مرور-آمنة-١٢٣";
   const unicode = makeHarness();
@@ -442,7 +465,9 @@ test("secure staging creates a hash-only owner without logging credential materi
   assert.equal(rows[1][2], "Staging Owner");
   assert.equal(rows[1][3], "");
   assert.match(rows[1][4], /^\d{4}-\d{2}-\d{2}T/);
-  assert.match(rows[1][5], /^[a-f0-9]{64}$/);
+  assert.ok(h.context.auth01ParseModernCredential(
+    rows[1][5], h.context.auth01RuntimeOptions()
+  ));
   assert.equal(rows.flat().includes(password), false);
   assert.equal(JSON.stringify(result).includes(rows[1][5]), false);
   assert.equal(JSON.stringify(h.journals()).includes(rows[1][5]), false);
@@ -666,5 +691,7 @@ test("created owner is compatible with the current login implementation", () => 
   assert.equal(response.status, "success");
   assert.equal(response.user.username, "owner");
   assert.equal(h.sheets.get("USERS").rows[1][1], "");
-  assert.match(h.sheets.get("USERS").rows[1][5], /^[a-f0-9]{64}$/);
+  assert.ok(h.context.auth01ParseModernCredential(
+    h.sheets.get("USERS").rows[1][5], h.context.auth01RuntimeOptions()
+  ));
 });
