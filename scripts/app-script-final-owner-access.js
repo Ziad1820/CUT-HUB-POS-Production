@@ -106,8 +106,6 @@ function parsePostRequestData(e) {
 
 const PUBLIC_ACTIONS = Object.freeze([
   "loginUser",
-  "logoutUser",
-  "logout",
   "listPublicBookingBranches",
   "getPublicBookingOptions",
   "createPublicBookingRequest",
@@ -144,11 +142,14 @@ function doPost(e) {
     });
   }
 
+  const logoutAction = data.action === "logoutUser" || data.action === "logout";
+  let authenticatedRequestContext = null;
   if (!isPublicAction(data.action)) {
     const sessionToken = getSessionToken(data);
-    let authenticatedUser = null;
     try {
-      authenticatedUser = sessionToken ? getAuthenticatedUser(data) : null;
+      authenticatedRequestContext = sessionToken
+        ? resolveAuthenticatedRequestContext(data)
+        : null;
     } catch (error) {
       if (error && /^AUTH01_/.test(String(error.code || ""))) {
         return jsonOutput({
@@ -163,7 +164,8 @@ function doPost(e) {
         message: error.message || "Authentication schema validation failed."
       });
     }
-    if (!sessionToken || !authenticatedUser) {
+    if (!sessionToken || !authenticatedRequestContext) {
+      if (logoutAction) return logoutUser(data, null);
       return jsonOutput({
         status: "error",
         sessionExpired: true,
@@ -188,7 +190,7 @@ function doPost(e) {
   if (data.action === "deleteExpense") return deleteExpense(data);
 
   if (data.action === "loginUser") return loginUser(data);
-  if (data.action === "logoutUser" || data.action === "logout") return logoutUser(data);
+  if (logoutAction) return logoutUser(data, authenticatedRequestContext);
   if (data.action === "getUsers") return getUsersFromSheet(data);
   if (data.action === "createUser") return createUserInSheet(data);
   if (data.action === "updateUser") return updateUserInSheet(data);
@@ -350,6 +352,8 @@ const ALL_PERMISSIONS = [
 const SESSION_TTL_SECONDS = 12 * 60 * 60;
 const SESSION_CACHE_MAX_SECONDS = 6 * 60 * 60;
 const SESSION_CACHE_PREFIX = "romeo-session-";
+const AUTH01_RESOLVED_SESSION_TARGETS = new WeakSet();
+const AUTH01_AUTHENTICATED_SESSION_CONTEXTS = new WeakSet();
 
 function getCairoDateTime() {
   return Utilities.formatDate(new Date(), TIME_ZONE, "yyyy-MM-dd HH:mm:ss");
@@ -402,29 +406,34 @@ function removeSessionCacheBestEffort(sessionKey) {
 }
 
 function createSessionForUser(user) {
-  cleanupExpiredSessions();
-  const token = `${Utilities.getUuid()}-${Utilities.getUuid()}`;
-  const credentialEpoch = auth01ReadCredentialEpoch(user.username);
-  const identifierKeyFingerprint = auth01CurrentIdentifierFingerprint();
-  const session = {
-    username: user.username,
-    credentialEpoch,
-    identifierKeyFingerprint,
-    createdAt: getCairoDateTime(),
-    expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString()
-  };
-  const serializedSession = JSON.stringify(session);
-
-  PropertiesService.getScriptProperties().setProperty(SESSION_CACHE_PREFIX + token, serializedSession);
+  const lock = auth01AcquireScriptLock();
   try {
-    CacheService
-      .getScriptCache()
-      .put(SESSION_CACHE_PREFIX + token, serializedSession, SESSION_CACHE_MAX_SECONDS);
-  } catch (error) {
-    // Cache is acceleration only; the authoritative property was committed.
-  }
+    cleanupExpiredSessions();
+    const token = `${Utilities.getUuid()}-${Utilities.getUuid()}`;
+    const credentialEpoch = auth01ReadCredentialEpoch(user.username);
+    const identifierKeyFingerprint = auth01CurrentIdentifierFingerprint();
+    const session = {
+      username: user.username,
+      credentialEpoch,
+      identifierKeyFingerprint,
+      createdAt: getCairoDateTime(),
+      expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString()
+    };
+    const serializedSession = JSON.stringify(session);
 
-  return { token, expiresAt: session.expiresAt };
+    PropertiesService.getScriptProperties().setProperty(SESSION_CACHE_PREFIX + token, serializedSession);
+    try {
+      CacheService
+        .getScriptCache()
+        .put(SESSION_CACHE_PREFIX + token, serializedSession, SESSION_CACHE_MAX_SECONDS);
+    } catch (error) {
+      // Cache is acceleration only; the authoritative property was committed.
+    }
+
+    return { token, expiresAt: session.expiresAt };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function cleanupExpiredSessions() {
@@ -445,7 +454,17 @@ function cleanupExpiredSessions() {
   });
 }
 
-function readSessionRecord(token) {
+function auth01ResolvedSessionTarget(sessionKey, serializedSession, sessionRecord) {
+  const target = Object.freeze({
+    sessionPropertyKey: sessionKey,
+    serializedSession,
+    sessionRecord: Object.freeze(Object.assign({}, sessionRecord))
+  });
+  AUTH01_RESOLVED_SESSION_TARGETS.add(target);
+  return target;
+}
+
+function readResolvedSessionTarget(token) {
   if (!isValidSessionToken(token)) return null;
 
   const sessionKey = SESSION_CACHE_PREFIX + token;
@@ -485,7 +504,7 @@ function readSessionRecord(token) {
     } catch (error) {
       // Cache is acceleration only; authoritative validation already passed.
     }
-    return session;
+    return auth01ResolvedSessionTarget(sessionKey, raw, session);
   } catch (error) {
     try { properties.deleteProperty(sessionKey); } catch (deleteError) {}
     removeSessionCacheBestEffort(sessionKey);
@@ -493,12 +512,18 @@ function readSessionRecord(token) {
   }
 }
 
-function revokeSession(token) {
-  const normalizedToken = String(token || "").trim();
-  if (!isValidSessionToken(normalizedToken)) {
+function readSessionRecord(token) {
+  const target = readResolvedSessionTarget(token);
+  return target ? target.sessionRecord : null;
+}
+
+function revokeResolvedSession(authContext) {
+  if (!authContext || typeof authContext !== "object" ||
+      !AUTH01_RESOLVED_SESSION_TARGETS.has(authContext)) {
     return {
       ok: false,
-      code: "INVALID_SESSION_TOKEN",
+      code: "AUTH_SESSION_CONTEXT_INVALID",
+      targetProven: false,
       revoked: false,
       alreadyRevoked: false,
       cacheRemovalAttempted: false,
@@ -506,52 +531,29 @@ function revokeSession(token) {
     };
   }
 
-  const sessionKey = SESSION_CACHE_PREFIX + normalizedToken;
-  let properties;
+  const sessionKey = authContext.sessionPropertyKey;
+  const resolvedRecord = authContext.serializedSession;
+  if (typeof sessionKey !== "string" || sessionKey.indexOf(SESSION_CACHE_PREFIX) !== 0 ||
+      typeof resolvedRecord !== "string" || !resolvedRecord) {
+    return {
+      ok: false,
+      code: "AUTH_SESSION_CONTEXT_INVALID",
+      targetProven: false,
+      revoked: false,
+      alreadyRevoked: false,
+      cacheRemovalAttempted: false,
+      cacheRemovalFailed: false
+    };
+  }
+
+  let lock;
   try {
-    properties = PropertiesService.getScriptProperties();
+    lock = auth01AcquireScriptLock();
   } catch (error) {
     return {
       ok: false,
-      code: "SESSION_PROPERTY_READ_FAILED",
-      revoked: false,
-      alreadyRevoked: false,
-      cacheRemovalAttempted: false,
-      cacheRemovalFailed: false
-    };
-  }
-  let existing;
-
-  try {
-    existing = properties.getProperty(sessionKey);
-  } catch (error) {
-    return {
-      ok: false,
-      code: "SESSION_PROPERTY_READ_FAILED",
-      revoked: false,
-      alreadyRevoked: false,
-      cacheRemovalAttempted: false,
-      cacheRemovalFailed: false
-    };
-  }
-
-  if (existing == null) {
-    const cacheResult = removeSessionCacheBestEffort(sessionKey);
-    return {
-      ok: true,
-      revoked: true,
-      alreadyRevoked: true,
-      cacheRemovalAttempted: cacheResult.attempted,
-      cacheRemovalFailed: cacheResult.failed
-    };
-  }
-
-  try {
-    properties.deleteProperty(sessionKey);
-  } catch (error) {
-    return {
-      ok: false,
-      code: "SESSION_PROPERTY_DELETE_FAILED",
+      code: "SESSION_REVOCATION_LOCK_UNAVAILABLE",
+      targetProven: true,
       revoked: false,
       alreadyRevoked: false,
       cacheRemovalAttempted: false,
@@ -560,44 +562,104 @@ function revokeSession(token) {
   }
 
   try {
-    if (properties.getProperty(sessionKey) != null) {
+    const properties = PropertiesService.getScriptProperties();
+    let existing;
+    try {
+      existing = properties.getProperty(sessionKey);
+    } catch (error) {
       return {
         ok: false,
-        code: "SESSION_PROPERTY_DELETE_UNVERIFIED",
+        code: "SESSION_PROPERTY_READ_FAILED",
+        targetProven: true,
         revoked: false,
         alreadyRevoked: false,
         cacheRemovalAttempted: false,
         cacheRemovalFailed: false
       };
     }
-  } catch (error) {
+
+    if (existing == null) {
+      const cacheResult = removeSessionCacheBestEffort(sessionKey);
+      return {
+        ok: true,
+        code: "ALREADY_REVOKED_CURRENT_SESSION",
+        targetProven: true,
+        revoked: false,
+        alreadyRevoked: true,
+        cacheRemovalAttempted: cacheResult.attempted,
+        cacheRemovalFailed: cacheResult.failed
+      };
+    }
+
+    if (existing !== resolvedRecord) {
+      return {
+        ok: false,
+        code: "SESSION_TARGET_STATE_CHANGED",
+        targetProven: true,
+        revoked: false,
+        alreadyRevoked: false,
+        cacheRemovalAttempted: false,
+        cacheRemovalFailed: false
+      };
+    }
+
+    try {
+      properties.deleteProperty(sessionKey);
+    } catch (error) {
+      return {
+        ok: false,
+        code: "SESSION_PROPERTY_DELETE_FAILED",
+        targetProven: true,
+        revoked: false,
+        alreadyRevoked: false,
+        cacheRemovalAttempted: false,
+        cacheRemovalFailed: false
+      };
+    }
+
+    try {
+      if (properties.getProperty(sessionKey) != null) {
+        return {
+          ok: false,
+          code: "SESSION_PROPERTY_DELETE_UNVERIFIED",
+          targetProven: true,
+          revoked: false,
+          alreadyRevoked: false,
+          cacheRemovalAttempted: false,
+          cacheRemovalFailed: false
+        };
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        code: "SESSION_PROPERTY_DELETE_UNVERIFIED",
+        targetProven: true,
+        revoked: false,
+        alreadyRevoked: false,
+        cacheRemovalAttempted: false,
+        cacheRemovalFailed: false
+      };
+    }
+
+    const cacheResult = removeSessionCacheBestEffort(sessionKey);
     return {
-      ok: false,
-      code: "SESSION_PROPERTY_DELETE_UNVERIFIED",
-      revoked: false,
+      ok: true,
+      code: "REVOKED_CURRENT_SESSION",
+      targetProven: true,
+      revoked: true,
       alreadyRevoked: false,
-      cacheRemovalAttempted: false,
-      cacheRemovalFailed: false
+      cacheRemovalAttempted: cacheResult.attempted,
+      cacheRemovalFailed: cacheResult.failed
     };
+  } finally {
+    lock.releaseLock();
   }
-
-  const cacheResult = removeSessionCacheBestEffort(sessionKey);
-  return {
-    ok: true,
-    revoked: true,
-    alreadyRevoked: false,
-    cacheRemovalAttempted: cacheResult.attempted,
-    cacheRemovalFailed: cacheResult.failed
-  };
 }
 
-function deleteSession(token) {
-  return revokeSession(token);
-}
-
-function getAuthenticatedUser(data) {
+function resolveAuthenticatedRequestContext(data) {
   const token = getSessionToken(data || {});
-  const session = readSessionRecord(token);
+  const resolvedTarget = readResolvedSessionTarget(token);
+  const session = resolvedTarget && resolvedTarget.sessionRecord;
   if (!session || !session.username) return null;
 
   const sessionUsername = auth01CanonicalUsername(session.username);
@@ -610,15 +672,46 @@ function getAuthenticatedUser(data) {
   const currentFingerprint = auth01CurrentIdentifierFingerprint();
   if (typeof session.identifierKeyFingerprint !== "string" ||
       session.identifierKeyFingerprint !== currentFingerprint) {
-    deleteSession(token);
+    revokeResolvedSession(resolvedTarget);
     return null;
   }
   const currentEpoch = auth01ReadCredentialEpoch(user.username);
   if (!Number.isSafeInteger(sessionEpoch) || sessionEpoch < 0 || sessionEpoch !== currentEpoch) {
-    deleteSession(token);
+    revokeResolvedSession(resolvedTarget);
     return null;
   }
-  return user;
+
+  const permissions = Object.freeze(normalizeManagedPermissions(user.username, user.permissions).slice());
+  const authenticatedUser = Object.freeze({
+    username: String(user.username || "").trim(),
+    displayName: String(user.displayName || user.username || "").trim(),
+    permissions
+  });
+  const authContext = Object.freeze({
+    sessionPropertyKey: resolvedTarget.sessionPropertyKey,
+    serializedSession: resolvedTarget.serializedSession,
+    sessionRecord: resolvedTarget.sessionRecord,
+    username: authenticatedUser.username,
+    displayName: authenticatedUser.displayName,
+    permissions,
+    role: auth01CanonicalUsername(user.username) === "owner" ? "OWNER" : "USER",
+    audience: "CUT_HUB_POS",
+    branchScope: null,
+    sessionMetadata: Object.freeze({
+      createdAt: String(session.createdAt || ""),
+      expiresAt: String(session.expiresAt || ""),
+      credentialEpoch: sessionEpoch
+    }),
+    user: authenticatedUser
+  });
+  AUTH01_RESOLVED_SESSION_TARGETS.add(authContext);
+  AUTH01_AUTHENTICATED_SESSION_CONTEXTS.add(authContext);
+  return authContext;
+}
+
+function getAuthenticatedUser(data) {
+  const authContext = resolveAuthenticatedRequestContext(data);
+  return authContext ? authContext.user : null;
 }
 
 function getActor(data) {
@@ -963,6 +1056,17 @@ const AUTH01_CREDENTIAL_POLICY = Object.freeze({
 });
 const AUTH01_IDENTIFIER_KEY_PROPERTY = "AUTH01:IDKEY:v1";
 const AUTH01_IDENTIFIER_FINGERPRINT_PROPERTY = "AUTH01:IDKEYFP:v1";
+const AUTH01_IDENTIFIER_ACTIVE_VERSION_PROPERTY = "AUTH01:IDKEYACTIVE:v1";
+const AUTH01_IDENTIFIER_KEY_CONTRACTS = Object.freeze({
+  v1: Object.freeze({
+    keyProperty: AUTH01_IDENTIFIER_KEY_PROPERTY,
+    fingerprintProperty: AUTH01_IDENTIFIER_FINGERPRINT_PROPERTY
+  }),
+  v2: Object.freeze({
+    keyProperty: "AUTH01:IDKEY:v2",
+    fingerprintProperty: "AUTH01:IDKEYFP:v2"
+  })
+});
 const AUTH01_EPOCH_PREFIX = "AUTH01:EPOCH:v1:";
 const AUTH01_MIGRATION_PREFIX = "AUTH01:MIG:v1:";
 const AUTH01_MIGRATION_JOURNAL_POLICY = Object.freeze({
@@ -1554,13 +1658,32 @@ function auth01GenerateIdentifierKey(options) {
   return auth01Base64UrlEncode(auth01Sha256Bytes(auth01Utf8Bytes(material)));
 }
 
-function auth01IdentifierKeyFingerprint(rawKey) {
+function auth01IdentifierKeyContract(version) {
+  const normalized = String(version || "");
+  const contract = AUTH01_IDENTIFIER_KEY_CONTRACTS[normalized];
+  if (!contract) {
+    throw auth01Error("AUTH01_IDENTIFIER_VERSION_INVALID", "Authentication identifier version is invalid.");
+  }
+  return contract;
+}
+
+function auth01ActiveIdentifierKeyVersion(options) {
+  const raw = auth01ScriptProperties(options).getProperty(AUTH01_IDENTIFIER_ACTIVE_VERSION_PROPERTY);
+  if (raw == null || raw === "") return "v1";
+  const version = String(raw);
+  auth01IdentifierKeyContract(version);
+  return version;
+}
+
+function auth01IdentifierKeyFingerprint(rawKey, version) {
+  const keyVersion = String(version || "v1");
+  auth01IdentifierKeyContract(keyVersion);
   const bytes = auth01Base64UrlDecodeCanonical(rawKey);
   if (!bytes || bytes.length !== 32) {
     throw auth01Error("AUTH01_IDENTIFIER_KEY_INVALID", "Authentication identifier configuration is invalid.");
   }
   return auth01Base64UrlEncode(auth01Sha256Bytes(
-    auth01Utf8Bytes("CUT-HUB-POS|AUTH01:IDKEY:v1|").concat(bytes)
+    auth01Utf8Bytes(`CUT-HUB-POS|AUTH01:IDKEY:${keyVersion}|`).concat(bytes)
   ));
 }
 
@@ -1568,6 +1691,12 @@ function auth01ProvisionIdentifierKey(options) {
   const properties = auth01ScriptProperties(options);
   const lock = auth01AcquireScriptLock(options);
   try {
+    if (auth01ActiveIdentifierKeyVersion(options) !== "v1") {
+      throw auth01Error(
+        "AUTH01_IDENTIFIER_PROVISIONING_DISABLED",
+        "Legacy identifier provisioning is disabled after version activation."
+      );
+    }
     const existingKey = properties.getProperty(AUTH01_IDENTIFIER_KEY_PROPERTY);
     const existingFingerprint = properties.getProperty(AUTH01_IDENTIFIER_FINGERPRINT_PROPERTY);
     if (existingKey || existingFingerprint) {
@@ -1591,19 +1720,142 @@ function auth01ProvisionIdentifierKey(options) {
   }
 }
 
+function auth01ProvisionIdentifierKeyV2(rawKey, options) {
+  const candidateKey = String(rawKey || "");
+  const candidateFingerprint = auth01IdentifierKeyFingerprint(candidateKey, "v2");
+  const properties = auth01ScriptProperties(options);
+  const contract = auth01IdentifierKeyContract("v2");
+  const lock = auth01AcquireScriptLock(options);
+  try {
+    const activeVersion = auth01ActiveIdentifierKeyVersion(options);
+    if (activeVersion !== "v1" && activeVersion !== "v2") {
+      throw auth01Error("AUTH01_IDENTIFIER_VERSION_INVALID", "Authentication identifier version is invalid.");
+    }
+    const existingKey = properties.getProperty(contract.keyProperty);
+    const existingFingerprint = properties.getProperty(contract.fingerprintProperty);
+    if (existingKey || existingFingerprint) {
+      if (!existingKey || !existingFingerprint ||
+          auth01IdentifierKeyFingerprint(existingKey, "v2") !== existingFingerprint) {
+        throw auth01Error(
+          "AUTH01_IDENTIFIER_V2_CONTINUITY_INVALID",
+          "Versioned authentication identifier continuity is invalid."
+        );
+      }
+      return Object.freeze({ created: false, version: "v2", continuityPass: true });
+    }
+    try {
+      properties.setProperties({
+        [contract.keyProperty]: candidateKey,
+        [contract.fingerprintProperty]: candidateFingerprint
+      }, false);
+    } catch (error) {
+      const committedKey = properties.getProperty(contract.keyProperty);
+      const committedFingerprint = properties.getProperty(contract.fingerprintProperty);
+      if (committedKey !== candidateKey || committedFingerprint !== candidateFingerprint) {
+        throw auth01Error(
+          "AUTH01_IDENTIFIER_V2_PROVISION_FAILED",
+          "Versioned authentication identifier provisioning was not committed."
+        );
+      }
+    }
+    if (properties.getProperty(contract.keyProperty) !== candidateKey ||
+        properties.getProperty(contract.fingerprintProperty) !== candidateFingerprint) {
+      throw auth01Error(
+        "AUTH01_IDENTIFIER_V2_PROVISION_FAILED",
+        "Versioned authentication identifier provisioning could not be verified."
+      );
+    }
+    return Object.freeze({ created: true, version: "v2", continuityPass: true });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function auth01IdentifierActivationBlockers(properties) {
+  let all;
+  try { all = properties.getProperties(); } catch (error) {
+    throw auth01Error("AUTH01_IDENTIFIER_ACTIVATION_STATE_UNAVAILABLE", "Identifier activation state is unavailable.");
+  }
+  let sessions = 0;
+  let activeReservations = 0;
+  let unresolvedMigrations = 0;
+  Object.keys(all).forEach(key => {
+    if (key.indexOf(SESSION_CACHE_PREFIX) === 0) {
+      sessions += 1;
+      return;
+    }
+    if (key.indexOf(AUTH01_THROTTLE_ACCOUNT_PREFIX) === 0 || key === AUTH01_THROTTLE_GLOBAL_KEY) {
+      let state;
+      try { state = JSON.parse(all[key]); } catch (error) {
+        throw auth01Error("AUTH01_IDENTIFIER_ACTIVATION_STATE_INVALID", "Identifier activation state is invalid.");
+      }
+      if (!state || typeof state.reservations !== "object" || Array.isArray(state.reservations)) {
+        throw auth01Error("AUTH01_IDENTIFIER_ACTIVATION_STATE_INVALID", "Identifier activation state is invalid.");
+      }
+      activeReservations += Object.keys(state.reservations).length;
+      return;
+    }
+    if (key.indexOf(AUTH01_MIGRATION_PREFIX) === 0) {
+      let journal;
+      try { journal = JSON.parse(all[key]); } catch (error) {
+        throw auth01Error("AUTH01_IDENTIFIER_ACTIVATION_STATE_INVALID", "Identifier activation state is invalid.");
+      }
+      if (!journal || ["COMMITTED", "ABORTED"].indexOf(journal.status) === -1) unresolvedMigrations += 1;
+    }
+  });
+  return Object.freeze({ sessions, activeReservations, unresolvedMigrations });
+}
+
+function auth01ActivateIdentifierKeyV2(options) {
+  const properties = auth01ScriptProperties(options);
+  const lock = auth01AcquireScriptLock(options);
+  try {
+    auth01IdentifierKeyBytesForVersion("v1", options);
+    auth01IdentifierKeyBytesForVersion("v2", options);
+    const activeVersion = auth01ActiveIdentifierKeyVersion(options);
+    if (activeVersion === "v2") {
+      return Object.freeze({ activated: false, alreadyActive: true, version: "v2" });
+    }
+    if (activeVersion !== "v1") {
+      throw auth01Error("AUTH01_IDENTIFIER_VERSION_INVALID", "Authentication identifier version is invalid.");
+    }
+    const blockers = auth01IdentifierActivationBlockers(properties);
+    if (blockers.sessions || blockers.activeReservations || blockers.unresolvedMigrations) {
+      throw auth01Error(
+        "AUTH01_IDENTIFIER_ACTIVATION_BLOCKED",
+        "Identifier activation requires contained sessions and quiescent authentication state."
+      );
+    }
+    try {
+      properties.setProperty(AUTH01_IDENTIFIER_ACTIVE_VERSION_PROPERTY, "v2");
+    } catch (error) {
+      if (properties.getProperty(AUTH01_IDENTIFIER_ACTIVE_VERSION_PROPERTY) !== "v2") {
+        throw auth01Error("AUTH01_IDENTIFIER_ACTIVATION_FAILED", "Identifier activation was not committed.");
+      }
+    }
+    if (auth01ActiveIdentifierKeyVersion(options) !== "v2") {
+      throw auth01Error("AUTH01_IDENTIFIER_ACTIVATION_FAILED", "Identifier activation could not be verified.");
+    }
+    return Object.freeze({ activated: true, alreadyActive: false, version: "v2" });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function auth01ScriptProperties(options) {
   return options && options.properties ? options.properties : PropertiesService.getScriptProperties();
 }
 
-function auth01IdentifierKeyBytes(options) {
+function auth01IdentifierKeyBytesForVersion(version, options) {
   const properties = auth01ScriptProperties(options);
-  const raw = properties.getProperty(AUTH01_IDENTIFIER_KEY_PROPERTY);
-  const storedFingerprint = properties.getProperty(AUTH01_IDENTIFIER_FINGERPRINT_PROPERTY);
+  const contract = auth01IdentifierKeyContract(version);
+  const raw = properties.getProperty(contract.keyProperty);
+  const storedFingerprint = properties.getProperty(contract.fingerprintProperty);
   const bytes = auth01Base64UrlDecodeCanonical(raw);
   if (!bytes || bytes.length !== 32 || !storedFingerprint) {
     throw auth01Error("AUTH01_IDENTIFIER_KEY_MISSING", "Authentication identifier configuration is unavailable.");
   }
-  const actualFingerprint = auth01IdentifierKeyFingerprint(raw);
+  const actualFingerprint = auth01IdentifierKeyFingerprint(raw, version);
   if (!auth01ConstantTimeEqual(
     auth01Utf8Bytes(actualFingerprint), auth01Utf8Bytes(storedFingerprint)
   )) {
@@ -1612,25 +1864,67 @@ function auth01IdentifierKeyBytes(options) {
   return bytes;
 }
 
-function auth01CurrentIdentifierFingerprint(options) {
-  auth01IdentifierKeyBytes(options);
-  return auth01ScriptProperties(options).getProperty(AUTH01_IDENTIFIER_FINGERPRINT_PROPERTY);
+function auth01IdentifierKeyBytes(options) {
+  return auth01IdentifierKeyBytesForVersion(auth01ActiveIdentifierKeyVersion(options), options);
 }
 
-function auth01OpaqueUserId(username, options) {
+function auth01CurrentIdentifierFingerprint(options) {
+  const version = auth01ActiveIdentifierKeyVersion(options);
+  const contract = auth01IdentifierKeyContract(version);
+  auth01IdentifierKeyBytesForVersion(version, options);
+  return auth01ScriptProperties(options).getProperty(contract.fingerprintProperty);
+}
+
+function auth01OpaqueUserIdForVersion(username, version, options) {
   const canonical = auth01CanonicalUsername(username);
   if (!canonical) throw auth01Error("AUTH01_USERNAME_INVALID", "User identifier is invalid.");
+  const message = version === "v1"
+    ? canonical
+    : `CUT-HUB-POS|AUTH01:OPAQUE:${version}|${canonical}`;
   return auth01Base64UrlEncode(auth01HmacSha256Bytes(
-    auth01IdentifierKeyBytes(options), auth01Utf8Bytes(canonical)
+    auth01IdentifierKeyBytesForVersion(version, options), auth01Utf8Bytes(message)
   ));
 }
 
+function auth01OpaqueUserId(username, options) {
+  return auth01OpaqueUserIdForVersion(username, auth01ActiveIdentifierKeyVersion(options), options);
+}
+
+function auth01EpochPropertyKeyForVersion(username, version, options) {
+  return AUTH01_EPOCH_PREFIX + auth01OpaqueUserIdForVersion(username, version, options);
+}
+
 function auth01EpochPropertyKey(username, options) {
-  return AUTH01_EPOCH_PREFIX + auth01OpaqueUserId(username, options);
+  return auth01EpochPropertyKeyForVersion(username, auth01ActiveIdentifierKeyVersion(options), options);
+}
+
+function auth01VersionedIdentifierPropertyKeys(username, prefix, options) {
+  const activeVersion = auth01ActiveIdentifierKeyVersion(options);
+  const activeKey = prefix + auth01OpaqueUserIdForVersion(username, activeVersion, options);
+  const legacyKey = activeVersion === "v2"
+    ? prefix + auth01OpaqueUserIdForVersion(username, "v1", options)
+    : "";
+  return { activeVersion, activeKey, legacyKey };
+}
+
+function auth01ReadVersionedIdentifierProperty(username, prefix, options) {
+  const properties = auth01ScriptProperties(options);
+  const keys = auth01VersionedIdentifierPropertyKeys(username, prefix, options);
+  const activeRaw = properties.getProperty(keys.activeKey);
+  if (activeRaw != null && activeRaw !== "") {
+    return { value: activeRaw, sourceKey: keys.activeKey, keys };
+  }
+  if (keys.legacyKey) {
+    const legacyRaw = properties.getProperty(keys.legacyKey);
+    if (legacyRaw != null && legacyRaw !== "") {
+      return { value: legacyRaw, sourceKey: keys.legacyKey, keys };
+    }
+  }
+  return { value: null, sourceKey: "", keys };
 }
 
 function auth01ReadCredentialEpoch(username, options) {
-  const raw = auth01ScriptProperties(options).getProperty(auth01EpochPropertyKey(username, options));
+  const raw = auth01ReadVersionedIdentifierProperty(username, AUTH01_EPOCH_PREFIX, options).value;
   if (raw == null || raw === "") return 0;
   const epoch = Number(raw);
   if (!Number.isSafeInteger(epoch) || epoch < 0) {
@@ -1641,14 +1935,26 @@ function auth01ReadCredentialEpoch(username, options) {
 
 function auth01IncrementCredentialEpoch(username, options) {
   const properties = auth01ScriptProperties(options);
-  const key = auth01EpochPropertyKey(username, options);
+  const key = auth01VersionedIdentifierPropertyKeys(username, AUTH01_EPOCH_PREFIX, options).activeKey;
   const current = auth01ReadCredentialEpoch(username, options);
   const next = current + 1;
   properties.setProperty(key, String(next));
-  if (auth01ReadCredentialEpoch(username, options) !== next) {
+  const committed = properties.getProperty(key);
+  if (committed !== String(next) || auth01ReadCredentialEpoch(username, options) !== next) {
     throw auth01Error("AUTH01_CREDENTIAL_EPOCH_WRITE_FAILED", "Credential epoch could not be verified.");
   }
   return next;
+}
+
+function auth01IdentifierRetirementDecision(evidence) {
+  const state = evidence || {};
+  const eligible = state.activeVersion === "v2" &&
+    state.v2ContinuityPass === true &&
+    state.preRotationSessionsRemaining === 0 &&
+    state.legacyEpochRecordsRemaining === 0 &&
+    state.legacyThrottleRecordsRemaining === 0 &&
+    state.rollbackWindowClosed === true;
+  return Object.freeze({ eligible, retiredVersion: eligible ? "v1" : "" });
 }
 
 function resetOwnerPasswordEmergency() {
@@ -2258,21 +2564,28 @@ function auth01ThrottleRecoveryMarker(properties, key, code, now) {
   try { properties.setProperty(markerKey, marker); } catch (error) {}
 }
 
-function auth01ReadThrottleState(properties, key, now, windowMs, scope, policy) {
+function auth01ReadThrottleState(properties, key, now, windowMs, scope, policy, fallbackKey) {
   let raw;
-  try { raw = properties.getProperty(key); } catch (error) {
+  let sourceKey = key;
+  try {
+    raw = properties.getProperty(key);
+    if ((raw == null || raw === "") && fallbackKey) {
+      raw = properties.getProperty(fallbackKey);
+      if (raw != null && raw !== "") sourceKey = fallbackKey;
+    }
+  } catch (error) {
     throw auth01Error("AUTH01_THROTTLE_STORE_UNAVAILABLE", "Authentication service is temporarily unavailable.");
   }
   if (raw == null || raw === "") return auth01EmptyThrottleState(now, scope);
   let parsed;
   try { parsed = JSON.parse(raw); } catch (error) {
-    auth01ThrottleRecoveryMarker(properties, key, "MALFORMED_JSON", now);
+    auth01ThrottleRecoveryMarker(properties, sourceKey, "MALFORMED_JSON", now);
     throw auth01Error("AUTH01_THROTTLE_STATE_CORRUPT", "Authentication throttle state is invalid.");
   }
   try {
     auth01ValidateThrottleState(parsed, raw, now, scope, policy);
   } catch (error) {
-    auth01ThrottleRecoveryMarker(properties, key, error.code || "INVALID_SCHEMA", now);
+    auth01ThrottleRecoveryMarker(properties, sourceKey, error.code || "INVALID_SCHEMA", now);
     throw error;
   }
   return auth01NormalizeThrottleState(parsed, now, windowMs, scope, policy);
@@ -2341,9 +2654,11 @@ function auth01ReserveLoginAttempt(knownUsername, options) {
   const now = auth01Now(options);
   const properties = auth01ScriptProperties(options);
   const cache = auth01ThrottleCache(options);
-  const accountKey = knownUsername
-    ? AUTH01_THROTTLE_ACCOUNT_PREFIX + auth01OpaqueUserId(knownUsername, options)
-    : "";
+  const accountKeys = knownUsername
+    ? auth01VersionedIdentifierPropertyKeys(knownUsername, AUTH01_THROTTLE_ACCOUNT_PREFIX, options)
+    : null;
+  const accountKey = accountKeys ? accountKeys.activeKey : "";
+  const accountLegacyKey = accountKeys ? accountKeys.legacyKey : "";
   const cacheKeys = [AUTH01_THROTTLE_GLOBAL_KEY].concat(accountKey ? [accountKey] : []);
   if (cacheKeys.some(key => auth01CacheBlockedUntil(cache, key) > now)) {
     return { allowed: false, reason: "COOLDOWN" };
@@ -2354,7 +2669,9 @@ function auth01ReserveLoginAttempt(knownUsername, options) {
       properties, AUTH01_THROTTLE_GLOBAL_KEY, now, policy.globalWindowMs, "GLOBAL", policy
     );
     const accountState = accountKey
-      ? auth01ReadThrottleState(properties, accountKey, now, policy.accountWindowMs, "ACCOUNT", policy)
+      ? auth01ReadThrottleState(
+        properties, accountKey, now, policy.accountWindowMs, "ACCOUNT", policy, accountLegacyKey
+      )
       : null;
     const globalInflight = Object.keys(globalState.reservations).length;
     const globalUnknownInflight = Object.keys(globalState.reservations)
@@ -2614,41 +2931,51 @@ function loginUser(data) {
   }
 }
 
-function logoutUser(data) {
+function logoutUser(data, authContext) {
   const request = data || {};
   const authRequestId = auth01RequestCorrelationId(request);
   const respond = payload => auth01CorrelatedJsonOutput(payload, authRequestId);
-  let actor = { userName: "system", displayName: "system" };
-  try { actor = getActor(request); } catch (error) {}
+  const contextValid = !!authContext && AUTH01_AUTHENTICATED_SESSION_CONTEXTS.has(authContext);
+  const revocation = contextValid ? revokeResolvedSession(authContext) : {
+    ok: false,
+    code: "INVALID_OR_UNKNOWN_SESSION",
+    targetProven: false,
+    revoked: false,
+    alreadyRevoked: false,
+    cacheRemovalAttempted: false,
+    cacheRemovalFailed: false
+  };
 
-  const revocation = revokeSession(getSessionToken(request));
-  if (!revocation.ok || !revocation.revoked) {
+  if (contextValid && !revocation.ok) {
     return respond({
       status: "error",
-      code: revocation.code || "SESSION_REVOCATION_FAILED",
-      revoked: false,
-      message: "Session revocation could not be confirmed. Please retry."
+      code: "LOGOUT_NOT_COMPLETED",
+      logoutAccepted: false,
+      clientCleanupAllowed: false
     });
   }
 
-  try {
-    logActivity(
-      request,
-      "logout",
-      "system",
-      actor.userName,
-      `User logged out: ${actor.displayName || actor.userName}`
-    );
-  } catch (error) {
-    Logger.log("Logout activity log failed: " + error.message);
+  if (contextValid && (revocation.revoked || revocation.alreadyRevoked)) {
+    try {
+      logActivity(
+        {},
+        "logout",
+        "system",
+        authContext.username,
+        `User logged out: ${authContext.displayName || authContext.username}`
+      );
+    } catch (error) {
+      Logger.log("Logout activity log failed: " + error.message);
+    }
   }
 
+  // Outward logout responses are deliberately uniform. They authorize local
+  // credential cleanup but do not disclose whether a session existed or claim
+  // that a server-side deletion was confirmed.
   return respond({
     status: "success",
-    revoked: true,
-    alreadyRevoked: !!revocation.alreadyRevoked,
-    cacheRemovalAttempted: !!revocation.cacheRemovalAttempted,
-    cacheRemovalFailed: !!revocation.cacheRemovalFailed
+    logoutAccepted: true,
+    clientCleanupAllowed: true
   });
 }
 
@@ -9563,5 +9890,3 @@ function parseSheetAmount(value) {
   const num = parseFloat(text.replace(/[^\d.-]/g, ""));
   return isFinite(num) ? num : 0;
 }
-
-

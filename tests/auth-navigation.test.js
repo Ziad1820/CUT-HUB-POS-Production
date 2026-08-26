@@ -312,14 +312,19 @@ test("missing runtime API endpoint fails closed before any network request", asy
   assert.equal(fetchCalls, 0);
 });
 
-test("API wrapper preserves auth correlation and token fields in one awaited POST", async () => {
+test("API wrapper owns the single canonical logout credential and ignores caller selectors", async () => {
   const calls = [];
   const location = {
     pathname: "/pages/dashboard.html", href: "https://example.test/pages/dashboard.html",
     replace(value) { this.href = value; }
   };
   const storage = {
-    getItem() { return null; }, removeItem() {}, setItem() {}
+    getItem(key) {
+      return key === "romeo-pos-session"
+        ? JSON.stringify({ sessionToken: "canonical-session-token" })
+        : null;
+    },
+    removeItem() {}, setItem() {}
   };
   const window = {
     location,
@@ -332,7 +337,9 @@ test("API wrapper preserves auth correlation and token fields in one awaited POS
     navigator: { onLine: true }, CustomEvent: function CustomEvent() {},
     async fetch(url, options) {
       calls.push({ url, options });
-      return { ok: true, async json() { return { status: "success", revoked: true }; } };
+      return { ok: true, async json() {
+        return { status: "success", logoutAccepted: true, clientCleanupAllowed: true };
+      } };
     },
     URL, JSON, Promise, Error
   });
@@ -340,9 +347,11 @@ test("API wrapper preserves auth correlation and token fields in one awaited POS
   const result = await context.window.RomeoApi.request({
     action: "logoutUser",
     authRequestId: "logout-wrapper-correlation-001",
-    sessionToken: "test-token"
+    sessionToken: "forged-selector",
+    token: "second-forged-selector",
+    authToken: "third-forged-selector"
   });
-  assert.equal(result.revoked, true);
+  assert.equal(result.logoutAccepted, true);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].options.method, "POST");
   assert.equal(calls[0].options.keepalive, true);
@@ -350,7 +359,7 @@ test("API wrapper preserves auth correlation and token fields in one awaited POS
   assert.deepEqual(JSON.parse(calls[0].options.body), {
     action: "logoutUser",
     authRequestId: "logout-wrapper-correlation-001",
-    sessionToken: "test-token"
+    sessionToken: "canonical-session-token"
   });
 });
 
@@ -456,28 +465,30 @@ test("independent completed login page contexts may each create a separate sessi
   assert.equal(second.scheduled.length, 1);
 });
 
-test("explicit logout keeps the token until authoritative success then clears and redirects", async () => {
+test("logout sends no duplicate token and clears only after correlated cleanup acknowledgement", async () => {
   let resolveRequest;
-  let capturedToken = "";
   let capturedRequestId = "";
   const h = logoutHarness(payload => {
-    capturedToken = payload.sessionToken;
     capturedRequestId = payload.authRequestId;
     assert.equal(payload.action, "logoutUser");
+    assert.equal(Object.prototype.hasOwnProperty.call(payload, "sessionToken"), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(payload, "token"), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(payload, "authToken"), false);
     return new Promise(resolve => { resolveRequest = resolve; });
   });
 
   const pending = h.auth.logout();
   await Promise.resolve();
-  assert.ok(capturedToken);
   assert.match(capturedRequestId, /^logout-/);
   assert.equal(h.hasSession(), true);
   assert.equal(h.location.href, "https://example.test/pages/dashboard.html");
 
-  resolveRequest({ status: "success", revoked: true, alreadyRevoked: false });
+  resolveRequest({ status: "success", logoutAccepted: true, clientCleanupAllowed: true });
   const result = await pending;
   assert.equal(result.success, true);
-  assert.equal(result.revoked, true);
+  assert.equal(result.revoked, false);
+  assert.equal(result.serverConfirmedRevocation, false);
+  assert.equal(result.clientCleanupAllowed, true);
   assert.equal(h.hasSession(), false);
   assert.equal(h.location.href, "login.html");
   assert.equal(h.alerts.length, 0);
@@ -485,7 +496,8 @@ test("explicit logout keeps the token until authoritative success then clears an
 
 test("logout rejects a mismatched correlation response and retains local state", async () => {
   const h = logoutHarness(async payload => ({
-    status: "success", revoked: true, authRequestId: `${payload.authRequestId}-mismatch`
+    status: "success", logoutAccepted: true, clientCleanupAllowed: true,
+    authRequestId: `${payload.authRequestId}-mismatch`
   }), { echoCorrelation: false });
   const result = await h.auth.logout();
   assert.equal(result.success, false);
@@ -527,34 +539,40 @@ test("backend error and explicit revocation failure retain state for retry", asy
   }
 });
 
-test("activity-log failure does not affect a server-confirmed revocation", async () => {
+test("safe extra backend diagnostics do not change generic cleanup semantics", async () => {
   const h = logoutHarness(async () => ({
-    status: "success", revoked: true, alreadyRevoked: false, activityLogFailed: true
+    status: "success", logoutAccepted: true, clientCleanupAllowed: true, activityLogFailed: true
   }));
   const result = await h.auth.logout();
   assert.equal(result.success, true);
+  assert.equal(result.serverConfirmedRevocation, false);
   assert.equal(h.hasSession(), false);
   assert.equal(h.location.href, "login.html");
 });
 
-test("cache removal failure still completes after authoritative revocation", async () => {
+test("frontend does not infer server revocation details from cleanup acknowledgement", async () => {
   const h = logoutHarness(async () => ({
-    status: "success", revoked: true, alreadyRevoked: false, cacheRemovalFailed: true
+    status: "success", logoutAccepted: true, clientCleanupAllowed: true,
+    serverConfirmedRevocation: true, cacheRemovalFailed: true
   }));
   const result = await h.auth.logout();
   assert.equal(result.success, true);
-  assert.equal(result.cacheRemovalFailed, true);
+  assert.equal(result.serverConfirmedRevocation, false);
+  assert.equal(Object.prototype.hasOwnProperty.call(result, "cacheRemovalFailed"), false);
   assert.equal(h.hasSession(), false);
   assert.equal(h.location.href, "login.html");
 });
 
-test("already-revoked idempotent response permits local completion", async () => {
+test("idempotent cleanup acknowledgement never becomes confirmed server revocation", async () => {
   const h = logoutHarness(async () => ({
-    status: "success", revoked: true, alreadyRevoked: true
+    status: "success", logoutAccepted: true, clientCleanupAllowed: true,
+    alreadyRevoked: true, revoked: true
   }));
   const result = await h.auth.logout();
   assert.equal(result.success, true);
-  assert.equal(result.alreadyRevoked, true);
+  assert.equal(result.revoked, false);
+  assert.equal(result.serverConfirmedRevocation, false);
+  assert.equal(Object.prototype.hasOwnProperty.call(result, "alreadyRevoked"), false);
   assert.equal(h.hasSession(), false);
   assert.equal(h.location.href, "login.html");
 });
@@ -574,17 +592,22 @@ test("concurrent logout attempts issue one request and preserve state until it c
   assert.equal(h.hasSession(), true);
   assert.equal(h.alerts.length, 0);
 
-  resolveRequest({ status: "success", revoked: true });
+  resolveRequest({ status: "success", logoutAccepted: true, clientCleanupAllowed: true });
   assert.equal((await first).success, true);
   assert.equal(h.hasSession(), false);
 });
 
-test("missing local token fails safely without redirecting", async () => {
+test("missing local token uses generic cleanup acknowledgement without a selector", async () => {
   let calls = 0;
-  const h = logoutHarness(async () => { calls += 1; }, { missingSession: true });
+  const h = logoutHarness(async payload => {
+    calls += 1;
+    assert.equal(Object.prototype.hasOwnProperty.call(payload, "sessionToken"), false);
+    return { status: "success", logoutAccepted: true, clientCleanupAllowed: true };
+  }, { missingSession: true });
   const result = await h.auth.logout();
-  assert.equal(result.success, false);
-  assert.equal(calls, 0);
-  assert.notEqual(h.location.href, "login.html");
-  assert.equal(h.alerts.length, 1);
+  assert.equal(result.success, true);
+  assert.equal(result.serverConfirmedRevocation, false);
+  assert.equal(calls, 1);
+  assert.equal(h.location.href, "login.html");
+  assert.equal(h.alerts.length, 0);
 });

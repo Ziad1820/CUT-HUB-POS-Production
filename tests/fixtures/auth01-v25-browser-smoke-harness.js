@@ -41,7 +41,11 @@
       safeTokenFingerprint = retainedToken ? await fingerprintToken(retainedToken) : "";
     }
     if ((action === "logoutUser" || action === "logout") && result) {
-      logoutSemanticPass = result.status === "success" && result.revoked === true;
+      logoutSemanticPass = result.status === "success" &&
+        result.logoutAccepted === true &&
+        result.clientCleanupAllowed === true &&
+        !Object.prototype.hasOwnProperty.call(result, "revoked") &&
+        !Object.prototype.hasOwnProperty.call(result, "alreadyRevoked");
     }
     return result;
   }

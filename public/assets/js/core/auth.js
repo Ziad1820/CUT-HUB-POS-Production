@@ -80,6 +80,8 @@ const RomeoAuth = (() => {
       authRequestId: String(authRequestId || ""),
       success: details.success === true,
       revoked: details.revoked === true,
+      clientCleanupAllowed: details.clientCleanupAllowed === true,
+      serverConfirmedRevocation: details.serverConfirmedRevocation === true,
       blocked: details.blocked === true
     };
     window.dispatchEvent(new window.CustomEvent("romeo-auth-observation", { detail: safeDetails }));
@@ -273,11 +275,17 @@ const RomeoAuth = (() => {
   }
 
   function finishLogout(authRequestId) {
-    emitAuthObservation("logout", "local-clear-start", authRequestId, { success: true, revoked: true });
+    const cleanup = {
+      success: true,
+      revoked: false,
+      clientCleanupAllowed: true,
+      serverConfirmedRevocation: false
+    };
+    emitAuthObservation("logout", "local-clear-start", authRequestId, cleanup);
     localStorage.removeItem(SESSION_KEY);
     sessionStorage.removeItem(SESSION_KEY);
-    emitAuthObservation("logout", "local-clear-complete", authRequestId, { success: true, revoked: true });
-    emitAuthObservation("logout", "redirect", authRequestId, { success: true, revoked: true });
+    emitAuthObservation("logout", "local-clear-complete", authRequestId, cleanup);
+    emitAuthObservation("logout", "redirect", authRequestId, cleanup);
     window.location.replace("login.html");
   }
 
@@ -303,8 +311,7 @@ const RomeoAuth = (() => {
     logoutInProgress = true;
     const authRequestId = createAuthRequestId("logout");
 
-    const sessionToken = getSessionToken();
-    if (!sessionToken || !window.RomeoApi || typeof RomeoApi.request !== "function") {
+    if (!window.RomeoApi || typeof RomeoApi.request !== "function") {
       logoutInProgress = false;
       return logoutFailureResult();
     }
@@ -313,25 +320,30 @@ const RomeoAuth = (() => {
       emitAuthObservation("logout", "request-start", authRequestId);
       const result = await RomeoApi.request({
         action: "logoutUser",
-        authRequestId,
-        sessionToken
+        authRequestId
       });
 
-      if (!result || result.status !== "success" || result.revoked !== true ||
+      if (!result || result.status !== "success" || result.logoutAccepted !== true ||
+          result.clientCleanupAllowed !== true ||
           result.authRequestId !== authRequestId) {
         emitAuthObservation("logout", "response", authRequestId, { success: false, revoked: false });
         return logoutFailureResult();
       }
 
-      emitAuthObservation("logout", "response", authRequestId, { success: true, revoked: true });
+      emitAuthObservation("logout", "response", authRequestId, {
+        success: true,
+        revoked: false,
+        clientCleanupAllowed: true,
+        serverConfirmedRevocation: false
+      });
       finishLogout(authRequestId);
       logoutCompleted = true;
       return {
         success: true,
-        revoked: true,
+        revoked: false,
+        clientCleanupAllowed: true,
+        serverConfirmedRevocation: false,
         authRequestId,
-        alreadyRevoked: !!result.alreadyRevoked,
-        cacheRemovalFailed: !!result.cacheRemovalFailed
       };
     } catch (error) {
       console.warn("Logout failed; authoritative revocation was not confirmed.");

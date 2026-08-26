@@ -13,7 +13,9 @@ test("retained-token harness exposes only safe outcomes and probes the exact tok
       if (payload.action === "loginUser") {
         return { status: "success", sessionCreated: true, sessionToken: issuedToken };
       }
-      if (payload.action === "logoutUser") return { status: "success", revoked: true };
+      if (payload.action === "logoutUser") {
+        return { status: "success", logoutAccepted: true, clientCleanupAllowed: true };
+      }
       protectedCalls += 1;
       return protectedCalls === 1 ? { status: "success" } : { status: "error", authRequired: true };
     }

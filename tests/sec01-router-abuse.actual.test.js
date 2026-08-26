@@ -92,9 +92,9 @@ function makeHarness() {
       ).trim();
     },
 
-    getAuthenticatedUser(data) {
+    resolveAuthenticatedRequestContext(data) {
       return data.sessionToken === "valid-session"
-        ? { username: "owner" }
+        ? { username: "owner", sessionPropertyKey: "internal-only" }
         : null;
     },
 
@@ -103,6 +103,12 @@ function makeHarness() {
     },
 
     stagingIdentity: stub("stagingIdentity"),
+    logoutUser(_data, authContext) {
+      calls.logoutUser = (calls.logoutUser || 0) + 1;
+      return authContext
+        ? { status: "success", logoutAccepted: true, clientCleanupAllowed: true }
+        : { status: "success", logoutAccepted: true, clientCleanupAllowed: true };
+    },
     getInvoices: stub("getInvoices"),
     getActivityLogs: stub("getActivityLogs"),
     getPublicBookingOptions: stub("getPublicBookingOptions"),
@@ -153,8 +159,6 @@ test("PUBLIC allowlist is exact", () => {
     Array.from(PUBLIC_ACTIONS),
     [
       "loginUser",
-      "logoutUser",
-      "logout",
       "listPublicBookingBranches",
       "getPublicBookingOptions",
       "createPublicBookingRequest",
@@ -210,6 +214,25 @@ test("public action works anonymously", () => {
 
   assert.equal(r.handler, "getPublicBookingOptions");
   assert.equal(count(h, "getPublicBookingOptions"), 1);
+});
+
+test("logout is a router-authenticated special action with uniform anonymous cleanup response", () => {
+  const anonymous = makeHarness();
+  const anonymousResult = anonymous.post({ action: "logoutUser" });
+  assert.equal(anonymousResult.logoutAccepted, true);
+  assert.equal(count(anonymous, "logoutUser"), 1);
+
+  const authenticated = makeHarness();
+  const authenticatedResult = authenticated.post({
+    action: "logoutUser",
+    sessionToken: "valid-session",
+    username: "forged-owner",
+    role: "OWNER",
+    audience: "forged",
+    branch: "forged"
+  });
+  assert.equal(authenticatedResult.logoutAccepted, true);
+  assert.equal(count(authenticated, "logoutUser"), 1);
 });
 
 test("forged identity hints cannot bypass authentication", () => {

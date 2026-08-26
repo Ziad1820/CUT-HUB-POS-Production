@@ -85,6 +85,17 @@
     const nextPayload = { ...(payload || {}) };
     const sessionToken = getCurrentSessionToken();
 
+    if (nextPayload.action === "logoutUser" || nextPayload.action === "logout") {
+      // Logout has one credential source: the canonical session captured by
+      // this transport wrapper. Callers cannot supply a second revocation
+      // selector that differs from the authenticated request credential.
+      delete nextPayload.sessionToken;
+      delete nextPayload.token;
+      delete nextPayload.authToken;
+      if (sessionToken) nextPayload.sessionToken = sessionToken;
+      return nextPayload;
+    }
+
     if (sessionToken && !nextPayload.sessionToken) {
       nextPayload.sessionToken = sessionToken;
     }

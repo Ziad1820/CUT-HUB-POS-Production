@@ -11,6 +11,9 @@ const ROOT = path.resolve(__dirname, "..");
 const SOURCE = fs.readFileSync(
   path.join(ROOT, "scripts", "app-script-final-owner-access.js"), "utf8"
 );
+const IMMUTABLE_V31_SOURCE = fs.readFileSync(
+  path.join(ROOT, ".auth01-v32-logout-root-cause-20260824", "v31", "router.js"), "utf8"
+);
 const HEADERS = ["USERNAME", "PASSWORD", "DISPLAY_NAME", "PERMISSIONS", "CREATED_AT", "PASSWORD_HASH"];
 const TEST_POLICY = {
   iterations: 2,
@@ -22,11 +25,19 @@ function signed(bytes) {
   return Array.from(bytes, value => value > 127 ? value - 256 : value);
 }
 
-function identifierFingerprint(key) {
+function identifierFingerprint(key, version = "v1") {
   return crypto.createHash("sha256")
-    .update(Buffer.from("CUT-HUB-POS|AUTH01:IDKEY:v1|", "utf8"))
+    .update(Buffer.from(`CUT-HUB-POS|AUTH01:IDKEY:${version}|`, "utf8"))
     .update(Buffer.from(key, "base64url"))
     .digest("base64url");
+}
+
+function activateIdentifierV2(h, byte = 8) {
+  const key = Buffer.alloc(32, byte).toString("base64url");
+  h.props.setProperty("AUTH01:IDKEY:v2", key);
+  h.props.setProperty("AUTH01:IDKEYFP:v2", identifierFingerprint(key, "v2"));
+  h.props.setProperty("AUTH01:IDKEYACTIVE:v1", "v2");
+  return key;
 }
 
 function store(initial = {}, failure = {}) {
@@ -40,7 +51,18 @@ function store(initial = {}, failure = {}) {
       if (failure.set === true || (typeof failure.set === "function" && failure.set(key, value))) {
         throw new Error("property set failed");
       }
-      values[key] = String(value); return this;
+      values[key] = String(value);
+      if (failure.setAfter === true ||
+          (typeof failure.setAfter === "function" && failure.setAfter(key, value))) {
+        throw new Error("property set response lost");
+      }
+      return this;
+    },
+    setProperties(entries) {
+      if (failure.setProperties === "before") throw new Error("property batch set failed");
+      Object.keys(entries || {}).forEach(key => { values[key] = String(entries[key]); });
+      if (failure.setProperties === "after") throw new Error("property batch response lost");
+      return this;
     },
     deleteProperty(key) {
       if (failure.delete) throw new Error("property delete failed");
@@ -198,6 +220,25 @@ function modern(h, password, seed = 1) {
     testPolicy: TEST_POLICY,
     randomBytes: length => Array.from({ length }, (_, index) => (index + seed) & 255)
   });
+}
+
+function resolvedAuthContext(h, token, forged = {}) {
+  return h.context.resolveAuthenticatedRequestContext(Object.assign({}, forged, {
+    sessionToken: token
+  }));
+}
+
+function logoutCurrentSession(h, token, request = {}) {
+  const authContext = resolvedAuthContext(h, token, request);
+  return h.context.logoutUser(request, authContext);
+}
+
+function authenticatedSessionHarness(options = {}) {
+  const users = options.users || sheet([
+    HEADERS,
+    ["owner", "", "Owner", "", "2026-08-24", "synthetic-not-used"]
+  ]);
+  return harness(Object.assign({}, options, { users }));
 }
 
 test("PBKDF2-HMAC-SHA-256 matches published known-answer vectors", () => {
@@ -421,18 +462,23 @@ test("logout revokes only the requested session and retry is idempotent", () => 
   assert.ok(h.context.getAuthenticatedUser({ sessionToken: first.token }));
   assert.ok(h.context.getAuthenticatedUser({ sessionToken: second.token }));
 
-  const result = h.context.logoutUser({ sessionToken: first.token });
+  const firstContext = resolvedAuthContext(h, first.token);
+  const result = h.context.logoutUser({}, firstContext);
   assert.equal(result.status, "success");
-  assert.equal(result.revoked, true);
-  assert.equal(result.alreadyRevoked, false);
+  assert.equal(result.logoutAccepted, true);
+  assert.equal(result.clientCleanupAllowed, true);
+  assert.equal(Object.prototype.hasOwnProperty.call(result, "revoked"), false);
   assert.equal(h.props.getProperty(`romeo-session-${first.token}`), null);
   assert.equal(h.context.getAuthenticatedUser({ sessionToken: first.token }), null);
   assert.ok(h.context.getAuthenticatedUser({ sessionToken: second.token }));
 
-  const retry = h.context.logoutUser({ sessionToken: first.token });
+  const retryContext = resolvedAuthContext(h, first.token);
+  assert.equal(retryContext, null);
+  const retry = h.context.logoutUser({}, retryContext);
   assert.equal(retry.status, "success");
-  assert.equal(retry.revoked, true);
-  assert.equal(retry.alreadyRevoked, true);
+  assert.equal(retry.logoutAccepted, true);
+  assert.equal(retry.clientCleanupAllowed, true);
+  assert.equal(Object.prototype.hasOwnProperty.call(retry, "revoked"), false);
   assert.equal(h.props.getProperty(`romeo-session-${first.token}`), null);
   assert.ok(h.context.getAuthenticatedUser({ sessionToken: second.token }));
   assert.equal(JSON.stringify(users.rows), credentialBefore);
@@ -445,9 +491,9 @@ test("activity-log failure cannot block authoritative logout", () => {
   const session = h.context.createSessionForUser(h.context.readUsersFromSheet()[0]);
   h.context.logActivity = () => { throw new Error("activity unavailable"); };
 
-  const result = h.context.logoutUser({ sessionToken: session.token });
+  const result = logoutCurrentSession(h, session.token);
   assert.equal(result.status, "success");
-  assert.equal(result.revoked, true);
+  assert.equal(result.logoutAccepted, true);
   assert.equal(h.props.getProperty(`romeo-session-${session.token}`), null);
   assert.ok(cache.calls.remove >= 1);
   assert.equal(h.context.getAuthenticatedUser({ sessionToken: session.token }), null);
@@ -463,8 +509,9 @@ test("cache removal failure cannot preserve authorization after property deletio
   assert.ok(cache.values[sessionKey]);
   cacheOptions.failRemove = true;
 
-  const result = h.context.logoutUser({ sessionToken: session.token });
-  assert.equal(result.status, "success");
+  const authContext = resolvedAuthContext(h, session.token);
+  const result = h.context.revokeResolvedSession(authContext);
+  assert.equal(result.ok, true);
   assert.equal(result.revoked, true);
   assert.equal(result.cacheRemovalAttempted, true);
   assert.equal(result.cacheRemovalFailed, true);
@@ -529,48 +576,275 @@ test("property deletion failure cannot produce false logout success", () => {
   const session = h.context.createSessionForUser(h.context.readUsersFromSheet()[0]);
   propertyFailure.delete = true;
 
-  const result = h.context.logoutUser({ sessionToken: session.token });
+  const authContext = resolvedAuthContext(h, session.token);
+  const result = h.context.logoutUser({}, authContext);
   assert.equal(result.status, "error");
-  assert.equal(result.revoked, false);
-  assert.equal(result.code, "SESSION_PROPERTY_DELETE_FAILED");
+  assert.equal(result.logoutAccepted, false);
+  assert.equal(result.clientCleanupAllowed, false);
+  assert.equal(result.code, "LOGOUT_NOT_COMPLETED");
   assert.ok(h.props.getProperty(`romeo-session-${session.token}`));
   assert.ok(h.context.getAuthenticatedUser({ sessionToken: session.token }));
   assert.equal(h.props.getProperty("unrelated-property"), "preserve");
 });
 
-test("missing and malformed logout tokens fail while an unknown valid token is idempotent", () => {
-  const h = harness();
-  const missing = h.context.logoutUser({});
-  assert.equal(missing.status, "error");
-  assert.equal(missing.revoked, false);
-  assert.equal(missing.code, "INVALID_SESSION_TOKEN");
+test("missing malformed and unknown logout credentials never claim confirmed revocation", () => {
+  const h = authenticatedSessionHarness();
+  const realSession = h.context.createSessionForUser({ username: "owner" });
+  const realKey = `romeo-session-${realSession.token}`;
+  const missing = h.context.logoutUser({}, null);
+  assert.equal(missing.status, "success");
+  assert.equal(missing.logoutAccepted, true);
+  assert.equal(Object.prototype.hasOwnProperty.call(missing, "revoked"), false);
 
-  const malformed = h.context.logoutUser({ sessionToken: "bad token" });
-  assert.equal(malformed.status, "error");
-  assert.equal(malformed.revoked, false);
-  assert.equal(malformed.code, "INVALID_SESSION_TOKEN");
+  const malformedContext = resolvedAuthContext(h, "bad token");
+  assert.equal(malformedContext, null);
+  const malformed = h.context.logoutUser({}, malformedContext);
+  assert.equal(malformed.status, "success");
+  assert.equal(Object.prototype.hasOwnProperty.call(malformed, "revoked"), false);
 
-  const unknown = h.context.logoutUser({
-    sessionToken: "00000000-0000-4000-8000-000000000001-00000000-0000-4000-8000-000000000002"
-  });
+  const unknownContext = resolvedAuthContext(
+    h, "00000000-0000-4000-8000-900000000001-00000000-0000-4000-8000-900000000002"
+  );
+  assert.equal(unknownContext, null);
+  const unknown = h.context.logoutUser({}, unknownContext);
   assert.equal(unknown.status, "success");
-  assert.equal(unknown.revoked, true);
-  assert.equal(unknown.alreadyRevoked, true);
-  assert.equal(Object.keys(h.props.values).filter(key => key.startsWith("romeo-session-")).length, 0);
+  assert.equal(Object.prototype.hasOwnProperty.call(unknown, "revoked"), false);
+  assert.ok(h.props.getProperty(realKey));
+  assert.ok(h.context.getAuthenticatedUser({ sessionToken: realSession.token }));
 });
 
 test("logout echoes only the safe request correlation and preserves the revocation contract", () => {
   const users = sheet([HEADERS, ["owner", "", "Owner", "", "2026-08-21", modern(harness(), "secret")]]);
   const h = harness({ users });
   const session = h.context.createSessionForUser(h.context.readUsersFromSheet()[0]);
-  const result = h.context.logoutUser({
-    sessionToken: session.token,
-    authRequestId: "logout-local-correlation-001"
-  });
+  const request = { authRequestId: "logout-local-correlation-001" };
+  const result = h.context.logoutUser(request, resolvedAuthContext(h, session.token));
   assert.equal(result.status, "success");
-  assert.equal(result.revoked, true);
+  assert.equal(result.logoutAccepted, true);
   assert.equal(result.authRequestId, "logout-local-correlation-001");
   assert.equal(h.props.getProperty(`romeo-session-${session.token}`), null);
+});
+
+test("logout contract 01/18 current session revokes and is rejected", () => {
+  const h = authenticatedSessionHarness();
+  const session = h.context.createSessionForUser({ username: "owner" });
+  assert.ok(resolvedAuthContext(h, session.token));
+  const result = logoutCurrentSession(h, session.token);
+  assert.equal(result.logoutAccepted, true);
+  assert.equal(h.context.getAuthenticatedUser({ sessionToken: session.token }), null);
+});
+
+test("logout contract 02/18 wrong valid-format token never confirms target revocation", () => {
+  const h = authenticatedSessionHarness();
+  const session = h.context.createSessionForUser({ username: "owner" });
+  const key = `romeo-session-${session.token}`;
+  const wrong = "00000000-0000-4000-8000-900000000001-00000000-0000-4000-8000-900000000002";
+  assert.equal(resolvedAuthContext(h, wrong), null);
+  const result = h.context.logoutUser({}, null);
+  assert.equal(Object.prototype.hasOwnProperty.call(result, "revoked"), false);
+  assert.ok(h.props.getProperty(key));
+  assert.ok(h.context.getAuthenticatedUser({ sessionToken: session.token }));
+});
+
+test("logout contract 03/18 forged payload token cannot replace authenticated target", () => {
+  const h = authenticatedSessionHarness();
+  const first = h.context.createSessionForUser({ username: "owner" });
+  const second = h.context.createSessionForUser({ username: "owner" });
+  const context = resolvedAuthContext(h, first.token);
+  const result = h.context.logoutUser({
+    sessionToken: second.token,
+    token: second.token,
+    authToken: second.token
+  }, context);
+  assert.equal(result.logoutAccepted, true);
+  assert.equal(h.context.getAuthenticatedUser({ sessionToken: first.token }), null);
+  assert.ok(h.context.getAuthenticatedUser({ sessionToken: second.token }));
+});
+
+test("logout contract 04/18 exact authenticated A revokes A", () => {
+  const h = authenticatedSessionHarness();
+  const session = h.context.createSessionForUser({ username: "owner" });
+  const context = resolvedAuthContext(h, session.token);
+  const internal = h.context.revokeResolvedSession(context);
+  assert.equal(internal.code, "REVOKED_CURRENT_SESSION");
+  assert.equal(internal.targetProven, true);
+  assert.equal(internal.revoked, true);
+});
+
+test("logout contract 05/18 replay is harmless and never claims confirmed deletion", () => {
+  const h = authenticatedSessionHarness();
+  const session = h.context.createSessionForUser({ username: "owner" });
+  logoutCurrentSession(h, session.token);
+  const deleteCount = h.props.calls ? h.props.calls.delete : 0;
+  const replay = h.context.logoutUser({}, resolvedAuthContext(h, session.token));
+  assert.equal(replay.logoutAccepted, true);
+  assert.equal(Object.prototype.hasOwnProperty.call(replay, "revoked"), false);
+  assert.equal(h.context.getAuthenticatedUser({ sessionToken: session.token }), null);
+  if (h.props.calls) assert.equal(h.props.calls.delete, deleteCount);
+});
+
+test("logout contract 06/18 unknown token has uniform outward response and no deletes", () => {
+  const propertyFailure = { delete: false };
+  const properties = store({ preserve: "yes" }, propertyFailure);
+  const h = authenticatedSessionHarness({ properties });
+  const unknown = resolvedAuthContext(h,
+    "00000000-0000-4000-8000-800000000001-00000000-0000-4000-8000-800000000002");
+  assert.equal(unknown, null);
+  const response = h.context.logoutUser({ authRequestId: "uniform-unknown-001" }, unknown);
+  assert.equal(response.status, "success");
+  assert.equal(response.logoutAccepted, true);
+  assert.equal(response.clientCleanupAllowed, true);
+  assert.equal(Object.prototype.hasOwnProperty.call(response, "revoked"), false);
+  assert.equal(properties.getProperty("preserve"), "yes");
+});
+
+test("logout contract 07/18 expired session is rejected deterministically", () => {
+  const h = authenticatedSessionHarness();
+  const session = h.context.createSessionForUser({ username: "owner" });
+  const key = `romeo-session-${session.token}`;
+  const record = JSON.parse(h.props.getProperty(key));
+  record.expiresAt = new Date(Date.now() - 1000).toISOString();
+  h.props.setProperty(key, JSON.stringify(record));
+  assert.equal(resolvedAuthContext(h, session.token), null);
+  assert.equal(h.props.getProperty(key), null);
+});
+
+test("logout contract 08/18 cache hit and property present invalidates both", () => {
+  const cache = cacheStore();
+  const h = authenticatedSessionHarness({ cache });
+  const session = h.context.createSessionForUser({ username: "owner" });
+  const key = `romeo-session-${session.token}`;
+  assert.ok(cache.values[key]);
+  const internal = h.context.revokeResolvedSession(resolvedAuthContext(h, session.token));
+  assert.equal(internal.revoked, true);
+  assert.equal(h.props.getProperty(key), null);
+  assert.equal(cache.values[key], undefined);
+});
+
+test("logout contract 09/18 property present and cache absent revokes authoritatively", () => {
+  const cache = cacheStore();
+  const h = authenticatedSessionHarness({ cache });
+  const session = h.context.createSessionForUser({ username: "owner" });
+  const key = `romeo-session-${session.token}`;
+  delete cache.values[key];
+  const internal = h.context.revokeResolvedSession(resolvedAuthContext(h, session.token));
+  assert.equal(internal.revoked, true);
+  assert.equal(h.props.getProperty(key), null);
+});
+
+test("logout contract 10/18 missing property with stale cache cannot authenticate", () => {
+  const cache = cacheStore();
+  const h = authenticatedSessionHarness({ cache });
+  const session = h.context.createSessionForUser({ username: "owner" });
+  const key = `romeo-session-${session.token}`;
+  const stale = cache.values[key];
+  h.props.deleteProperty(key);
+  cache.values[key] = stale;
+  assert.equal(resolvedAuthContext(h, session.token), null);
+  assert.equal(cache.values[key], undefined);
+});
+
+test("logout contract 11/18 double logout is harmless", () => {
+  const h = authenticatedSessionHarness();
+  const session = h.context.createSessionForUser({ username: "owner" });
+  assert.equal(logoutCurrentSession(h, session.token).logoutAccepted, true);
+  const second = h.context.logoutUser({}, resolvedAuthContext(h, session.token));
+  assert.equal(second.logoutAccepted, true);
+  assert.equal(Object.prototype.hasOwnProperty.call(second, "revoked"), false);
+});
+
+test("logout contract 12/18 session A logout preserves session B for same user", () => {
+  const h = authenticatedSessionHarness();
+  const first = h.context.createSessionForUser({ username: "owner" });
+  const second = h.context.createSessionForUser({ username: "owner" });
+  logoutCurrentSession(h, first.token);
+  assert.equal(h.context.getAuthenticatedUser({ sessionToken: first.token }), null);
+  assert.ok(h.context.getAuthenticatedUser({ sessionToken: second.token }));
+});
+
+test("logout contract 13/18 cross-user session revocation is isolated", () => {
+  const users = sheet([
+    HEADERS,
+    ["owner", "", "Owner", "", "2026-08-24", "unused"],
+    ["staff", "", "Staff", "access_dashboard", "2026-08-24", "unused"]
+  ]);
+  const h = harness({ users });
+  const records = h.context.readUsersFromSheet();
+  const ownerSession = h.context.createSessionForUser(records.find(user => user.username === "owner"));
+  const staffSession = h.context.createSessionForUser(records.find(user => user.username === "staff"));
+  logoutCurrentSession(h, ownerSession.token);
+  assert.equal(h.context.getAuthenticatedUser({ sessionToken: ownerSession.token }), null);
+  assert.equal(h.context.getAuthenticatedUser({ sessionToken: staffSession.token }).username, "staff");
+});
+
+test("logout contract 14/18 forged identity fields cannot influence target", () => {
+  const h = authenticatedSessionHarness();
+  const first = h.context.createSessionForUser({ username: "owner" });
+  const second = h.context.createSessionForUser({ username: "owner" });
+  const context = resolvedAuthContext(h, first.token, {
+    username: "forged", role: "OWNER", audience: "internal", branch: "forged",
+    permissions: ["manage_users"]
+  });
+  h.context.logoutUser({
+    username: "forged", role: "OWNER", audience: "internal", branch: "forged",
+    permissions: ["manage_users"], sessionToken: second.token
+  }, context);
+  assert.equal(h.context.getAuthenticatedUser({ sessionToken: first.token }), null);
+  assert.ok(h.context.getAuthenticatedUser({ sessionToken: second.token }));
+});
+
+test("logout contract 15/18 response lost after revoke retries safely", () => {
+  const h = authenticatedSessionHarness();
+  const session = h.context.createSessionForUser({ username: "owner" });
+  const firstContext = resolvedAuthContext(h, session.token);
+  h.context.logoutUser({ authRequestId: "lost-after-001" }, firstContext);
+  assert.equal(h.context.getAuthenticatedUser({ sessionToken: session.token }), null);
+  const retry = h.context.logoutUser({ authRequestId: "retry-after-001" },
+    resolvedAuthContext(h, session.token));
+  assert.equal(retry.logoutAccepted, true);
+  assert.equal(Object.prototype.hasOwnProperty.call(retry, "revoked"), false);
+});
+
+test("logout contract 16/18 response lost before revoke keeps target available for retry", () => {
+  const h = authenticatedSessionHarness();
+  const session = h.context.createSessionForUser({ username: "owner" });
+  const abandonedContext = resolvedAuthContext(h, session.token);
+  assert.ok(abandonedContext);
+  assert.ok(h.context.getAuthenticatedUser({ sessionToken: session.token }));
+  const retryContext = resolvedAuthContext(h, session.token);
+  const retry = h.context.logoutUser({ authRequestId: "retry-before-001" }, retryContext);
+  assert.equal(retry.logoutAccepted, true);
+  assert.equal(h.context.getAuthenticatedUser({ sessionToken: session.token }), null);
+});
+
+test("logout contract 17/18 concurrent resolved revokes serialize under lock", () => {
+  const h = authenticatedSessionHarness();
+  const session = h.context.createSessionForUser({ username: "owner" });
+  const firstContext = resolvedAuthContext(h, session.token);
+  const concurrentContext = resolvedAuthContext(h, session.token);
+  const first = h.context.revokeResolvedSession(firstContext);
+  const second = h.context.revokeResolvedSession(concurrentContext);
+  assert.equal(first.code, "REVOKED_CURRENT_SESSION");
+  assert.equal(second.code, "ALREADY_REVOKED_CURRENT_SESSION");
+  assert.equal(second.targetProven, true);
+  assert.equal(second.revoked, false);
+  assert.equal(second.alreadyRevoked, true);
+});
+
+test("logout contract 18/18 malformed or empty auth context cannot delete", () => {
+  const h = authenticatedSessionHarness();
+  const session = h.context.createSessionForUser({ username: "owner" });
+  const key = `romeo-session-${session.token}`;
+  for (const context of [null, {}, { sessionPropertyKey: key }, Object.freeze({
+    sessionPropertyKey: key,
+    serializedSession: h.props.getProperty(key)
+  })]) {
+    const result = h.context.revokeResolvedSession(context);
+    assert.equal(result.code, "AUTH_SESSION_CONTEXT_INVALID");
+    assert.equal(result.targetProven, false);
+    assert.equal(result.revoked, false);
+    assert.ok(h.props.getProperty(key));
+  }
 });
 
 test("account throttle uses a fixed non-extendable cooldown then restores a full budget", () => {
@@ -841,6 +1115,266 @@ test("missing, malformed, partial, and mismatched identifier configuration fail 
     assert.throws(() => h.context.auth01OpaqueUserId("owner", h.runtimeOptions),
       error => /^AUTH01_IDENTIFIER_/.test(error.code));
   }
+});
+
+test("identifier v2 activation is explicit, version-isolated, and fail-closed", () => {
+  const h = harness();
+  const v1Opaque = h.context.auth01OpaqueUserId("owner", h.runtimeOptions);
+  const v1Fingerprint = h.context.auth01CurrentIdentifierFingerprint(h.runtimeOptions);
+  const v1Key = h.props.getProperty("AUTH01:IDKEY:v1");
+
+  h.props.setProperty("AUTH01:IDKEY:v2", v1Key);
+  h.props.setProperty("AUTH01:IDKEYFP:v2", identifierFingerprint(v1Key, "v2"));
+  h.props.setProperty("AUTH01:IDKEYACTIVE:v1", "v2");
+  const v2Opaque = h.context.auth01OpaqueUserId("owner", h.runtimeOptions);
+  assert.notEqual(v2Opaque, v1Opaque, "version domain separation must survive accidental key reuse");
+  assert.notEqual(h.context.auth01CurrentIdentifierFingerprint(h.runtimeOptions), v1Fingerprint);
+  assert.equal(v2Opaque, h.context.auth01OpaqueUserId(" OWNER ", h.runtimeOptions));
+  assert.throws(() => h.context.auth01ProvisionIdentifierKey(h.runtimeOptions),
+    error => error.code === "AUTH01_IDENTIFIER_PROVISIONING_DISABLED");
+  assert.equal(h.props.getProperty("AUTH01:IDKEY:v1"), v1Key);
+
+  h.props.setProperty("AUTH01:IDKEYACTIVE:v1", "v3");
+  assert.throws(() => h.context.auth01OpaqueUserId("owner", h.runtimeOptions),
+    error => error.code === "AUTH01_IDENTIFIER_VERSION_INVALID");
+
+  h.props.setProperty("AUTH01:IDKEYACTIVE:v1", "v2");
+  h.props.deleteProperty("AUTH01:IDKEYFP:v2");
+  assert.throws(() => h.context.auth01CurrentIdentifierFingerprint(h.runtimeOptions),
+    error => error.code === "AUTH01_IDENTIFIER_KEY_MISSING");
+});
+
+test("v2 provisioning is atomic, idempotent, and inactive until explicit activation", () => {
+  const h = harness();
+  const v1Opaque = h.context.auth01OpaqueUserId("owner", h.runtimeOptions);
+  const v1Fingerprint = h.context.auth01CurrentIdentifierFingerprint(h.runtimeOptions);
+  const v2Key = Buffer.alloc(32, 19).toString("base64url");
+  const provisioned = h.context.auth01ProvisionIdentifierKeyV2(v2Key, h.runtimeOptions);
+  assert.equal(provisioned.created, true);
+  assert.equal(h.context.auth01ActiveIdentifierKeyVersion(h.runtimeOptions), "v1");
+  assert.equal(h.context.auth01OpaqueUserId("owner", h.runtimeOptions), v1Opaque);
+  assert.equal(h.context.auth01CurrentIdentifierFingerprint(h.runtimeOptions), v1Fingerprint);
+  assert.equal(h.context.auth01ProvisionIdentifierKeyV2(v2Key, h.runtimeOptions).created, false);
+  const v1EpochKey = h.context.auth01EpochPropertyKeyForVersion("owner", "v1", h.runtimeOptions);
+  const v2EpochKey = h.context.auth01EpochPropertyKeyForVersion("owner", "v2", h.runtimeOptions);
+  assert.equal(h.context.auth01IncrementCredentialEpoch("owner", h.runtimeOptions), 1);
+  assert.equal(h.props.getProperty(v1EpochKey), "1");
+  assert.equal(h.props.getProperty(v2EpochKey), null);
+  const reservation = h.context.auth01ReserveLoginAttempt("owner", h.runtimeOptions);
+  assert.equal(reservation.accountKey, `AUTH01:RL:v1:A:${v1Opaque}`);
+  h.context.auth01FinalizeLoginAttempt(reservation, "success", h.runtimeOptions);
+  const session = h.context.createSessionForUser({ username: "owner" });
+  assert.equal(
+    JSON.parse(h.props.getProperty(`romeo-session-${session.token}`)).identifierKeyFingerprint,
+    v1Fingerprint
+  );
+
+  const partialKey = harness();
+  partialKey.props.setProperty("AUTH01:IDKEY:v2", v2Key);
+  assert.throws(() => partialKey.context.auth01ProvisionIdentifierKeyV2(v2Key, partialKey.runtimeOptions),
+    error => error.code === "AUTH01_IDENTIFIER_V2_CONTINUITY_INVALID");
+  assert.equal(partialKey.context.auth01ActiveIdentifierKeyVersion(partialKey.runtimeOptions), "v1");
+  assert.throws(() => partialKey.context.auth01ActivateIdentifierKeyV2(partialKey.runtimeOptions),
+    error => error.code === "AUTH01_IDENTIFIER_KEY_MISSING");
+
+  const partialFingerprint = harness();
+  partialFingerprint.props.setProperty("AUTH01:IDKEYFP:v2", identifierFingerprint(v2Key, "v2"));
+  assert.throws(
+    () => partialFingerprint.context.auth01ProvisionIdentifierKeyV2(v2Key, partialFingerprint.runtimeOptions),
+    error => error.code === "AUTH01_IDENTIFIER_V2_CONTINUITY_INVALID"
+  );
+  assert.equal(partialFingerprint.context.auth01OpaqueUserId("owner", partialFingerprint.runtimeOptions), v1Opaque);
+});
+
+test("v2 provisioning classifies pre-write failure and lost response without partial success", () => {
+  const beforeFailure = {};
+  const beforeStore = store({}, beforeFailure);
+  const before = harness({ properties: beforeStore });
+  beforeFailure.setProperties = "before";
+  const v2Key = Buffer.alloc(32, 23).toString("base64url");
+  assert.throws(() => before.context.auth01ProvisionIdentifierKeyV2(v2Key, before.runtimeOptions),
+    error => error.code === "AUTH01_IDENTIFIER_V2_PROVISION_FAILED");
+  assert.equal(before.props.getProperty("AUTH01:IDKEY:v2"), null);
+  assert.equal(before.props.getProperty("AUTH01:IDKEYFP:v2"), null);
+
+  const afterFailure = {};
+  const afterStore = store({}, afterFailure);
+  const after = harness({ properties: afterStore });
+  afterFailure.setProperties = "after";
+  const recovered = after.context.auth01ProvisionIdentifierKeyV2(v2Key, after.runtimeOptions);
+  assert.equal(recovered.created, true);
+  assert.ok(after.props.getProperty("AUTH01:IDKEY:v2"));
+  assert.ok(after.props.getProperty("AUTH01:IDKEYFP:v2"));
+  assert.equal(after.context.auth01ActiveIdentifierKeyVersion(after.runtimeOptions), "v1");
+});
+
+test("activation fails closed, is transport-loss safe, and requires quiescent auth state", () => {
+  const v2Key = Buffer.alloc(32, 29).toString("base64url");
+  const activationFailure = {};
+  const failed = harness({ properties: store({}, activationFailure) });
+  failed.context.auth01ProvisionIdentifierKeyV2(v2Key, failed.runtimeOptions);
+  activationFailure.set = key => key === "AUTH01:IDKEYACTIVE:v1";
+  assert.throws(() => failed.context.auth01ActivateIdentifierKeyV2(failed.runtimeOptions),
+    error => error.code === "AUTH01_IDENTIFIER_ACTIVATION_FAILED");
+  assert.equal(failed.context.auth01ActiveIdentifierKeyVersion(failed.runtimeOptions), "v1");
+
+  const responseLoss = {};
+  const recovered = harness({ properties: store({}, responseLoss) });
+  recovered.context.auth01ProvisionIdentifierKeyV2(v2Key, recovered.runtimeOptions);
+  responseLoss.setAfter = key => key === "AUTH01:IDKEYACTIVE:v1";
+  assert.equal(recovered.context.auth01ActivateIdentifierKeyV2(recovered.runtimeOptions).activated, true);
+  assert.equal(recovered.context.auth01ActiveIdentifierKeyVersion(recovered.runtimeOptions), "v2");
+  assert.equal(recovered.context.auth01ActivateIdentifierKeyV2(recovered.runtimeOptions).alreadyActive, true);
+
+  const busySession = authenticatedSessionHarness();
+  busySession.context.auth01ProvisionIdentifierKeyV2(v2Key, busySession.runtimeOptions);
+  const session = busySession.context.createSessionForUser({ username: "owner" });
+  assert.throws(() => busySession.context.auth01ActivateIdentifierKeyV2(busySession.runtimeOptions),
+    error => error.code === "AUTH01_IDENTIFIER_ACTIVATION_BLOCKED");
+  busySession.context.revokeResolvedSession(resolvedAuthContext(busySession, session.token));
+  assert.equal(busySession.context.auth01ActivateIdentifierKeyV2(busySession.runtimeOptions).activated, true);
+
+  const busyThrottle = harness({ now: () => 1000 });
+  busyThrottle.context.auth01ProvisionIdentifierKeyV2(v2Key, busyThrottle.runtimeOptions);
+  const reservation = busyThrottle.context.auth01ReserveLoginAttempt("owner", busyThrottle.runtimeOptions);
+  assert.throws(() => busyThrottle.context.auth01ActivateIdentifierKeyV2(busyThrottle.runtimeOptions),
+    error => error.code === "AUTH01_IDENTIFIER_ACTIVATION_BLOCKED");
+  busyThrottle.context.auth01FinalizeLoginAttempt(reservation, "success", busyThrottle.runtimeOptions);
+  assert.equal(busyThrottle.context.auth01ActivateIdentifierKeyV2(busyThrottle.runtimeOptions).activated, true);
+});
+
+test("post-activation compatibility backend restart preserves v2 state and rejects selector rollback claims", () => {
+  const users = sheet([HEADERS, ["owner", "", "Owner", "", "2026-08-25", "synthetic-not-used"]]);
+  const h = harness({ users, now: () => 2000 });
+  const v2Key = Buffer.alloc(32, 37).toString("base64url");
+  h.context.auth01ProvisionIdentifierKeyV2(v2Key, h.runtimeOptions);
+  assert.equal(h.context.auth01ActiveIdentifierKeyVersion(h.runtimeOptions), "v1");
+  assert.equal(h.context.auth01ActivateIdentifierKeyV2(h.runtimeOptions).activated, true);
+  assert.equal(h.context.auth01IncrementCredentialEpoch("owner", h.runtimeOptions), 1);
+  const reservation = h.context.auth01ReserveLoginAttempt("owner", h.runtimeOptions);
+  h.context.auth01FinalizeLoginAttempt(reservation, "success", h.runtimeOptions);
+  const session = h.context.createSessionForUser({ username: "owner" });
+
+  const restartedUsers = sheet([HEADERS, ["owner", "", "Owner", "", "2026-08-25", "synthetic-not-used"]]);
+  const restarted = harness({
+    properties: store(h.props.getProperties()), users: restartedUsers, preserveIdentifierConfig: true, now: () => 2001
+  });
+  assert.equal(restarted.context.auth01ActiveIdentifierKeyVersion(restarted.runtimeOptions), "v2");
+  assert.equal(restarted.context.auth01ReadCredentialEpoch("owner", restarted.runtimeOptions), 1);
+  assert.ok(restarted.context.getAuthenticatedUser({ sessionToken: session.token }));
+
+  restarted.props.setProperty("AUTH01:IDKEYACTIVE:v1", "v1");
+  assert.equal(restarted.context.getAuthenticatedUser({ sessionToken: session.token }), null,
+    "selector rollback is intentionally not a safe post-activation rollback strategy");
+});
+
+test("identifier v2 prevents cross-user opaque collisions in the tested transition set", () => {
+  const h = harness();
+  activateIdentifierV2(h);
+  const usernames = ["owner", "staff", "cashier", "manager", "branch-a", "branch-b"];
+  const identifiers = usernames.map(username => h.context.auth01OpaqueUserId(username, h.runtimeOptions));
+  assert.equal(new Set(identifiers).size, usernames.length);
+  assert.notEqual(
+    h.context.auth01OpaqueUserIdForVersion("owner", "v1", h.runtimeOptions),
+    h.context.auth01OpaqueUserIdForVersion("owner", "v2", h.runtimeOptions)
+  );
+});
+
+test("credential epoch transition reads v1 only as fallback and writes v2 only", () => {
+  const h = harness();
+  const legacyKey = h.context.auth01EpochPropertyKeyForVersion("owner", "v1", h.runtimeOptions);
+  h.props.setProperty(legacyKey, "4");
+  activateIdentifierV2(h);
+  const activeKey = h.context.auth01EpochPropertyKeyForVersion("owner", "v2", h.runtimeOptions);
+  assert.equal(h.context.auth01ReadCredentialEpoch("owner", h.runtimeOptions), 4);
+  assert.equal(h.props.getProperty(activeKey), null);
+  assert.equal(h.context.auth01IncrementCredentialEpoch("owner", h.runtimeOptions), 5);
+  assert.equal(h.props.getProperty(activeKey), "5");
+  assert.equal(h.props.getProperty(legacyKey), "4", "active writes must never update the legacy key");
+  h.props.setProperty(legacyKey, "99");
+  assert.equal(h.context.auth01ReadCredentialEpoch("owner", h.runtimeOptions), 5,
+    "an active record must deterministically outrank legacy fallback");
+});
+
+test("account throttle transition consumes legacy state and persists only under v2", () => {
+  let now = 1000;
+  const h = harness({ now: () => now });
+  const first = h.context.auth01ReserveLoginAttempt("owner", h.runtimeOptions);
+  assert.equal(first.allowed, true);
+  h.context.auth01FinalizeLoginAttempt(first, "failure", h.runtimeOptions);
+  const legacyKey = first.accountKey;
+  const legacyRaw = h.props.getProperty(legacyKey);
+  assert.ok(legacyRaw);
+
+  activateIdentifierV2(h);
+  now += 1;
+  const second = h.context.auth01ReserveLoginAttempt("owner", h.runtimeOptions);
+  assert.equal(second.allowed, true);
+  assert.notEqual(second.accountKey, legacyKey);
+  assert.ok(h.props.getProperty(second.accountKey), "v2 reservation must anchor state under the active key");
+  assert.equal(h.props.getProperty(legacyKey), legacyRaw, "legacy throttle state must remain read-only");
+  h.context.auth01FinalizeLoginAttempt(second, "success", h.runtimeOptions);
+  assert.equal(JSON.parse(h.props.getProperty(second.accountKey)).failures, 0);
+});
+
+test("session fingerprints bind exclusively to the active identifier version", () => {
+  const users = sheet([HEADERS, ["owner", "", "Owner", "", "2026-08-24", "synthetic-not-used"]]);
+  const h = harness({ users });
+  const user = h.context.readUsersFromSheet()[0];
+  const before = h.context.createSessionForUser(user);
+  assert.ok(h.context.getAuthenticatedUser({ sessionToken: before.token }));
+
+  activateIdentifierV2(h);
+  assert.equal(h.context.getAuthenticatedUser({ sessionToken: before.token }), null,
+    "a pre-rotation fingerprint cannot authenticate after activation");
+  const after = h.context.createSessionForUser(user);
+  assert.ok(h.context.getAuthenticatedUser({ sessionToken: after.token }));
+
+  h.props.setProperty("AUTH01:IDKEYACTIVE:v1", "v1");
+  assert.equal(h.context.getAuthenticatedUser({ sessionToken: after.token }), null,
+    "rollback cannot make a v2-bound session valid under v1");
+});
+
+test("identifier v1 retirement requires every explicit safety condition", () => {
+  const h = harness();
+  const safe = {
+    activeVersion: "v2", v2ContinuityPass: true, preRotationSessionsRemaining: 0,
+    legacyEpochRecordsRemaining: 0, legacyThrottleRecordsRemaining: 0, rollbackWindowClosed: true
+  };
+  assert.deepEqual(JSON.parse(JSON.stringify(h.context.auth01IdentifierRetirementDecision(safe))), {
+    eligible: true, retiredVersion: "v1"
+  });
+  Object.keys(safe).forEach(key => {
+    const unsafe = Object.assign({}, safe, {
+      [key]: typeof safe[key] === "boolean" ? false : (typeof safe[key] === "number" ? 1 : "v1")
+    });
+    assert.equal(h.context.auth01IdentifierRetirementDecision(unsafe).eligible, false);
+  });
+});
+
+test("same synthetic MODERN_V1 credential is rejected by v31 and accepted by candidate", () => {
+  const candidate = harness();
+  const record = candidate.context.createModernCredential("synthetic-modern-password", {
+    randomBytes: length => Array.from({ length }, (_, index) => (index + 21) & 255)
+  });
+  const user = { password: "", passwordHash: record };
+  const v31 = harness({ source: IMMUTABLE_V31_SOURCE, preserveIdentifierConfig: true });
+  assert.equal(v31.context.verifyPassword(user, "synthetic-modern-password"), false);
+  assert.equal(candidate.context.auth01VerifyCredential(
+    user, "synthetic-modern-password"
+  ).ok, true);
+});
+
+test("two synthetic current-format MODERN_V1 rows classify without plaintext", () => {
+  const h = harness();
+  const rows = [modern(h, "synthetic-row-one", 31), modern(h, "synthetic-row-two", 47)];
+  rows.forEach(passwordHash => {
+    const parsed = h.context.auth01ParseModernCredential(passwordHash, { testPolicy: TEST_POLICY });
+    assert.ok(parsed);
+    assert.equal(h.context.auth01ClassifyCredential(
+      { password: "", passwordHash }, { testPolicy: TEST_POLICY }
+    ).state, "MODERN_V1");
+  });
 });
 
 test("authoritative throttle corruption is preserved, marked, and rejected before KDF", () => {
