@@ -12,7 +12,7 @@ const SOURCE = fs.readFileSync(
   path.join(ROOT, "scripts", "app-script-final-owner-access.js"), "utf8"
 );
 const IMMUTABLE_V31_SOURCE = fs.readFileSync(
-  path.join(ROOT, ".auth01-v32-logout-root-cause-20260824", "v31", "router.js"), "utf8"
+  path.join(ROOT, "tests", "fixtures", "auth01-v31-legacy-credential-verifier.js"), "utf8"
 );
 const HEADERS = ["USERNAME", "PASSWORD", "DISPLAY_NAME", "PERMISSIONS", "CREATED_AT", "PASSWORD_HASH"];
 const TEST_POLICY = {

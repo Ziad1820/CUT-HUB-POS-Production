@@ -2,6 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
@@ -122,23 +123,43 @@ function createContext(sheets = {}) {
     assert.equal(sheetCounter, counter, "all sheets must share one authoritative write counter");
   });
   const book = workbook(sheets, counter);
+  const identifierVersion = "v1";
+  const identifierKey = Buffer.alloc(32, 7).toString("base64url");
+  const identifierKeyFingerprint = crypto.createHash("sha256")
+    .update(Buffer.from(`CUT-HUB-POS|AUTH01:IDKEY:${identifierVersion}|`, "utf8"))
+    .update(Buffer.from(identifierKey, "base64url"))
+    .digest("base64url");
   const session = JSON.stringify({
-    username: "owner", expiresAt: "2099-01-01T00:00:00.000Z"
+    username: "owner", credentialEpoch: 0,
+    identifierKeyFingerprint,
+    expiresAt: "2099-01-01T00:00:00.000Z"
   });
-  const cache = { get: () => session, put: () => {}, remove: () => {} };
-  const properties = {
-    getProperty: () => session,
-    getProperties: () => ({}),
-    setProperty: () => {},
-    deleteProperty: () => {}
+  const cacheValues = { "romeo-session-valid": session };
+  const cache = {
+    get: (key) => cacheValues[key] || null,
+    put: (key, value) => { cacheValues[key] = String(value); },
+    remove: (key) => { delete cacheValues[key]; }
   };
+  const propertyValues = {
+    "romeo-session-valid": session,
+    "AUTH01:IDKEY:v1": identifierKey,
+    "AUTH01:IDKEYFP:v1": identifierKeyFingerprint
+  };
+  const properties = {
+    getProperty: (key) => propertyValues[key] || null,
+    getProperties: () => ({ ...propertyValues }),
+    setProperty: (key, value) => { propertyValues[key] = String(value); },
+    deleteProperty: (key) => { delete propertyValues[key]; }
+  };
+  let uuid = 0;
   const context = {
     console, Date, JSON, Math, Number, Object, String, Set, Map,
     SpreadsheetApp: { getActive: () => book, flush: () => {} },
     CacheService: { getScriptCache: () => cache },
     PropertiesService: { getScriptProperties: () => properties },
+    LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
     Utilities: {
-      getUuid: () => "uuid",
+      getUuid: () => `uuid-${++uuid}`,
       formatDate: (_value, _zone, format) => {
         if (format === "yyyy-MM-dd") return "2099-01-02";
         if (format === "HH:mm") return "10:00";
@@ -147,6 +168,11 @@ function createContext(sheets = {}) {
         return "2099-01-02 10:00:00";
       },
       computeDigest: () => [1, 2, 3],
+      base64EncodeWebSafe: (bytes) => Buffer.from(Array.from(bytes, value => value & 255))
+        .toString("base64").replace(/\+/g, "-").replace(/\//g, "_"),
+      base64DecodeWebSafe: (value) => Array.from(Buffer.from(
+        String(value).replace(/-/g, "+").replace(/_/g, "/"), "base64"
+      )).map(value => value > 127 ? value - 256 : value),
       DigestAlgorithm: { SHA_256: "SHA_256" },
       Charset: { UTF_8: "UTF_8" }
     },
@@ -154,6 +180,10 @@ function createContext(sheets = {}) {
   };
   vm.createContext(context);
   vm.runInContext(source, context, { filename: backendPath });
+  context.auth01RuntimeOptions = () => ({
+    testPolicy: { iterations: 2, allowedIterations: [2], maximumIterations: 2 },
+    randomBytes: length => Array.from({ length }, (_, index) => index + 1)
+  });
   context.jsonOutput = (value) => value;
   return { context, counter, book };
 }
@@ -321,9 +351,10 @@ test("public login maps every USERS schema failure to one generic response", () 
 test("public login preserves correct-schema success and invalid-credential behavior", () => {
   const counter = makeCounter();
   const users = memorySheet("USERS", [USERS_HEADERS, [
-    "owner", "", "Owner", "*", "2099-01-01", "010203"
+    "owner", "", "Owner", "*", "2099-01-01", ""
   ]], counter, USERS_HEADERS.length);
   const { context, counter: authoritativeCounter } = createContext({ USERS: users });
+  users._rows[1][5] = context.createModernCredential("secret", context.auth01RuntimeOptions());
   assert.equal(authoritativeCounter, counter);
   const success = context.loginUser({ username: "owner", password: "secret" });
   assert.equal(success.status, "success");
