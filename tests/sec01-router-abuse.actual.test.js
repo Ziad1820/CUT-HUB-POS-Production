@@ -110,6 +110,7 @@ function makeHarness() {
         : { status: "success", logoutAccepted: true, clientCleanupAllowed: true };
     },
     getInvoices: stub("getInvoices"),
+    getMyAuthSecurityState: stub("getMyAuthSecurityState"),
     getActivityLogs: stub("getActivityLogs"),
     getPublicBookingOptions: stub("getPublicBookingOptions"),
     handleBookingAvailabilityPhase5Action:
@@ -203,6 +204,41 @@ test("valid token reaches protected handler once", () => {
 
   assert.equal(r.handler, "getInvoices");
   assert.equal(count(h, "getInvoices"), 1);
+});
+
+test("AUTH-01 security-state endpoint is authenticated and never PUBLIC", () => {
+  assert.equal(PUBLIC_ACTIONS.includes("getMyAuthSecurityState"), false);
+
+  const missing = makeHarness();
+  const missingResult = missing.post({ action: "getMyAuthSecurityState" });
+  assert.equal(missingResult.authRequired, true);
+  assert.equal(count(missing, "getMyAuthSecurityState"), 0);
+
+  const invalid = makeHarness();
+  const invalidResult = invalid.post({
+    action: "getMyAuthSecurityState",
+    sessionToken: "invalid",
+    username: "owner",
+    role: "OWNER",
+    permissions: ["manage_users"],
+    audience: "CUT_HUB_POS",
+    branchId: "forged"
+  });
+  assert.equal(invalidResult.authRequired, true);
+  assert.equal(count(invalid, "getMyAuthSecurityState"), 0);
+
+  const valid = makeHarness();
+  const validResult = valid.post({
+    action: "getMyAuthSecurityState",
+    sessionToken: "valid-session",
+    username: "forged-user",
+    role: "OWNER",
+    permissions: ["manage_users"],
+    audience: "forged",
+    branchId: "forged"
+  });
+  assert.equal(validResult.handler, "getMyAuthSecurityState");
+  assert.equal(count(valid, "getMyAuthSecurityState"), 1);
 });
 
 test("public action works anonymously", () => {

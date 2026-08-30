@@ -1822,6 +1822,125 @@ test("account-finalized/global-unfinalized retry completes once without double c
   assert.ok(finalAccount.finalizations[reservation.reservationId]);
 });
 
+test("authenticated security-state read reports clean modern state with zero writes", () => {
+  const h = harness();
+  const credential = modern(h, "correct horse", 44);
+  h.users.rows.push(["observable-user", "", "Observable User", "view_invoices", "", credential]);
+  const created = h.context.createSessionForUser({
+    username: "observable-user", displayName: "Observable User", permissions: ["view_invoices"]
+  });
+  const authContext = h.context.resolveAuthenticatedRequestContext(
+    { sessionToken: created.token }, { strictReadOnly: true }
+  );
+  const propertiesBefore = { ...h.props.values };
+  const cacheCallsBefore = { ...h.cache.calls };
+  const sheetWritesBefore = h.users.writeCount();
+
+  const result = h.context.getMyAuthSecurityState({
+    username: "owner", role: "OWNER", permissions: ["manage_users"], audience: "forged"
+  }, authContext);
+
+  assert.equal(result.status, "success");
+  assert.equal(result.credentialClass, "MODERN_V1");
+  assert.equal(result.credentialStructureValid, true);
+  assert.equal(result.plaintextBlank, true);
+  assert.equal(result.sessionValid, true);
+  assert.equal(result.sessionEpochMatch, true);
+  assert.equal(result.sessionIdentifierMatch, true);
+  assert.equal(result.identifierContinuity, "PASS");
+  assert.equal(result.targetThrottleReservationCount, 0);
+  assert.equal(result.authSecurityState, "CLEAN_MODERN");
+  assert.deepEqual(h.props.values, propertiesBefore);
+  assert.deepEqual(h.cache.calls, cacheCallsBefore);
+  assert.equal(h.users.writeCount(), sheetWritesBefore);
+});
+
+test("authenticated security-state read classifies legacy compatibility without migration", () => {
+  const h = harness();
+  const credential = legacyHash("legacy password");
+  h.users.rows.push(["observable-user", "", "Observable User", "view_invoices", "", credential]);
+  const created = h.context.createSessionForUser({
+    username: "observable-user", displayName: "Observable User", permissions: ["view_invoices"]
+  });
+  const authContext = h.context.resolveAuthenticatedRequestContext(
+    { sessionToken: created.token }, { strictReadOnly: true }
+  );
+  const before = { ...h.props.values };
+  const result = h.context.getMyAuthSecurityState({}, authContext);
+
+  assert.equal(result.status, "success");
+  assert.equal(result.credentialClass, "LEGACY_SHA256");
+  assert.equal(result.credentialStructureValid, true);
+  assert.equal(result.authSecurityState, "LEGACY_COMPAT");
+  assert.equal(h.users.rows[1][5], credential);
+  assert.deepEqual(h.props.values, before);
+});
+
+test("security-state read detects account-local journal and throttle inconsistency without repair", () => {
+  const h = harness();
+  h.users.rows.push(["observable-user", "", "Observable User", "view_invoices", "", modern(h, "secret", 51)]);
+  const created = h.context.createSessionForUser({
+    username: "observable-user", displayName: "Observable User", permissions: ["view_invoices"]
+  });
+  const authContext = h.context.resolveAuthenticatedRequestContext(
+    { sessionToken: created.token }, { strictReadOnly: true }
+  );
+  const opaqueUserId = h.context.auth01OpaqueUserId("observable-user", h.runtimeOptions);
+  h.props.setProperty("AUTH01:MIG:v1:malformed-local", JSON.stringify({ opaqueUserId }));
+  const throttleKey = h.context.auth01VersionedIdentifierPropertyKeys(
+    "observable-user", "AUTH01:RL:v1:A:", h.runtimeOptions
+  ).activeKey;
+  h.props.setProperty(throttleKey, "{malformed");
+  const before = { ...h.props.values };
+  const result = h.context.getMyAuthSecurityState({}, authContext);
+
+  assert.equal(result.status, "success");
+  assert.equal(result.migrationJournalState, "MALFORMED");
+  assert.equal(result.migrationRecoveryRequired, true);
+  assert.equal(result.recoveryArtifactCount, 1);
+  assert.equal(result.targetThrottleMalformed, true);
+  assert.equal(result.authSecurityState, "RECOVERY_REQUIRED");
+  assert.deepEqual(h.props.values, before);
+});
+
+test("strict read-only authentication never cleans cache or session properties", () => {
+  const h = harness();
+  const before = { ...h.props.values };
+  const cacheBefore = { ...h.cache.calls };
+  const result = h.context.resolveAuthenticatedRequestContext({
+    sessionToken: "00000000-0000-4000-8000-000000000099"
+  }, { strictReadOnly: true });
+
+  assert.equal(result, null);
+  assert.deepEqual(h.props.values, before);
+  assert.deepEqual(h.cache.calls, cacheBefore);
+});
+
+test("security-state output is allowlisted and exposes no identity or secret material", () => {
+  const h = harness();
+  const credential = modern(h, "not-returned", 61);
+  h.users.rows.push(["observable-user", "", "Observable User", "view_invoices", "", credential]);
+  const created = h.context.createSessionForUser({
+    username: "observable-user", displayName: "Observable User", permissions: ["view_invoices"]
+  });
+  const authContext = h.context.resolveAuthenticatedRequestContext(
+    { sessionToken: created.token }, { strictReadOnly: true }
+  );
+  const result = h.context.getMyAuthSecurityState({}, authContext);
+  const serialized = JSON.stringify(result);
+
+  assert.deepEqual(Object.keys(result).sort(), [
+    "authSecurityState", "credentialClass", "credentialStructureValid",
+    "effectiveCredentialEpoch", "identifierContinuity", "identifierVersion",
+    "migrationJournalPresent", "migrationJournalState", "migrationRecoveryRequired",
+    "plaintextBlank", "recoveryArtifactCount", "sessionEpochMatch",
+    "sessionIdentifierMatch", "sessionValid", "status", "targetThrottleActiveBlock",
+    "targetThrottleMalformed", "targetThrottleReservationCount"
+  ].sort());
+  assert.doesNotMatch(serialized, /observable-user|not-returned|cuthub\$|romeo-session-|AUTH01:IDKEY|sessionToken|passwordHash/i);
+  assert.equal(h.context.getMyAuthSecurityState({}, Object.freeze({ username: "observable-user" })).authRequired, true);
+});
+
 test("local benchmark harness measures all injected-cost cases without changing runtime default", (t) => {
   const h = harness();
   const measure = operation => {

@@ -68,8 +68,13 @@ const RomeoAuth = (() => {
     if (window.crypto && typeof window.crypto.randomUUID === "function") {
       return `${prefix}-${window.crypto.randomUUID()}`;
     }
-    const random = Math.random().toString(36).slice(2);
-    return `${prefix}-${Date.now().toString(36)}-${random}`.slice(0, 128);
+    if (window.crypto && typeof window.crypto.getRandomValues === "function") {
+      const bytes = new Uint8Array(16);
+      window.crypto.getRandomValues(bytes);
+      const random = Array.from(bytes, value => value.toString(16).padStart(2, "0")).join("");
+      return `${prefix}-${random}`;
+    }
+    throw new Error("Secure login correlation is unavailable in this browser.");
   }
 
   function emitAuthObservation(action, phase, authRequestId, details = {}) {
@@ -189,9 +194,10 @@ const RomeoAuth = (() => {
       };
     }
     loginInProgress = true;
-    const authRequestId = createAuthRequestId("login");
-    emitAuthObservation("login", "request-start", authRequestId);
+    let authRequestId = "";
     try {
+      authRequestId = createAuthRequestId("login");
+      emitAuthObservation("login", "request-start", authRequestId);
       const result = await apiRequest({
         action: "loginUser",
         authRequestId,
@@ -254,6 +260,7 @@ const RomeoAuth = (() => {
       }
 
       const result = await login(usernameInput?.value?.trim() || "", passwordInput?.value || "");
+      if (passwordInput) passwordInput.value = "";
       if (!result.success) {
         if (statusBox) {
           statusBox.textContent = result.message;
@@ -309,14 +316,13 @@ const RomeoAuth = (() => {
       return logoutFailureResult({ inProgress: logoutInProgress, silent: true });
     }
     logoutInProgress = true;
-    const authRequestId = createAuthRequestId("logout");
-
-    if (!window.RomeoApi || typeof RomeoApi.request !== "function") {
-      logoutInProgress = false;
-      return logoutFailureResult();
-    }
+    let authRequestId = "";
 
     try {
+      if (!window.RomeoApi || typeof RomeoApi.request !== "function") {
+        return logoutFailureResult();
+      }
+      authRequestId = createAuthRequestId("logout");
       emitAuthObservation("logout", "request-start", authRequestId);
       const result = await RomeoApi.request({
         action: "logoutUser",

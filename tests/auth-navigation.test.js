@@ -39,6 +39,7 @@ function authForPermissions(permissions, username = "limited-user") {
 }
 
 function logoutHarness(request, options = {}) {
+  let requestSequence = 0;
   let sessionValue = options.missingSession ? null : JSON.stringify({
     user: { username: "owner", displayName: "Owner", permissions: [] },
     sessionToken: "00000000-0000-4000-8000-000000000001-00000000-0000-4000-8000-000000000002"
@@ -73,6 +74,12 @@ function logoutHarness(request, options = {}) {
   const window = {
     location,
     RomeoApi,
+    crypto: {
+      randomUUID() {
+        requestSequence += 1;
+        return `00000000-0000-4000-8000-${String(requestSequence).padStart(12, "0")}`;
+      }
+    },
     alert(message) { alerts.push(message); }
   };
   const context = vm.createContext({
@@ -92,7 +99,7 @@ function logoutHarness(request, options = {}) {
   };
 }
 
-function loginPageHarness(request) {
+function loginPageHarness(request, harnessOptions = {}) {
   let sessionValue = null;
   let handler = null;
   let handlerRegistrations = 0;
@@ -136,7 +143,9 @@ function loginPageHarness(request) {
   const window = {
     location,
     RomeoApi,
-    crypto: { randomUUID() { requestSequence += 1; return `00000000-0000-4000-8000-${String(requestSequence).padStart(12, "0")}`; } },
+    crypto: harnessOptions.crypto === undefined
+      ? { randomUUID() { requestSequence += 1; return `00000000-0000-4000-8000-${String(requestSequence).padStart(12, "0")}`; } }
+      : harnessOptions.crypto,
     CustomEvent: function CustomEvent(type, init) { this.type = type; this.detail = init.detail; },
     dispatchEvent(event) { observations.push(event.detail); },
     alert() {}
@@ -164,6 +173,7 @@ function loginPageHarness(request) {
     sessionValue: () => sessionValue,
     splash,
     statusBox,
+    passwordValue: () => passwordInput.value,
     submit: () => handler({ preventDefault() {} })
   };
 }
@@ -385,6 +395,7 @@ test("single login submit issues exactly one correlated request and schedules on
   assert.match(requests[0].authRequestId, /^login-/);
   assert.equal(h.button.disabled, true);
   assert.equal(h.scheduled.length, 1);
+  assert.equal(h.passwordValue(), "");
   h.scheduled[0]();
   assert.deepEqual(h.navigations, ["dashboard.html"]);
   assert.ok(h.sessionValue());
@@ -424,10 +435,91 @@ test("failed login unlocks the UI and permits one later deliberate retry", async
   assert.equal(h.button.disabled, false);
   assert.equal(h.attributes["aria-busy"], "false");
   assert.equal(h.statusBox.className, "status error");
+  assert.equal(h.passwordValue(), "");
   await h.submit();
   assert.equal(calls, 2);
   assert.equal(h.button.disabled, true);
   assert.equal(h.scheduled.length, 1);
+});
+
+test("button and Enter overlap while pending produces one login request", async () => {
+  let calls = 0;
+  let resolveRequest;
+  const h = loginPageHarness(() => {
+    calls += 1;
+    return new Promise(resolve => { resolveRequest = resolve; });
+  });
+  h.initialize();
+  const buttonSubmit = h.submit();
+  const enterSubmit = h.submit();
+  await enterSubmit;
+  assert.equal(calls, 1);
+  resolveRequest(successfulLoginResponse());
+  await buttonSubmit;
+  assert.equal(h.scheduled.length, 1);
+});
+
+test("page initialization performs no login request", () => {
+  let calls = 0;
+  const h = loginPageHarness(async () => { calls += 1; return successfulLoginResponse(); });
+  assert.equal(h.initialize(), true);
+  assert.equal(calls, 0);
+});
+
+test("login correlation contains no password or session credential material", async () => {
+  const requests = [];
+  const h = loginPageHarness(async payload => {
+    requests.push(payload);
+    return successfulLoginResponse();
+  });
+  h.initialize();
+  await h.submit();
+  assert.equal(requests.length, 1);
+  assert.doesNotMatch(requests[0].authRequestId, /secret|token/i);
+  assert.equal(typeof requests[0].authRequestId, "string");
+  assert.ok(requests[0].authRequestId.length <= 128);
+});
+
+test("auth request IDs require Web Crypto and never fall back to Math.random", () => {
+  assert.doesNotMatch(authSource, /Math\.random\s*\(/);
+  assert.match(authSource, /crypto\.randomUUID/);
+  assert.match(authSource, /crypto\.getRandomValues/);
+  assert.match(authSource, /Secure login correlation is unavailable/);
+});
+
+test("missing Web Crypto fails before transport and unlocks a later safe attempt", async () => {
+  let calls = 0;
+  const h = loginPageHarness(async () => { calls += 1; return successfulLoginResponse(); }, { crypto: null });
+  h.initialize();
+  await h.submit();
+  assert.equal(calls, 0);
+  assert.equal(h.button.disabled, false);
+  assert.equal(h.passwordValue(), "");
+  assert.match(h.statusBox.textContent, /Secure login correlation/);
+});
+
+test("Web Crypto random-byte fallback creates one opaque correlation identifier", async () => {
+  const requests = [];
+  const h = loginPageHarness(async payload => {
+    requests.push(payload);
+    return successfulLoginResponse();
+  }, {
+    crypto: {
+      getRandomValues(bytes) {
+        bytes.forEach((_value, index) => { bytes[index] = index + 1; });
+        return bytes;
+      }
+    }
+  });
+  h.initialize();
+  await h.submit();
+  assert.equal(requests.length, 1);
+  assert.match(requests[0].authRequestId, /^login-[a-f0-9]{32}$/);
+});
+
+test("login page cache-busts the canonical AUTH-01 auth module", () => {
+  assert.match(loginPageSource, /core\/auth\.js\?v=auth01-login-20260830/);
+  assert.equal((loginPageSource.match(/initializeLoginPage\s*\(/g) || []).length, 1);
 });
 
 test("successful login blocks re-entry and navigates exactly once", async () => {
