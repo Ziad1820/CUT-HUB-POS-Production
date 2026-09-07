@@ -246,35 +246,59 @@ const RomeoAuth = (() => {
     let pageLoginInFlight = false;
     let navigationScheduled = false;
 
+    // Optional presentation hooks must not interrupt authentication or navigation.
+    function notifyUI(callback, value) {
+      if (typeof callback !== "function") return;
+      try {
+        callback(value);
+      } catch (_error) {
+        console.warn("Login UI callback failed.");
+      }
+    }
+
+    function setLoading(loading) {
+      if (submitButton) {
+        submitButton.disabled = loading;
+        submitButton.setAttribute?.("aria-busy", String(loading));
+      }
+      notifyUI(options.onLoadingChange, loading);
+    }
+
+    function setStatus(state, message) {
+      if (statusBox) {
+        statusBox.textContent = message;
+        statusBox.className = state === "error" ? "status error" : "status";
+      }
+      notifyUI(options.onStatusChange, { state, message });
+    }
+
     form.addEventListener("submit", async event => {
       event.preventDefault();
       if (pageLoginInFlight || navigationScheduled) return;
       pageLoginInFlight = true;
-      if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.setAttribute?.("aria-busy", "true");
-      }
-      if (statusBox) {
-        statusBox.textContent = "جاري تسجيل الدخول...";
-        statusBox.className = "status";
-      }
+      setLoading(true);
+      setStatus("loading", "جاري تسجيل الدخول...");
 
-      const result = await login(usernameInput?.value?.trim() || "", passwordInput?.value || "");
+      let result;
+      try {
+        result = await login(usernameInput?.value?.trim() || "", passwordInput?.value || "");
+      } catch (_error) {
+        if (passwordInput) passwordInput.value = "";
+        pageLoginInFlight = false;
+        setLoading(false);
+        setStatus("error", "تعذر تسجيل الدخول الآن. حاول مرة أخرى.");
+        return;
+      }
       if (passwordInput) passwordInput.value = "";
       if (!result.success) {
-        if (statusBox) {
-          statusBox.textContent = result.message;
-          statusBox.className = "status error";
-        }
+        setStatus("error", result.message);
         pageLoginInFlight = false;
-        if (submitButton && !result.inProgress) {
-          submitButton.disabled = false;
-          submitButton.setAttribute?.("aria-busy", "false");
-        }
+        if (!result.inProgress) setLoading(false);
         return;
       }
 
       navigationScheduled = true;
+      notifyUI(options.onStatusChange, { state: "success", message: "تم تسجيل الدخول بنجاح..." });
       splash?.classList?.add("active");
       schedule(() => navigate(getReturnTo()), 1000);
     });

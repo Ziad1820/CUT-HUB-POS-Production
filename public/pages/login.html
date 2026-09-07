@@ -107,7 +107,12 @@
     }
 
     .primary-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
       width: 100%;
+      min-height: 52px;
       border: none;
       border-radius: 18px;
       padding: 16px;
@@ -116,6 +121,35 @@
       color: white;
       cursor: pointer;
       background: linear-gradient(135deg, var(--success), #0f5a39);
+    }
+
+    .primary-btn:disabled {
+      cursor: wait;
+    }
+
+    .login-spinner {
+      display: none;
+      flex: 0 0 18px;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+    }
+
+    .primary-btn.is-loading .login-spinner {
+      display: inline-block;
+      animation: login-spin 0.75s linear infinite;
+    }
+
+    @keyframes login-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .primary-btn.is-loading .login-spinner {
+        animation: none;
+      }
     }
 
     .status {
@@ -130,6 +164,14 @@
       background: rgba(186,58,44,0.12);
       color: var(--danger);
       border: 1px solid rgba(186,58,44,0.18);
+    }
+
+    .status.loading,
+    .status.success {
+      display: block;
+      background: rgba(24,121,78,0.08);
+      color: var(--success);
+      border: 1px solid rgba(24,121,78,0.16);
     }
 
     .hint {
@@ -278,8 +320,11 @@
         <input id="password" type="password" autocomplete="current-password" required>
       </div>
 
-      <button class="primary-btn" type="submit">تسجيل الدخول</button>
-      <div class="status" id="statusBox"></div>
+      <button class="primary-btn" type="submit" aria-busy="false">
+        <span class="login-spinner" aria-hidden="true"></span>
+        <span id="loginButtonText">تسجيل الدخول</span>
+      </button>
+      <div class="status" id="statusBox" role="status" aria-live="polite" aria-atomic="true"></div>
     </form>
 
   </div>
@@ -307,13 +352,25 @@
       statusBox.className = "status error";
     }
 
+    const submitButton = loginForm.querySelector('[type="submit"]');
+    const buttonText = document.getElementById("loginButtonText");
+    const usernameInput = document.getElementById("username");
+    const passwordInput = document.getElementById("password");
     RomeoAuth.initializeLoginPage({
       form: loginForm,
       statusBox,
       splash,
-      submitButton: loginForm.querySelector('[type="submit"]'),
-      usernameInput: document.getElementById("username"),
-      passwordInput: document.getElementById("password")
+      submitButton,
+      usernameInput,
+      passwordInput,
+      onLoadingChange(loading) {
+        submitButton.classList.toggle("is-loading", loading);
+        buttonText.textContent = loading ? "جارٍ تسجيل الدخول..." : "تسجيل الدخول";
+      },
+      onStatusChange({ state, message }) {
+        statusBox.textContent = state === "loading" ? "جاري التحقق من بيانات الدخول..." : message;
+        statusBox.className = "status " + state;
+      }
     });
   </script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
