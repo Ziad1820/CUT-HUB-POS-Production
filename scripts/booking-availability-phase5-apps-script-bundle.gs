@@ -11265,6 +11265,42 @@ function bookingAvailabilityPhase5Text(value) {
   return String(value === undefined || value === null ? "" : value).trim();
 }
 
+function bookingAvailabilityPhase5ClockText(value, timeZone) {
+  if (value instanceof Date && isFinite(value.getTime())) {
+    return Utilities.formatDate(value, timeZone || BookingAvailabilityPhase5.TIME_ZONE || "Africa/Cairo", "HH:mm");
+  }
+  var text = bookingAvailabilityPhase5Text(value);
+  var match = /^(\d{1,2}):([0-5]\d)$/.exec(text);
+  if (typeof value === "string" && match && Number(match[1]) < 24) {
+    return (match[1].length === 1 ? "0" : "") + match[1] + ":" + match[2];
+  }
+  // Preserve invalid nonblank values for downstream clock validation.
+  return text;
+}
+
+function bookingAvailabilityPhase5ReadBranchHours() {
+  var rows = schedulePhase2ReadRows("BRANCH_BOOKING_HOURS");
+  if (!rows.length || !rows.some(function (item) { return item._rowNumber >= 2; })) return rows;
+  // The shared reader serializes time Dates to ISO. Restore only these two
+  // typed cells locally; never parse arbitrary timestamp strings as clocks.
+  var sheet = SpreadsheetApp.getActive().getSheetByName("BRANCH_BOOKING_HOURS");
+  var headers = schedulePhase2Headers(sheet);
+  var openColumn = headers.indexOf("OPEN_TIME");
+  var closeColumn = headers.indexOf("CLOSE_TIME");
+  if (openColumn < 0 || closeColumn < 0) return rows;
+  var firstColumn = Math.min(openColumn, closeColumn);
+  var rawTimes = sheet.getRange(2, firstColumn + 1, sheet.getLastRow() - 1,
+    Math.abs(closeColumn - openColumn) + 1).getValues();
+  return rows.map(function (item) {
+    var raw = rawTimes[item._rowNumber - 2];
+    if (!raw) return item;
+    var restored = Object.assign({}, item);
+    restored.openTime = raw[openColumn - firstColumn];
+    restored.closeTime = raw[closeColumn - firstColumn];
+    return restored;
+  });
+}
+
 function bookingAvailabilityPhase5AddMinutes(time, minutes) {
   var match = /^(\d{1,2}):(\d{2})$/.exec(bookingAvailabilityPhase5Text(time));
   if (!match) return bookingAvailabilityPhase5Text(time);
@@ -11455,14 +11491,17 @@ function bookingAvailabilityPhase5Weekday(date, timeZone) {
 function bookingAvailabilityPhase5BranchSegments(branchId, date, timeZone, prefetchedRows) {
   bookingAvailabilityPhase5RequireSheet("BRANCH_BOOKING_HOURS");
   var weekday = bookingAvailabilityPhase5Weekday(date, timeZone);
-  return (prefetchedRows || schedulePhase2ReadRows("BRANCH_BOOKING_HOURS")).filter(function (item) {
+  return (prefetchedRows || bookingAvailabilityPhase5ReadBranchHours()).filter(function (item) {
     var active = item.active === true || String(item.active).toUpperCase() === "TRUE";
     return active && bookingAvailabilityPhase5Text(item.branchId) === bookingAvailabilityPhase5Text(branchId) &&
       String(item.weekday || "").toUpperCase() === weekday &&
       (!item.effectiveFrom || item.effectiveFrom <= date) &&
       (!item.effectiveTo || item.effectiveTo >= date);
   }).map(function (item) {
-    return { start: bookingAvailabilityPhase5Text(item.openTime), end: bookingAvailabilityPhase5Text(item.closeTime) };
+    return {
+      start: bookingAvailabilityPhase5ClockText(item.openTime, timeZone),
+      end: bookingAvailabilityPhase5ClockText(item.closeTime, timeZone)
+    };
   });
 }
 
@@ -11470,7 +11509,7 @@ function bookingAvailabilityPhase5RequestSnapshot() {
   var staff = schedulePhase2ReadStaff();
   var versions = schedulePhase2ReadRows("BOOKING_AVAILABILITY_VERSIONS");
   var generations = schedulePhase2ReadRows("BOOKING_AVAILABILITY_GENERATIONS");
-  var hours = schedulePhase2ReadRows("BRANCH_BOOKING_HOURS");
+  var hours = bookingAvailabilityPhase5ReadBranchHours();
   var overrides = schedulePhase2ReadRows("BOOKING_OPERATIONAL_OVERRIDES");
   var attendanceDays = attendancePhase3ReadDays();
   var attendanceEvents = schedulePhase2ReadRows("ATTENDANCE_EVENTS");
@@ -13128,13 +13167,19 @@ function bookingAvailabilityPhase5ListBranchHours(actor) {
     return [];
   }
   bookingAvailabilityPhase5RequireSheet("BRANCH_BOOKING_HOURS");
-  return schedulePhase2ReadRows("BRANCH_BOOKING_HOURS").filter(function (item) {
+  var branches = schedulePhase2ReadRows("BOOKING_BRANCH_REGISTRY");
+  return bookingAvailabilityPhase5ReadBranchHours().filter(function (item) {
     return actor.owner || (actor.branchIds || []).indexOf(item.branchId) !== -1;
   }).map(function (item) {
+    var matches = branches.filter(function (branch) {
+      return bookingAvailabilityPhase5Text(branch.branchId) === bookingAvailabilityPhase5Text(item.branchId);
+    });
+    var timeZone = matches.length === 1 ? bookingAvailabilityPhase5Text(matches[0].timeZone) : "";
     return {
       branchHoursId: item.branchHoursId, branchId: item.branchId,
       weekday: String(item.weekday || "").toUpperCase(),
-      openTime: item.openTime || "", closeTime: item.closeTime || "",
+      openTime: bookingAvailabilityPhase5ClockText(item.openTime, timeZone),
+      closeTime: bookingAvailabilityPhase5ClockText(item.closeTime, timeZone),
       active: item.active === true || String(item.active).toUpperCase() === "TRUE",
       effectiveFrom: item.effectiveFrom || "", effectiveTo: item.effectiveTo || ""
     };

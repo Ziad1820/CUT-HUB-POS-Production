@@ -113,6 +113,146 @@ function harness() {
   return { context, rows, writes, clock, identity, scriptProperties };
 }
 
+function clockHarness() {
+  const h = harness();
+  const originalFormat = h.context.Utilities.formatDate;
+  h.context.Utilities.formatDate = (date, zone, format) => format === "HH:mm"
+    ? new Intl.DateTimeFormat("en-GB", {
+      timeZone: zone, hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+    }).format(date)
+    : originalFormat(date, zone, format);
+  return h;
+}
+
+const sheetNoon = () => new Date("1899-12-30T09:54:51.000Z");
+const sheetTwoAm = () => new Date("1899-12-29T23:54:51.000Z");
+
+function availabilityForClockSegments(branchSegments) {
+  return phase5.calculateAvailability({
+    branchId: "BR-1", date: "2099-01-02", today: "2099-01-01",
+    staff: { staffId: "STAFF-1", branchId: "BR-1", active: true },
+    branchSegments, durationMinutes: 60, preparationMinutes: 0, cleanupMinutes: 0,
+    schedule: {
+      active: true, classification: "WORKING_DAY",
+      shiftSegments: [{ shiftStart: "12:00", shiftEnd: "02:00" }]
+    }
+  });
+}
+
+test("Phase 5 clock text formats typed Sheets time Dates in Cairo including historical offset", () => {
+  const { context } = clockHarness();
+  assert.equal(context.bookingAvailabilityPhase5ClockText(sheetNoon(), "Africa/Cairo"), "12:00");
+  assert.equal(context.bookingAvailabilityPhase5ClockText(sheetTwoAm(), "Africa/Cairo"), "02:00");
+});
+
+test("Phase 5 clock text normalizes only valid clock strings and preserves blanks", () => {
+  const { context } = clockHarness();
+  for (const [value, expected] of [["12:00", "12:00"], ["2:00", "02:00"],
+    ["0:00", "00:00"], ["23:59", "23:59"], ["", ""], ["  ", ""], [null, ""], [undefined, ""]]) {
+    assert.equal(context.bookingAvailabilityPhase5ClockText(value), expected);
+  }
+});
+
+test("Phase 5 clock text leaves malformed nonblank values invalid instead of inventing clocks", () => {
+  const { context } = clockHarness();
+  for (const value of ["24:00", "12:60", "2:0", "002:00", "12:00:00", "noon",
+    "1899-12-30T09:54:51.000Z", 0, 0.5, false, new Date(NaN)]) {
+    const text = context.bookingAvailabilityPhase5ClockText(value);
+    assert.notEqual(text, "");
+    assert.equal(context.bookingAvailabilityPhase5ClockMinutes(text), null);
+    assert.throws(() => availabilityForClockSegments([{ start: text, end: "02:00" }]),
+      error => error.code === "AVAILABILITY_INTERVAL_INVALID");
+  }
+});
+
+test("Phase 5 clock text honors explicit zone and both default timezone fallbacks", () => {
+  const { context } = clockHarness();
+  assert.equal(context.bookingAvailabilityPhase5ClockText(sheetNoon(), "UTC"), "09:54");
+  assert.equal(context.bookingAvailabilityPhase5ClockText(sheetNoon()), "12:00");
+  context.BookingAvailabilityPhase5 = { ...phase5, TIME_ZONE: "" };
+  assert.equal(context.bookingAvailabilityPhase5ClockText(sheetNoon()), "12:00");
+  assert.throws(() => context.bookingAvailabilityPhase5ClockText(sheetNoon(), "invalid-zone"));
+});
+
+function addClockRows(h, timeZone = "Africa/Cairo") {
+  h.rows.BOOKING_BRANCH_REGISTRY.push({ branchId: "BR-1", timeZone, active: true });
+  h.rows.BRANCH_BOOKING_HOURS.push({
+    branchHoursId: "BR-1-FRIDAY", branchId: "BR-1", weekday: "FRIDAY", active: true,
+    openTime: sheetNoon(), closeTime: sheetTwoAm()
+  });
+}
+
+test("Phase 5 branch segments normalize both direct and snapshot Date rows across midnight", () => {
+  const h = clockHarness();
+  addClockRows(h);
+  const snapshot = h.context.bookingAvailabilityPhase5RequestSnapshot();
+  for (const rows of [undefined, snapshot.branchHours]) {
+    const segments = h.context.bookingAvailabilityPhase5BranchSegments("BR-1", "2099-01-02", "Africa/Cairo", rows);
+    assert.deepEqual(JSON.parse(JSON.stringify(segments)), [{ start: "12:00", end: "02:00" }]);
+    const availability = availabilityForClockSegments(segments);
+    assert.equal(availability.slots[0].start, "12:00");
+    assert.equal(availability.slots.at(-1).start, "01:00");
+  }
+  assert.equal(h.writes.length, 0);
+});
+
+test("Phase 5 branch listing serializes typed clocks as HH:mm without writes", () => {
+  const h = clockHarness();
+  addClockRows(h);
+  const response = h.context.handleBookingAvailabilityPhase5Action({ action: "listBookingBranches" });
+  assert.equal(response.status, "success");
+  const serialized = JSON.parse(JSON.stringify(response));
+  assert.equal(serialized.branchHours[0].openTime, "12:00");
+  assert.equal(serialized.branchHours[0].closeTime, "02:00");
+  assert.equal(h.writes.length, 0);
+});
+
+test("Phase 5 hours listing uses the matching branch timezone or default when unavailable", () => {
+  const h = clockHarness();
+  addClockRows(h, "UTC");
+  assert.equal(h.context.bookingAvailabilityPhase5ListBranchHours({ owner: true })[0].openTime, "09:54");
+  h.rows.BOOKING_BRANCH_REGISTRY.length = 0;
+  assert.equal(h.context.bookingAvailabilityPhase5ListBranchHours({ owner: true })[0].openTime, "12:00");
+});
+
+test("Phase 5 restores typed time cells after the actual shared reader serializes them to ISO", () => {
+  const h = clockHarness();
+  addClockRows(h);
+  const headers = ["BRANCH_ID", "WEEKDAY", "OPEN_TIME", "CLOSE_TIME", "ACTIVE"];
+  const cells = [["BR-1", "FRIDAY", sheetNoon(), sheetTwoAm(), true]];
+  const sheet = {
+    getLastRow: () => cells.length + 1, getLastColumn: () => headers.length,
+    getRange: (row, column, count, width) => ({
+      getValues: () => cells.slice(row - 2, row - 2 + count).map(values => values.slice(column - 1, column - 1 + width))
+    })
+  };
+  const sharedSource = fs.readFileSync(path.resolve(__dirname, "../scripts/staff-scheduling-phase2-gas.js"), "utf8");
+  const readerSource = sharedSource.slice(sharedSource.indexOf("function schedulePhase2ReadRows("),
+    sharedSource.indexOf("function schedulePhase2CellValue("));
+  const previousReader = h.context.schedulePhase2ReadRows;
+  vm.runInContext(readerSource, h.context);
+  const sharedReader = h.context.schedulePhase2ReadRows;
+  h.context.schedulePhase2Sheet = () => sheet;
+  h.context.schedulePhase2Headers = () => headers;
+  h.context.schedulePhase2AssertNoDuplicateHeaders = () => {};
+  h.context.schedulePhase2Camel = camel;
+  h.context.schedulePhase2ReadRows = name => name === "BRANCH_BOOKING_HOURS" ? sharedReader(name) : previousReader(name);
+  const oldGetSheet = h.context.SpreadsheetApp.getActive().getSheetByName;
+  h.context.SpreadsheetApp.getActive = () => ({
+    getId: () => "sheet-test", getSheetByName: name => name === "BRANCH_BOOKING_HOURS" ? sheet : oldGetSheet(name)
+  });
+  assert.equal(sharedReader("BRANCH_BOOKING_HOURS")[0].openTime, "1899-12-30T09:54:51.000Z");
+  const snapshot = h.context.bookingAvailabilityPhase5RequestSnapshot();
+  assert.deepEqual(JSON.parse(JSON.stringify(h.context.bookingAvailabilityPhase5BranchSegments(
+    "BR-1", "2099-01-02", "Africa/Cairo", snapshot.branchHours))), [{ start: "12:00", end: "02:00" }]);
+  assert.equal(h.context.handleBookingAvailabilityPhase5Action({ action: "listBookingBranches" }).branchHours[0].openTime, "12:00");
+  // A literal timestamp string in the sheet is not a typed time cell.
+  cells[0][2] = "1899-12-30T09:54:51.000Z";
+  const malformed = h.context.bookingAvailabilityPhase5BranchSegments("BR-1", "2099-01-02", "Africa/Cairo")[0];
+  assert.equal(h.context.bookingAvailabilityPhase5ClockMinutes(malformed.start), null);
+  assert.equal(h.writes.length, 0);
+});
+
 test("transaction writes durable intent and returns the original committed result on retry", () => {
   const { context, rows } = harness();
   let businessCalls = 0;
