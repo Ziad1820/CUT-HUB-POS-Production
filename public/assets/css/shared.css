@@ -219,6 +219,11 @@ html[dir="rtl"] .sidebar.active {
   cursor: pointer;
 }
 
+.system-navigation {
+  display: grid;
+  gap: 10px;
+}
+
 .sidebar-link.active {
   background: linear-gradient(135deg, #24180d, #5f4524);
   color: #ffffff;
