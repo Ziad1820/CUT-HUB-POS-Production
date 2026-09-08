@@ -106,6 +106,71 @@
       outline: none;
     }
 
+    .password-input-wrap {
+  position: relative;
+}
+
+.password-input-wrap input {
+  width: 100%;
+  padding-left: 50px;
+}
+
+.password-toggle {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color .18s ease, color .18s ease, transform .18s ease;
+}
+
+.password-toggle:hover {
+  background: rgba(140,100,46,.09);
+  color: var(--accent-dark);
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid rgba(140,100,46,.45);
+  outline-offset: 2px;
+}
+
+.password-toggle:active {
+  transform: translateY(-50%) scale(.96);
+}
+
+.password-toggle svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.password-toggle .eye-hidden-icon {
+  display: none;
+}
+
+.password-toggle[aria-pressed="true"] .eye-visible-icon {
+  display: none;
+}
+
+.password-toggle[aria-pressed="true"] .eye-hidden-icon {
+  display: block;
+}
+
     .primary-btn {
       display: inline-flex;
       align-items: center;
@@ -316,9 +381,33 @@
       </div>
 
       <div class="field">
-        <label for="password">كلمة المرور</label>
-        <input id="password" type="password" autocomplete="current-password" required>
-      </div>
+  <label for="password">كلمة المرور</label>
+
+  <div class="password-input-wrap">
+    <input id="password" type="password" autocomplete="current-password" required>
+
+    <button
+      class="password-toggle"
+      id="passwordToggle"
+      type="button"
+      aria-label="إظهار كلمة المرور"
+      aria-pressed="false"
+      title="إظهار كلمة المرور"
+    >
+      <svg class="eye-visible-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6S2.5 12 2.5 12Z"></path>
+        <circle cx="12" cy="12" r="2.5"></circle>
+      </svg>
+
+      <svg class="eye-hidden-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 3l18 18"></path>
+        <path d="M10.6 6.2A9.8 9.8 0 0 1 12 6c6 0 9.5 6 9.5 6a15.7 15.7 0 0 1-3 3.7"></path>
+        <path d="M6.2 6.2C3.8 8 2.5 12 2.5 12s3.5 6 9.5 6a9.7 9.7 0 0 0 3.2-.5"></path>
+        <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"></path>
+      </svg>
+    </button>
+  </div>
+</div>
 
       <button class="primary-btn" type="submit" aria-busy="false">
         <span class="login-spinner" aria-hidden="true"></span>
@@ -356,6 +445,25 @@
     const buttonText = document.getElementById("loginButtonText");
     const usernameInput = document.getElementById("username");
     const passwordInput = document.getElementById("password");
+    const passwordToggle = document.getElementById("passwordToggle");
+
+passwordToggle.addEventListener("click", () => {
+  const shouldShow = passwordInput.type === "password";
+
+  passwordInput.type = shouldShow ? "text" : "password";
+
+  passwordToggle.setAttribute("aria-pressed", String(shouldShow));
+
+  passwordToggle.setAttribute(
+    "aria-label",
+    shouldShow ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"
+  );
+
+  passwordToggle.setAttribute(
+    "title",
+    shouldShow ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"
+  );
+});
     RomeoAuth.initializeLoginPage({
       form: loginForm,
       statusBox,
