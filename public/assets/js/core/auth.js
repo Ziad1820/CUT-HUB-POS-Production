@@ -1,5 +1,4 @@
 const RomeoAuth = (() => {
-  const API_URL = window.RomeoApi ? RomeoApi.API_URL : "https://script.google.com/macros/s/AKfycbzWjM4X4JDTXRYe14oHL8m1Ex3GT9B8kMT6q8yp9eNMw6F6eSEY4zCXTYkyIL7K1ejR/exec";
   const SESSION_KEY = "romeo-pos-session";
   const OWNER_USERNAME = "owner";
   const ALL_PERMISSIONS = [
@@ -17,7 +16,37 @@ const RomeoAuth = (() => {
     "view_inventory",
     "view_staff_discount",
     "view_attendance",
+    "attendance.view",
+    "attendance.self_action",
+    "attendance.manage",
+    "attendance.correct",
+    "attendance.approve_adjustment",
+    "attendance.approve_overtime",
+    "schedule.view",
+    "schedule.manage",
+    "leave.request",
+    "leave.approve",
+    "payroll_attendance.view",
+    "payroll_attendance.calculate",
+    "payroll_attendance.review",
+    "payroll_attendance.approve",
+    "payroll_attendance.lock",
+    "payroll_attendance.reopen",
+    "payroll_attendance.adjust",
+    "payroll_attendance.export",
     "view_bookings",
+    "create_bookings",
+    "manage_bookings",
+    "delete_bookings",
+    "booking_availability.view",
+    "booking_availability.view_operational",
+    "booking_availability.view_restrictions",
+    "booking_availability.manage_override",
+    "booking_availability.resolve_conflict",
+    "booking_availability.override_internal",
+    "booking_availability.view_audit",
+    "view_ratings",
+    "manage_ratings",
     "manage_users"
   ];
 
@@ -28,58 +57,91 @@ const RomeoAuth = (() => {
   };
 
   let usersCache = null;
+  let loginInProgress = false;
+  let loginCompleted = false;
+  let logoutInProgress = false;
+  let logoutCompleted = false;
+  const initializedLoginForms = new WeakSet();
+
+  function createAuthRequestId(action) {
+    const prefix = String(action || "auth").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 16) || "auth";
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return `${prefix}-${window.crypto.randomUUID()}`;
+    }
+    if (window.crypto && typeof window.crypto.getRandomValues === "function") {
+      const bytes = new Uint8Array(16);
+      window.crypto.getRandomValues(bytes);
+      const random = Array.from(bytes, value => value.toString(16).padStart(2, "0")).join("");
+      return `${prefix}-${random}`;
+    }
+    throw new Error("Secure login correlation is unavailable in this browser.");
+  }
+
+  function emitAuthObservation(action, phase, authRequestId, details = {}) {
+    if (typeof window.dispatchEvent !== "function" || typeof window.CustomEvent !== "function") return;
+    const safeDetails = {
+      action: String(action || ""),
+      phase: String(phase || ""),
+      authRequestId: String(authRequestId || ""),
+      success: details.success === true,
+      revoked: details.revoked === true,
+      clientCleanupAllowed: details.clientCleanupAllowed === true,
+      serverConfirmedRevocation: details.serverConfirmedRevocation === true,
+      blocked: details.blocked === true
+    };
+    window.dispatchEvent(new window.CustomEvent("romeo-auth-observation", { detail: safeDetails }));
+  }
 
   async function apiRequest(payload) {
-    if (window.RomeoApi && typeof RomeoApi.request === "function") {
-      return RomeoApi.request(payload);
+    if (!window.RomeoApi || typeof RomeoApi.request !== "function") {
+      throw new Error("The application API endpoint is not configured.");
     }
-
-    const requestPayload = { ...(payload || {}) };
-    const sessionToken = getSessionToken();
-    if (sessionToken && !requestPayload.sessionToken) {
-      requestPayload.sessionToken = sessionToken;
-    }
-
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(requestPayload)
-    });
-
-    if (!response.ok) {
-      throw new Error("تعذر الاتصال بقاعدة بيانات المستخدمين.");
-    }
-
-    const result = await response.json();
-    if (result && result.sessionExpired) {
-      localStorage.removeItem(SESSION_KEY);
-      sessionStorage.removeItem(SESSION_KEY);
-      const currentPage = window.location.pathname.split("/").pop() || "dashboard.html";
-      const loginUrl = new URL("login.html", window.location.href);
-      loginUrl.searchParams.set("reason", "session-expired");
-      loginUrl.searchParams.set("returnTo", currentPage);
-      window.location.replace(loginUrl.href);
-      return new Promise(() => {});
-    }
-
-    return result;
+    return RomeoApi.request(payload);
   }
 
   function isOwnerUser(user) {
     return String(user && user.username || "").trim().toLowerCase() === OWNER_USERNAME;
   }
 
+  function normalizePermissions(value) {
+    let permissions = [];
+    if (Array.isArray(value)) {
+      permissions = value;
+    } else if (typeof value === "string") {
+      const serialized = value.trim();
+      if (serialized.startsWith("[")) {
+        try {
+          const parsed = JSON.parse(serialized);
+          permissions = Array.isArray(parsed) ? parsed : [];
+        } catch (_error) {
+          permissions = serialized.split(",");
+        }
+      } else {
+        permissions = serialized.split(",");
+      }
+    }
+
+    return [...new Set(permissions
+      .filter(permission => typeof permission === "string")
+      .map(permission => permission.trim())
+      .filter(Boolean))];
+  }
+
   function normalizeUser(user) {
     const normalized = {
       username: String(user.username || "").trim(),
       displayName: String(user.displayName || user.username || "").trim(),
-      permissions: Array.isArray(user.permissions) ? user.permissions : []
+      permissions: normalizePermissions(user.permissions)
     };
 
     if (isOwnerUser(normalized)) {
       normalized.permissions = [...ALL_PERMISSIONS];
     } else {
       normalized.permissions = normalized.permissions.filter(permission => permission !== "manage_users");
+      if (normalized.permissions.includes("view_attendance") &&
+          !normalized.permissions.includes("attendance.view")) {
+        normalized.permissions.push("attendance.view");
+      }
     }
 
     return normalized;
@@ -123,53 +185,202 @@ const RomeoAuth = (() => {
   }
 
   async function login(username, password) {
+    if (loginInProgress || loginCompleted) {
+      return {
+        success: false,
+        blocked: true,
+        inProgress: loginInProgress,
+        message: "تسجيل الدخول قيد التنفيذ بالفعل."
+      };
+    }
+    loginInProgress = true;
+    let authRequestId = "";
     try {
+      authRequestId = createAuthRequestId("login");
+      emitAuthObservation("login", "request-start", authRequestId);
       const result = await apiRequest({
         action: "loginUser",
+        authRequestId,
         username: String(username || "").trim(),
         password: String(password || "")
       });
 
       if (result.status !== "success" || !result.user) {
+        emitAuthObservation("login", "response", authRequestId, { success: false });
         return {
           success: false,
           message: result.message || "اسم المستخدم أو كلمة المرور غير صحيحة."
         };
       }
+      if (result.authRequestId !== authRequestId || result.sessionCreated !== true) {
+        emitAuthObservation("login", "correlation-failed", authRequestId, { success: false });
+        return { success: false, message: "تعذر التحقق من استجابة تسجيل الدخول." };
+      }
 
       saveSession(result.user, result.sessionToken || result.token);
-      return { success: true, user: normalizeUser(result.user) };
+      loginCompleted = true;
+      emitAuthObservation("login", "response", authRequestId, { success: true });
+      return { success: true, user: normalizeUser(result.user), authRequestId };
     } catch (error) {
+      emitAuthObservation("login", "transport-failed", authRequestId, { success: false });
       return { success: false, message: error.message };
+    } finally {
+      loginInProgress = false;
     }
   }
 
-  function finishLogout() {
+  function initializeLoginPage(options = {}) {
+    const form = options.form || window.document?.getElementById("loginForm");
+    if (!form || initializedLoginForms.has(form) || form.dataset?.authLoginReady === "true") return false;
+    initializedLoginForms.add(form);
+    if (form.dataset) form.dataset.authLoginReady = "true";
+    const statusBox = options.statusBox || window.document?.getElementById("statusBox");
+    const splash = options.splash || window.document?.getElementById("loginSplash");
+    const submitButton = options.submitButton || form.querySelector?.('[type="submit"]');
+    const usernameInput = options.usernameInput || window.document?.getElementById("username");
+    const passwordInput = options.passwordInput || window.document?.getElementById("password");
+    const navigate = typeof options.navigate === "function"
+      ? options.navigate
+      : target => { window.location.href = target; };
+    const schedule = typeof options.schedule === "function" ? options.schedule : window.setTimeout.bind(window);
+    let pageLoginInFlight = false;
+    let navigationScheduled = false;
+
+    // Optional presentation hooks must not interrupt authentication or navigation.
+    function notifyUI(callback, value) {
+      if (typeof callback !== "function") return;
+      try {
+        callback(value);
+      } catch (_error) {
+        console.warn("Login UI callback failed.");
+      }
+    }
+
+    function setLoading(loading) {
+      if (submitButton) {
+        submitButton.disabled = loading;
+        submitButton.setAttribute?.("aria-busy", String(loading));
+      }
+      notifyUI(options.onLoadingChange, loading);
+    }
+
+    function setStatus(state, message) {
+      if (statusBox) {
+        statusBox.textContent = message;
+        statusBox.className = state === "error" ? "status error" : "status";
+      }
+      notifyUI(options.onStatusChange, { state, message });
+    }
+
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      if (pageLoginInFlight || navigationScheduled) return;
+      pageLoginInFlight = true;
+      setLoading(true);
+      setStatus("loading", "جاري تسجيل الدخول...");
+
+      let result;
+      try {
+        result = await login(usernameInput?.value?.trim() || "", passwordInput?.value || "");
+      } catch (_error) {
+        if (passwordInput) passwordInput.value = "";
+        pageLoginInFlight = false;
+        setLoading(false);
+        setStatus("error", "تعذر تسجيل الدخول الآن. حاول مرة أخرى.");
+        return;
+      }
+      if (passwordInput) passwordInput.value = "";
+      if (!result.success) {
+        setStatus("error", result.message);
+        pageLoginInFlight = false;
+        if (!result.inProgress) setLoading(false);
+        return;
+      }
+
+      navigationScheduled = true;
+      notifyUI(options.onStatusChange, { state: "success", message: "تم تسجيل الدخول بنجاح..." });
+      splash?.classList?.add("active");
+      schedule(() => navigate(getReturnTo()), 1000);
+    });
+    return true;
+  }
+
+  function finishLogout(authRequestId) {
+    const cleanup = {
+      success: true,
+      revoked: false,
+      clientCleanupAllowed: true,
+      serverConfirmedRevocation: false
+    };
+    emitAuthObservation("logout", "local-clear-start", authRequestId, cleanup);
     localStorage.removeItem(SESSION_KEY);
     sessionStorage.removeItem(SESSION_KEY);
+    emitAuthObservation("logout", "local-clear-complete", authRequestId, cleanup);
+    emitAuthObservation("logout", "redirect", authRequestId, cleanup);
     window.location.replace("login.html");
   }
 
-  let logoutInProgress = false;
+  const LOGOUT_FAILURE_MESSAGE = "تعذر تأكيد تسجيل الخروج من الخادم. يرجى المحاولة مرة أخرى.";
+
+  function logoutFailureResult(options = {}) {
+    const result = {
+      success: false,
+      revoked: false,
+      message: LOGOUT_FAILURE_MESSAGE
+    };
+    if (options.inProgress) result.inProgress = true;
+    if (!options.silent && typeof window.alert === "function") {
+      window.alert(LOGOUT_FAILURE_MESSAGE);
+    }
+    return result;
+  }
 
   async function logout() {
-    if (logoutInProgress) return;
-    logoutInProgress = true;
-
-    const sessionToken = getSessionToken();
-    finishLogout();
-
-    if (!sessionToken || !window.RomeoApi || typeof RomeoApi.request !== "function") {
-      return;
+    if (logoutInProgress || logoutCompleted) {
+      return logoutFailureResult({ inProgress: logoutInProgress, silent: true });
     }
+    logoutInProgress = true;
+    let authRequestId = "";
 
     try {
-      await RomeoApi.request({
+      if (!window.RomeoApi || typeof RomeoApi.request !== "function") {
+        return logoutFailureResult();
+      }
+      authRequestId = createAuthRequestId("logout");
+      emitAuthObservation("logout", "request-start", authRequestId);
+      const result = await RomeoApi.request({
         action: "logoutUser",
-        sessionToken
+        authRequestId
       });
+
+      if (!result || result.status !== "success" || result.logoutAccepted !== true ||
+          result.clientCleanupAllowed !== true ||
+          result.authRequestId !== authRequestId) {
+        emitAuthObservation("logout", "response", authRequestId, { success: false, revoked: false });
+        return logoutFailureResult();
+      }
+
+      emitAuthObservation("logout", "response", authRequestId, {
+        success: true,
+        revoked: false,
+        clientCleanupAllowed: true,
+        serverConfirmedRevocation: false
+      });
+      finishLogout(authRequestId);
+      logoutCompleted = true;
+      return {
+        success: true,
+        revoked: false,
+        clientCleanupAllowed: true,
+        serverConfirmedRevocation: false,
+        authRequestId,
+      };
     } catch (error) {
-      console.warn("Logout activity log failed:", error);
+      console.warn("Logout failed; authoritative revocation was not confirmed.");
+      emitAuthObservation("logout", "transport-failed", authRequestId, { success: false, revoked: false });
+      return logoutFailureResult();
+    } finally {
+      logoutInProgress = false;
     }
   }
 
@@ -198,14 +409,20 @@ const RomeoAuth = (() => {
       ["view_invoices", "invoices.html"],
       ["view_income_statement", "income-statement.html"],
       ["view_daily_closing", "daily-closing.html"],
+      ["view_data_analysis", "data-analysis.html"],
       ["view_activity_log", "activity-log.html"],
       ["view_staff_accounting", "staff-accounting.html"],
+      ["view_staff_discount", "staff-discount.html"],
       ["manage_users", "system-access.html"],
       ["view_withdrawals", "withdrawals.html"],
       ["view_expenses", "expenses.html"],
       ["view_inventory", "enventory.html"],
+      ["attendance.view", "attendance.html"],
       ["view_attendance", "attendance.html"],
-      ["view_bookings", "bookings.html"]
+      ["schedule.view", "schedule-management.html"],
+      ["payroll_attendance.view", "payroll-attendance.html"],
+      ["view_bookings", "bookings.html"],
+      ["booking_availability.view", "booking-availability-admin.html"]
     ];
 
     const match = permissionPages.find(([permission]) => user.permissions.includes(permission));
@@ -346,6 +563,7 @@ const RomeoAuth = (() => {
     getReturnTo,
     getUsers,
     hasPermission,
+    initializeLoginPage,
     isOwnerUser,
     login,
     logout,
@@ -354,3 +572,7 @@ const RomeoAuth = (() => {
     updateUser
   };
 })();
+
+if (typeof window !== "undefined") {
+  window.RomeoAuth = RomeoAuth;
+}

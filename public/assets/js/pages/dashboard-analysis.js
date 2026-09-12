@@ -42,6 +42,9 @@
 
   let invoices = [];
   let filteredInvoices = [];
+  let periodExpenses = [];
+  let periodWithdrawals = [];
+  let loadSequence = 0;
 
   function getLanguage() {
     return localStorage.getItem("romeo-pos-language") || "ar";
@@ -522,12 +525,12 @@
       if (barber) row.barbers.add(barber);
     });
 
-    readStore("romeo-pos-expenses").forEach(expense => {
+    periodExpenses.forEach(expense => {
       const expenseDate = getDateKey(expense.date);
       if (inRange(expenseDate, range)) monthRow(rows, expenseDate.slice(0, 7)).expenses += parseAmount(expense.amount);
     });
 
-    readStore("romeo-pos-withdrawals").forEach(withdrawal => {
+    periodWithdrawals.forEach(withdrawal => {
       const withdrawalDate = getDateKey(withdrawal.date);
       if (inRange(withdrawalDate, range)) monthRow(rows, withdrawalDate.slice(0, 7)).withdrawals += parseAmount(withdrawal.amount);
     });
@@ -732,6 +735,22 @@
     renderAll();
   }
 
+  function selectedRange() {
+    return RomeoDateRange.validate(elements.fromDate.value, elements.toDate.value);
+  }
+
+  function invalidateDateRange() {
+    invoices = [];
+    filteredInvoices = [];
+    periodExpenses = [];
+    periodWithdrawals = [];
+    renderAll();
+    const range = selectedRange();
+    elements.status.textContent = range.ok
+      ? localize("اضغط تحديث لتطبيق الفترة المختارة.", "Refresh to apply the selected period.")
+      : localize("اختر تاريخ بداية ونهاية صحيحين.", range.message);
+  }
+
   function renderFilterOptions() {
     const selectedBarber = elements.barberFilter.value;
     const selectedPayment = elements.paymentFilter.value;
@@ -761,6 +780,8 @@
   }
 
   async function loadAllInvoices() {
+    const range = selectedRange();
+    if (!range.ok) throw new Error(range.message);
     const pageSize = 500;
     const allInvoices = [];
     let offset = 0;
@@ -769,6 +790,8 @@
     while (hasMore) {
       const result = await RomeoApi.request({
         action: "getInvoices",
+        fromDate: range.fromDate,
+        toDate: range.toDate,
         limit: pageSize,
         offset
       });
@@ -792,7 +815,28 @@
     return allInvoices;
   }
 
+  async function loadPeriodCosts() {
+    const range = selectedRange();
+    if (!range.ok) throw new Error(range.message);
+    const [expensesResult, withdrawalsResult] = await Promise.all([
+      RomeoApi.request({ action: "getExpenses", fromDate: range.fromDate, toDate: range.toDate }),
+      RomeoApi.request({ action: "getWithdrawals", fromDate: range.fromDate, toDate: range.toDate })
+    ]);
+    if (expensesResult.status !== "success" || withdrawalsResult.status !== "success") {
+      throw new Error(expensesResult.message || withdrawalsResult.message || "Could not load period costs.");
+    }
+    return {
+      expenses: Array.isArray(expensesResult.expenses) ? expensesResult.expenses : [],
+      withdrawals: Array.isArray(withdrawalsResult.withdrawals) ? withdrawalsResult.withdrawals : []
+    };
+  }
+
   async function loadInvoices() {
+    if (!selectedRange().ok) {
+      invalidateDateRange();
+      return;
+    }
+    const requestId = ++loadSequence;
     elements.refreshBtn.disabled = true;
     elements.refreshBtn.textContent = localize("جاري التحديث...", "Refreshing...");
     elements.status.textContent = localize("جاري تحميل التحليلات...", "Loading analysis...");
@@ -800,20 +844,29 @@
     elements.status.textContent = localize("جاري تحميل التحليلات...", "Loading analysis...");
 
     try {
-      invoices = await loadAllInvoices();
+      const [loadedInvoices, loadedCosts] = await Promise.all([loadAllInvoices(), loadPeriodCosts()]);
+      if (requestId !== loadSequence) return;
+      invoices = loadedInvoices;
+      periodExpenses = loadedCosts.expenses;
+      periodWithdrawals = loadedCosts.withdrawals;
       renderFilterOptions();
       applyFilters();
       elements.status.textContent = invoices.length ? "" : localize("لا توجد فواتير للتحليل.", "No invoices to analyze.");
     } catch (error) {
       console.error(error);
+      if (requestId !== loadSequence) return;
       invoices = [];
       filteredInvoices = [];
+      periodExpenses = [];
+      periodWithdrawals = [];
       renderAll();
       elements.status.textContent = localize("تعذر تحميل التحليلات.", "Could not load analysis.");
     } finally {
-      elements.refreshBtn.disabled = false;
-      setTimeout(applyAnalyticsLanguage, 0);
-      elements.refreshBtn.textContent = localize("تحديث", "Refresh");
+      if (requestId === loadSequence) {
+        elements.refreshBtn.disabled = false;
+        setTimeout(applyAnalyticsLanguage, 0);
+        elements.refreshBtn.textContent = localize("تحديث", "Refresh");
+      }
     }
   }
 
@@ -826,7 +879,10 @@
     });
   });
 
-  [elements.fromDate, elements.toDate, elements.barberFilter, elements.paymentFilter].forEach(element => {
+  [elements.fromDate, elements.toDate].forEach(element => {
+    if (element) element.addEventListener("change", invalidateDateRange);
+  });
+  [elements.barberFilter, elements.paymentFilter].forEach(element => {
     if (element) element.addEventListener("change", applyFilters);
   });
 
@@ -838,5 +894,6 @@
   });
 
   applyAnalyticsLanguage();
+  RomeoDateRange.setCurrentMonth(elements.fromDate, elements.toDate);
   loadInvoices();
 })();

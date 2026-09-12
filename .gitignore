@@ -1,1 +1,6 @@
 .codex-daily-closing-inline-check.js
+.apps-script-staging/
+.clasp.json
+.codex-staging-server.cjs
+cloudflared.exe
+cloudflared*.log

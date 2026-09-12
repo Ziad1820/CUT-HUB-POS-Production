@@ -122,12 +122,14 @@
 
     let staffList = getStaff();
     let withdrawalList = [];
+    let withdrawalLoadRequestId = 0;
     let selectedWithdrawalIds = new Set();
     let selectedId = staffList[0]?.id || null;
 
     if (!elements.withdrawDate.value) {
-      elements.withdrawDate.value = new Date().toISOString().slice(0, 10);
+      elements.withdrawDate.value = RomeoDateRange.today();
     }
+    RomeoDateRange.setCurrentMonth(elements.filterFromDate, elements.filterToDate);
 
     function normalizeWithdrawalFromSheet(withdrawal) {
       const staff = findStaffForWithdrawal(withdrawal);
@@ -144,8 +146,18 @@
     }
 
     async function loadWithdrawalsFromSheet() {
+      const requestId = ++withdrawalLoadRequestId;
+      const range = RomeoDateRange.validate(elements.filterFromDate.value, elements.filterToDate.value);
+      if (!range.ok) {
+        withdrawalList = [];
+        selectedWithdrawalIds.clear();
+        renderAll();
+        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("اختر تاريخ بداية ونهاية صحيحين.", range.message)}</div>`;
+        return;
+      }
       try {
-        const data = await RomeoApi.request({ action: "getWithdrawals" });
+        const data = await RomeoApi.request({ action: "getWithdrawals", fromDate: range.fromDate, toDate: range.toDate });
+        if (requestId !== withdrawalLoadRequestId) return;
         if (data.status !== "success") {
           throw new Error(data.message || "Failed to load withdrawals");
         }
@@ -153,9 +165,14 @@
         withdrawalList = Array.isArray(data.withdrawals)
           ? data.withdrawals.map(normalizeWithdrawalFromSheet)
           : [];
+        selectedWithdrawalIds.clear();
         renderAll();
       } catch (error) {
+        if (requestId !== withdrawalLoadRequestId) return;
         console.error(error);
+        withdrawalList = [];
+        selectedWithdrawalIds.clear();
+        renderAll();
         elements.historyList.innerHTML = `<div class="history-empty">${localizeText("تعذر تحميل السحوبات من الشيت.", "Could not load withdrawals from the sheet.")}</div>`;
       }
     }
@@ -511,14 +528,11 @@
       }
       renderHistory();
     });
-    applyDateFilterBtn.addEventListener("click", renderAll);
+    applyDateFilterBtn.addEventListener("click", loadWithdrawalsFromSheet);
     clearDateFilterBtn.addEventListener("click", () => {
-      elements.filterFromDate.value = "";
-      elements.filterToDate.value = "";
-      renderAll();
+      RomeoDateRange.setCurrentMonth(elements.filterFromDate, elements.filterToDate);
+      loadWithdrawalsFromSheet();
     });
-    elements.filterFromDate.addEventListener("change", renderAll);
-    elements.filterToDate.addEventListener("change", renderAll);
     elements.historyList.addEventListener("click", async event => {
       const checkbox = event.target.closest("[data-select-id]");
       if (checkbox) {

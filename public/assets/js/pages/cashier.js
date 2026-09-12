@@ -1223,6 +1223,9 @@
         serviceId: String(service.serviceId || "").trim(),
         name: normalizeServiceName(service.name),
         price: numberValue(service.price),
+        durationMinutes: Math.max(15, Number(service.durationMinutes) || 30),
+        preparationMinutes: Math.max(0, Number(service.preparationMinutes) || 0),
+        cleanupMinutes: Math.max(0, Number(service.cleanupMinutes) || 0),
         lineType: "service"
       };
     }
@@ -1343,8 +1346,13 @@
           (service, index) => `
             <div class="price-editor-row">
               <input class="price-editor-checkbox" type="checkbox" data-select-service="${index}" ${selectedServiceNames.has(service.name) ? "checked" : ""}>
-              <strong>${service.name}</strong>
-              <input type="number" min="0" step="1" data-service-index="${index}" value="${service.price}">
+              <strong>${escapeHtml(service.name)}</strong>
+              <div class="price-editor-booking-fields">
+                <label>Price<input type="number" min="0" step="1" data-service-price="${index}" value="${Number(service.price) || 0}"></label>
+                <label>Duration<input type="number" min="15" step="1" data-service-duration="${index}" value="${Math.max(15, Number(service.durationMinutes) || 30)}"></label>
+                <label>Preparation<input type="number" min="0" step="1" data-service-preparation="${index}" value="${Math.max(0, Number(service.preparationMinutes) || 0)}"></label>
+                <label>Cleanup<input type="number" min="0" step="1" data-service-cleanup="${index}" value="${Math.max(0, Number(service.cleanupMinutes) || 0)}"></label>
+              </div>
               <button class="danger-btn" type="button" onclick="deleteServiceFromMenu(${index})">Ã˜Â­Ã˜Â°Ã™Â</button>
             </div>
           `
@@ -1408,7 +1416,9 @@
         return;
       }
 
-      availableServices.push({ name, price });
+      availableServices.push({
+        name, price, durationMinutes: 30, preparationMinutes: 0, cleanupMinutes: 0
+      });
       const savedToSheet = await persistServices();
       renderPriceEditor();
       renderServices();
@@ -1429,12 +1439,15 @@
         return;
       }
 
-      const inputs = priceEditorList.querySelectorAll("input[data-service-index]");
-
-      inputs.forEach(input => {
-        const index = Number(input.dataset.serviceIndex);
-        const newPrice = Number(input.value) || 0;
-        availableServices[index].price = newPrice;
+      availableServices.forEach((service, index) => {
+        service.price = Math.max(0,
+          Number(priceEditorList.querySelector(`[data-service-price="${index}"]`)?.value) || 0);
+        service.durationMinutes = Math.max(15,
+          Number(priceEditorList.querySelector(`[data-service-duration="${index}"]`)?.value) || 30);
+        service.preparationMinutes = Math.max(0,
+          Number(priceEditorList.querySelector(`[data-service-preparation="${index}"]`)?.value) || 0);
+        service.cleanupMinutes = Math.max(0,
+          Number(priceEditorList.querySelector(`[data-service-cleanup="${index}"]`)?.value) || 0);
       });
 
       const savedToSheet = await persistServices();

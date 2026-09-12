@@ -1,132 +1,110 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="../assets/css/shared.css">
-    <link rel="stylesheet" href="../assets/css/pages/attendance.css">
-<title>Attendance - SALONIX</title>
-  <style>
-    :root{--ink:#2a2118;--muted:#77695c;--accent-dark:#8c642e;--shadow:0 18px 40px rgba(76,54,28,.14)}*{box-sizing:border-box}
-    body{margin:0;font-family:"Segoe UI",Tahoma,sans-serif;background:radial-gradient(circle at top right, rgba(183,134,63,.18), transparent 28%), linear-gradient(135deg, #f8f2e8 0%, #f0e4d0 100%);color:var(--ink)}
-    .app{min-height:100vh;padding:24px}
-    .header{position:relative;background:linear-gradient(135deg,#24180d,#5f4524);color:#ffffff;border-radius:24px;padding:24px;box-shadow:var(--shadow);margin-bottom:24px;text-align:center}
-    .header-menu{position:absolute;top:24px;left:24px;z-index:20}
-    .menu-toggle{border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;width:48px;height:48px;border-radius:14px;cursor:pointer;font-size:28px;line-height:1}
-    .panel{background:rgba(255,255,255,.95);border:1px solid rgba(229,213,190,.8);border-radius:24px;box-shadow:var(--shadow);padding:24px}
-    .panel h2{margin:0 0 10px}.panel p{margin:0;color:var(--muted);line-height:1.8}
-    .sidebar-overlay{position:fixed;inset:0;background:rgba(34,23,12,0.34);display:none;z-index:999}
-    .sidebar-overlay.active{display:block}
-    .sidebar{position:fixed;top:0;left:-320px;width:min(320px,85vw);height:100vh;background:#fffaf2;border-right:1px solid rgba(229,213,190,.8);box-shadow:var(--shadow);padding:24px 18px;z-index:1000;transition:left .2s ease;display:flex;flex-direction:column;gap:12px;overflow-y:auto}
-    .sidebar.active{left:0}
-    .sidebar h3{margin:0 0 8px;color:var(--accent-dark);font-size:22px;text-align:left;direction:ltr}
-    .sidebar-link,.sidebar button{width:100%;border:none;border-radius:16px;padding:14px 16px;background:#ead9bd;color:var(--ink);text-align:left;direction:ltr;font-size:16px;font-weight:800;cursor:pointer}
-    .sidebar-link.active{background:linear-gradient(135deg,#24180d,#5f4524);color:#fff}
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>إدارة الحضور - SALONIX</title>
+  <link rel="stylesheet" href="../assets/css/shared.css">
+  <link rel="stylesheet" href="../assets/css/pages/attendance.css">
+  <link rel="stylesheet" href="../assets/css/system-layout.css">
 </head>
 <body>
-  <div class="app">
-    <div class="header">
-      <div class="header-menu"><button type="button" class="menu-toggle" id="menuToggle">...</button></div>
-      <div class="brand-lockup">
-        <img class="brand-logo" src="../assets/images/salonix-logo.svg" alt="SALONIX logo">
-        <h1 class="brand-name">SALONIX</h1>
-        <p class="brand-slogan">THE SMART WAY TO RUN YOUR SALON</p>
+  <div class="attendance-app system-app">
+    <header class="attendance-header system-header">
+      <div class="system-header-menu">
+        <button type="button" class="menu-toggle" id="menuToggle" aria-label="فتح القائمة">☰</button>
       </div>
-    </div>
-    <section class="panel">
-      <h2>Attendance</h2>
-      <p>Ã˜Â§Ã™â€žÃ˜ÂµÃ™ÂÃ˜Â­Ã˜Â© Ã˜Â¬Ã˜Â§Ã™â€¡Ã˜Â²Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â¢Ã™â€ Ã˜Å’ Ã™Ë†Ã™â€ Ã™â€šÃ˜Â¯Ã˜Â± Ã™â€žÃ˜Â§Ã˜Â­Ã™â€šÃ™â€¹Ã˜Â§ Ã™â€ Ã˜Â¶Ã™Å Ã™Â Ã™ÂÃ™Å Ã™â€¡Ã˜Â§ Ã˜Â­Ã˜Â¶Ã™Ë†Ã˜Â± Ã™Ë†Ã˜Â§Ã™â€ Ã˜ÂµÃ˜Â±Ã˜Â§Ã™Â Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â¸Ã™ÂÃ™Å Ã™â€ .</p>
-    </section>
-    <main class="attendance-layout">
-      <section class="panel form-panel">
-        <div class="section-heading">
-          <h2 data-i18n-ar="تسجيل حضور" data-i18n-en="Attendance Entry">تسجيل حضور</h2>
-          <p data-i18n-ar="الخصم يظهر كمقترح فقط، ولا يسمع في حساب الموظف إلا بعد الاعتماد." data-i18n-en="Deductions stay pending until approved, then they affect staff accounting.">الخصم يظهر كمقترح فقط، ولا يسمع في حساب الموظف إلا بعد الاعتماد.</p>
-        </div>
-        <form id="attendanceForm" class="attendance-form">
-          <label><span data-i18n-ar="الموظف" data-i18n-en="Employee">الموظف</span><select id="staffSelect" required></select></label>
-          <label><span data-i18n-ar="التاريخ" data-i18n-en="Date">التاريخ</span><input id="attendanceDate" type="date" required></label>
-          <label><span data-i18n-ar="نوع السجل" data-i18n-en="Record Type">نوع السجل</span><select id="recordType"><option value="work" data-i18n-ar="حضور يوم" data-i18n-en="Work Day">حضور يوم</option><option value="absent" data-i18n-ar="غياب" data-i18n-en="Absence">غياب</option><option value="penalty" data-i18n-ar="عقوبة فقط" data-i18n-en="Penalty Only">عقوبة فقط</option></select></label>
-          <label class="work-field"><span data-i18n-ar="بداية الشيفت" data-i18n-en="Shift Start">بداية الشيفت</span><input id="shiftStart" type="time" value="12:00"></label>
-          <label class="work-field"><span data-i18n-ar="حضور" data-i18n-en="Check In">حضور</span><input id="checkIn" type="time"></label>
-          <label class="work-field"><span data-i18n-ar="خروج بريك" data-i18n-en="Break Out">خروج بريك</span><input id="breakOut" type="time"></label>
-          <label class="work-field"><span data-i18n-ar="رجوع بريك" data-i18n-en="Break In">رجوع بريك</span><input id="breakIn" type="time"></label>
-          <label class="work-field"><span data-i18n-ar="انصراف" data-i18n-en="Check Out">انصراف</span><input id="checkOut" type="time"></label>
-          <label><span data-i18n-ar="مبلغ العقوبة" data-i18n-en="Penalty Amount">مبلغ العقوبة</span><input id="penaltyAmount" type="number" min="0" step="1" value="0"></label>
-          <label><span data-i18n-ar="سبب العقوبة" data-i18n-en="Penalty Reason">سبب العقوبة</span><input id="penaltyReason" type="text" placeholder="مثال: تأخير متكرر" data-i18n-placeholder-ar="مثال: تأخير متكرر" data-i18n-placeholder-en="Example: repeated lateness"></label>
-          <label class="full"><span data-i18n-ar="ملاحظة" data-i18n-en="Note">ملاحظة</span><textarea id="attendanceNote" rows="3" placeholder="اكتب أي ملاحظات مهمة" data-i18n-placeholder-ar="اكتب أي ملاحظات مهمة" data-i18n-placeholder-en="Write any important notes"></textarea></label>
-          <div class="quick-attendance-actions full">
-            <button class="primary-btn" type="button" data-attendance-step="checkIn" data-i18n-ar="تسجيل حضور الآن" data-i18n-en="Check In Now">تسجيل حضور الآن</button>
-            <button class="soft-btn" type="button" data-attendance-step="breakOut" data-i18n-ar="خروج بريك الآن" data-i18n-en="Break Out Now">خروج بريك الآن</button>
-            <button class="soft-btn" type="button" data-attendance-step="breakIn" data-i18n-ar="رجوع بريك الآن" data-i18n-en="Break In Now">رجوع بريك الآن</button>
-            <button class="primary-btn" type="button" data-attendance-step="checkOut" data-i18n-ar="تسجيل انصراف الآن" data-i18n-en="Check Out Now">تسجيل انصراف الآن</button>
-          </div>
-          <div class="preview-card full"><div><span data-i18n-ar="ساعات العمل" data-i18n-en="Work Hours">ساعات العمل</span><strong id="previewWorkHours">0</strong></div><div><span data-i18n-ar="البريك" data-i18n-en="Break">البريك</span><strong id="previewBreakHours">0</strong></div><div><span data-i18n-ar="الخصم المقترح" data-i18n-en="Suggested Deduction">الخصم المقترح</span><strong id="previewDeduction">0 EGP</strong></div></div>
-          <div class="form-actions full"><button class="primary-btn" id="saveAttendanceBtn" type="submit" data-i18n-ar="حفظ السجل" data-i18n-en="Save Record">حفظ السجل</button><button class="soft-btn" id="clearAttendanceBtn" type="button" data-i18n-ar="مسح البيانات" data-i18n-en="Clear Form">مسح البيانات</button></div>
-        </form>
+      <div class="system-header-copy">
+        <p class="eyebrow">SALONIX · ATTENDANCE</p>
+        <h1>الحضور اليومي</h1>
+        <p>الأوقات من الخادم، والجدول المعتمد هو مصدر خطة اليوم.</p>
+      </div>
+      <div class="system-header-actions">
+        <div class="sync-state" id="syncState" role="status" aria-live="polite">جارٍ المزامنة…</div>
+      </div>
+    </header>
+
+    <main class="system-content">
+      <section class="toolbar panel" aria-label="مرشحات الحضور">
+        <label>التاريخ <input id="attendanceDate" type="date"></label>
+        <label>الفرع <select id="branchFilter"><option value="">كل الفروع</option></select></label>
+        <label>الموظف <select id="staffFilter"><option value="">كل الموظفين</option></select></label>
+        <label class="check-filter"><input id="unresolvedFilter" type="checkbox"> حالات تحتاج مراجعة</label>
+        <label class="check-filter"><input id="openBreakFilter" type="checkbox"> بريك مفتوح</label>
+        <button id="refreshBtn" type="button" class="primary">تحديث</button>
+        <button id="migrationPreviewBtn" type="button" class="soft" hidden>معاينة تهيئة الجداول</button>
       </section>
 
-      <section class="panel records-panel">
-        <div class="section-heading">
-          <h2 data-i18n-ar="سجلات الحضور" data-i18n-en="Attendance Records">سجلات الحضور</h2>
-          <p data-i18n-ar="راجع السجلات واعتمد الخصم الصحيح قبل إضافته لحساب الموظف." data-i18n-en="Review records and approve deductions before they affect payroll.">راجع السجلات واعتمد الخصم الصحيح قبل إضافته لحساب الموظف.</p>
-        </div>
-        <div class="attendance-stats">
-          <div class="stat-card"><span data-i18n-ar="سجلات الشهر" data-i18n-en="Month Records">سجلات الشهر</span><strong id="recordsCount">0</strong></div>
-          <div class="stat-card"><span data-i18n-ar="غياب" data-i18n-en="Absences">غياب</span><strong id="absenceCount">0</strong></div>
-          <div class="stat-card"><span data-i18n-ar="خصم معتمد" data-i18n-en="Approved Deduction">خصم معتمد</span><strong id="approvedTotal">0 EGP</strong></div>
-          <div class="stat-card"><span data-i18n-ar="بانتظار الاعتماد" data-i18n-en="Pending">بانتظار الاعتماد</span><strong id="pendingTotal">0 EGP</strong></div>
-        </div>
-        <div class="records-toolbar">
-          <label><span data-i18n-ar="من تاريخ" data-i18n-en="From Date">من تاريخ</span><input id="fromDate" type="date"></label>
-          <label><span data-i18n-ar="إلى تاريخ" data-i18n-en="To Date">إلى تاريخ</span><input id="toDate" type="date"></label>
-          <button class="primary-btn" id="refreshAttendanceBtn" type="button" data-i18n-ar="تحديث" data-i18n-en="Refresh">تحديث</button>
-        </div>
-        <div class="records-list" id="recordsList"></div>
+      <section class="summary-grid" aria-label="ملخص الحضور">
+        <article><span>الموظفون</span><strong id="totalCount">0</strong></article>
+        <article><span>داخل العمل</span><strong id="workingCount">0</strong></article>
+        <article><span>بريك مفتوح</span><strong id="breakCount">0</strong></article>
+        <article><span>غير محلول</span><strong id="warningCount">0</strong></article>
       </section>
+
+      <div id="pageMessage" class="page-message" role="alert" aria-live="assertive" hidden></div>
+      <section id="attendanceCards" class="attendance-cards" aria-label="بطاقات الموظفين" aria-busy="true"></section>
     </main>
   </div>
 
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
-  <aside class="sidebar" id="sidebar">
-    <h3>Menu</h3>
-    <button class="sidebar-link" type="button" data-href="cashier.html">cashier</button>
-    <button class="sidebar-link" type="button" data-href="invoices.html">invoices</button>
-    <button class="sidebar-link" type="button" data-href="income-statement.html">income statement</button>
-    <button class="sidebar-link" type="button" data-href="daily-closing.html" data-permission="view_income_statement">daily closing</button>
-    <button class="sidebar-link" type="button" data-href="data-analysis.html" data-permission="view_income_statement">DATA ANALYSIS</button>
-      <button class="sidebar-link" type="button" data-href="activity-log.html" data-permission="manage_users">Activity Log</button>
-    <button class="sidebar-link" type="button" data-href="staff-accounting.html">staff accounting</button>
-    <button class="sidebar-link" type="button" data-href="system-access.html">system access</button>
-    <button class="sidebar-link" type="button" data-href="withdrawals.html">Withdrawals</button>
-    <button class="sidebar-link" type="button" data-href="expenses.html">Expenses</button>
-    <button class="sidebar-link" type="button" data-href="enventory.html">Enventory</button>
-    <button class="sidebar-link active" type="button">Attendance</button>
-    <button class="sidebar-link" type="button" data-href="bookings.html">Bookings</button>
+  <div class="sidebar-overlay system-sidebar-overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar system-sidebar" id="sidebar" aria-label="القائمة الرئيسية">
+    <h3>القائمة</h3>
     <button type="button" id="logoutBtn">Logout</button>
   </aside>
 
+  <dialog id="actionDialog" aria-labelledby="actionDialogTitle">
+    <form method="dialog" id="actionForm">
+      <div class="dialog-head">
+        <h2 id="actionDialogTitle">تأكيد الإجراء</h2>
+        <button type="button" data-close-dialog aria-label="إغلاق">×</button>
+      </div>
+      <input id="actionName" type="hidden">
+      <input id="actionStaffId" type="hidden">
+      <input id="actionDayId" type="hidden">
+      <label>السبب / ملاحظة اليوم <textarea id="actionReason" required rows="3"></textarea></label>
+      <label id="approvedMinutesField" hidden>الدقائق المعتمدة
+        <input id="approvedMinutes" type="number" min="0" step="1">
+      </label>
+      <label id="correctionTypeField" hidden>نوع التصحيح
+        <select id="correctionType">
+          <option value="INSERT_EVENT">إضافة حدث مفقود</option>
+          <option value="REPLACE_TIMESTAMP">تصحيح وقت حدث</option>
+        </select>
+      </label>
+      <label id="correctionEventField" hidden>نوع الحدث
+        <select id="correctionEventType">
+          <option value="CHECK_IN">حضور</option>
+          <option value="BREAK_START">بداية بريك</option>
+          <option value="BREAK_END">نهاية بريك</option>
+          <option value="CHECK_OUT">انصراف</option>
+        </select>
+      </label>
+      <label id="correctionTimeField" hidden>الوقت المصحح
+        <input id="correctionEventAt" type="datetime-local">
+      </label>
+      <div class="dialog-actions">
+        <button type="button" class="soft" data-close-dialog>إلغاء</button>
+        <button type="submit" class="primary" id="confirmActionBtn">تأكيد</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="detailsDialog" aria-labelledby="detailsDialogTitle">
+    <div class="dialog-head">
+      <h2 id="detailsDialogTitle">تفاصيل اليوم وسجل التدقيق</h2>
+      <button type="button" data-close-dialog aria-label="إغلاق">×</button>
+    </div>
+    <div id="detailsContent"></div>
+  </dialog>
+
   <script src="../assets/js/utils/text-fix.js"></script>
+  <script src="../assets/js/core/runtime-config.js"></script>
   <script src="../assets/js/core/api.js"></script>
   <script src="../assets/js/core/auth.js"></script>
   <script src="../assets/js/utils/layout.js"></script>
-  <script>
-    RomeoAuth.requireAuth("view_attendance");
-    const menuToggle=document.getElementById("menuToggle");
-    const sidebar=document.getElementById("sidebar");
-    const sidebarOverlay=document.getElementById("sidebarOverlay");
-    menuToggle.addEventListener("click",()=>{sidebar.classList.add("active");sidebarOverlay.classList.add("active")});
-    sidebarOverlay.addEventListener("click",()=>{sidebar.classList.remove("active");sidebarOverlay.classList.remove("active")});
-    document.querySelectorAll(".sidebar-link[data-href]").forEach(link=>link.addEventListener("click",()=>{window.location.href=link.dataset.href}));
-    document.getElementById("logoutBtn").addEventListener("click",()=>RomeoAuth.logout());
-  </script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>
-  <script src="../assets/js/pages/attendance.js"></script>
+  <script src="../assets/js/pages/attendance.js?v=20260811-1"></script>
 </body>
 </html>
-
-
-
-

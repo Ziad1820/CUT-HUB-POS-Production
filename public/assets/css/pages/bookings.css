@@ -89,6 +89,36 @@ body {
   font-weight: 800;
 }
 
+.service-field {
+  min-width: 0;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+.service-field legend { padding: 0 7px; font-weight: 900; }
+.internal-services {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+.internal-service-choice {
+  display: flex !important;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px !important;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+}
+.internal-service-choice:has(input:checked) { border-color: var(--success); background: #edf7f1; }
+.internal-service-choice input { width: 18px !important; min-height: 18px !important; padding: 0 !important; }
+.internal-service-choice span { display: grid; gap: 3px; }
+.internal-service-choice small, #internalServiceSummary, #slotStatus { color: var(--muted); font-weight: 700; }
+.other-service-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
 .booking-form input,
 .booking-form select,
 .booking-form textarea,
@@ -216,7 +246,7 @@ body {
 
 .booking-source-tabs {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 18px;
 }
@@ -269,6 +299,29 @@ body {
   display: grid;
   gap: 14px;
 }
+.booking-card.new-public-request {
+  border-inline-start: 5px solid var(--accent);
+  box-shadow: 0 10px 28px rgba(166,107,16,.12);
+}
+.new-request-badge {
+  display: inline-block;
+  margin-inline-end: 8px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #fff2cc;
+  color: var(--warning) !important;
+  font-size: 11px;
+  font-weight: 950 !important;
+}
+.hold-countdown {
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: #fff5d8;
+  color: var(--warning);
+  font-weight: 900;
+}
+.tracking-token { direction: ltr; display: inline-block; }
+.icon-copy { border: 0; background: transparent; cursor: pointer; font-size: 18px; }
 
 .booking-top {
   display: flex;
@@ -362,6 +415,21 @@ body {
   border-radius: 14px;
   background: var(--soft);
 }
+.booking-actions a { display: inline-grid; place-items: center; text-decoration: none; }
+.booking-action:disabled { opacity: .52; cursor: wait; }
+.is-loading::before, .spinner {
+  content: "";
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  margin-inline-end: 7px;
+  border: 2px solid currentColor;
+  border-inline-end-color: transparent;
+  border-radius: 50%;
+  animation: booking-spin .7s linear infinite;
+  vertical-align: -2px;
+}
+@keyframes booking-spin { to { transform: rotate(360deg); } }
 
 .booking-action.confirm {
   background: #def3e9;
@@ -387,6 +455,81 @@ body {
   color: var(--muted);
   font-weight: 850;
 }
+
+.booking-toast {
+  position: fixed;
+  inset-inline-end: 20px;
+  bottom: 20px;
+  z-index: 1300;
+  max-width: min(430px, calc(100% - 40px));
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: var(--ink);
+  color: #fff;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition: .2s;
+}
+.booking-toast.visible { opacity: 1; transform: translateY(0); }
+.booking-toast[data-kind="error"] { background: var(--danger); }
+.booking-toast[data-kind="success"] { background: var(--success); }
+
+.booking-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  padding: 20px;
+  display: grid;
+  place-items: center;
+  background: rgba(26,18,10,.64);
+}
+.booking-modal {
+  width: min(520px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  padding: 24px;
+  border-radius: 20px;
+  background: var(--panel);
+  box-shadow: 0 28px 75px rgba(0,0,0,.3);
+}
+.booking-modal h2 { margin-top: 0; }
+.booking-modal label { display: grid; gap: 8px; margin: 12px 0; font-weight: 850; }
+.booking-modal input, .booking-modal select, .booking-modal textarea {
+  width: 100%; min-height: 52px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; font: inherit;
+}
+.booking-modal textarea { min-height: 100px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.danger-btn { background: var(--danger); }
+.hidden { display: none !important; }
+
+.ratings-dashboard { display: grid; gap: 18px; }
+.ratings-summary, .barber-rating-summaries {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.ratings-summary > div, .barber-rating-summaries article {
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  display: grid;
+  gap: 7px;
+}
+.ratings-summary span { color: var(--muted); font-weight: 750; }
+.ratings-summary strong { font-size: 25px; }
+.ratings-summary .negative { color: var(--danger); }
+.ratings-filters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.ratings-filters select, .ratings-filters input { min-width: 0; min-height: 48px; padding: 10px; border: 1px solid var(--border); border-radius: 11px; }
+.ratings-list { display: grid; gap: 12px; }
+.rating-admin-card { padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: #fff; }
+.rating-admin-card > div:first-child { display: flex; justify-content: space-between; gap: 10px; }
+.rating-status { padding: 5px 9px; border-radius: 999px; font-size: 12px; }
+.rating-status.status-published { background: #def3e9; color: var(--success); }
+.rating-status.status-hidden { background: #e7edf7; color: #31527a; }
+.rating-status.status-flagged { background: #fff2cc; color: var(--warning); }
 
 html[dir="ltr"] .booking-time {
   justify-items: start;
@@ -453,6 +596,9 @@ html[dir="ltr"] .header-menu {
   .booking-source-tabs {
     grid-template-columns: 1fr;
   }
+  .internal-services, .other-service-fields, .ratings-summary, .barber-rating-summaries, .ratings-filters { grid-template-columns: 1fr; }
+  .modal-actions { flex-direction: column-reverse; }
+  .modal-actions button { width: 100%; }
 
   .booking-top {
     flex-direction: column;
