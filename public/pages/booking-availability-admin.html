@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>إدارة إتاحة الحجوزات - SALONIX</title>
+  <link rel="stylesheet" href="../assets/css/shared.css">
+  <link rel="stylesheet" href="../assets/css/pages/booking-availability-admin.css">
+</head>
+<body class="auth-pending">
+  <main class="availability-admin">
+    <header class="hero">
+      <div><p>SALONIX · PHASE 5</p><h1>إدارة إتاحة الحجوزات</h1>
+        <p>التعارضات والاستثناءات وساعات الفروع وسجل التدقيق من واجهة محمية.</p></div>
+      <button id="refreshBtn" type="button">تحديث</button>
+    </header>
+    <div id="status" class="status" role="status" aria-live="polite" tabindex="-1"></div>
+    <section class="toolbar" aria-label="نطاق الفرع">
+      <label>الفرع<select id="branchSelect" required></select></label>
+    </section>
+    <section class="grid">
+      <article class="panel engine-panel" aria-labelledby="engineStatusTitle">
+        <div class="panel-heading">
+          <div><h2 id="engineStatusTitle">حالة محرك الإتاحة</h2>
+            <p>حالة تشغيلية للقراءة فقط من إعدادات الخادم الحالية.</p></div>
+          <span id="engineBadge" class="engine-badge">—</span>
+        </div>
+        <dl id="engineSummary" class="engine-summary" aria-live="polite"></dl>
+        <div id="featureFlags" class="flag-grid"></div>
+      </article>
+      <article class="panel" data-permission="booking_availability.view_restrictions">
+        <h2>تعارضات الحجوزات</h2><div id="conflicts" class="records"></div>
+      </article>
+      <article class="panel" data-permission="booking_availability.manage_override">
+        <h2>استثناء تشغيلي</h2>
+        <form id="overrideForm">
+          <label>معرّف الموظف<input name="staffId" required></label>
+          <label>التاريخ<input name="date" type="date" required></label>
+          <label>من<input name="startTime" type="time" required></label>
+          <label>إلى<input name="endTime" type="time" required></label>
+          <label>السبب<input name="reason" maxlength="500" required></label>
+          <button type="submit">إنشاء الاستثناء</button>
+        </form>
+        <p id="overrideFeatureState" class="empty" hidden>الاستثناءات التشغيلية معطّلة في إعدادات الخادم الحالية.</p>
+        <div id="overrides" class="records"></div>
+      </article>
+      <article class="panel owner-only">
+        <div class="panel-heading"><h2>إعداد الفرع</h2>
+          <button id="newBranchBtn" type="button" class="secondary">فرع جديد</button></div>
+        <form id="branchForm">
+          <label>معرّف الفرع الثابت<input name="branchId" required></label>
+          <label>اسم الفرع<input name="branchName" required></label>
+          <label>المنطقة الزمنية<input name="timeZone" value="Africa/Cairo" required></label>
+          <label>حالة الإغلاق<select name="closureStatus"><option value="OPEN">مفتوح</option>
+            <option value="CLOSED">مغلق</option></select></label>
+          <label><input name="active" type="checkbox" checked> فرع نشط</label>
+          <label><input name="publicSelectable" type="checkbox" checked> متاح للاختيار العام</label>
+          <label>سبب الإغلاق<input name="closureReason" maxlength="500"></label>
+          <button type="submit">حفظ إعداد الفرع</button>
+        </form>
+      </article>
+      <article class="panel" data-permission="booking_availability.manage_override">
+        <h2>ساعات الفرع</h2>
+        <form id="hoursForm">
+          <label>اليوم<select name="weekday" required>
+            <option value="SUNDAY">الأحد</option><option value="MONDAY">الاثنين</option>
+            <option value="TUESDAY">الثلاثاء</option><option value="WEDNESDAY">الأربعاء</option>
+            <option value="THURSDAY">الخميس</option><option value="FRIDAY">الجمعة</option>
+            <option value="SATURDAY">السبت</option>
+          </select></label>
+          <label>الفتح<input name="openTime" type="time" required></label>
+          <label>الإغلاق<input name="closeTime" type="time" required></label>
+          <label>فعّالة من<input name="effectiveFrom" type="date"></label>
+          <label>فعّالة إلى<input name="effectiveTo" type="date"></label>
+          <label><input name="active" type="checkbox" checked> فعّالة</label>
+          <button type="submit">حفظ الساعات</button>
+        </form>
+        <div class="table-scroll">
+          <table class="hours-table">
+            <thead><tr><th>اليوم</th><th>الساعات</th><th>الفترة الفعالة</th><th>الحالة</th><th>إجراء</th></tr></thead>
+            <tbody id="hoursRows"></tbody>
+          </table>
+        </div>
+        <p id="hoursEmpty" class="empty" hidden>لا توجد ساعات محفوظة لهذا الفرع.</p>
+      </article>
+      <article class="panel" data-permission="booking_availability.view_audit">
+        <h2>سجل التدقيق</h2><div id="audit" class="records"></div>
+      </article>
+      <article class="panel owner-only">
+        <h2>معاينات آمنة</h2>
+        <div class="actions">
+          <button id="migrationPreviewBtn" type="button">معاينة الترحيل</button>
+          <button id="triggerPreviewBtn" type="button">معاينة مؤقت الكشف</button>
+        </div>
+        <pre id="preview" tabindex="0"></pre>
+      </article>
+    </section>
+  </main>
+  <script src="../assets/js/core/runtime-config.js"></script>
+  <script src="../assets/js/core/api.js"></script>
+  <script src="../assets/js/core/auth.js"></script>
+  <script src="../assets/js/utils/layout.js"></script>
+  <script src="../assets/js/utils/keyboard-navigation.js"></script>
+  <script src="../assets/js/pages/booking-availability-admin.js"></script>
+</body>
+</html>

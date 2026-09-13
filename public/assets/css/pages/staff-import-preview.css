@@ -1,0 +1,119 @@
+.staff-import-dialog {
+  width: min(980px, calc(100vw - 28px));
+  max-height: 90vh;
+  overflow: auto;
+  border: 1px solid var(--line, #e5d5be);
+  border-radius: 24px;
+  padding: 0;
+  color: var(--ink, #2a2118);
+  background: #fffaf2;
+  box-shadow: 0 28px 80px rgba(42,33,24,.35);
+}
+
+.staff-import-dialog::backdrop {
+  background: rgba(34,23,12,.66);
+}
+
+.staff-import-content {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+}
+
+.staff-import-head,
+.staff-import-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.staff-import-head h2,
+.staff-import-content p {
+  margin: 0;
+}
+
+.staff-import-close {
+  border: 0;
+  color: var(--ink, #2a2118);
+  background: transparent;
+  font-size: 30px;
+  cursor: pointer;
+}
+
+.staff-import-defaults,
+.staff-import-branches {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.staff-import-defaults label,
+.staff-import-branches label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 800;
+}
+
+.staff-import-branches label > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.staff-import-branches label > span input {
+  width: 20px;
+  min-height: 20px;
+}
+
+.staff-import-defaults input,
+.staff-import-branches input {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--line, #e5d5be);
+  border-radius: 12px;
+  background: #fff;
+  font: inherit;
+}
+
+.staff-import-confirmation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dfc38d;
+  border-radius: 14px;
+  background: #fff4cc;
+  font-weight: 800;
+}
+
+.staff-import-output {
+  max-height: 42vh;
+  overflow: auto;
+  margin: 0;
+  padding: 14px;
+  border-radius: 14px;
+  color: #f8f1e5;
+  background: #24180d;
+  direction: ltr;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .staff-import-defaults,
+  .staff-import-branches {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .staff-import-defaults,
+  .staff-import-branches {
+    grid-template-columns: 1fr;
+  }
+}

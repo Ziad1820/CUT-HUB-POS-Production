@@ -1,216 +1,234 @@
-﻿(function () {
-  const SIDEBAR_ORDER = [
-    "dashboard.html",
-    "cashier.html",
-    "invoices.html",
-    "income-statement.html",
-    "data-analysis.html",
-    "daily-closing.html",
-    "activity-log.html",
-    "staff-accounting.html",
-    "system-access.html",
-    "withdrawals.html",
-    "expenses.html",
-    "enventory.html",
-    "attendance.html",
-    "bookings.html",
-    "language",
-    "logout"
-  ];
+(function (root, factory) {
+  const api = factory(root);
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  if (root) root.RomeoLayout = api;
+})(typeof globalThis !== "undefined" ? globalThis : this, function (root) {
+  "use strict";
 
-  const SIDEBAR_PERMISSIONS = {
+  const SIDEBAR_PERMISSIONS = Object.freeze({
     "dashboard.html": "access_dashboard",
     "cashier.html": "access_cashier",
     "invoices.html": "view_invoices",
     "income-statement.html": "view_income_statement",
-    "daily-closing.html": "view_daily_closing",
     "data-analysis.html": "view_data_analysis",
+    "daily-closing.html": "view_daily_closing",
     "activity-log.html": "view_activity_log",
     "staff-accounting.html": "view_staff_accounting",
     "system-access.html": "manage_users",
     "withdrawals.html": "view_withdrawals",
     "expenses.html": "view_expenses",
     "enventory.html": "view_inventory",
-    "attendance.html": "view_attendance",
-    "bookings.html": "view_bookings"
-  };
+    "attendance.html": "attendance.view",
+    "schedule-management.html": "schedule.view",
+    "payroll-attendance.html": "payroll_attendance.view",
+    "bookings.html": "view_bookings",
+    "booking-availability-admin.html": "booking_availability.view"
+  });
 
-  function getSidebarItemKey(item) {
-    const href = String(item.dataset.href || "").trim();
-    if (href) return href;
+  const NAVIGATION_ITEMS = Object.freeze([
+    { href: "dashboard.html", permission: "access_dashboard", ar: "لوحة التحكم", en: "Dashboard" },
+    { href: "cashier.html", permission: "access_cashier", ar: "الكاشير", en: "Cashier" },
+    { href: "invoices.html", permission: "view_invoices", ar: "الفواتير", en: "Invoices" },
+    { href: "income-statement.html", permission: "view_income_statement", ar: "قائمة الدخل", en: "Income Statement" },
+    { href: "data-analysis.html", permission: "view_data_analysis", ar: "تحليل البيانات", en: "Data Analysis" },
+    { href: "daily-closing.html", permission: "view_daily_closing", ar: "تقفيلة اليوم", en: "Daily Closing" },
+    { href: "activity-log.html", permission: "view_activity_log", ar: "سجل العمليات", en: "Activity Log" },
+    { href: "staff-accounting.html", permission: "view_staff_accounting", ar: "حسابات الموظفين", en: "Staff Accounting" },
+    { href: "system-access.html", permission: "manage_users", ar: "صلاحيات النظام", en: "System Access" },
+    { href: "withdrawals.html", permission: "view_withdrawals", ar: "السحوبات", en: "Withdrawals" },
+    { href: "expenses.html", permission: "view_expenses", ar: "المصروفات", en: "Expenses" },
+    { href: "enventory.html", permission: "view_inventory", ar: "المخزون", en: "Inventory" },
+    { href: "attendance.html", permission: "attendance.view", ar: "الحضور", en: "Attendance" },
+    { href: "schedule-management.html", permission: "schedule.view", ar: "جداول الموظفين", en: "Staff Scheduling" },
+    { href: "payroll-attendance.html", permission: "payroll_attendance.view", ar: "تسويات الحضور", en: "Attendance Settlements" },
+    { href: "bookings.html", permission: "view_bookings", ar: "الحجوزات", en: "Bookings" },
+    { href: "booking-availability-admin.html", permission: "booking_availability.view", ar: "إتاحة الحجوزات", en: "Booking Availability" }
+  ]);
 
-    if (item.classList.contains("active")) {
-      const currentPage = window.location.pathname.split("/").pop() || "dashboard.html";
-      return currentPage;
-    }
+  function normalizeLanguage(value) {
+    return value === "en" ? "en" : "ar";
+  }
 
-    const text = String(item.textContent || "").trim().toLowerCase();
-    if (text.includes("dashboard") || text.includes("Ù„ÙˆØ­Ø© Ø§Ù„ØªØ­ÙƒÙ…")) return "dashboard.html";
-    if (text.includes("cashier") || text.includes("Ø§Ù„ÙƒØ§Ø´ÙŠØ±")) return "cashier.html";
-    if (text.includes("invoice") || text.includes("Ø§Ù„ÙÙˆØ§ØªÙŠØ±")) return "invoices.html";
-    if (text.includes("income statement") || text.includes("Ù‚Ø§Ø¦Ù…Ø© Ø§Ù„Ø¯Ø®Ù„")) return "income-statement.html";
-    if (text.includes("data analysis") || text.includes("ØªØ­Ù„ÙŠÙ„ Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª")) return "data-analysis.html";
-    if (text.includes("daily closing") || text.includes("ØªÙ‚ÙÙŠÙ„Ø© Ø§Ù„ÙŠÙˆÙ…")) return "daily-closing.html";
-    if (text.includes("activity log") || text.includes("Ø³Ø¬Ù„ Ø§Ù„Ø¹Ù…Ù„ÙŠØ§Øª")) return "activity-log.html";
-    if (text.includes("staff accounting") || text.includes("Ø­Ø³Ø§Ø¨Ø§Øª Ø§Ù„Ù…ÙˆØ¸ÙÙŠÙ†")) return "staff-accounting.html";
-    if (text.includes("system access") || text.includes("ØµÙ„Ø§Ø­ÙŠØ§Øª Ø§Ù„Ù†Ø¸Ø§Ù…")) return "system-access.html";
-    if (text.includes("withdrawal") || text.includes("Ø§Ù„Ø³Ø­ÙˆØ¨Ø§Øª")) return "withdrawals.html";
-    if (text.includes("expense") || text.includes("Ø§Ù„Ù…ØµØ±ÙˆÙØ§Øª")) return "expenses.html";
-    if (text.includes("inventory") || text.includes("enventory") || text.includes("Ø§Ù„Ù…Ø®Ø²ÙˆÙ†")) return "enventory.html";
-    if (text.includes("attendance") || text.includes("Ø§Ù„Ø­Ø¶ÙˆØ±")) return "attendance.html";
-    if (text.includes("booking") || text.includes("Ø§Ù„Ø­Ø¬ÙˆØ²Ø§Øª")) return "bookings.html";
-    if (text.includes("logout") || text.includes("ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø®Ø±ÙˆØ¬")) return "logout";
-    if (text.includes("language") || text.includes("Ø§Ù„Ù„ØºØ©")) return "language";
+  function currentPage(pathname) {
+    return String(pathname || "").split("/").pop() || "dashboard.html";
+  }
 
-    return text;
+  function buildNavigation(options) {
+    const input = options && typeof options === "object" ? options : {};
+    const language = normalizeLanguage(input.language);
+    const page = currentPage(input.pathname || input.currentPage);
+    const hasPermission = typeof input.hasPermission === "function"
+      ? input.hasPermission
+      : () => false;
+    return NAVIGATION_ITEMS
+      .filter(item => hasPermission(item.permission) === true)
+      .map(item => ({
+        href: item.href,
+        permission: item.permission,
+        label: item[language],
+        active: item.href === page
+      }));
   }
 
   function getLanguage() {
-    return localStorage.getItem("romeo-pos-language") || "ar";
+    if (!root || !root.localStorage) return "ar";
+    return normalizeLanguage(root.localStorage.getItem("romeo-pos-language"));
   }
 
-  function getDashboardLabel() {
-    return getLanguage() === "en" ? "Dashboard" : "لوحة التحكم";
-  }
-
-  function ensureDashboardLink() {
-    const sidebar = document.getElementById("sidebar");
-    if (!sidebar || sidebar.querySelector('[data-href="dashboard.html"]')) return;
-
-    const link = document.createElement("button");
-    link.type = "button";
-    link.className = "sidebar-link";
-    link.dataset.href = "dashboard.html";
-    link.dataset.permission = SIDEBAR_PERMISSIONS["dashboard.html"];
-    link.textContent = getDashboardLabel();
-
-    const firstLink = sidebar.querySelector(".sidebar-link, #logoutBtn");
-    if (firstLink) {
-      sidebar.insertBefore(link, firstLink);
-    } else {
-      sidebar.appendChild(link);
-    }
-  }
-
-  function normalizeSidebarOrder() {
-    const sidebar = document.getElementById("sidebar");
-    if (!sidebar) return;
-
-    const items = Array.from(sidebar.querySelectorAll(".sidebar-link, #logoutBtn"));
-    if (!items.length) return;
-
-    const orderMap = new Map(SIDEBAR_ORDER.map((key, index) => [key, index]));
-    const sorted = items
-      .map((item, index) => ({ item, index, order: orderMap.get(getSidebarItemKey(item)) ?? 999 }))
-      .sort((a, b) => a.order - b.order || a.index - b.index);
-
-    sorted.forEach(({ item }) => sidebar.appendChild(item));
-  }
-
-  function filterPermissionLinks() {
-    if (!window.RomeoAuth || typeof RomeoAuth.hasPermission !== "function") return;
-
-    document.querySelectorAll(".sidebar-link").forEach(link => {
-      const key = getSidebarItemKey(link);
-      if (key === "data-analysis.html") {
-        link.style.display = "none";
-        return;
-      }
-
-      const permission = link.dataset.permission || SIDEBAR_PERMISSIONS[key] || "";
-
-      if (permission) {
-        link.dataset.permission = permission;
-      }
-
-      if (permission && !RomeoAuth.hasPermission(permission)) {
-        link.style.display = "none";
-      } else {
-        link.style.display = "";
-      }
-    });
+  function authHasPermission(permission) {
+    return Boolean(root && root.RomeoAuth &&
+      typeof root.RomeoAuth.hasPermission === "function" &&
+      root.RomeoAuth.hasPermission(permission));
   }
 
   function protectCurrentPage() {
-    if (!window.RomeoAuth || typeof RomeoAuth.requireAuth !== "function") return;
+    if (!root || !root.document || !root.RomeoAuth ||
+        typeof root.RomeoAuth.requireAuth !== "function") return;
+    const page = currentPage(root.location && root.location.pathname);
+    const item = NAVIGATION_ITEMS.find(candidate => candidate.href === page);
+    if (item) root.RomeoAuth.requireAuth(item.permission);
+  }
 
-    const currentPage = window.location.pathname.split("/").pop() || "dashboard.html";
-    const permission = SIDEBAR_PERMISSIONS[currentPage];
-
-    if (permission) {
-      RomeoAuth.requireAuth(permission);
+  function ensureSidebarShell(sidebar) {
+    let heading = sidebar.querySelector("h3");
+    if (!heading) {
+      heading = root.document.createElement("h3");
+      sidebar.prepend(heading);
     }
+    heading.textContent = getLanguage() === "en" ? "Menu" : "القائمة";
+
+    Array.from(sidebar.children).forEach(child => {
+      if (child.classList && child.classList.contains("sidebar-link")) child.remove();
+    });
+
+    let navigation = sidebar.querySelector("[data-system-navigation]");
+    if (!navigation) {
+      navigation = root.document.createElement("nav");
+      navigation.className = "system-navigation";
+      navigation.dataset.systemNavigation = "true";
+      navigation.setAttribute("aria-label", getLanguage() === "en" ? "System navigation" : "التنقل في النظام");
+      heading.insertAdjacentElement("afterend", navigation);
+    }
+
+    let logoutButton = sidebar.querySelector("#logoutBtn");
+    if (!logoutButton) {
+      logoutButton = root.document.createElement("button");
+      logoutButton.type = "button";
+      logoutButton.id = "logoutBtn";
+      sidebar.appendChild(logoutButton);
+    }
+    logoutButton.textContent = getLanguage() === "en" ? "Logout" : "تسجيل الخروج";
+    return navigation;
+  }
+
+  function renderNavigation() {
+    if (!root || !root.document) return [];
+    const sidebar = root.document.getElementById("sidebar");
+    if (!sidebar) return [];
+    const navigation = ensureSidebarShell(sidebar);
+    const items = buildNavigation({
+      language: getLanguage(),
+      pathname: root.location && root.location.pathname,
+      hasPermission: authHasPermission
+    });
+    navigation.replaceChildren();
+    items.forEach(item => {
+      const button = root.document.createElement("button");
+      button.type = "button";
+      button.className = `sidebar-link${item.active ? " active" : ""}`;
+      button.dataset.href = item.href;
+      button.dataset.permission = item.permission;
+      button.textContent = item.label;
+      if (item.active) button.setAttribute("aria-current", "page");
+      navigation.appendChild(button);
+    });
+    return items;
+  }
+
+  function filterPermissionLinks() {
+    return renderNavigation();
+  }
+
+  function normalizeSidebarOrder() {
+    return renderNavigation();
   }
 
   function initSidebar() {
-    const menuToggle = document.getElementById("menuToggle");
-    const sidebar = document.getElementById("sidebar");
-    const sidebarOverlay = document.getElementById("sidebarOverlay");
-
+    if (!root || !root.document) return;
     protectCurrentPage();
-    ensureDashboardLink();
-    normalizeSidebarOrder();
-
-    if (!menuToggle || !sidebar || !sidebarOverlay || sidebar.dataset.layoutReady === "true") {
-      filterPermissionLinks();
-      return;
-    }
+    const menuToggle = root.document.getElementById("menuToggle");
+    const sidebar = root.document.getElementById("sidebar");
+    const sidebarOverlay = root.document.getElementById("sidebarOverlay");
+    renderNavigation();
+    if (!menuToggle || !sidebar || !sidebarOverlay || sidebar.dataset.layoutReady === "true") return;
 
     sidebar.dataset.layoutReady = "true";
-
+    const closeSidebar = () => {
+      sidebar.classList.remove("active");
+      sidebarOverlay.classList.remove("active");
+      menuToggle.setAttribute("aria-expanded", "false");
+    };
     const openSidebar = () => {
       sidebar.scrollTop = 0;
       sidebar.classList.add("active");
       sidebarOverlay.classList.add("active");
+      menuToggle.setAttribute("aria-expanded", "true");
     };
-
-    const closeSidebar = () => {
-      sidebar.classList.remove("active");
-      sidebarOverlay.classList.remove("active");
-    };
-
+    menuToggle.setAttribute("aria-controls", "sidebar");
+    menuToggle.setAttribute("aria-expanded", "false");
     menuToggle.addEventListener("click", openSidebar);
     sidebarOverlay.addEventListener("click", closeSidebar);
-
-    document.querySelectorAll(".sidebar-link[data-href]").forEach(link => {
-      link.addEventListener("click", () => {
-        window.location.href = link.dataset.href === "data-analysis.html"
-          ? "dashboard.html#dashboardAnalytics"
-          : link.dataset.href;
-      });
+    sidebar.addEventListener("click", event => {
+      const link = event.target.closest(".sidebar-link[data-href]");
+      if (!link) return;
+      closeSidebar();
+      root.location.href = link.dataset.href;
     });
 
-    document.querySelectorAll("#logoutBtn").forEach(logoutButton => {
-      if (logoutButton.dataset.logoutReady === "true") return;
-      logoutButton.dataset.logoutReady = "true";
-      logoutButton.addEventListener("click", event => {
-        event.preventDefault();
-        event.stopPropagation();
-
-        if (window.RomeoAuth && typeof RomeoAuth.logout === "function") {
-          RomeoAuth.logout();
-          return;
+    const logoutButton = sidebar.querySelector("#logoutBtn");
+    if (logoutButton) logoutButton.addEventListener("click", async event => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (root.RomeoAuth && typeof root.RomeoAuth.logout === "function") {
+        if (logoutButton.disabled) return;
+        logoutButton.disabled = true;
+        logoutButton.setAttribute("aria-busy", "true");
+        let result = null;
+        try {
+          result = await root.RomeoAuth.logout();
+        } catch (error) {
+          if (typeof root.alert === "function") {
+            root.alert("تعذر تأكيد تسجيل الخروج من الخادم. يرجى المحاولة مرة أخرى.");
+          }
         }
-
-        localStorage.removeItem("romeo-pos-session");
-        sessionStorage.removeItem("romeo-pos-session");
-        window.location.replace("login.html");
-      });
+        if (!result || (result.success !== true && result.inProgress !== true)) {
+          logoutButton.disabled = false;
+          logoutButton.setAttribute("aria-busy", "false");
+        }
+        return;
+      }
+      if (typeof root.alert === "function") {
+        root.alert("تعذر تأكيد تسجيل الخروج من الخادم. يرجى المحاولة مرة أخرى.");
+      }
     });
-
-    document.addEventListener("keydown", event => {
+    root.document.addEventListener("keydown", event => {
       if (event.key === "Escape") closeSidebar();
     });
-
-    filterPermissionLinks();
+    root.addEventListener("romeo-language-change", renderNavigation);
   }
 
-  document.addEventListener("DOMContentLoaded", initSidebar);
+  if (root && root.document) {
+    root.document.addEventListener("DOMContentLoaded", initSidebar);
+  }
 
-  window.RomeoLayout = {
+  return Object.freeze({
+    NAVIGATION_ITEMS,
+    SIDEBAR_PERMISSIONS,
+    buildNavigation,
+    currentPage,
     initSidebar,
+    renderNavigation,
     filterPermissionLinks,
     normalizeSidebarOrder
-  };
-})();
-
+  });
+});

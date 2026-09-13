@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Staff Scheduling - SALONIX</title>
+  <link rel="stylesheet" href="../assets/css/shared.css">
+  <link rel="stylesheet" href="../assets/css/pages/schedule-management.css?v=20260811-1">
+  <link rel="stylesheet" href="../assets/css/system-layout.css">
+</head>
+<body>
+  <div class="schedule-app system-app">
+    <header class="schedule-header system-header">
+      <div class="system-header-menu">
+        <button class="menu-toggle" id="menuToggle" type="button" aria-label="فتح القائمة">☰</button>
+      </div>
+      <div class="header-copy">
+        <p class="eyebrow">SALONIX · PHASE 2</p>
+        <h1>جداول الموظفين</h1>
+        <p>إدارة الجداول الأسبوعية والاستثناءات بدون تعديل Google Sheets مباشرة.</p>
+      </div>
+      <div class="actions header-actions">
+        <button class="secondary-btn owner-only" id="migrationPreviewBtn" type="button" hidden>معاينة الترحيل</button>
+        <button class="secondary-btn" id="refreshBtn" type="button">تحديث</button>
+      </div>
+    </header>
+
+    <main class="system-content">
+      <section class="panel filters" aria-label="مرشحات الجدول">
+        <label>الموظف<select id="staffFilter" aria-describedby="staffEmptyState"><option value="">جاري تحميل الموظفين…</option></select></label>
+        <label>الفرع<select id="branchFilter"><option value="">كل الفروع</option></select></label>
+        <label>بداية العرض<input id="rangeStart" type="date"></label>
+        <label>نهاية العرض<input id="rangeEnd" type="date"></label>
+        <label class="check"><input id="activeOnly" type="checkbox" checked> الموظفون النشطون فقط</label>
+        <button class="primary-btn" id="loadRangeBtn" type="button">عرض الفترة</button>
+        <p class="filter-empty-state" id="staffEmptyState" role="status" hidden></p>
+      </section>
+
+      <div id="statusBanner" class="status" role="status" aria-live="polite"></div>
+
+      <section class="panel">
+        <div class="section-title">
+          <div><h2>الجدول الأسبوعي المتكرر</h2><p>يمكن إضافة أكثر من فترة في اليوم ودعم الورديات الليلية.</p></div>
+          <div class="actions">
+            <button class="secondary-btn manage-only" id="copyDayBtn" type="button">نسخ يوم</button>
+            <button class="secondary-btn manage-only" id="copyEmployeeBtn" type="button">نسخ موظف</button>
+            <button class="secondary-btn manage-only" id="applyRangeBtn" type="button">تطبيق جماعي للفترة</button>
+            <button class="primary-btn manage-only" id="addSegmentBtn" type="button">إضافة فترة</button>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>اليوم</th><th>الفترات</th><th>الدقائق المطلوبة</th><th>البريك</th><th>الفترة الفعالة</th><th>إجراءات</th></tr></thead>
+            <tbody id="weeklyBody"></tbody>
+          </table>
+        </div>
+        <div id="validationSummary" class="validation-summary" role="status" aria-live="polite"></div>
+        <div id="weeklyEmpty" class="empty" hidden>لا توجد فترات أسبوعية لهذا الموظف.</div>
+      </section>
+
+      <section class="panel" id="scopePanel" hidden>
+        <div class="section-title">
+          <div>
+            <h2>ربط المستخدمين بالموظفين والفروع</h2>
+            <p>إعداد مالك النظام فقط. هذا الربط يكمّل حساب المستخدم الحالي ولا ينشئ هوية دخول جديدة.</p>
+          </div>
+          <button class="primary-btn" id="addScopeBtn" type="button">إضافة ربط</button>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>اسم المستخدم</th><th>الدور</th><th>الموظف</th><th>الفروع</th><th>نشط</th><th>إجراء</th></tr></thead>
+            <tbody id="scopeBody"></tbody>
+          </table>
+        </div>
+        <div id="scopeEmpty" class="empty" hidden>لا توجد روابط مستخدمين بعد.</div>
+      </section>
+
+      <section class="panel owner-only" id="workPolicyPanel" aria-labelledby="workPolicyTitle" hidden>
+        <div class="section-title">
+          <div>
+            <h2 id="workPolicyTitle">سياسات العمل</h2>
+            <p>إدارة السياسة الفعالة للموظف المحدد مع الاحتفاظ بالسجل السابق للتدقيق.</p>
+          </div>
+          <div class="actions">
+            <button class="secondary-btn" id="refreshPoliciesBtn" type="button">تحديث السياسات</button>
+            <button class="secondary-btn" id="recoverPolicyAvailabilityBtn" type="button">Recover Phase 5</button>
+            <button class="primary-btn" id="addPolicyBtn" type="button">إضافة سياسة</button>
+          </div>
+        </div>
+        <div id="workPolicyStatus" class="inline-status" role="status" aria-live="polite"></div>
+        <div class="table-scroll">
+          <table class="work-policy-table">
+            <thead><tr><th>المعرّف</th><th>الفترة الفعالة</th><th>دقائق العمل</th><th>البريك</th><th>أساس الراتب</th><th>العملة</th><th>الحالة</th><th>إجراء</th></tr></thead>
+            <tbody id="workPolicyBody"></tbody>
+          </table>
+        </div>
+        <div id="workPolicyEmpty" class="empty">اختر موظفًا لعرض سياسات العمل.</div>
+      </section>
+
+      <section class="panel">
+        <div class="section-title">
+          <div><h2>عرض الفترة والاستثناءات</h2><p>النتيجة المحسومة توضح مصدر الجدول وأي إجازة أو إغلاق أو فترة محجوبة.</p></div>
+          <button class="primary-btn override-write" id="addOverrideBtn" type="button">إضافة استثناء</button>
+        </div>
+        <div id="rangeGrid" class="range-grid"></div>
+        <div id="rangeEmpty" class="empty" hidden>اختر موظفًا وفترة لعرض الجدول.</div>
+      </section>
+
+      <section class="panel">
+        <div class="section-title">
+          <div><h2>الاستثناءات والطلبات</h2><p>طلبات الإجازة تحتاج اعتمادًا منفصلًا ولا يمكن للطالب اعتماد طلبه.</p></div>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>التاريخ</th><th>النوع</th><th>النطاق</th><th>الحالة</th><th>السبب</th><th>إجراءات</th></tr></thead>
+            <tbody id="overrideBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <details>
+          <summary>سجل تدقيق تغييرات الجدول</summary>
+          <div id="auditList" class="audit-list"></div>
+        </details>
+      </section>
+    </main>
+  </div>
+
+  <div class="sidebar-overlay system-sidebar-overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar system-sidebar" id="sidebar" aria-label="القائمة الرئيسية">
+    <h3>القائمة</h3>
+    <button type="button" id="logoutBtn">Logout</button>
+  </aside>
+
+  <dialog id="segmentDialog" aria-labelledby="segmentDialogTitle">
+    <form id="segmentForm" method="dialog">
+      <div class="dialog-title"><h2 id="segmentDialogTitle">فترة عمل</h2><button type="button" data-close="segmentDialog" aria-label="إغلاق">×</button></div>
+      <input id="segmentId" type="hidden">
+      <div class="form-grid">
+        <label>اليوم<select id="segmentWeekday" required></select></label>
+        <label>رقم الفترة<input id="segmentIndex" type="number" min="1" max="20" value="1" required></label>
+        <label>البداية<input id="segmentStart" type="time" required></label>
+        <label>النهاية<input id="segmentEnd" type="time" required></label>
+        <label>دقائق العمل المطلوبة<input id="requiredMinutes" type="number" min="0" required></label>
+        <label>دقائق البريك<input id="breakMinutes" type="number" min="0" required></label>
+        <label>فعال من<input id="effectiveFrom" type="date" required></label>
+        <label>فعال إلى<input id="effectiveTo" type="date"></label>
+        <label class="wide">سبب التغيير<input id="segmentReason" maxlength="500" required></label>
+      </div>
+      <div class="dialog-actions"><button class="secondary-btn" type="button" data-close="segmentDialog">إلغاء</button><button class="primary-btn" id="saveSegmentBtn" type="submit">حفظ</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="overrideDialog" aria-labelledby="overrideDialogTitle">
+    <form id="overrideForm" method="dialog">
+      <div class="dialog-title"><h2 id="overrideDialogTitle">استثناء على الجدول</h2><button type="button" data-close="overrideDialog" aria-label="إغلاق">×</button></div>
+      <div class="form-grid">
+        <label>التاريخ<input id="overrideDate" type="date" required></label>
+        <label>النوع<select id="overrideType" required></select></label>
+        <label>النطاق<select id="overrideScope"><option value="STAFF">موظف</option><option value="BRANCH">فرع</option><option value="ORGANIZATION">المؤسسة</option></select></label>
+        <label>الفرع<input id="overrideBranch"></label>
+        <label class="override-shift">البداية<input id="overrideStart" type="time"></label>
+        <label class="override-shift">النهاية<input id="overrideEnd" type="time"></label>
+        <label class="override-shift">دقائق العمل<input id="overrideRequired" type="number" min="0"></label>
+        <label class="override-shift">دقائق البريك<input id="overrideBreak" type="number" min="0"></label>
+        <label class="override-block">بداية الحجب<input id="blockStart" type="time"></label>
+        <label class="override-block">نهاية الحجب<input id="blockEnd" type="time"></label>
+        <label class="wide">السبب<input id="overrideReason" maxlength="500" required></label>
+        <label class="wide">دليل المصدر / مرجع الاعتماد<input id="sourceEvidence" maxlength="500"></label>
+      </div>
+      <div class="dialog-actions"><button class="secondary-btn" type="button" data-close="overrideDialog">إلغاء</button><button class="primary-btn" id="saveOverrideBtn" type="submit">حفظ</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="copyDialog" aria-labelledby="copyTitle">
+    <form id="copyForm" method="dialog">
+      <div class="dialog-title"><h2 id="copyTitle">نسخ جدول</h2><button type="button" data-close="copyDialog" aria-label="إغلاق">×</button></div>
+      <input id="copyMode" type="hidden">
+      <div class="form-grid">
+        <label id="sourceDayLabel">من يوم<select id="sourceDay"></select></label>
+        <label id="targetDayLabel">إلى يوم<select id="targetDay"></select></label>
+        <label id="targetStaffLabel">إلى موظف<select id="targetStaff"></select></label>
+        <label class="wide">فعال من<input id="copyEffectiveFrom" type="date" required></label>
+        <label class="wide">سبب النسخ<input id="copyReason" maxlength="500" required></label>
+      </div>
+      <div class="dialog-actions"><button class="secondary-btn" type="button" data-close="copyDialog">إلغاء</button><button class="primary-btn" type="submit">نسخ</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="scopeDialog" aria-labelledby="scopeDialogTitle">
+    <form id="scopeForm" method="dialog">
+      <div class="dialog-title"><h2 id="scopeDialogTitle">ربط مستخدم بالجدول</h2><button type="button" data-close="scopeDialog" aria-label="إغلاق">×</button></div>
+      <input id="scopeId" type="hidden">
+      <div class="form-grid">
+        <label>اسم المستخدم الحالي<input id="scopeUsername" autocomplete="off" required></label>
+        <label>الدور<select id="scopeRole"><option value="EMPLOYEE">موظف</option><option value="MANAGER">مدير فرع</option></select></label>
+        <label>الموظف<select id="scopeStaff"></select></label>
+        <label>معرّفات الفروع (مفصولة بفاصلة)<input id="scopeBranches" placeholder="BR-1, BR-2"></label>
+        <label class="check"><input id="scopeActive" type="checkbox" checked> ربط نشط</label>
+        <label class="wide">سبب التغيير<input id="scopeReason" maxlength="500" required></label>
+      </div>
+      <div class="dialog-actions"><button class="secondary-btn" type="button" data-close="scopeDialog">إلغاء</button><button class="primary-btn" id="saveScopeBtn" type="submit">حفظ الربط</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="workPolicyDialog" aria-labelledby="workPolicyDialogTitle">
+    <form id="workPolicyForm" method="dialog">
+      <div class="dialog-title"><h2 id="workPolicyDialogTitle">إضافة سياسة عمل</h2><button type="button" data-close="workPolicyDialog" aria-label="إغلاق">×</button></div>
+      <p class="dialog-hint">يتم نسخ الحقول الكاملة من سياسة سابقة لنفس الموظف، ثم تطبيق القيم المحددة أدناه فقط.</p>
+      <div class="form-grid work-policy-form-grid">
+        <label class="wide">الموظف<input id="policyStaffName" readonly></label>
+        <label class="wide">السياسة المصدر<select id="policySourceId" required></select></label>
+        <label>فعالة من<input id="policyEffectiveFrom" type="date" required></label>
+        <label>فعالة إلى<input id="policyEffectiveTo" type="date" required></label>
+        <label>دقائق العمل المطلوبة<input id="policyRequiredMinutes" type="number" min="0" step="1" required></label>
+        <label>دقائق البريك المسموح<input id="policyBreakMinutes" type="number" min="0" step="1" required></label>
+        <label>أساس الراتب<select id="policySalaryBasis" required><option value="MONTHLY">شهري</option><option value="DAILY">يومي</option><option value="HOURLY">بالساعة</option><option value="PER_MINUTE">بالدقيقة</option></select></label>
+        <label>العملة<input id="policyCurrency" maxlength="3" value="EGP" required></label>
+        <label class="wide">سبب الإنشاء<input id="policyReason" maxlength="500" required></label>
+      </div>
+      <div class="dialog-actions"><button class="secondary-btn" type="button" data-close="workPolicyDialog">إلغاء</button><button class="primary-btn" id="savePolicyBtn" type="submit">حفظ السياسة</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="decisionDialog" aria-labelledby="decisionDialogTitle">
+    <form id="decisionForm" method="dialog">
+      <div class="dialog-title"><h2 id="decisionDialogTitle">تأكيد الإجراء</h2><button type="button" id="decisionCloseBtn" aria-label="إغلاق">×</button></div>
+      <div id="decisionDetails" class="decision-details"></div>
+      <p id="decisionConsequence" class="decision-consequence"></p>
+      <label id="decisionReasonField" class="wide">سبب القرار<textarea id="decisionReason" rows="3" maxlength="500"></textarea></label>
+      <label id="decisionEvidenceField" class="wide" hidden>مرجع الاعتماد<input id="decisionEvidence" maxlength="500"></label>
+      <div class="dialog-actions"><button class="secondary-btn" id="decisionCancelBtn" type="button">رجوع</button><button class="primary-btn" id="decisionConfirmBtn" type="submit">تأكيد</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="migrationPreviewDialog" aria-labelledby="migrationPreviewTitle">
+    <div class="dialog-content">
+      <div class="dialog-title"><h2 id="migrationPreviewTitle">معاينة ترحيل جداول الموظفين</h2><button type="button" data-close-preview aria-label="إغلاق">×</button></div>
+      <p>معاينة للقراءة فقط. لن يتم إنشاء جداول أو تعديل أي صفوف.</p>
+      <pre id="migrationPreviewOutput" tabindex="0"></pre>
+      <div class="dialog-actions"><button class="secondary-btn" type="button" data-close-preview>إغلاق</button></div>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="alert" aria-live="assertive"></div>
+  <script src="../assets/js/utils/text-fix.js"></script>
+  <script src="../assets/js/core/runtime-config.js"></script>
+  <script src="../assets/js/core/api.js"></script>
+  <script src="../assets/js/core/auth.js"></script>
+  <script src="../assets/js/utils/layout.js"></script>
+  <script src="../assets/js/utils/keyboard-navigation.js"></script>
+  <script src="../assets/js/utils/language.js"></script>
+  <script src="../assets/js/pages/schedule-management.js?v=20260811-1"></script>
+</body>
+</html>

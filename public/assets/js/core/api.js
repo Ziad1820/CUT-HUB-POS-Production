@@ -1,5 +1,5 @@
 (function () {
-  const API_URL = "https://script.google.com/macros/s/AKfycbzWjM4X4JDTXRYe14oHL8m1Ex3GT9B8kMT6q8yp9eNMw6F6eSEY4zCXTYkyIL7K1ejR/exec";
+  const API_URL = String(window.ROMEO_API_URL || "").trim();
   const SESSION_KEY = "romeo-pos-session";
   let onlineState = navigator.onLine !== false;
   let offlineBanner = null;
@@ -105,6 +105,17 @@
     const nextPayload = { ...(payload || {}) };
     const sessionToken = getCurrentSessionToken();
 
+    if (nextPayload.action === "logoutUser" || nextPayload.action === "logout") {
+      // Logout has one credential source: the canonical session captured by
+      // this transport wrapper. Callers cannot supply a second revocation
+      // selector that differs from the authenticated request credential.
+      delete nextPayload.sessionToken;
+      delete nextPayload.token;
+      delete nextPayload.authToken;
+      if (sessionToken) nextPayload.sessionToken = sessionToken;
+      return nextPayload;
+    }
+
     if (sessionToken && !nextPayload.sessionToken) {
       nextPayload.sessionToken = sessionToken;
     }
@@ -131,6 +142,12 @@
   async function request(payload, options) {
     const bodyPayload = withCurrentSession(payload);
     const timeoutMs = Number(options && options.timeoutMs) || API_TIMEOUT_MS;
+
+    if (!API_URL) {
+      throw new Error(getLanguage() === "en"
+        ? "The application API endpoint is not configured."
+        : "Ù„Ù… ÙŠØªÙ… Ø¥Ø¹Ø¯Ø§Ø¯ Ø±Ø§Ø¨Ø· Ø®Ø¯Ù…Ø© Ø§Ù„ØªØ·Ø¨ÙŠÙ‚.");
+    }
 
     if (browserReportsOffline()) {
       setOnlineState(false);
