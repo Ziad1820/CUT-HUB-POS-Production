@@ -36,6 +36,8 @@ const localStagingOnlyPaths = new Set([
 const explicitPaths = [
   "api/apps-script.js", "lib/apps-script-http.js", "config/apps-script-proxy.json",
   "tests/apps-script-proxy.test.js", "tests/apps-script-http.test.js", "tests/frontend-relay-queue.test.js",
+  "public/assets/js/pages/dashboard-analysis.js", "tests/dashboard-analysis-loading.test.js",
+  "docs/dashboard-analysis-loading-fix.md",
   "docs/dashboard-api-relay-deployment.md",
   ".gitattributes", "backend/README.md", "config/backend-sources.json",
   "scripts/build-backend.js", "tests/backend-modularization.test.js",

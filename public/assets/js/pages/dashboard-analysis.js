@@ -454,9 +454,6 @@
   }
 
   function readStore(key) {
-    elements.refreshBtn.textContent = localize("جاري التحديث...", "Refreshing...");
-    elements.status.textContent = localize("جاري تحميل التحليلات...", "Loading analysis...");
-
     try {
       const parsed = JSON.parse(localStorage.getItem(key) || "[]");
       return Array.isArray(parsed) ? parsed : [];
@@ -839,9 +836,7 @@
     const requestId = ++loadSequence;
     elements.refreshBtn.disabled = true;
     elements.refreshBtn.textContent = localize("جاري التحديث...", "Refreshing...");
-    elements.status.textContent = localize("جاري تحميل التحليلات...", "Loading analysis...");
-    elements.refreshBtn.textContent = localize("جاري التحديث...", "Refreshing...");
-    elements.status.textContent = localize("جاري تحميل التحليلات...", "Loading analysis...");
+    elements.status.textContent = "";
 
     try {
       const [loadedInvoices, loadedCosts] = await Promise.all([loadAllInvoices(), loadPeriodCosts()]);
@@ -864,7 +859,6 @@
     } finally {
       if (requestId === loadSequence) {
         elements.refreshBtn.disabled = false;
-        setTimeout(applyAnalyticsLanguage, 0);
         elements.refreshBtn.textContent = localize("تحديث", "Refresh");
       }
     }

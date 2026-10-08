@@ -4,9 +4,9 @@ Generated locally by `scripts/generate-release-manifest.js`. Do not hand-edit. T
 
 ## Counts
 
-- Required tracked files: **339**
+- Required tracked files: **342**
 - Required untracked files: **0**
-- Total classified entries: **370**
+- Total classified entries: **373**
 
 ## Intended Apps Script application package
 
@@ -251,6 +251,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `docs/backend-refactor-baseline.json` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/backend-refactor-production-deployment.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/booking-no-check-in-trigger-runbook.md` | tracked | Phase 5 Booking Availability | operational runbook | yes | no | — | Release evidence; not runtime-loaded | tests/booking-availability-phase5.test.js<br>tests/booking-availability-phase5-gas.test.js<br>tests/booking-availability-phase5-contract.test.js<br>tests/booking-no-check-in-detector.test.js | Required pre-Staging operational control document. |
+| `docs/dashboard-analysis-loading-fix.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/dashboard-api-relay-deployment.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/release-manifest.md` | tracked | Pre-Staging operations | operational runbook | yes | yes | scripts/generate-release-manifest.js | Release evidence; not runtime-loaded | tests/release-manifest.test.js | Required pre-Staging operational control document. |
 | `docs/release/frontend-staging-configuration.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
@@ -304,6 +305,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `public/assets/js/pages/bookings.js` | tracked | Booking integration | UI JavaScript | yes | no | — | Browser: after shared core and page markup | tests/booking-upgrade.test.js | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/pages/cashier.js` | tracked | Booking integration | UI JavaScript | yes | no | — | Browser: after shared core and page markup | tests/booking-upgrade.test.js | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/pages/customer-booking.js` | tracked | Booking integration | UI JavaScript | yes | no | — | Browser: after shared core and page markup | tests/booking-upgrade.test.js | Runtime client logic for an in-scope workflow. |
+| `public/assets/js/pages/dashboard-analysis.js` | tracked | Cross-phase/local | UI JavaScript | yes | no | — | Browser: after shared core and page markup | — | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/pages/payroll-attendance.js` | tracked | Phase 4 Payroll Attendance | UI JavaScript | yes | no | — | Browser: after shared core and page markup | tests/staff-payroll-attendance-phase4.test.js | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/pages/schedule-management.js` | tracked | Phase 2 Scheduling | UI JavaScript | yes | no | — | Browser: after shared core and page markup | tests/staff-scheduling-phase2.test.js<br>tests/staff-scheduling-phase2-contract.test.js | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/utils/keyboard-navigation.js` | tracked | Cross-phase/local | UI JavaScript | yes | no | — | Browser: after shared core and page markup | — | Runtime client logic for an in-scope workflow. |
@@ -398,6 +400,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `tests/core-staging-auth-bootstrap.test.js` | tracked | Authentication & navigation | test | yes | no | — | Local validation only | tests/auth-navigation.test.js<br>tests/auth01-local-implementation.test.js<br>tests/core-staging-auth-bootstrap.test.js | Release-blocking local regression or safety evidence. |
 | `tests/customer-booking-branch.test.js` | tracked | Booking integration | test | yes | no | — | Local validation only | tests/booking-upgrade.test.js | Release-blocking local regression or safety evidence. |
 | `tests/customer-tracking-ratings.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
+| `tests/dashboard-analysis-loading.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/fixtures/auth01-v25-browser-smoke-harness.js` | tracked | Authentication & navigation | test | yes | no | — | Local validation only | tests/auth-navigation.test.js<br>tests/auth01-local-implementation.test.js | Release-blocking local regression or safety evidence. |
 | `tests/frontend-api-configuration.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/frontend-relay-queue.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
