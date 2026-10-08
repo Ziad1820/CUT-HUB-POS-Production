@@ -22,5 +22,6 @@ The relay retains the original JSON payload and session fields, posts once to th
 - The user confirmed that the dashboard CORS and 404 errors disappeared after refreshing.
 - No production invoice, withdrawal, booking or financial write was created for testing. A lost upstream response still returns a JSON error with `requestMayHaveCompleted`; it must not be blindly retried.
 - A live booking-options request exceeded the original 55-second deadline. The relay now allows 170 seconds within a 180-second function limit so slow Google executions can return normally without replay.
+- Final browser check on the canonical Production hostname loaded the branch and all 27 service choices after this deadline adjustment, with the availability state displayed normally.
 
 Rollback the website to the preceding deployment through Vercel if needed. Private snapshots and response bodies remain in the ignored local deployment directory.
