@@ -5,7 +5,7 @@ No files are staged or committed by this plan. Human approval is required before
 ## Accounting
 
 - Original immutable RC required-untracked entries: **60/60 accounted individually below**.
-- Current manifest required entries: **342**; current required untracked: **0**.
+- Current manifest required entries: **343**; current required untracked: **0**.
 - Every required path retains its approved commit assignment after commit, independent of transient working-tree state.
 - Excluded entries remain excluded and must not be silently added.
 
@@ -76,7 +76,7 @@ No files are staged or committed by this plan. Human approval is required before
 
 ### 8. docs(release): add runbooks and Staging controls
 
-- Files: `config/frontend-runtime-config.staging.example.js`, `docs/backend-refactor-baseline.json`, `docs/backend-refactor-production-deployment.md`, `docs/booking-no-check-in-trigger-runbook.md`, `docs/dashboard-analysis-loading-fix.md`, `docs/dashboard-api-relay-deployment.md`, `docs/release-manifest.md`, `docs/release/frontend-staging-configuration.md`, `docs/release/human-approval-packet.md`, `docs/release/human-checkpoint-matrix.md`, `docs/release/migration-execution-matrix.md`, `docs/release/migration-preview-operator-procedure.md`, `docs/release/original-rc-required-untracked-baseline.md`, `docs/release/pre-staging-gate-report.md`, `docs/release/release-candidate-inventory.md`, `docs/release/source-control-inclusion-plan.md`, `docs/release/staging-baseline-evidence-template.md`, `docs/release/staging-configuration-template.md`, `docs/release/staging-core-auth-bootstrap-runbook.md`, `docs/release/staging-data-blueprint.md`, `docs/release/staging-operator-input.md`, `docs/release/staging-schema-migration-execution-runbook.md`, `docs/release/staging-script-property-plan.md`, `docs/release/staging-test-account-matrix.md`, `docs/staff-attendance-phase-1.md`, `docs/staff-attendance-phase-3.md`, `docs/staff-payroll-attendance-phase-4.md`, `docs/staff-scheduling-phase-2.md`, `docs/staging-entry-checklist.md`
+- Files: `config/frontend-runtime-config.staging.example.js`, `docs/apps-script-content-redirect-fix.md`, `docs/backend-refactor-baseline.json`, `docs/backend-refactor-production-deployment.md`, `docs/booking-no-check-in-trigger-runbook.md`, `docs/dashboard-analysis-loading-fix.md`, `docs/dashboard-api-relay-deployment.md`, `docs/release-manifest.md`, `docs/release/frontend-staging-configuration.md`, `docs/release/human-approval-packet.md`, `docs/release/human-checkpoint-matrix.md`, `docs/release/migration-execution-matrix.md`, `docs/release/migration-preview-operator-procedure.md`, `docs/release/original-rc-required-untracked-baseline.md`, `docs/release/pre-staging-gate-report.md`, `docs/release/release-candidate-inventory.md`, `docs/release/source-control-inclusion-plan.md`, `docs/release/staging-baseline-evidence-template.md`, `docs/release/staging-configuration-template.md`, `docs/release/staging-core-auth-bootstrap-runbook.md`, `docs/release/staging-data-blueprint.md`, `docs/release/staging-operator-input.md`, `docs/release/staging-schema-migration-execution-runbook.md`, `docs/release/staging-script-property-plan.md`, `docs/release/staging-test-account-matrix.md`, `docs/staff-attendance-phase-1.md`, `docs/staff-attendance-phase-3.md`, `docs/staff-payroll-attendance-phase-4.md`, `docs/staff-scheduling-phase-2.md`, `docs/staging-entry-checklist.md`
 - Purpose: isolate one reviewable release concern.
 - Dependencies: Validated runtime/source commits 1–4.
 - Validation: associated manifest tests, syntax checks, deterministic generation where applicable, and `git diff --check`.
@@ -278,6 +278,7 @@ No files are staged or committed by this plan. Human approval is required before
 | `config/apps-script-proxy.json` | tracked | backend integration | include in application commit | 1 | direct/authoritative |
 | `config/backend-sources.json` | tracked | authoritative source | include in application commit | 1 | direct/authoritative |
 | `config/frontend-runtime-config.staging.example.js` | tracked | authoritative source | include in documentation commit | 8 | direct/authoritative |
+| `docs/apps-script-content-redirect-fix.md` | tracked | documentation | include in documentation commit | 8 | direct/authoritative |
 | `docs/backend-refactor-baseline.json` | tracked | documentation | include in documentation commit | 8 | direct/authoritative |
 | `docs/backend-refactor-production-deployment.md` | tracked | documentation | include in documentation commit | 8 | direct/authoritative |
 | `docs/booking-no-check-in-trigger-runbook.md` | tracked | operational runbook | include in documentation commit | 8 | direct/authoritative |

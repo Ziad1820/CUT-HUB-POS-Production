@@ -1,6 +1,9 @@
 {
   "buildCommand": null,
   "outputDirectory": "public",
+  "rewrites": [
+    { "source": "/favicon.ico", "destination": "/assets/images/salonix-logo.svg" }
+  ],
   "functions": {
     "api/apps-script.js": { "maxDuration": 180 }
   }

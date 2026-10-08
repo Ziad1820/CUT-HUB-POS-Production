@@ -4,9 +4,9 @@ Generated locally by `scripts/generate-release-manifest.js`. Do not hand-edit. T
 
 ## Counts
 
-- Required tracked files: **342**
+- Required tracked files: **343**
 - Required untracked files: **0**
-- Total classified entries: **373**
+- Total classified entries: **374**
 
 ## Intended Apps Script application package
 
@@ -248,6 +248,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `config/apps-script-proxy.json` | tracked | Cross-phase/local | backend integration | yes | no | — | Vercel server function; exclude Apps Script upload | — | Same-origin relay to the fixed Production Apps Script deployment, without automatic request replay. |
 | `config/backend-sources.json` | tracked | Cross-phase/local | authoritative source | yes | no | — | Release evidence; not runtime-loaded | — | Required source or verification evidence for the complete implementation. |
 | `config/frontend-runtime-config.staging.example.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | Release evidence; not runtime-loaded | — | Required source or verification evidence for the complete implementation. |
+| `docs/apps-script-content-redirect-fix.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/backend-refactor-baseline.json` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/backend-refactor-production-deployment.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/booking-no-check-in-trigger-runbook.md` | tracked | Phase 5 Booking Availability | operational runbook | yes | no | — | Release evidence; not runtime-loaded | tests/booking-availability-phase5.test.js<br>tests/booking-availability-phase5-gas.test.js<br>tests/booking-availability-phase5-contract.test.js<br>tests/booking-no-check-in-detector.test.js | Required pre-Staging operational control document. |

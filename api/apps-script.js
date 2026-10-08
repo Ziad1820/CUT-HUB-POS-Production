@@ -41,8 +41,9 @@ function createHandler(fetchUpstream = requestGoogle, log = console.warn) {
     let phase = "EXECUTION";
     let upstreamStatus = null;
     let errorClass = null;
+    let redirectClass = null;
     const report = () => {
-      try { log(JSON.stringify({ event: "APPS_SCRIPT_RELAY_FAILURE", phase, upstreamStatus, errorClass })); } catch (_) {}
+      try { log(JSON.stringify({ event: "APPS_SCRIPT_RELAY_FAILURE", phase, upstreamStatus, errorClass, redirectClass })); } catch (_) {}
     };
     try {
       const signal = AbortSignal.timeout(settings.timeoutMs);
@@ -61,8 +62,26 @@ function createHandler(fetchUpstream = requestGoogle, log = console.warn) {
         // Execution is already complete. Fetch its one-time response with GET.
         // Never replay the POST, including after a failed content redirect.
         phase = "CONTENT";
-        response = await fetchUpstream(url.href, { method: "GET", redirect: "manual", cache: "no-store", signal });
-        upstreamStatus = response.status;
+        const visited = new Set();
+        let contentUrl = url;
+        for (let hop = 0; hop < 4; hop++) {
+          if (visited.has(contentUrl.href)) return fail(502, "UPSTREAM_REDIRECT_LOOP", true);
+          visited.add(contentUrl.href);
+          response = await fetchUpstream(contentUrl.href, { method: "GET", redirect: "manual", cache: "no-store", signal });
+          upstreamStatus = response.status;
+          if (![302, 303, 307, 308].includes(response.status)) break;
+          const nextLocation = response.headers.get("location");
+          const next = nextLocation && new URL(nextLocation, contentUrl);
+          const allowed = next && next.protocol === "https:" && next.hostname === "script.googleusercontent.com" &&
+            next.pathname === "/macros/echo" && !next.username && !next.password && !next.port;
+          redirectClass = allowed ? "GOOGLE_CONTENT" : next?.hostname === "accounts.google.com" ? "GOOGLE_AUTH"
+            : next?.hostname === "www.google.com" && next.pathname.startsWith("/sorry/") ? "GOOGLE_RATE_LIMIT" : "REJECTED";
+          if (!allowed) {
+            report();
+            return fail(502, "UPSTREAM_REDIRECT_REJECTED", true);
+          }
+          contentUrl = next;
+        }
       }
       const media = String(response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
       if (!response.ok || media !== "application/json") {

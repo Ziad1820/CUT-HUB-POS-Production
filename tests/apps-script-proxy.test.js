@@ -50,6 +50,42 @@ test("a 404 content redirect produces JSON without replaying a potentially compl
   assert.deepEqual(calls.map(call => call[1].method), ["POST", "GET"]);
   assert.doesNotMatch(JSON.stringify([res.body, logs]), /PRIVATE/);
 });
+test("extra ContentService redirects are followed as GET without repeating the execution", async () => {
+  const calls = [];
+  const replies = [
+    response(302, "", { location: "https://script.googleusercontent.com/macros/echo?key=first" }),
+    response(302, "", { location: "/macros/echo?key=second" }),
+    response(307, "", { location: "/macros/echo?key=third" }),
+    response(200, '{"status":"success","withdrawals":[]}')
+  ];
+  const res = sink();
+  await createHandler(async (...args) => { calls.push(args); return replies.shift(); })(req({ action: "getWithdrawals" }), res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(JSON.parse(res.body).status, "success");
+  assert.deepEqual(calls.map(call => call[1].method), ["POST", "GET", "GET", "GET"]);
+  assert.ok(calls.slice(1).every(call => call[1].body === undefined));
+});
+test("a result redirect cannot escape to a login page or untrusted host", async () => {
+  const calls = [], res = sink();
+  await createHandler(async (...args) => {
+    calls.push(args);
+    return response(302, "", { location: calls.length === 1
+      ? "https://script.googleusercontent.com/macros/echo?key=first"
+      : "https://accounts.google.com/ServiceLogin?private=hidden" });
+  }, () => {})(req({ action: "getWithdrawals" }), res);
+  assert.equal(res.statusCode, 502);
+  assert.equal(JSON.parse(res.body).code, "UPSTREAM_REDIRECT_REJECTED");
+  assert.equal(calls.length, 2);
+  assert.doesNotMatch(res.body, /hidden/);
+});
+test("result redirect loops terminate without replaying a mutation", async () => {
+  let calls = 0; const res = sink();
+  await createHandler(async () => { calls++; return response(302, "", {
+    location: "https://script.googleusercontent.com/macros/echo?key=loop"
+  }); })(req({ action: "withdrawal" }), res);
+  assert.equal(calls, 2);
+  assert.equal(JSON.parse(res.body).code, "UPSTREAM_REDIRECT_LOOP");
+});
 test("network failure never retries a mutation or exposes exception details", async () => {
   let calls = 0; const logs = [], res = sink();
   await createHandler(async () => { calls++; throw new Error("PRIVATE_PROVIDER_DETAIL"); }, message => logs.push(message))(
