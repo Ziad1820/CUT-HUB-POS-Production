@@ -4,3 +4,9 @@
 .codex-staging-server.cjs
 cloudflared.exe
 cloudflared*.log
+
+.vercel
+.env*
+
+# Remote source backups and private deployment evidence.
+.backend-refactor-deployment/

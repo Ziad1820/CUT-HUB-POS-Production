@@ -1,0 +1,1577 @@
+{
+  "reviewedAt": "2026-10-08",
+  "method": "Full-source AST traversal; contiguous top-level extraction; byte-preserving assembly",
+  "files": [
+    {
+      "path": "scripts/app-script-final-owner-access.js",
+      "bytes": 447894,
+      "lines": 10704,
+      "sha256": "213caeef1e5bd69d74e8bce91731cd4adfdf9245148750dd1f21fb19af2b7921",
+      "topLevelStatements": 464,
+      "modules": [
+        {
+          "path": "backend/core/environment.js",
+          "firstLine": 1,
+          "lastLine": 91,
+          "declarations": [
+            "CUT_HUB_ENVIRONMENT_PROPERTY",
+            "CUT_HUB_SPREADSHEET_ID_PROPERTY",
+            "CUT_HUB_BACKEND_VERSION_PROPERTY",
+            "CUT_HUB_STAGING_SPREADSHEET_ID_PROPERTY",
+            "STAGING_CONFIGURATION_ERROR",
+            "CUT_HUB_SPREADSHEET_ID_PATTERN",
+            "getCutHubEnvironmentConfig",
+            "assertStagingEnvironment",
+            "assertCutHubSpreadsheetIdentity",
+            "validateCutHubRequestEnvironment",
+            "getStagingIdentityValues",
+            "verifyStagingEnvironment",
+            "stagingIdentity"
+          ],
+          "sha256": "1a3ac1d708f05662b9a74f47d72ff45314e8238754b22b44db5661299011acc6"
+        },
+        {
+          "path": "backend/core/http-router.js",
+          "firstLine": 92,
+          "lastLine": 309,
+          "declarations": [
+            "parsePostRequestData",
+            "PUBLIC_ACTIONS",
+            "isPublicAction",
+            "doPost",
+            "jsonOutput"
+          ],
+          "sha256": "e93415a0187c071a20a948e5656e009aa033c7b74cb85a478b584a081f96d03d"
+        },
+        {
+          "path": "backend/auth/runtime-policy.js",
+          "firstLine": 310,
+          "lastLine": 366,
+          "declarations": [
+            "TIME_ZONE",
+            "ALL_PERMISSIONS",
+            "SESSION_TTL_SECONDS",
+            "SESSION_CACHE_MAX_SECONDS",
+            "SESSION_CACHE_PREFIX",
+            "AUTH01_RESOLVED_SESSION_TARGETS",
+            "AUTH01_AUTHENTICATED_SESSION_CONTEXTS"
+          ],
+          "sha256": "390047882bec50fba569b6c4ea88b0639cbe9ee8a5cd77d94f82f311f2fc867b"
+        },
+        {
+          "path": "backend/auth/protected-reads.js",
+          "firstLine": 367,
+          "lastLine": 468,
+          "declarations": [
+            "PROTECTED_READ_CAPABILITIES",
+            "PROTECTED_READ_CONTEXTS",
+            "PROTECTED_READ_ACTORS",
+            "protectedReadCapability",
+            "protectedReadContext",
+            "inheritProtectedReadContext",
+            "protectedReadCachedActor",
+            "protectedReadRememberActor",
+            "protectedReadUserEnabled",
+            "resolveProtectedReadAuthContext"
+          ],
+          "sha256": "6a9a79597d4781d5667e7dbdf3217bab4e8daf646792e7f0596b73436f066e29"
+        },
+        {
+          "path": "backend/shared/cairo-clock.js",
+          "firstLine": 469,
+          "lastLine": 488,
+          "declarations": [
+            "getCairoDateTime",
+            "getInvoiceDateTime",
+            "getCairoDateKey",
+            "getRequestedDateKey"
+          ],
+          "sha256": "1f36237d2cfd60d41f6fc041b2a53257bb37092b11c743011dd0b1ce7bfc4d62"
+        },
+        {
+          "path": "backend/auth/sessions.js",
+          "firstLine": 489,
+          "lastLine": 830,
+          "declarations": [
+            "getSessionToken",
+            "auth01RequestCorrelationId",
+            "auth01CorrelatedJsonOutput",
+            "isValidSessionToken",
+            "removeSessionCacheBestEffort",
+            "createSessionForUser",
+            "cleanupExpiredSessions",
+            "auth01ResolvedSessionTarget",
+            "readResolvedSessionTarget",
+            "readSessionRecord",
+            "revokeResolvedSession",
+            "resolveAuthenticatedRequestContext"
+          ],
+          "sha256": "1b5697f04fadab56c76b2656794d90d15e39686b811b92cab96b961f29d2e187"
+        },
+        {
+          "path": "backend/auth/security-state.js",
+          "firstLine": 831,
+          "lastLine": 1007,
+          "declarations": [
+            "auth01ReadOnlyMigrationState",
+            "auth01ReadOnlyThrottleSecurityState",
+            "getMyAuthSecurityState",
+            "auth01ReadSecurityState"
+          ],
+          "sha256": "39ed6ad372c53da1ba0b5025c2235c2d4a9e70117175fddf98315a63ee2a4203"
+        },
+        {
+          "path": "backend/auth/authorization.js",
+          "firstLine": 1008,
+          "lastLine": 1071,
+          "declarations": [
+            "getAuthenticatedUser",
+            "getActor",
+            "getActorPermissions",
+            "actorCanManageUsers",
+            "actorHasPermission",
+            "requirePermission"
+          ],
+          "sha256": "551a50f5350ff8b39c9972e5a561d500465d899e5cc20c4266371cd2c425a548"
+        },
+        {
+          "path": "backend/audit/activity-log.js",
+          "firstLine": 1072,
+          "lastLine": 1259,
+          "declarations": [
+            "getActivityLogSheet",
+            "logActivity",
+            "getActivityLogs",
+            "deleteActivityLog",
+            "deleteActivityLogs"
+          ],
+          "sha256": "fd0a472c7a342774d00b8a6fc9beedd34e6d59a8329e87baf9df2f58a8c4c606"
+        },
+        {
+          "path": "backend/auth/user-repository.js",
+          "firstLine": 1260,
+          "lastLine": 1343,
+          "declarations": [
+            "USERS_HEADER_CONTRACT",
+            "getUsersSheet",
+            "ensureUsersSheetColumns",
+            "getUsersSheetReadOnly",
+            "parsePermissions",
+            "stringifyPermissions",
+            "normalizeManagedPermissions",
+            "sanitizeUser"
+          ],
+          "sha256": "dc6c8e7a29967059b24ef94f553a72defa5481dea828c09408b59093e27e883c"
+        },
+        {
+          "path": "backend/auth/credential-policy.js",
+          "firstLine": 1344,
+          "lastLine": 1432,
+          "declarations": [
+            "AUTH01_CREDENTIAL_POLICY",
+            "AUTH01_IDENTIFIER_KEY_PROPERTY",
+            "AUTH01_IDENTIFIER_FINGERPRINT_PROPERTY",
+            "AUTH01_IDENTIFIER_ACTIVE_VERSION_PROPERTY",
+            "AUTH01_IDENTIFIER_KEY_CONTRACTS",
+            "AUTH01_EPOCH_PREFIX",
+            "AUTH01_MIGRATION_PREFIX",
+            "AUTH01_MIGRATION_JOURNAL_POLICY",
+            "AUTH01_MODERN_PREFIX",
+            "AUTH01_CREDENTIAL_STATES",
+            "AUTH01_PLAINTEXT_COMPATIBILITY_DEFAULT",
+            "AUTH01_SHA256_K",
+            "auth01Error",
+            "auth01CredentialPolicy",
+            "auth01NormalizeModernPassword"
+          ],
+          "sha256": "7f250a54bcead80a56f6c7a42bf82a6e3d99802053535740d3f4d158b4917618"
+        },
+        {
+          "path": "backend/auth/crypto.js",
+          "firstLine": 1433,
+          "lastLine": 1812,
+          "declarations": [
+            "auth01Utf8Bytes",
+            "auth01RotateRight",
+            "AUTH01_SHA256_IV",
+            "AUTH01_SHA256_WORDS",
+            "auth01Sha256Rounds",
+            "auth01Sha256Compress",
+            "auth01Sha256FromState",
+            "auth01Sha256StateToBytes",
+            "auth01Sha256Bytes",
+            "auth01PrepareHmacSha256",
+            "auth01HmacSha256Bytes",
+            "auth01Pbkdf2HmacSha256",
+            "auth01SignedBytes",
+            "auth01Base64UrlEncode",
+            "auth01Base64UrlDecodeCanonical",
+            "auth01BytesToHex",
+            "auth01HexToBytes",
+            "auth01ConstantTimeEqual"
+          ],
+          "sha256": "6bb01d25ea1dda1bdc55a775d7e69a8c5b96d67f840178853b002e7d01b55078"
+        },
+        {
+          "path": "backend/auth/credentials.js",
+          "firstLine": 1813,
+          "lastLine": 1928,
+          "declarations": [
+            "auth01GenerateSalt",
+            "auth01EncodeModernCredential",
+            "auth01ParseModernCredential",
+            "createModernCredential",
+            "auth01ClassifyCredential",
+            "hashPassword",
+            "auth01VerifyCredential",
+            "auth01RunDummyModernVerification",
+            "verifyPassword"
+          ],
+          "sha256": "b12606b09cedc7c1a40e125ecb84a488428104537895b229547795c3a52123e9"
+        },
+        {
+          "path": "backend/auth/identifiers.js",
+          "firstLine": 1929,
+          "lastLine": 2259,
+          "declarations": [
+            "auth01CanonicalUsername",
+            "auth01FindCanonicalUsernameCollisions",
+            "auth01GenerateIdentifierKey",
+            "auth01IdentifierKeyContract",
+            "auth01ActiveIdentifierKeyVersion",
+            "auth01IdentifierKeyFingerprint",
+            "auth01ProvisionIdentifierKey",
+            "auth01ProvisionIdentifierKeyV2",
+            "auth01IdentifierActivationBlockers",
+            "auth01ActivateIdentifierKeyV2",
+            "auth01ScriptProperties",
+            "auth01IdentifierKeyBytesForVersion",
+            "auth01IdentifierKeyBytes",
+            "auth01CurrentIdentifierFingerprint",
+            "auth01OpaqueUserIdForVersion",
+            "auth01OpaqueUserId",
+            "auth01EpochPropertyKeyForVersion",
+            "auth01EpochPropertyKey",
+            "auth01VersionedIdentifierPropertyKeys",
+            "auth01ReadVersionedIdentifierProperty",
+            "auth01ReadCredentialEpoch",
+            "auth01IncrementCredentialEpoch",
+            "auth01IdentifierRetirementDecision"
+          ],
+          "sha256": "fce818a7d166d2e4b8ba31acd214008e47a238b2fc989c492b3a33caf09d48e9"
+        },
+        {
+          "path": "backend/auth/credential-migration.js",
+          "firstLine": 2260,
+          "lastLine": 2654,
+          "declarations": [
+            "resetOwnerPasswordEmergency",
+            "readUsersFromSheet",
+            "auth01AcquireScriptLock",
+            "auth01FindCurrentUser",
+            "auth01CredentialCells",
+            "auth01WriteMigrationJournal",
+            "auth01ParseMigrationJournal",
+            "auth01MigrationJournalSnapshot",
+            "auth01MigrationJournalInventory",
+            "auth01CleanupTerminalMigrationJournals",
+            "auth01EnsureMigrationJournalAdmission",
+            "auth01MigrationResultUser",
+            "auth01MigrateCredential",
+            "auth01ReplaceCredential"
+          ],
+          "sha256": "fb8e14b73b429248c654aaf36c7e5da9dc0423af1eeec2b64235591ad602f0a4"
+        },
+        {
+          "path": "backend/auth/login-throttle.js",
+          "firstLine": 2655,
+          "lastLine": 3124,
+          "declarations": [
+            "AUTH01_THROTTLE_GLOBAL_KEY",
+            "AUTH01_THROTTLE_ACCOUNT_PREFIX",
+            "AUTH01_THROTTLE_CACHE_PREFIX",
+            "AUTH01_THROTTLE_RECOVERY_PREFIX",
+            "AUTH01_THROTTLE_STATE_MAX_BYTES",
+            "AUTH01_THROTTLE_HISTORY_HORIZON_MS",
+            "AUTH01_THROTTLE_CLOCK_SKEW_MS",
+            "AUTH01_THROTTLE_POLICY",
+            "auth01ThrottlePolicy",
+            "auth01Now",
+            "auth01ThrottleCache",
+            "auth01ThrottleLock",
+            "auth01EmptyThrottleState",
+            "auth01ThrottleInteger",
+            "auth01ThrottleRecordIdValid",
+            "auth01EncodeThrottleFinalization",
+            "auth01DecodeThrottleFinalization",
+            "auth01ValidateThrottleState",
+            "auth01NormalizeThrottleState",
+            "auth01ThrottleRecoveryMarker",
+            "auth01ReadThrottleState",
+            "auth01WriteThrottleState",
+            "auth01CacheKeyForProperty",
+            "auth01CacheBlockedUntil",
+            "auth01CacheBlock",
+            "auth01CacheClear",
+            "auth01ApplyThrottleFailure",
+            "auth01StartThrottleCooldown",
+            "auth01ReserveLoginAttempt",
+            "auth01FinalizeLoginAttempt",
+            "auth01DummyModernCredential",
+            "auth01RuntimeOptions"
+          ],
+          "sha256": "1d54e255322a11458fb2b62434fd8770106e1fa36fe36eb1b1052d195521e9a5"
+        },
+        {
+          "path": "backend/auth/user-actions.js",
+          "firstLine": 3125,
+          "lastLine": 3458,
+          "declarations": [
+            "getUsersFromSheet",
+            "loginUser",
+            "logoutUser",
+            "createUserInSheet",
+            "updateUserInSheet",
+            "deleteUserFromSheet"
+          ],
+          "sha256": "74868e1c5ef92ec9833460a12bd7cea601b0a40cf8f4887588b5f286c5096e02"
+        },
+        {
+          "path": "backend/catalog/services.js",
+          "firstLine": 3459,
+          "lastLine": 3622,
+          "declarations": [
+            "getServices",
+            "saveServices"
+          ],
+          "sha256": "fe113f217c1a0ee6b2970fa4dc2c387df302f6b7a8e595c52abb6d5861c41fa6"
+        },
+        {
+          "path": "backend/staging/legacy-auth-preview.js",
+          "firstLine": 3623,
+          "lastLine": 3857,
+          "declarations": [
+            "CORE_AUTH_PREVIEW_SHEETS",
+            "coreAuthPreviewAssertStagingOwner",
+            "coreAuthPreviewSheetState",
+            "coreAuthPreviewOwnerState",
+            "legacyPreviewStagingAuthenticationInitialization"
+          ],
+          "sha256": "9e45484bc54f5b3bc1cdc1848cc897579ef30998a9faefd83a0b94eaf3a41a89"
+        },
+        {
+          "path": "backend/shared/sheet-schema.js",
+          "firstLine": 3858,
+          "lastLine": 4029,
+          "declarations": [
+            "INVENTORY_SHEETS",
+            "inventorySheet",
+            "inventoryText",
+            "normalizeSheetHeader",
+            "schemaContractError",
+            "inspectPositionalSheetSchema",
+            "inspectNamedSheetSchema",
+            "findEquivalentHeaderColumn",
+            "findSheetHeaderColumn",
+            "ensureSheetHeaderColumn",
+            "INVOICE_REQUEST_ID_HEADER_ALIASES",
+            "BALANCE_BEFORE_HEADER_ALIASES",
+            "BARBER_ID_HEADER_ALIASES",
+            "BARBER_CODE_HEADER_ALIASES",
+            "BARBER_NAME_HEADER_ALIASES"
+          ],
+          "sha256": "831e972e480b2715451becc870ffd22c7e8c71ce4bf4af3a85e114c22eab8b71"
+        },
+        {
+          "path": "backend/inventory/repository.js",
+          "firstLine": 4030,
+          "lastLine": 4146,
+          "declarations": [
+            "inventoryNumber",
+            "inventoryQuantity",
+            "inventoryBoolean",
+            "inventoryRows",
+            "readInventoryItems",
+            "readInventoryBatches",
+            "ensureInventoryLogBarberColumns",
+            "readInventoryLog"
+          ],
+          "sha256": "247589254cf1c3ea41ef5c26e90785159df3945ad1019ae16401bce603c71c15"
+        },
+        {
+          "path": "backend/inventory/stock.js",
+          "firstLine": 4147,
+          "lastLine": 4215,
+          "declarations": [
+            "isInventoryBatchUsable",
+            "buildInventoryStock",
+            "getInventoryData",
+            "getSellableProducts"
+          ],
+          "sha256": "ed01d3796152f3303b1ac44bbd6896c8462b6f32e9e858a1c78c14cd0c7abe59"
+        },
+        {
+          "path": "backend/inventory/item-actions.js",
+          "firstLine": 4216,
+          "lastLine": 4273,
+          "declarations": [
+            "saveInventoryItem",
+            "deleteInventoryItem"
+          ],
+          "sha256": "539bda6e30ac0bb21f5805e8c3fdbee5dbbc8065c28d48d5ab976edd2e7b4e01"
+        },
+        {
+          "path": "backend/inventory/purchases.js",
+          "firstLine": 4274,
+          "lastLine": 4425,
+          "declarations": [
+            "appendInventoryLog",
+            "addInventoryPurchase",
+            "updateInventoryPurchase"
+          ],
+          "sha256": "84cc6acd7067161261a4d5d5925b4fad8f129272cd5969bbc7f8b9472ea40853"
+        },
+        {
+          "path": "backend/inventory/service-recipes.js",
+          "firstLine": 4426,
+          "lastLine": 4494,
+          "declarations": [
+            "getServiceRecipes",
+            "saveServiceRecipe"
+          ],
+          "sha256": "206eb9921e789044673789e01c68b42ddc8ad4bcadbe95b713acb2b802ab141e"
+        },
+        {
+          "path": "backend/inventory/checkout-planning.js",
+          "firstLine": 4495,
+          "lastLine": 4785,
+          "declarations": [
+            "readActiveServiceRecipes",
+            "inventoryBatchSortKey",
+            "prepareInventoryCheckout",
+            "estimateInvoiceLineCost"
+          ],
+          "sha256": "bb6c940ad7a7a7dcb0d086a46dab13b70062709e9d79d83d1791ccfedbefcad5"
+        },
+        {
+          "path": "backend/inventory/checkout-transaction.js",
+          "firstLine": 4786,
+          "lastLine": 4954,
+          "declarations": [
+            "rollbackInventoryCheckout",
+            "applyInventoryCheckout"
+          ],
+          "sha256": "f05ef045815d11913ee91d941f1a92041199640f8f756af6b74db72a19104bfe"
+        },
+        {
+          "path": "backend/inventory/barber-consumption.js",
+          "firstLine": 4955,
+          "lastLine": 5056,
+          "declarations": [
+            "readActiveInventoryBarbers",
+            "getBarberConsumptionReport"
+          ],
+          "sha256": "82e8f48d06c77668f18d5c5ba891e2beb2100a5b9b13b41c4ef8cb303fd9fdbc"
+        },
+        {
+          "path": "backend/staff/legacy-staff.js",
+          "firstLine": 5057,
+          "lastLine": 5368,
+          "declarations": [
+            "getStaffSheet",
+            "buildStaffId",
+            "parseSheetBoolean",
+            "normalizeStaffForSheet",
+            "getStaff",
+            "updateExistingStaffMember",
+            "saveStaff"
+          ],
+          "sha256": "2d859b229864d54e1a11b6c54ec32c1c19402326d78426be9bea4ff13a8fb10e"
+        },
+        {
+          "path": "backend/attendance/legacy-attendance.js",
+          "firstLine": 5369,
+          "lastLine": 5862,
+          "declarations": [
+            "ATTENDANCE_HEADERS",
+            "getAttendanceSheet",
+            "ensureAttendanceHeaders",
+            "getAttendanceSheetReadOnly",
+            "normalizeLookupKey",
+            "parseTimeMinutes",
+            "getHoursBetween",
+            "roundHours",
+            "getMonthlyAbsenceCount",
+            "calculateAttendanceValues",
+            "attendanceRecordFromRow",
+            "createAttendanceRecord",
+            "findOpenAttendanceRecord",
+            "updateAttendanceStep",
+            "getAttendanceRecords",
+            "approveAttendanceDeduction",
+            "deleteAttendanceRecord",
+            "getApprovedAttendanceTotalsForCurrentMonth"
+          ],
+          "sha256": "717f3b3e2df5789b044b55f792eeee4be471442e652a2c651531d20e70ad04bc"
+        },
+        {
+          "path": "backend/accounting/daily-closing.js",
+          "firstLine": 5863,
+          "lastLine": 6224,
+          "declarations": [
+            "getDailyClosingSheet",
+            "readDailyClosings",
+            "findDailyClosingByDate",
+            "normalizePaymentMethod",
+            "calculateSalesAndPaymentTotals",
+            "calculateExpensesTotal",
+            "calculateWithdrawalsTotal",
+            "buildDailyClosingPreview",
+            "dashboardTodayStats",
+            "getDailyClosingPreview",
+            "getDailyClosings",
+            "closeDay",
+            "deleteDailyClosing"
+          ],
+          "sha256": "a0ea2bcf73a23fc75c8c7d0dc86224fde917d27abf428b98de6758105a226085"
+        },
+        {
+          "path": "backend/accounting/monthly-closing.js",
+          "firstLine": 6225,
+          "lastLine": 6526,
+          "declarations": [
+            "getMonthlyClosingSheet",
+            "isDateKeyBetween",
+            "readMonthlyClosings",
+            "calculateIncomeStatementRange",
+            "getIncomeStatementRange",
+            "getMonthlyClosings",
+            "deleteMonthlyClosing",
+            "monthLock",
+            "getLockedMonthForDate",
+            "getLockedDateError"
+          ],
+          "sha256": "4847c188d15f532414ce883437c11742290182e34bb7af914d15d4774335e7c5"
+        },
+        {
+          "path": "backend/invoices/schema.js",
+          "firstLine": 6527,
+          "lastLine": 6663,
+          "declarations": [
+            "DATA_INVOICE_READ_HEADER_CONTRACT",
+            "inspectDataInvoiceSchemaReadOnly",
+            "ensureDataInvoiceColumns",
+            "getInvoiceRequestIdColumn",
+            "findInvoiceByRequestId",
+            "getInvoicePaymentDetails",
+            "invoiceRowAuditSnapshot"
+          ],
+          "sha256": "c1e246c0498af2788bc279e60b1af38f52e5382281470171e7191e52899d4b4d"
+        },
+        {
+          "path": "backend/invoices/mutations.js",
+          "firstLine": 6664,
+          "lastLine": 6956,
+          "declarations": [
+            "createInvoice",
+            "updateInvoice"
+          ],
+          "sha256": "c3f41edc5d25b8a3d955189d890ad0175a4a13ee9a1a463d1b343d39d67b03f4"
+        },
+        {
+          "path": "backend/invoices/queries.js",
+          "firstLine": 6957,
+          "lastLine": 7154,
+          "declarations": [
+            "getOptionalDateRange",
+            "isCanonicalDateKey",
+            "isDateInOptionalRange",
+            "getInvoices",
+            "getDisplayDateTime"
+          ],
+          "sha256": "7525585962961506ee734ef004341285b34fb49bbc0408bc206ff539729bc3ed"
+        },
+        {
+          "path": "backend/invoices/deletion.js",
+          "firstLine": 7155,
+          "lastLine": 7243,
+          "declarations": [
+            "deleteInvoice"
+          ],
+          "sha256": "5aeff0a62153089c2d9b20dfc5370070489a900c2fe324ab73b0b70e8296d332"
+        },
+        {
+          "path": "backend/accounting/withdrawals.js",
+          "firstLine": 7244,
+          "lastLine": 7364,
+          "declarations": [
+            "createWithdrawal",
+            "getWithdrawals",
+            "deleteWithdrawal"
+          ],
+          "sha256": "2d1e0d931f3d1307e7f63bed2e3f5e337c99a175621b7f275ab6a864ae2ef54c"
+        },
+        {
+          "path": "backend/accounting/expenses.js",
+          "firstLine": 7365,
+          "lastLine": 7488,
+          "declarations": [
+            "createExpense",
+            "getExpenses",
+            "deleteExpense"
+          ],
+          "sha256": "79713c0a2324e5d687f28cd2aa7d11061ef63087af889943fe710229359ebc9d"
+        },
+        {
+          "path": "backend/invoices/pdf.js",
+          "firstLine": 7489,
+          "lastLine": 7650,
+          "declarations": [
+            "createInvoicePdf",
+            "escapeHtml",
+            "formatInvoiceMoney"
+          ],
+          "sha256": "9e34754a1164f29bd7138f5588d4c3dc732d770685f27c3cb5c66b1d99a3213c"
+        },
+        {
+          "path": "backend/reports/sales-customers.js",
+          "firstLine": 7651,
+          "lastLine": 7950,
+          "declarations": [
+            "getTotalIncome",
+            "getTotalStaffSales",
+            "getTotalClients",
+            "sumValues",
+            "getSheetRangeFromRow2",
+            "getSheetColumnValuesFromRow2",
+            "testDriveAccess",
+            "getCustomerLookup",
+            "getStaffClientCount",
+            "normalizeBarberName",
+            "invoiceRowMatchesStaff",
+            "getStaffTotalSales",
+            "getTodaySales",
+            "getTodayPaymentTotals"
+          ],
+          "sha256": "6a3e7f56125533c92ece7076d9306d83dcd4e40af2a8a09c653d38ef4232ede5"
+        },
+        {
+          "path": "backend/booking/schema-and-validation.js",
+          "firstLine": 7951,
+          "lastLine": 8113,
+          "declarations": [
+            "BOOKING_HEADERS_V2",
+            "BOOKING_SLOT_INTERVAL_MINUTES",
+            "MAX_BOOKING_DURATION_MINUTES",
+            "MAX_BOOKING_TOTAL_PRICE",
+            "BOOKING_LOCK_WAIT_MS",
+            "PUBLIC_RATING_MINIMUM_COUNT",
+            "normalizeProtectedText",
+            "parseServiceActiveFlag",
+            "bookingApiError",
+            "bookingErrorResponse",
+            "bookingPublicErrorResponse",
+            "bookingMutationDiagnostic",
+            "withBookingMutationLock",
+            "isStrictBookingTime",
+            "isValidBookingDateKey",
+            "isValidBookingDuration",
+            "isValidBookingPrice",
+            "generateUniqueBookingIdV2",
+            "BARBER_SCHEDULE_HEADERS"
+          ],
+          "sha256": "2ba9f4354663312f643be8f77da74a83bc962bdce61b73316e54df0380312c0f"
+        },
+        {
+          "path": "backend/booking/repository.js",
+          "firstLine": 8114,
+          "lastLine": 8403,
+          "declarations": [
+            "ensureBookingHeadersV2",
+            "normalizeBookingHeader",
+            "canonicalBookingHeaderKey",
+            "getBookingHeadersV2",
+            "bookingHeaderIndexV2",
+            "bookingRowValueV2",
+            "setBookingRowValueV2",
+            "getBookingsSheetV2",
+            "getBookingsSheetV2ReadOnly",
+            "getBarberScheduleSheet",
+            "getBarberScheduleSheetReadOnly",
+            "normalizeBookingStatusV2",
+            "isRecognizedBookingStatusV2",
+            "bookingFromRowV2",
+            "bookingToRowV2",
+            "writeBookingRowV2",
+            "appendBookingRowV2",
+            "sheetExtendedValue",
+            "writeSheetRowWithExplicitValues"
+          ],
+          "sha256": "ef1a86a8ee2c81d79449d59298528dbade896a23ed69f4d765d250aa552e6c85"
+        },
+        {
+          "path": "backend/booking/idempotency.js",
+          "firstLine": 8404,
+          "lastLine": 8470,
+          "declarations": [
+            "validateClientRequestId",
+            "bookingRequestFingerprint",
+            "findBookingByClientRequestId",
+            "bookingIdempotencyResult",
+            "findBookingRowV2"
+          ],
+          "sha256": "285d14af3c0818e64dc25ce361c171c8fc4819c136b121e979c3aca6e35cc000"
+        },
+        {
+          "path": "backend/booking/service-snapshots.js",
+          "firstLine": 8471,
+          "lastLine": 8661,
+          "declarations": [
+            "publicBookingServices",
+            "getPublicBookingServiceIds",
+            "bookingServiceIdsInputIsValid",
+            "bookingServiceIdsHaveDuplicates",
+            "getSelectedPublicBookingServices",
+            "applyBookingOccupancySnapshot",
+            "commitBookingPhase5UnderCurrentLock",
+            "committedBookingMutationRetry",
+            "bookingServiceSetHash",
+            "resolveTrustedBookingServiceTotals"
+          ],
+          "sha256": "1250703874e6357ff1371882b788961a9dfc3f7ddfe5dc2b594616cc86193364"
+        },
+        {
+          "path": "backend/booking/legacy-availability.js",
+          "firstLine": 8662,
+          "lastLine": 8929,
+          "declarations": [
+            "publicBookingBarbers",
+            "getUniqueActiveBarberByNameV2",
+            "bookingWeekday",
+            "normalizeScheduleWeekday",
+            "getScheduleForBarber",
+            "getAttendanceOverride",
+            "bookingMinutes",
+            "minutesToBookingTime",
+            "bookingTimelineMinutes",
+            "bookingHoldIsActive",
+            "bookingBlocksSlot",
+            "isBookingStatusTransitionAllowed",
+            "bookingStatusIsTerminal",
+            "getAllBookingsV2",
+            "getAllBookingsV2ForWrite",
+            "bookingEmployeeMatchesV2",
+            "bookingSlotIsFree",
+            "resolveBookingBarberV2",
+            "bookingAppointmentValidationError",
+            "validateBookingAppointmentLegacyV2",
+            "bookingEffectiveStatusV2"
+          ],
+          "sha256": "14efa8c62008401c556bbc138fda4b472cc8a4e9a720a77d0fbf22ca91b87318"
+        },
+        {
+          "path": "backend/booking/availability-authority.js",
+          "firstLine": 8930,
+          "lastLine": 9098,
+          "declarations": [
+            "bookingAvailabilityEngineMode",
+            "bookingAvailabilityLiveRefreshEnabled",
+            "runBookingAvailabilityAuthority",
+            "validateBookingAppointmentV2",
+            "availableSlotsForBarberLegacy",
+            "availableSlotsForBarber"
+          ],
+          "sha256": "24bc1bd5f88358ddd7e000b1c05f45e283ff6aaf080640618385e92fc5434efb"
+        },
+        {
+          "path": "backend/booking/options.js",
+          "firstLine": 9099,
+          "lastLine": 9267,
+          "declarations": [
+            "bookingAvailabilityResponseCacheKey",
+            "bookingAvailabilityCacheResponseSnapshot",
+            "bookingAvailabilityReadResponseSnapshot",
+            "getBookingOptionsForAudience",
+            "getPublicBookingOptions",
+            "getInternalBookingOptions"
+          ],
+          "sha256": "1193e17b3cee6fd0700f132a7b10e1c27664eed26c3449c6ddd911e0f7a82915"
+        },
+        {
+          "path": "backend/booking/public-actions.js",
+          "firstLine": 9268,
+          "lastLine": 9576,
+          "declarations": [
+            "normalizePublicPhone",
+            "isValidEgyptianMobile",
+            "verifyBookingTrackingPhone",
+            "trackingVerificationError",
+            "generatePublicBookingTrackingToken",
+            "publicBookingCreationResponse",
+            "internalBookingCreationResponse",
+            "createPublicBookingRequest",
+            "findBookingByTrackingToken",
+            "publicBookingView",
+            "getPublicBookingStatus",
+            "respondToBookingProposal"
+          ],
+          "sha256": "2e3e6fa8ed24f4ab9ef85061dac35498382e9b028dd821ffc3618d3920dfba74"
+        },
+        {
+          "path": "backend/booking/internal-actions.js",
+          "firstLine": 9577,
+          "lastLine": 9920,
+          "declarations": [
+            "createBookingV2",
+            "getBookingsV2",
+            "updateBookingV2"
+          ],
+          "sha256": "f526c4065395019c9902f8957511d9b92363c29629ea419afd35f6467130f74e"
+        },
+        {
+          "path": "backend/booking/ratings.js",
+          "firstLine": 9921,
+          "lastLine": 10264,
+          "declarations": [
+            "BOOKING_RATING_HEADERS",
+            "getBookingRatingsSheet",
+            "getBookingRatingsSheetReadOnly",
+            "initializeBookingStagingEnvironment",
+            "getRatingHeaders",
+            "ratingFromRow",
+            "ratingToRow",
+            "writeBookingRatingRow",
+            "appendBookingRatingRow",
+            "getAllBookingRatings",
+            "getActiveBookingRatings",
+            "publicRatingView",
+            "bookingRatingStatusForComment",
+            "getRatingSalt",
+            "hashBookingPhone",
+            "submitBookingRating",
+            "getBookingRating",
+            "calculateBarberRatingSummary",
+            "calculatePublicBarberRatingSummary",
+            "getBarberRatings",
+            "getRatingsAdmin",
+            "updateRatingStatus"
+          ],
+          "sha256": "8018c8d1d178bebaa278fb071215d71dbf42f22531678550a1935fee2e82337e"
+        },
+        {
+          "path": "backend/booking/legacy-actions.js",
+          "firstLine": 10265,
+          "lastLine": 10574,
+          "declarations": [
+            "getBookingsSheet",
+            "ensureBookingsColumns",
+            "normalizeBookingStatus",
+            "bookingFromRow",
+            "getBookingTimeValue",
+            "findBookingRow",
+            "createBooking",
+            "getBookings",
+            "updateBooking",
+            "deleteBooking"
+          ],
+          "sha256": "50ad998293b01746085952250cc706382677aca0fb0b0842c372c87695fad2bb"
+        },
+        {
+          "path": "backend/shared/date-and-number.js",
+          "firstLine": 10575,
+          "lastLine": 10630,
+          "declarations": [
+            "getDateKey",
+            "padDatePart",
+            "normalizeDigits",
+            "parseSheetAmount"
+          ],
+          "sha256": "7f3fa0c19a73ab42eaefd0adeb403f1169159cd111b421d73b745b14d02e5d2f"
+        },
+        {
+          "path": "backend/staging/inventory-preview.js",
+          "firstLine": 10631,
+          "lastLine": 10703,
+          "declarations": [
+            "previewStagingInventorySchema"
+          ],
+          "sha256": "d2b8e4b5c0d4f03f0cc201f0082d66d89dedd88560af867e14e06d2470e35f64"
+        }
+      ]
+    },
+    {
+      "path": "scripts/booking-availability-phase5-gas.js",
+      "bytes": 136987,
+      "lines": 2774,
+      "sha256": "e79d07ff7ee36cdcfe2a884c8fdca20f39c01ff28cfbaf637387ea77ad396ade",
+      "topLevelStatements": 88,
+      "modules": [
+        {
+          "path": "backend/availability/config-and-repository.js",
+          "firstLine": 1,
+          "lastLine": 251,
+          "declarations": [
+            "bookingAvailabilityPhase5Text",
+            "bookingAvailabilityPhase5ClockText",
+            "bookingAvailabilityPhase5ReadBranchHours",
+            "bookingAvailabilityPhase5AddMinutes",
+            "bookingAvailabilityPhase5ClockMinutes",
+            "bookingAvailabilityPhase5ValidDate",
+            "bookingAvailabilityPhase5ValidRequestId",
+            "bookingAvailabilityPhase5Flags",
+            "bookingAvailabilityPhase5AssertIdentity",
+            "bookingAvailabilityPhase5RequireSheet",
+            "bookingAvailabilityPhase5ReadVersions",
+            "bookingAvailabilityPhase5ReadGenerations",
+            "bookingAvailabilityPhase5GenerationField",
+            "bookingAvailabilityPhase5IncrementGeneration",
+            "bookingAvailabilityPhase5Branch",
+            "bookingAvailabilityPhase5Weekday",
+            "bookingAvailabilityPhase5BranchSegments"
+          ],
+          "sha256": "bafb2360cd3d5e055199191bd29bdb1c0d0e8f7ef8c49a21fc5209eaf8577204"
+        },
+        {
+          "path": "backend/availability/request-snapshot.js",
+          "firstLine": 252,
+          "lastLine": 365,
+          "declarations": [
+            "bookingAvailabilityPhase5RequestSnapshot",
+            "bookingAvailabilityPhase5QuotaEstimate",
+            "bookingAvailabilityPhase5ResolveSchedule",
+            "bookingAvailabilityPhase5Attendance"
+          ],
+          "sha256": "9cc808b0ad882b6809f1071146a27d77faeb95b16c4e2731b65e7c4d20630cb6"
+        },
+        {
+          "path": "backend/availability/authorization-cache.js",
+          "firstLine": 366,
+          "lastLine": 434,
+          "declarations": [
+            "bookingAvailabilityPhase5Actor",
+            "bookingAvailabilityPhase5HasPermission",
+            "bookingAvailabilityPhase5AssertBranchScope",
+            "bookingAvailabilityPhase5ActiveOverrides",
+            "bookingAvailabilityPhase5CacheKey",
+            "bookingAvailabilityPhase5CachedResult"
+          ],
+          "sha256": "8a525a73f653648dd9d7549a488a69346b0f4fa61adbea14191e73060b3d3336"
+        },
+        {
+          "path": "backend/availability/booking-occupancy.js",
+          "firstLine": 435,
+          "lastLine": 526,
+          "declarations": [
+            "bookingAvailabilityPhase5StaffNameKey",
+            "bookingAvailabilityPhase5BookingScopeError",
+            "bookingAvailabilityPhase5BookingOccupiedDate",
+            "bookingAvailabilityPhase5ScopedBookings",
+            "bookingAvailabilityPhase5BookingBuffers"
+          ],
+          "sha256": "9fff2a0dabfea5401de3dc115e441a2437248039a0575d2b723f0b237af3b3cf"
+        },
+        {
+          "path": "backend/availability/evaluation.js",
+          "firstLine": 527,
+          "lastLine": 688,
+          "declarations": [
+            "bookingAvailabilityPhase5Evaluate",
+            "bookingAvailabilityPhase5ValidateAppointment",
+            "bookingAvailabilityPhase5PreviewMigration"
+          ],
+          "sha256": "c9a7703e1848c882d183a7521a2ac041b73b6afd7510d0895d469600f4aa1658"
+        },
+        {
+          "path": "backend/availability/transactions.js",
+          "firstLine": 689,
+          "lastLine": 930,
+          "declarations": [
+            "bookingAvailabilityPhase5Now",
+            "bookingAvailabilityPhase5WithLock",
+            "bookingAvailabilityPhase5FailurePoint",
+            "bookingAvailabilityPhase5SaveTransaction",
+            "bookingAvailabilityPhase5FindTransaction",
+            "bookingAvailabilityPhase5CommittedResultForRequest",
+            "bookingAvailabilityPhase5TransactionSafelyRetryable",
+            "bookingAvailabilityPhase5BusinessFailureHasNoEffect",
+            "bookingAvailabilityPhase5RetryHistory",
+            "bookingAvailabilityPhase5TransactionResult",
+            "bookingAvailabilityPhase5RunTransaction"
+          ],
+          "sha256": "85f1cea2f12e71ccc6762a013b9b4cdde7970db6dc7d1bc802cbe560697dc4b2"
+        },
+        {
+          "path": "backend/availability/audit-versions.js",
+          "firstLine": 931,
+          "lastLine": 1030,
+          "declarations": [
+            "bookingAvailabilityPhase5AppendAudit",
+            "bookingAvailabilityPhase5IncrementVersion",
+            "bookingAvailabilityPhase5IncrementVersionOnly"
+          ],
+          "sha256": "09def389c41460fb21dfd5fd23fabc378297aad2fa33874896bec0c8be20690a"
+        },
+        {
+          "path": "backend/availability/overrides.js",
+          "firstLine": 1031,
+          "lastLine": 1269,
+          "declarations": [
+            "bookingAvailabilityPhase5CreateOverride",
+            "bookingAvailabilityPhase5RevokeOverride"
+          ],
+          "sha256": "ea6c073b4f8e828d1bfb80b25efd75febfa12e3b99fe6505529bf825170a7cb9"
+        },
+        {
+          "path": "backend/availability/conflicts.js",
+          "firstLine": 1270,
+          "lastLine": 1459,
+          "declarations": [
+            "bookingAvailabilityPhase5RevalidateConflict",
+            "bookingAvailabilityPhase5TransitionConflict"
+          ],
+          "sha256": "b6a62c629324110f214bfb18379764b8cbac212443a1237594bf6ead9a64fad2"
+        },
+        {
+          "path": "backend/availability/work-policy-transactions.js",
+          "firstLine": 1460,
+          "lastLine": 1819,
+          "declarations": [
+            "bookingAvailabilityPhase5AfterMutationUnderLock",
+            "bookingAvailabilityPhase5AfterMutation",
+            "publishOperationalMutationVersion",
+            "publishOperationalMutationUnderCurrentLock",
+            "bookingAvailabilityPhase5PolicyDates",
+            "bookingAvailabilityPhase5ResolveWorkPolicyScope",
+            "bookingAvailabilityPhase5PreflightWorkPolicyScope",
+            "bookingAvailabilityPhase5InvalidateWorkPolicy",
+            "bookingAvailabilityPhase5WorkPolicyAudit",
+            "bookingAvailabilityPhase5RunOperationalMutationTransaction",
+            "bookingAvailabilityPhase5RecoverWorkPolicyTransaction",
+            "publishOperationalMutationTransactionUnderCurrentLock"
+          ],
+          "sha256": "9819f416085ce2c6b18fcdcd3ee52c5bc3b90de6fbffdb2c15f02d9177b600e6"
+        },
+        {
+          "path": "backend/availability/mutation-conflicts.js",
+          "firstLine": 1820,
+          "lastLine": 1966,
+          "declarations": [
+            "bookingAvailabilityPhase5RecordConflicts",
+            "bookingAvailabilityPhase5AfterBookingMutationUnderLock",
+            "bookingAvailabilityPhase5AfterGlobalServiceMutationUnderLock"
+          ],
+          "sha256": "6d5d41d5a962afdb04a6321ea9107779b8edf690dd966a75f29a459597fb39a3"
+        },
+        {
+          "path": "backend/availability/branch-actions.js",
+          "firstLine": 1967,
+          "lastLine": 2178,
+          "declarations": [
+            "bookingAvailabilityPhase5ListBranches",
+            "bookingAvailabilityPhase5ListBranchHours",
+            "bookingAvailabilityPhase5SaveBranchHours",
+            "bookingAvailabilityPhase5SaveBranchConfiguration"
+          ],
+          "sha256": "d2c3bb353ae5525a4fd22d0162fb5236a4088806a00208b5b527bc7b24dcefa5"
+        },
+        {
+          "path": "backend/availability/no-check-in-detector.js",
+          "firstLine": 2179,
+          "lastLine": 2627,
+          "declarations": [
+            "bookingAvailabilityPhase5DetectorCaps",
+            "bookingAvailabilityPhase5DetectorLimits",
+            "bookingAvailabilityPhase5DetectorNowMs",
+            "bookingAvailabilityPhase5DetectorCheckpointStorage",
+            "bookingAvailabilityPhase5DetectorActor",
+            "bookingAvailabilityPhase5DetectorError",
+            "bookingAvailabilityPhase5DetectorUnits",
+            "bookingAvailabilityPhase5DetectorFingerprint",
+            "bookingAvailabilityPhase5DetectorContinuation",
+            "bookingAvailabilityPhase5DetectorToken",
+            "bookingAvailabilityPhase5DetectorScheduleEligible",
+            "bookingAvailabilityPhase5DetectorContextFingerprint",
+            "bookingAvailabilityPhase5DetectorFreshContext",
+            "previewBookingNoCheckInTriggerInstallation",
+            "runBookingNoCheckInDetector"
+          ],
+          "sha256": "43382666557db00848d47da6c88dd9990bff1e70f57ec512b64ff41e2abce901"
+        },
+        {
+          "path": "backend/availability/action-router.js",
+          "firstLine": 2628,
+          "lastLine": 2773,
+          "declarations": [
+            "handleBookingAvailabilityPhase5Action"
+          ],
+          "sha256": "2ab867bfc283db60f7f871f428e1ee02ee9021f5ec28e10e46aafcc16bd948c7"
+        }
+      ]
+    },
+    {
+      "path": "scripts/staff-attendance-schema.js",
+      "bytes": 11024,
+      "lines": 203,
+      "sha256": "a40e536c8d18204b4f4b99ae0670f4013cd0c1ee9d5f4d7e2d0ed71639a6ede1",
+      "topLevelStatements": 1,
+      "modules": [
+        {
+          "path": "backend/staff/schema.js",
+          "firstLine": 1,
+          "lastLine": 202,
+          "declarations": [],
+          "sha256": "a40e536c8d18204b4f4b99ae0670f4013cd0c1ee9d5f4d7e2d0ed71639a6ede1"
+        }
+      ]
+    },
+    {
+      "path": "scripts/staff-attendance-core.js",
+      "bytes": 54577,
+      "lines": 1119,
+      "sha256": "253072ed502ca1cdd3a8b9a44bcc924aea612f4afab7e0ce1cbcb95f673c2be7",
+      "topLevelStatements": 1,
+      "modules": [
+        {
+          "path": "backend/staff/attendance-core.js",
+          "firstLine": 1,
+          "lastLine": 1118,
+          "declarations": [],
+          "sha256": "253072ed502ca1cdd3a8b9a44bcc924aea612f4afab7e0ce1cbcb95f673c2be7"
+        }
+      ]
+    },
+    {
+      "path": "scripts/staff-scheduling-phase2.js",
+      "bytes": 78207,
+      "lines": 1570,
+      "sha256": "573cd201661ccfd23485a1d65e3aaea1c0d9601d67e5b95d0319eba5bfb6cd49",
+      "topLevelStatements": 1,
+      "modules": [
+        {
+          "path": "backend/scheduling/engine.js",
+          "firstLine": 1,
+          "lastLine": 1569,
+          "declarations": [],
+          "sha256": "573cd201661ccfd23485a1d65e3aaea1c0d9601d67e5b95d0319eba5bfb6cd49"
+        }
+      ]
+    },
+    {
+      "path": "scripts/staff-scheduling-phase2-gas.js",
+      "bytes": 24002,
+      "lines": 584,
+      "sha256": "451991a2844c214e8b260fd2af58014901fc470f037df7b06600a72e251bd0cb",
+      "topLevelStatements": 24,
+      "modules": [
+        {
+          "path": "backend/scheduling/apps-script.js",
+          "firstLine": 1,
+          "lastLine": 583,
+          "declarations": [
+            "schedulePhase2Text",
+            "schedulePhase2Canonical",
+            "schedulePhase2Camel",
+            "schedulePhase2Sheet",
+            "schedulePhase2Headers",
+            "schedulePhase2AssertNoDuplicateHeaders",
+            "schedulePhase2AssertHeaders",
+            "schedulePhase2ReadRows",
+            "schedulePhase2CellValue",
+            "schedulePhase2Save",
+            "schedulePhase2ReadStaff",
+            "schedulePhase2ReadSchedules",
+            "schedulePhase2Transaction",
+            "schedulePhase2RecordUndo",
+            "schedulePhase2RollbackTransaction",
+            "schedulePhase2WithTransaction",
+            "schedulePhase2CreateRepository",
+            "schedulePhase2Actor",
+            "schedulePhase2WithLock",
+            "schedulePhase2AssertWriteReady",
+            "schedulePhase2AssertEnvironmentIdentity",
+            "previewStaffScheduleMigration",
+            "diagnosticPreviewStaffScheduleMigration",
+            "handleStaffSchedulingPhase2Action"
+          ],
+          "sha256": "451991a2844c214e8b260fd2af58014901fc470f037df7b06600a72e251bd0cb"
+        }
+      ]
+    },
+    {
+      "path": "scripts/staff-import-preview-staging.js",
+      "bytes": 10961,
+      "lines": 271,
+      "sha256": "edc15cb2599bfabbbb3485f5290eb7afcb22e848238b6197476782c7974f53e4",
+      "topLevelStatements": 12,
+      "modules": [
+        {
+          "path": "backend/staging/staff-import-preview.js",
+          "firstLine": 1,
+          "lastLine": 270,
+          "declarations": [
+            "staffImportPreviewError",
+            "staffImportPreviewText",
+            "staffImportPreviewStagingIdentityAndOwner",
+            "staffImportPreviewActiveBranches",
+            "staffImportPreviewCanonicalValue",
+            "staffImportPreviewNormalizeApprovedRows",
+            "staffImportPreviewNumber",
+            "staffImportPreviewCode",
+            "staffImportPreviewRowsEqual",
+            "staffImportPreviewHash",
+            "staffImportPreviewPlan",
+            "previewStaffImportStaging"
+          ],
+          "sha256": "edc15cb2599bfabbbb3485f5290eb7afcb22e848238b6197476782c7974f53e4"
+        }
+      ]
+    },
+    {
+      "path": "scripts/staff-attendance-phase3.js",
+      "bytes": 91961,
+      "lines": 1667,
+      "sha256": "2806bb969514d5bdac4420065c8f801aca84c4a2592089597f9673c9d50c3da2",
+      "topLevelStatements": 1,
+      "modules": [
+        {
+          "path": "backend/attendance/engine.js",
+          "firstLine": 1,
+          "lastLine": 1666,
+          "declarations": [],
+          "sha256": "2806bb969514d5bdac4420065c8f801aca84c4a2592089597f9673c9d50c3da2"
+        }
+      ]
+    },
+    {
+      "path": "scripts/staff-attendance-phase3-gas.js",
+      "bytes": 22702,
+      "lines": 536,
+      "sha256": "b718fc0635f7eb63de51c84d85b16fd9ee9c4dcc6e7909d13704d4527752477e",
+      "topLevelStatements": 24,
+      "modules": [
+        {
+          "path": "backend/attendance/apps-script.js",
+          "firstLine": 1,
+          "lastLine": 535,
+          "declarations": [
+            "attendancePhase3Transaction",
+            "attendancePhase3IsoNow",
+            "attendancePhase3CellValue",
+            "attendancePhase3Save",
+            "attendancePhase3WithTransaction",
+            "attendancePhase3DateOnly",
+            "attendancePhase3TimeOnly",
+            "attendancePhase3ReadDays",
+            "attendancePhase3ReadLegacy",
+            "attendancePhase3Unique",
+            "attendancePhase3CreateRepository",
+            "attendancePhase3ResolveSchedule",
+            "attendancePhase3WithLock",
+            "attendancePhase3AssertEnvironmentIdentity",
+            "attendancePhase3AssertWriteReady",
+            "attendancePhase3AssertPreviewEnvironment",
+            "previewAttendanceMigration",
+            "diagnosticPreviewAttendanceMigration",
+            "attendancePhase3RunDiagnosticPreview",
+            "diagnosticPreviewAttendanceMigrationSummary",
+            "diagnosticPreviewAttendanceMigrationSheets",
+            "diagnosticPreviewAttendanceMigrationColumns",
+            "diagnosticPreviewAttendanceMigrationSafety",
+            "handleStaffAttendancePhase3Action"
+          ],
+          "sha256": "b718fc0635f7eb63de51c84d85b16fd9ee9c4dcc6e7909d13704d4527752477e"
+        }
+      ]
+    },
+    {
+      "path": "scripts/staff-payroll-attendance-phase4.js",
+      "bytes": 76462,
+      "lines": 1454,
+      "sha256": "27ed799475b6748b4528effba20eca9e0d179bc5171225ebdfa912ffc646c747",
+      "topLevelStatements": 1,
+      "modules": [
+        {
+          "path": "backend/payroll/engine.js",
+          "firstLine": 1,
+          "lastLine": 1453,
+          "declarations": [],
+          "sha256": "27ed799475b6748b4528effba20eca9e0d179bc5171225ebdfa912ffc646c747"
+        }
+      ]
+    },
+    {
+      "path": "scripts/staff-payroll-attendance-phase4-gas.js",
+      "bytes": 18680,
+      "lines": 451,
+      "sha256": "bcc8a3d71d8dab27192f0d71b3aee35c07f009d3f23c3a1d5b4bd421ab2be16b",
+      "topLevelStatements": 23,
+      "modules": [
+        {
+          "path": "backend/payroll/apps-script.js",
+          "firstLine": 1,
+          "lastLine": 450,
+          "declarations": [
+            "payrollAttendancePhase4Transaction",
+            "payrollAttendancePhase4Now",
+            "payrollAttendancePhase4ReadJsonFields",
+            "payrollAttendancePhase4DateOnly",
+            "payrollAttendancePhase4NormalizeDateOnlyFields",
+            "payrollAttendancePhase4ReadPeriods",
+            "payrollAttendancePhase4ReadStaff",
+            "payrollAttendancePhase4ReadSettlements",
+            "payrollAttendancePhase4Unique",
+            "payrollAttendancePhase4WithTransaction",
+            "payrollAttendancePhase4CreateRepository",
+            "payrollAttendancePhase4WithLock",
+            "payrollAttendancePhase4Environment",
+            "payrollAttendancePhase4AssertSchema",
+            "payrollAttendancePhase4AssertPreviewEnvironment",
+            "previewPayrollPhase4Migration",
+            "diagnosticPreviewPayrollPhase4Migration",
+            "payrollAttendancePhase4RunDiagnosticPreview",
+            "diagnosticPreviewPayrollPhase4MigrationSummary",
+            "diagnosticPreviewPayrollPhase4MigrationSafety",
+            "diagnosticPreviewPayrollPhase4MigrationSheets",
+            "diagnosticPreviewPayrollPhase4MigrationColumns",
+            "handleStaffPayrollAttendancePhase4Action"
+          ],
+          "sha256": "bcc8a3d71d8dab27192f0d71b3aee35c07f009d3f23c3a1d5b4bd421ab2be16b"
+        }
+      ]
+    },
+    {
+      "path": "scripts/staff-schema-migration-staging-executor.js",
+      "bytes": 37021,
+      "lines": 869,
+      "sha256": "dec819e290277d9c041bbc0233174b9a13a3a795fb35ca06744afe92bc420a2d",
+      "topLevelStatements": 57,
+      "modules": [
+        {
+          "path": "backend/staging/staff-schema-migration.js",
+          "firstLine": 1,
+          "lastLine": 868,
+          "declarations": [
+            "STAFF_SCHEMA_MIGRATION_JOURNAL_PREFIX",
+            "STAFF_SCHEMA_MIGRATION_TOKEN_PREFIX",
+            "STAFF_SCHEMA_MIGRATION_TOKEN_TTL_MS",
+            "STAFF_SCHEMA_MIGRATION_LOCK_TIMEOUT_MS",
+            "STAFF_SCHEMA_MIGRATION_JOURNAL_MAX_BYTES",
+            "STAFF_SCHEMA_MIGRATION_PROPERTY_STORE_MAX_BYTES",
+            "STAFF_SCHEMA_MIGRATION_ERROR_MESSAGE_MAX_LENGTH",
+            "staffSchemaMigrationError",
+            "staffSchemaMigrationCanonical",
+            "staffSchemaMigrationHash",
+            "staffSchemaMigrationPlanHash",
+            "staffSchemaMigrationNow",
+            "staffSchemaMigrationPhaseDefinition",
+            "staffSchemaMigrationPreflightStaging",
+            "staffSchemaMigrationAssertOwner",
+            "staffSchemaMigrationIdentityAndOwner",
+            "staffSchemaMigrationAssertPreview",
+            "staffSchemaMigrationPendingOperations",
+            "staffSchemaMigrationAssertExecutionOrder",
+            "staffSchemaMigrationSchemaVersion",
+            "staffSchemaMigrationJournalKey",
+            "staffSchemaMigrationTokenKey",
+            "staffSchemaMigrationReadJson",
+            "staffSchemaMigrationWriteJournal",
+            "staffSchemaMigrationErrorDetail",
+            "staffSchemaMigrationFingerprint",
+            "staffSchemaMigrationTryLocks",
+            "staffSchemaMigrationPrepare",
+            "prepareStaffScheduleMigrationExecution",
+            "prepareAttendanceMigrationExecution",
+            "preparePayrollPhase4MigrationExecution",
+            "prepareBranchFoundationMigration",
+            "staffSchemaMigrationReadPreparedToken",
+            "staffSchemaMigrationHeaderValues",
+            "staffSchemaMigrationEnsureColumns",
+            "staffSchemaMigrationOperations",
+            "staffSchemaMigrationEnrichOperation",
+            "staffSchemaMigrationApplyOperation",
+            "staffSchemaMigrationRangeHasDataBelow",
+            "staffSchemaMigrationHeaderProof",
+            "staffSchemaMigrationHeadersMatch",
+            "staffSchemaMigrationRollback",
+            "staffSchemaMigrationRecordOperation",
+            "staffSchemaMigrationOperationProof",
+            "staffSchemaMigrationExecute",
+            "executeStaffScheduleMigrationStaging",
+            "executeAttendanceMigrationStaging",
+            "executePayrollPhase4MigrationStaging",
+            "executeBranchFoundationMigrationStaging",
+            "staffSchemaMigrationExecutePrepared",
+            "executePreparedStaffScheduleMigrationStaging",
+            "executePreparedAttendanceMigrationStaging",
+            "executePreparedPayrollPhase4MigrationStaging",
+            "executePreparedBranchFoundationMigrationStaging",
+            "staffSchemaMigrationDiagnostic",
+            "diagnosticMigrationExecutionStatus",
+            "diagnosticMigrationRecoveryStatus"
+          ],
+          "sha256": "dec819e290277d9c041bbc0233174b9a13a3a795fb35ca06744afe92bc420a2d"
+        }
+      ]
+    },
+    {
+      "path": "scripts/core-staging-auth-bootstrap.js",
+      "bytes": 46962,
+      "lines": 1079,
+      "sha256": "24687dd43f35f289fa2a5dc3805edaeba727f90767cbe6ba6abda5e4eeeb1772",
+      "topLevelStatements": 48,
+      "modules": [
+        {
+          "path": "backend/staging/core-auth-bootstrap.js",
+          "firstLine": 1,
+          "lastLine": 1078,
+          "declarations": [
+            "CORE_STAGING_BOOTSTRAP_SCHEMA_VERSION",
+            "CORE_STAGING_BOOTSTRAP_ID",
+            "CORE_STAGING_BOOTSTRAP_JOURNAL_PREFIX",
+            "CORE_STAGING_BOOTSTRAP_TOKEN_KEY",
+            "CORE_STAGING_BOOTSTRAP_CREDENTIAL_KEY",
+            "CORE_STAGING_BOOTSTRAP_TOKEN_TTL_MS",
+            "CORE_STAGING_BOOTSTRAP_CREDENTIAL_TTL_MS",
+            "CORE_STAGING_BOOTSTRAP_PASSWORD_MIN_LENGTH",
+            "CORE_STAGING_BOOTSTRAP_USERS_HEADERS",
+            "CORE_STAGING_BOOTSTRAP_OPTIONAL_DASHBOARD_SHEETS",
+            "coreStagingBootstrapError",
+            "coreStagingBootstrapIdentityAndOwner",
+            "coreStagingBootstrapHashText",
+            "coreStagingBootstrapCredentialFingerprint",
+            "coreStagingBootstrapValidPasswordHash",
+            "coreStagingBootstrapHeaders",
+            "coreStagingBootstrapHeadersExact",
+            "coreStagingBootstrapRowFingerprint",
+            "coreStagingBootstrapReadUsersState",
+            "coreStagingBootstrapPlanHash",
+            "coreStagingBootstrapOptionalDashboardState",
+            "previewCoreStagingBootstrap",
+            "previewStagingAuthenticationInitialization",
+            "diagnosticPreviewStagingAuthenticationInitialization",
+            "diagnosticPreviewCoreStagingBootstrap",
+            "coreStagingBootstrapCredentialRecord",
+            "coreStagingBootstrapValidateCredential",
+            "stageCoreStagingBootstrapCredential",
+            "openCoreStagingBootstrapCredentialDialog",
+            "coreStagingBootstrapJournalKey",
+            "coreStagingBootstrapRequestFingerprint",
+            "coreStagingBootstrapAssertPlan",
+            "coreStagingBootstrapPrepareSummary",
+            "prepareCoreStagingBootstrap",
+            "coreStagingBootstrapReadPreparedToken",
+            "coreStagingBootstrapOperationProof",
+            "coreStagingBootstrapOperations",
+            "coreStagingBootstrapTestPoint",
+            "coreStagingBootstrapApplyOperation",
+            "coreStagingBootstrapSheetHeaderProof",
+            "coreStagingBootstrapRollback",
+            "coreStagingBootstrapVerifyCompleted",
+            "coreStagingBootstrapConsumeSecrets",
+            "executeCoreStagingBootstrap",
+            "executePreparedCoreStagingBootstrap",
+            "coreStagingBootstrapDiagnostic",
+            "diagnosticCoreStagingBootstrapStatus",
+            "diagnosticCoreStagingBootstrapRecovery"
+          ],
+          "sha256": "24687dd43f35f289fa2a5dc3805edaeba727f90767cbe6ba6abda5e4eeeb1772"
+        }
+      ]
+    },
+    {
+      "path": "scripts/booking-availability-phase5.js",
+      "bytes": 34981,
+      "lines": 724,
+      "sha256": "5a02bf72100f44f439fc22876186769d6d23279ec2e9e60def07ba4af7cd1524",
+      "topLevelStatements": 1,
+      "modules": [
+        {
+          "path": "backend/availability/engine.js",
+          "firstLine": 1,
+          "lastLine": 723,
+          "declarations": [],
+          "sha256": "5a02bf72100f44f439fc22876186769d6d23279ec2e9e60def07ba4af7cd1524"
+        }
+      ]
+    },
+    {
+      "path": "scripts/branch-foundation-staging.js",
+      "bytes": 10240,
+      "lines": 256,
+      "sha256": "3e6ad6f76dc9c232b68907ad5cb24bb8aed7060627400c710feac60d9e362ec5",
+      "topLevelStatements": 15,
+      "modules": [
+        {
+          "path": "backend/staging/branch-foundation.js",
+          "firstLine": 1,
+          "lastLine": 255,
+          "declarations": [
+            "BRANCH_FOUNDATION_VERSION",
+            "BRANCH_FOUNDATION_SHEET",
+            "BRANCH_FOUNDATION_WEEKDAYS",
+            "branchFoundationPhase5Contract",
+            "branchFoundationError",
+            "branchFoundationNormalizeHeader",
+            "branchFoundationIdentity",
+            "branchFoundationPlanMigration",
+            "previewBranchFoundationMigration",
+            "diagnosticPreviewBranchFoundationMigration",
+            "branchConfigurationText",
+            "branchConfigurationBoolean",
+            "branchConfigurationPreviewPlan",
+            "previewBranchConfigurationStaging"
+          ],
+          "sha256": "3e6ad6f76dc9c232b68907ad5cb24bb8aed7060627400c710feac60d9e362ec5"
+        }
+      ]
+    },
+    {
+      "path": "scripts/branch-registry-row-staging.js",
+      "bytes": 19036,
+      "lines": 474,
+      "sha256": "106fe0538c7b57e6df7377ec7cc14519ce261f3dc5c9dcea0f4b6df484dda5a0",
+      "topLevelStatements": 25,
+      "modules": [
+        {
+          "path": "backend/staging/branch-registry-row.js",
+          "firstLine": 1,
+          "lastLine": 473,
+          "declarations": [
+            "BRANCH_REGISTRY_ROW_VERSION",
+            "BRANCH_REGISTRY_ROW_PHASE",
+            "BRANCH_REGISTRY_ROW_SHEET",
+            "BRANCH_REGISTRY_ROW_TOKEN_TTL_MS",
+            "BRANCH_REGISTRY_ROW_APPROVED",
+            "branchRegistryRowContract",
+            "branchRegistryRowExpectedHeaders",
+            "branchRegistryRowNormalized",
+            "branchRegistryRowBusinessValues",
+            "branchRegistryRowBusinessEqual",
+            "branchRegistryRowPreviewPlan",
+            "branchRegistryRowReadState",
+            "previewCanonicalBranchRegistryRow",
+            "diagnosticPreviewCanonicalBranchRegistryRow",
+            "branchRegistryRowPlanHash",
+            "branchRegistryRowAssertPlan",
+            "branchRegistryRowFingerprint",
+            "branchRegistryRowPrepare",
+            "prepareCanonicalBranchRegistryRow",
+            "branchRegistryRowValues",
+            "branchRegistryRowValuesEqual",
+            "branchRegistryRowRollback",
+            "branchRegistryRowExecutePrepared",
+            "executePreparedCanonicalBranchRegistryRowStaging"
+          ],
+          "sha256": "106fe0538c7b57e6df7377ec7cc14519ce261f3dc5c9dcea0f4b6df484dda5a0"
+        }
+      ]
+    },
+    {
+      "path": "scripts/booking-availability-phase5-apps-script-bundle.gs",
+      "bytes": 675397,
+      "lines": 14078,
+      "sha256": "93d3b344a54506d796186bf6135f816bce9388099ea0c73e83fc060b0be1b186",
+      "topLevelStatements": 322
+    }
+  ]
+}

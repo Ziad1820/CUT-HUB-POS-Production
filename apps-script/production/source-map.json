@@ -1,0 +1,469 @@
+{
+  "scriptId": "1UmjdRMGLukMt_0Be_ZL2krphwtZ-CQHPOiZ3GF10pY9-glgvoubfGflP",
+  "baselineVersion": 38,
+  "manifestSha256": "cc4ba4a6429eb4306b93b83aae888a5772cd7efe9e283659c65ee108d068630e",
+  "groups": [
+    {
+      "originalName": "الرمز",
+      "originalSha256": "5f196d6da3ea2751ddc3bcca59092cc0f19c4627f56c1a75968187ab6ed17d3a",
+      "originalBytes": 493840,
+      "files": [
+        {
+          "path": "001_core_environment.gs",
+          "sha256": "1a3ac1d708f05662b9a74f47d72ff45314e8238754b22b44db5661299011acc6"
+        },
+        {
+          "path": "002_core_http-router.gs",
+          "sha256": "2e44415efd4e9b8fb43037197feb0461662a11236523bc247487941be64c2614"
+        },
+        {
+          "path": "003_auth_runtime-policy.gs",
+          "sha256": "390047882bec50fba569b6c4ea88b0639cbe9ee8a5cd77d94f82f311f2fc867b"
+        },
+        {
+          "path": "004_auth_protected-reads.gs",
+          "sha256": "9317237e6d25b750d9fe8c81aad6f74a016091807ba4d707536008c71e53e7b7"
+        },
+        {
+          "path": "005_shared_cairo-clock.gs",
+          "sha256": "1f36237d2cfd60d41f6fc041b2a53257bb37092b11c743011dd0b1ce7bfc4d62"
+        },
+        {
+          "path": "006_auth_sessions.gs",
+          "sha256": "1b5697f04fadab56c76b2656794d90d15e39686b811b92cab96b961f29d2e187"
+        },
+        {
+          "path": "007_auth_security-state.gs",
+          "sha256": "39ed6ad372c53da1ba0b5025c2235c2d4a9e70117175fddf98315a63ee2a4203"
+        },
+        {
+          "path": "008_auth_authorization.gs",
+          "sha256": "551a50f5350ff8b39c9972e5a561d500465d899e5cc20c4266371cd2c425a548"
+        },
+        {
+          "path": "009_audit_activity-log.gs",
+          "sha256": "fd0a472c7a342774d00b8a6fc9beedd34e6d59a8329e87baf9df2f58a8c4c606"
+        },
+        {
+          "path": "010_auth_user-repository.gs",
+          "sha256": "dc6c8e7a29967059b24ef94f553a72defa5481dea828c09408b59093e27e883c"
+        },
+        {
+          "path": "011_auth_credential-policy.gs",
+          "sha256": "7f250a54bcead80a56f6c7a42bf82a6e3d99802053535740d3f4d158b4917618"
+        },
+        {
+          "path": "012_auth_crypto.gs",
+          "sha256": "6bb01d25ea1dda1bdc55a775d7e69a8c5b96d67f840178853b002e7d01b55078"
+        },
+        {
+          "path": "013_auth_credentials.gs",
+          "sha256": "b12606b09cedc7c1a40e125ecb84a488428104537895b229547795c3a52123e9"
+        },
+        {
+          "path": "014_auth_identifiers.gs",
+          "sha256": "fce818a7d166d2e4b8ba31acd214008e47a238b2fc989c492b3a33caf09d48e9"
+        },
+        {
+          "path": "015_auth_credential-migration.gs",
+          "sha256": "fb8e14b73b429248c654aaf36c7e5da9dc0423af1eeec2b64235591ad602f0a4"
+        },
+        {
+          "path": "016_auth_login-throttle.gs",
+          "sha256": "1d54e255322a11458fb2b62434fd8770106e1fa36fe36eb1b1052d195521e9a5"
+        },
+        {
+          "path": "017_auth_user-actions.gs",
+          "sha256": "74868e1c5ef92ec9833460a12bd7cea601b0a40cf8f4887588b5f286c5096e02"
+        },
+        {
+          "path": "018_catalog_services.gs",
+          "sha256": "fe113f217c1a0ee6b2970fa4dc2c387df302f6b7a8e595c52abb6d5861c41fa6"
+        },
+        {
+          "path": "019_staging_legacy-auth-preview.gs",
+          "sha256": "9e45484bc54f5b3bc1cdc1848cc897579ef30998a9faefd83a0b94eaf3a41a89"
+        },
+        {
+          "path": "020_shared_sheet-schema.gs",
+          "sha256": "831e972e480b2715451becc870ffd22c7e8c71ce4bf4af3a85e114c22eab8b71"
+        },
+        {
+          "path": "021_inventory_repository.gs",
+          "sha256": "247589254cf1c3ea41ef5c26e90785159df3945ad1019ae16401bce603c71c15"
+        },
+        {
+          "path": "022_inventory_stock.gs",
+          "sha256": "ed01d3796152f3303b1ac44bbd6896c8462b6f32e9e858a1c78c14cd0c7abe59"
+        },
+        {
+          "path": "023_inventory_item-actions.gs",
+          "sha256": "539bda6e30ac0bb21f5805e8c3fdbee5dbbc8065c28d48d5ab976edd2e7b4e01"
+        },
+        {
+          "path": "024_inventory_purchases.gs",
+          "sha256": "84cc6acd7067161261a4d5d5925b4fad8f129272cd5969bbc7f8b9472ea40853"
+        },
+        {
+          "path": "025_inventory_service-recipes.gs",
+          "sha256": "206eb9921e789044673789e01c68b42ddc8ad4bcadbe95b713acb2b802ab141e"
+        },
+        {
+          "path": "026_inventory_checkout-planning.gs",
+          "sha256": "bb6c940ad7a7a7dcb0d086a46dab13b70062709e9d79d83d1791ccfedbefcad5"
+        },
+        {
+          "path": "027_inventory_checkout-transaction.gs",
+          "sha256": "f05ef045815d11913ee91d941f1a92041199640f8f756af6b74db72a19104bfe"
+        },
+        {
+          "path": "028_inventory_barber-consumption.gs",
+          "sha256": "604b92dcdda8da9a67223355243ef080c4f37f91c27d97800c0eb305383539fa"
+        },
+        {
+          "path": "029_staff_legacy-staff.gs",
+          "sha256": "a91c7d37afc551a62e879d9d9b57877744ce6a9282ce5c9f24e9c61982cdb579"
+        },
+        {
+          "path": "030_staff_branch-repository.gs",
+          "sha256": "8d94d2aa6cd8834b29a0003442edf83a71d33d8cdc4b56f960cf13971248e43b"
+        },
+        {
+          "path": "031_staff_mutable-fields.gs",
+          "sha256": "d6873d4ddff942e3743970b84aa65b2baba21a59d41c9b25549c5bf1f1de34ec"
+        },
+        {
+          "path": "032_staff_lifecycle-repository.gs",
+          "sha256": "9a26b02b87f9251480d49960565d1a9146ada3b7d3214d08aeba33a50a044fdf"
+        },
+        {
+          "path": "033_staff_transaction-journal.gs",
+          "sha256": "3471f2172745abbb88c2b7d8a42e1f86322bfdb8ebb0eb2202325becebaa8e07"
+        },
+        {
+          "path": "034_staff_legacy-settlement.gs",
+          "sha256": "6a9179493f933d02db880171078ab349dc97e3fd568b5e73a3f8dbafb065e807"
+        },
+        {
+          "path": "035_staff_transaction-storage.gs",
+          "sha256": "bbf18f4424ca9e96e147d0453787922e8e79437d658683f6b4b1f339849c2bd9"
+        },
+        {
+          "path": "036_staff_transaction-integrity.gs",
+          "sha256": "7f652c8c777f92ea1a24aaad3cca9655ef23fe3207877c97fcdb706d197c4c16"
+        },
+        {
+          "path": "037_staff_transaction-actions.gs",
+          "sha256": "0666df35890e06c4285b6ccd12f0ce4d70d6e116de2ae15a235429e9edc79b2a"
+        },
+        {
+          "path": "038_staff_lifecycle-actions.gs",
+          "sha256": "2d0630bd7cf0a380eb39c89326c8ca65fda99d0bb79f556a1bac9076c11af9a0"
+        },
+        {
+          "path": "039_attendance_legacy-attendance.gs",
+          "sha256": "717f3b3e2df5789b044b55f792eeee4be471442e652a2c651531d20e70ad04bc"
+        },
+        {
+          "path": "040_accounting_daily-closing.gs",
+          "sha256": "a0ea2bcf73a23fc75c8c7d0dc86224fde917d27abf428b98de6758105a226085"
+        },
+        {
+          "path": "041_accounting_monthly-closing.gs",
+          "sha256": "4847c188d15f532414ce883437c11742290182e34bb7af914d15d4774335e7c5"
+        },
+        {
+          "path": "042_invoices_schema.gs",
+          "sha256": "51b0382abc7deed1076a725f2916b670201f353c87bee47163d9a1e8224a5365"
+        },
+        {
+          "path": "043_invoices_mutations.gs",
+          "sha256": "c30d36eafd0c020bc09fd25ec9cf937443617f38ab7bd2fdcf4da7631812a851"
+        },
+        {
+          "path": "044_invoices_queries.gs",
+          "sha256": "65e8301cc5ca083d41e55f78d7826102d80fa58d1fcc12d5e4609ca4cf8bc6d8"
+        },
+        {
+          "path": "045_invoices_deletion.gs",
+          "sha256": "5aeff0a62153089c2d9b20dfc5370070489a900c2fe324ab73b0b70e8296d332"
+        },
+        {
+          "path": "046_accounting_withdrawals.gs",
+          "sha256": "2d1e0d931f3d1307e7f63bed2e3f5e337c99a175621b7f275ab6a864ae2ef54c"
+        },
+        {
+          "path": "047_accounting_expenses.gs",
+          "sha256": "79713c0a2324e5d687f28cd2aa7d11061ef63087af889943fe710229359ebc9d"
+        },
+        {
+          "path": "048_invoices_pdf.gs",
+          "sha256": "9e34754a1164f29bd7138f5588d4c3dc732d770685f27c3cb5c66b1d99a3213c"
+        },
+        {
+          "path": "049_reports_sales-customers.gs",
+          "sha256": "6a3e7f56125533c92ece7076d9306d83dcd4e40af2a8a09c653d38ef4232ede5"
+        },
+        {
+          "path": "050_booking_schema-and-validation.gs",
+          "sha256": "2ba9f4354663312f643be8f77da74a83bc962bdce61b73316e54df0380312c0f"
+        },
+        {
+          "path": "051_booking_repository.gs",
+          "sha256": "ef1a86a8ee2c81d79449d59298528dbade896a23ed69f4d765d250aa552e6c85"
+        },
+        {
+          "path": "052_booking_idempotency.gs",
+          "sha256": "285d14af3c0818e64dc25ce361c171c8fc4819c136b121e979c3aca6e35cc000"
+        },
+        {
+          "path": "053_booking_service-snapshots.gs",
+          "sha256": "1250703874e6357ff1371882b788961a9dfc3f7ddfe5dc2b594616cc86193364"
+        },
+        {
+          "path": "054_booking_legacy-availability.gs",
+          "sha256": "cb9f2da0e8cec6207e592634c67d267c900e27dc8eea7354bf3566ec3532b5ad"
+        },
+        {
+          "path": "055_booking_availability-authority.gs",
+          "sha256": "24bc1bd5f88358ddd7e000b1c05f45e283ff6aaf080640618385e92fc5434efb"
+        },
+        {
+          "path": "056_booking_options.gs",
+          "sha256": "1193e17b3cee6fd0700f132a7b10e1c27664eed26c3449c6ddd911e0f7a82915"
+        },
+        {
+          "path": "057_booking_public-actions.gs",
+          "sha256": "2e3e6fa8ed24f4ab9ef85061dac35498382e9b028dd821ffc3618d3920dfba74"
+        },
+        {
+          "path": "058_booking_internal-actions.gs",
+          "sha256": "f526c4065395019c9902f8957511d9b92363c29629ea419afd35f6467130f74e"
+        },
+        {
+          "path": "059_booking_ratings.gs",
+          "sha256": "8018c8d1d178bebaa278fb071215d71dbf42f22531678550a1935fee2e82337e"
+        },
+        {
+          "path": "060_booking_legacy-actions.gs",
+          "sha256": "50ad998293b01746085952250cc706382677aca0fb0b0842c372c87695fad2bb"
+        },
+        {
+          "path": "061_shared_date-and-number.gs",
+          "sha256": "e16c6b363801e32d30b565a1be338b5c6cab61954b88af542e8b5b051a702043"
+        }
+      ]
+    },
+    {
+      "originalName": "booking-availability-phase5-apps-script-bundle",
+      "originalSha256": "b9df442b6a2c4b3041a0556de67f8e0a14be66c5b2359dec6d64148765603579",
+      "originalBytes": 676405,
+      "files": [
+        {
+          "path": "062_phase_staff-attendance-schema.gs",
+          "sha256": "c69aa446773adbe811c889c6473168acf77da0492309c024372b7c0066d1bd88"
+        },
+        {
+          "path": "063_phase_staff-attendance-core.gs",
+          "sha256": "0e13dab3070a1a468c7b0b9cd8e3d6af1409a2806b90bc86bcbbe690140b91b1"
+        },
+        {
+          "path": "064_phase_staff-scheduling-phase2.gs",
+          "sha256": "676637c33650664b9a9145b70b1c27d889cf22e890c3bcde688d9df43bad3888"
+        },
+        {
+          "path": "065_phase_staff-scheduling-phase2-gas.gs",
+          "sha256": "f7780cdc44903e1609faca27d279312b10b766d3a5733afa865456997ad1745f"
+        },
+        {
+          "path": "066_phase_staff-import-preview-staging.gs",
+          "sha256": "a497401d1e2b3b5f2ab65eeecb33ba2cc583d9500d5703b86b5f324c4ec80f7d"
+        },
+        {
+          "path": "067_phase_staff-attendance-phase3.gs",
+          "sha256": "4aa792673288a826c2d664f2539167b6059a6bf369677d539b3bfb73caf1b62a"
+        },
+        {
+          "path": "068_phase_staff-attendance-phase3-gas.gs",
+          "sha256": "53017253ee041d5e7fecef654b1c726bc91d232921b3c378c065473c520e19a4"
+        },
+        {
+          "path": "069_phase_staff-payroll-attendance-phase4.gs",
+          "sha256": "15b0e8f9c9e7e62df0891bdbc9058f3c090df8fc3b38ab91dc8d17b3df6e60ca"
+        },
+        {
+          "path": "070_phase_staff-payroll-attendance-phase4-gas.gs",
+          "sha256": "0d32fb1a76274af6129c1e7d9ce1a3fb9a7775ac27104e4bb2207a05c6d12a06"
+        },
+        {
+          "path": "071_phase_staff-schema-migration-staging-executor.gs",
+          "sha256": "ebb1725c44acec7c773d4930c0eb47aa1d9e1b50b26e3a7b02097758ccef03df"
+        },
+        {
+          "path": "072_phase_core-staging-auth-bootstrap.gs",
+          "sha256": "c15bd8448931101125fb69939ba27a067bdbad4406d844a2b68633860c70b744"
+        },
+        {
+          "path": "073_phase_booking-availability-phase5.gs",
+          "sha256": "6be31b5cbcc146d45f5b73e942b31aec902f902a76e0fb974307c78282428109"
+        },
+        {
+          "path": "074_phase_branch-foundation-staging.gs",
+          "sha256": "9d378630216d3cc5198475ae15a0f0523cfbc08c1e22c6c716b25fee519ceaa4"
+        },
+        {
+          "path": "075_phase_branch-registry-row-staging.gs",
+          "sha256": "3c9fc95a0b201076ef047437e6376e9dea36e9a876c543971f1d159af3bc2da3"
+        },
+        {
+          "path": "076_availability_config-and-repository.gs",
+          "sha256": "48c92e087cf6743edfde12f77055ab286e8fed2675075f07f37cbe8a5d716191"
+        },
+        {
+          "path": "077_availability_request-snapshot.gs",
+          "sha256": "9cc808b0ad882b6809f1071146a27d77faeb95b16c4e2731b65e7c4d20630cb6"
+        },
+        {
+          "path": "078_availability_authorization-cache.gs",
+          "sha256": "8a525a73f653648dd9d7549a488a69346b0f4fa61adbea14191e73060b3d3336"
+        },
+        {
+          "path": "079_availability_booking-occupancy.gs",
+          "sha256": "9fff2a0dabfea5401de3dc115e441a2437248039a0575d2b723f0b237af3b3cf"
+        },
+        {
+          "path": "080_availability_evaluation.gs",
+          "sha256": "c9a7703e1848c882d183a7521a2ac041b73b6afd7510d0895d469600f4aa1658"
+        },
+        {
+          "path": "081_availability_transactions.gs",
+          "sha256": "85f1cea2f12e71ccc6762a013b9b4cdde7970db6dc7d1bc802cbe560697dc4b2"
+        },
+        {
+          "path": "082_availability_audit-versions.gs",
+          "sha256": "09def389c41460fb21dfd5fd23fabc378297aad2fa33874896bec0c8be20690a"
+        },
+        {
+          "path": "083_availability_overrides.gs",
+          "sha256": "ea6c073b4f8e828d1bfb80b25efd75febfa12e3b99fe6505529bf825170a7cb9"
+        },
+        {
+          "path": "084_availability_conflicts.gs",
+          "sha256": "b6a62c629324110f214bfb18379764b8cbac212443a1237594bf6ead9a64fad2"
+        },
+        {
+          "path": "085_availability_work-policy-transactions.gs",
+          "sha256": "9819f416085ce2c6b18fcdcd3ee52c5bc3b90de6fbffdb2c15f02d9177b600e6"
+        },
+        {
+          "path": "086_availability_mutation-conflicts.gs",
+          "sha256": "6d5d41d5a962afdb04a6321ea9107779b8edf690dd966a75f29a459597fb39a3"
+        },
+        {
+          "path": "087_availability_branch-actions.gs",
+          "sha256": "d2c3bb353ae5525a4fd22d0162fb5236a4088806a00208b5b527bc7b24dcefa5"
+        },
+        {
+          "path": "088_availability_no-check-in-detector.gs",
+          "sha256": "43382666557db00848d47da6c88dd9990bff1e70f57ec512b64ff41e2abce901"
+        },
+        {
+          "path": "089_availability_action-router.gs",
+          "sha256": "17d97927527a16f146b1e543edc8a56bce88672a0ddfb6564d3d5b979dc35010"
+        }
+      ]
+    }
+  ],
+  "fileOrder": [
+    "001_core_environment.gs",
+    "002_core_http-router.gs",
+    "003_auth_runtime-policy.gs",
+    "004_auth_protected-reads.gs",
+    "005_shared_cairo-clock.gs",
+    "006_auth_sessions.gs",
+    "007_auth_security-state.gs",
+    "008_auth_authorization.gs",
+    "009_audit_activity-log.gs",
+    "010_auth_user-repository.gs",
+    "011_auth_credential-policy.gs",
+    "012_auth_crypto.gs",
+    "013_auth_credentials.gs",
+    "014_auth_identifiers.gs",
+    "015_auth_credential-migration.gs",
+    "016_auth_login-throttle.gs",
+    "017_auth_user-actions.gs",
+    "018_catalog_services.gs",
+    "019_staging_legacy-auth-preview.gs",
+    "020_shared_sheet-schema.gs",
+    "021_inventory_repository.gs",
+    "022_inventory_stock.gs",
+    "023_inventory_item-actions.gs",
+    "024_inventory_purchases.gs",
+    "025_inventory_service-recipes.gs",
+    "026_inventory_checkout-planning.gs",
+    "027_inventory_checkout-transaction.gs",
+    "028_inventory_barber-consumption.gs",
+    "029_staff_legacy-staff.gs",
+    "030_staff_branch-repository.gs",
+    "031_staff_mutable-fields.gs",
+    "032_staff_lifecycle-repository.gs",
+    "033_staff_transaction-journal.gs",
+    "034_staff_legacy-settlement.gs",
+    "035_staff_transaction-storage.gs",
+    "036_staff_transaction-integrity.gs",
+    "037_staff_transaction-actions.gs",
+    "038_staff_lifecycle-actions.gs",
+    "039_attendance_legacy-attendance.gs",
+    "040_accounting_daily-closing.gs",
+    "041_accounting_monthly-closing.gs",
+    "042_invoices_schema.gs",
+    "043_invoices_mutations.gs",
+    "044_invoices_queries.gs",
+    "045_invoices_deletion.gs",
+    "046_accounting_withdrawals.gs",
+    "047_accounting_expenses.gs",
+    "048_invoices_pdf.gs",
+    "049_reports_sales-customers.gs",
+    "050_booking_schema-and-validation.gs",
+    "051_booking_repository.gs",
+    "052_booking_idempotency.gs",
+    "053_booking_service-snapshots.gs",
+    "054_booking_legacy-availability.gs",
+    "055_booking_availability-authority.gs",
+    "056_booking_options.gs",
+    "057_booking_public-actions.gs",
+    "058_booking_internal-actions.gs",
+    "059_booking_ratings.gs",
+    "060_booking_legacy-actions.gs",
+    "061_shared_date-and-number.gs",
+    "062_phase_staff-attendance-schema.gs",
+    "063_phase_staff-attendance-core.gs",
+    "064_phase_staff-scheduling-phase2.gs",
+    "065_phase_staff-scheduling-phase2-gas.gs",
+    "066_phase_staff-import-preview-staging.gs",
+    "067_phase_staff-attendance-phase3.gs",
+    "068_phase_staff-attendance-phase3-gas.gs",
+    "069_phase_staff-payroll-attendance-phase4.gs",
+    "070_phase_staff-payroll-attendance-phase4-gas.gs",
+    "071_phase_staff-schema-migration-staging-executor.gs",
+    "072_phase_core-staging-auth-bootstrap.gs",
+    "073_phase_booking-availability-phase5.gs",
+    "074_phase_branch-foundation-staging.gs",
+    "075_phase_branch-registry-row-staging.gs",
+    "076_availability_config-and-repository.gs",
+    "077_availability_request-snapshot.gs",
+    "078_availability_authorization-cache.gs",
+    "079_availability_booking-occupancy.gs",
+    "080_availability_evaluation.gs",
+    "081_availability_transactions.gs",
+    "082_availability_audit-versions.gs",
+    "083_availability_overrides.gs",
+    "084_availability_conflicts.gs",
+    "085_availability_work-policy-transactions.gs",
+    "086_availability_mutation-conflicts.gs",
+    "087_availability_branch-actions.gs",
+    "088_availability_no-check-in-detector.gs",
+    "089_availability_action-router.gs",
+    "appsscript.json"
+  ]
+}

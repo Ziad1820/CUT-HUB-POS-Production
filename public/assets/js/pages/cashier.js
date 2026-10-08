@@ -206,22 +206,6 @@
     const LATEST_INVOICES_STORAGE_KEY = "romeo-pos-latest-invoices";
     const INVOICE_SUBMIT_LOCK_KEY = "romeo-pos-invoice-submit-lock";
     const INVOICE_SUBMIT_LOCK_TTL = 6 * 60 * 60 * 1000;
-    const BARBER_NAMES_BY_CODE = {
-      R01: "KAREEM",
-      R02: "8AYTH",
-      R03: "ELEBY",
-      R07: "RAMDAN",
-      R08: "KHALED",
-      R09: "MOHAMED"
-    };
-    const DEFAULT_BARBER_STAFF = [
-      { id: 1, name: "Ramdan", code: "R07" },
-      { id: 2, name: "Khaled", code: "R08" },
-      { id: 3, name: "Mohamed Emmad", code: "R09" },
-      { id: 4, name: "Karem", code: "R01" },
-      { id: 5, name: "Eleby", code: "R03" },
-      { id: 6, name: "8atyh", code: "R02" }
-    ];
     let barberStaffList = null;
     let latestInvoices = [];
     let activeLatestInvoice = null;
@@ -686,17 +670,13 @@
     }
 
     function getStoredStaffForBarbers() {
-      if (Array.isArray(barberStaffList) && barberStaffList.length) {
-        return barberStaffList;
-      }
+  if (Array.isArray(barberStaffList)) {
+    return barberStaffList;
+  }
 
-      const storedStaff = getStoredList(STAFF_STORAGE_KEY)
-        .filter(staff => staff && String(staff.name || "").trim());
-
-      return storedStaff.length
-        ? storedStaff
-        : DEFAULT_BARBER_STAFF.map(staff => ({ ...staff }));
-    }
+  return getStoredList(STAFF_STORAGE_KEY)
+    .filter(staff => staff && String(staff.name || "").trim());
+}
 
     function normalizeStaffForBarbers(staff, index = 0) {
       return {
@@ -718,10 +698,6 @@
           .map(normalizeStaffForBarbers)
           .filter(staff => staff.name && staff.isBarber !== false);
 
-        if (!sheetStaff.length) {
-          return;
-        }
-
         barberStaffList = sheetStaff;
         localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(sheetStaff));
         renderBarberOptions();
@@ -730,10 +706,10 @@
       }
     }
 
-    function getBarberSheetName(staff) {
-      const code = String(staff.code || "").trim().toUpperCase();
-      const fallback = String(staff.name || "").trim().toUpperCase();
-      return BARBER_NAMES_BY_CODE[code] || fallback;
+        function getBarberSheetName(staff) {
+      return String(staff.name || staff.staffName || "")
+        .trim()
+        .toUpperCase();
     }
 
     function getBarberPlaceholder() {
@@ -2371,8 +2347,20 @@
       const customerPhone = customerPhoneInput.value.trim();
       const barber = barberSelect.value;
       const selectedBarberOption = barberSelect.options[barberSelect.selectedIndex];
-      const barberId = String(selectedBarberOption?.dataset.staffCode || selectedBarberOption?.dataset.staffId || barber).trim();
-      const barberName = String(selectedBarberOption?.dataset.staffName || selectedBarberOption?.textContent || barber).trim();
+
+      const barberId = String(
+       selectedBarberOption?.dataset.staffId || ""
+      ).trim();
+
+      const barberCode = String(
+      selectedBarberOption?.dataset.staffCode || ""
+        ).trim().toUpperCase();
+
+      const barberName = String(
+  selectedBarberOption?.dataset.staffName ||
+  selectedBarberOption?.textContent ||
+  barber
+      ).trim();
       const paymentMethod = getSelectedPaymentMethod();
       const reportDate = getReportDateKey();
       const offerType = getSelectedOfferType();
@@ -2435,6 +2423,7 @@
         discountAmount,
         barber,
         barberId,
+        barberCode,
         barberName,
         paidAmount,
         tipAmount,
@@ -2526,7 +2515,9 @@
       updateOnlineControls();
     });
     window.addEventListener("romeo-connectivity-change", updateOnlineControls);
-    window.addEventListener("pageshow", () => {
+    window.addEventListener("pageshow", event => {
+      if (!event.persisted) return;
+
       renderBarberOptions();
       loadBarbersFromSheet();
       loadInventoryProducts();

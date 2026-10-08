@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "modularSourcesManifest": "config/backend-sources.json",
   "packageName": "CUT-HUB-POS Phase 1-5 aggregate",
   "filesInReviewOrder": [
     "scripts/app-script-final-owner-access.js",

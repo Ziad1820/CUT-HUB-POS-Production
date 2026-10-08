@@ -281,7 +281,7 @@
       return;
     }
     const response = await RomeoApi.request({
-      action: "getPublicBookingOptions", branchId, date: elements.date.value, audience: "internal"
+      action: "getInternalBookingOptions", branchId, date: elements.date.value
     });
     if (response?.status !== "success") throw new Error(response?.message || "Could not load services.");
     if (elements.branch.value !== branchId) return;
@@ -364,9 +364,8 @@
     const requestSequence = ++state.availabilityRequestSequence;
     try {
       const response = await RomeoApi.request({
-        action: "getPublicBookingOptions", branchId, date: elements.date.value, serviceIds,
-        durationMinutes: state.otherService ? duration : undefined,
-        audience: "internal", ifNoneMatch: silent ? state.availabilityToken : ""
+        action: "getInternalBookingOptions", branchId, date: elements.date.value, serviceIds,
+        durationMinutes: state.otherService ? duration : undefined, ifNoneMatch: silent ? state.availabilityToken : ""
       });
       if (response?.status !== "success") throw new Error(response?.message || "Could not load slots.");
       if (requestSequence !== state.availabilityRequestSequence) return;
@@ -498,10 +497,9 @@
           status.textContent = "";
           try {
             const response = await RomeoApi.request({
-              action: "getPublicBookingOptions", branchId: booking.branchId,
+              action: "getInternalBookingOptions", branchId: booking.branchId,
               date: proposedDate,
-              serviceIds: booking.serviceIds, durationMinutes: booking.serviceIds.length ? undefined : booking.durationMinutes,
-              audience: "internal"
+              serviceIds: booking.serviceIds, durationMinutes: booking.serviceIds.length ? undefined : booking.durationMinutes
             });
             if (sequence !== requestSequence || body.querySelector("#proposalDate").value !== proposedDate) return;
             if (response?.status !== "success") throw new Error(response?.message || text("تعذر تحميل المواعيد.", "Could not load appointments."));

@@ -38,7 +38,7 @@ test("proposal responses are verified, idempotent, and Phase 5 validated before 
 });
 
 test("staff proposal availability uses the booking branch and ignores stale date responses", () => {
-  assert.match(bookings, /action:\s*"getPublicBookingOptions",\s*branchId:\s*booking\.branchId/);
+  assert.match(bookings, /action:\s*"getInternalBookingOptions",\s*branchId:\s*booking\.branchId/);
   assert.match(bookings, /const proposedDate = body\.querySelector\("#proposalDate"\)\.value/);
   assert.match(bookings, /const sequence = \+\+requestSequence/);
   assert.match(bookings, /sequence !== requestSequence \|\| body\.querySelector\("#proposalDate"\)\.value !== proposedDate/);

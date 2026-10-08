@@ -58,6 +58,17 @@ function validatePackage(configPath = DEFAULT_CONFIG) {
   const definition = JSON.parse(fs.readFileSync(configPath, "utf8"));
   const packagePaths = definition.filesInReviewOrder || [];
   const errors = [];
+  if (definition.modularSourcesManifest) {
+    try {
+      const backend = require("./build-backend").buildBackend({ write: false });
+      for (const file of backend.stale) {
+        errors.push({ code: "DEPLOYMENT_BACKEND_OUTPUT_STALE", file });
+      }
+    } catch (error) {
+      errors.push({ code: "DEPLOYMENT_BACKEND_SOURCE_INVALID", message: error.message });
+      return { valid: false, errors, definition, files: [] };
+    }
+  }
   const aggregate = definition.aggregateBundle;
   const overlaps = new Set(definition.excludedOverlappingSources || []);
   if (packagePaths.includes(aggregate)) {

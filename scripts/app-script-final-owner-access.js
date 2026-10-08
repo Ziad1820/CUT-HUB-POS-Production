@@ -148,8 +148,9 @@ function doPost(e) {
   if (!isPublicAction(data.action)) {
     const sessionToken = getSessionToken(data);
     try {
-      authenticatedRequestContext = sessionToken
-        ? resolveAuthenticatedRequestContext(data, strictReadOnlyAuthAction
+      authenticatedRequestContext = protectedReadCapability(data.action)
+        ? resolveProtectedReadAuthContext(data)
+        : sessionToken ? resolveAuthenticatedRequestContext(data, strictReadOnlyAuthAction
           ? { strictReadOnly: true }
           : undefined)
         : null;
@@ -215,8 +216,9 @@ function doPost(e) {
   if (data.action === "saveServiceRecipe") return saveServiceRecipe(data);
   if (data.action === "getBarberConsumptionReport") return getBarberConsumptionReport(data);
 
-  if (data.action === "getStaff") return getStaff();
+  if (data.action === "getStaff") return getStaff(data);
   if (data.action === "saveStaff") return saveStaff(data);
+  if (data.action === "updateStaffMember") return saveStaff({ ...data, mode: "updateExisting" });
 
   if (data.action === "getActivityLogs") return getActivityLogs(data);
   if (data.action === "deleteActivityLog") return deleteActivityLog(data);
@@ -263,6 +265,7 @@ function doPost(e) {
   }
 
   if (data.action === "getPublicBookingOptions") return getPublicBookingOptions(data);
+  if (data.action === "getInternalBookingOptions") return getInternalBookingOptions(data);
   if (data.action === "createPublicBookingRequest") return createPublicBookingRequest(data);
   if (data.action === "getPublicBookingStatus") return getPublicBookingStatus(data);
   if (data.action === "respondToBookingProposal") return respondToBookingProposal(data);
@@ -360,6 +363,108 @@ const SESSION_CACHE_MAX_SECONDS = 6 * 60 * 60;
 const SESSION_CACHE_PREFIX = "romeo-session-";
 const AUTH01_RESOLVED_SESSION_TARGETS = new WeakSet();
 const AUTH01_AUTHENTICATED_SESSION_CONTEXTS = new WeakSet();
+
+// Backend-owned foundations only. None of these capabilities enables replay.
+const PROTECTED_READ_CAPABILITIES = Object.freeze(Object.fromEntries(
+  ["getBookings", "getInternalBookingOptions", "staffTotalSales", "staffClientCount"]
+    .map(action => [action, Object.freeze({
+      protectedRead: true,
+      authMode: "STRICT_READ_ONLY",
+      persistentWritesAllowed: false,
+      retryEligibilityFoundation: true,
+      transportRetryEnabled: false,
+      authCacheWritesAllowed: false,
+      handlerCacheEffectsAllowed: action === "getInternalBookingOptions"
+    })])
+));
+const PROTECTED_READ_CONTEXTS = new WeakMap();
+const PROTECTED_READ_ACTORS = new WeakMap();
+
+function protectedReadCapability(action) {
+  return typeof action === "string" &&
+    Object.prototype.hasOwnProperty.call(PROTECTED_READ_CAPABILITIES, action)
+    ? PROTECTED_READ_CAPABILITIES[action] : null;
+}
+
+function protectedReadContext(data) {
+  if (!data || typeof data !== "object") return null;
+  const context = PROTECTED_READ_CONTEXTS.get(data);
+  return context && context.action === data.action ? context : null;
+}
+
+function inheritProtectedReadContext(source, target) {
+  const context = protectedReadContext(source);
+  if (context && target && target.action === context.action) {
+    PROTECTED_READ_CONTEXTS.set(target, context);
+  }
+  return target;
+}
+
+function protectedReadCachedActor(data) {
+  const context = protectedReadContext(data);
+  return context ? PROTECTED_READ_ACTORS.get(context) || null : null;
+}
+
+function protectedReadRememberActor(data, actor) {
+  const context = protectedReadContext(data);
+  if (!context) return actor;
+  const trustedActor = Object.freeze(Object.assign({}, actor, {
+    permissions: Object.freeze((actor.permissions || []).slice()),
+    branchIds: Object.freeze((actor.branchIds || []).slice())
+  }));
+  PROTECTED_READ_ACTORS.set(context, trustedActor);
+  return trustedActor;
+}
+
+function protectedReadUserEnabled(username) {
+  // The legacy USERS contract has no enable flag. Honor optional explicit
+  // account flags when present; never infer login status from STAFF.ACTIVE.
+  const sheet = getUsersSheetReadOnly();
+  const width = sheet.getLastColumn();
+  const headers = sheet.getRange(1, 1, 1, width).getValues()[0]
+    .map(value => String(value || "").trim().toUpperCase());
+  const flags = headers.map((name, index) => ({ name, index }))
+    .filter(item => ["ACTIVE", "ENABLED", "DISABLED"].includes(item.name));
+  if (!flags.length) return true;
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, width).getValues();
+  const row = rows.find(item => auth01CanonicalUsername(item[0]) === auth01CanonicalUsername(username));
+  if (!row) return false;
+  return flags.every(({ name, index }) => {
+    const value = String(row[index]).trim().toUpperCase();
+    return name === "DISABLED" ? ["FALSE", "0", "NO"].includes(value)
+      : ["TRUE", "1", "YES"].includes(value);
+  });
+}
+
+function resolveProtectedReadAuthContext(data) {
+  const capability = protectedReadCapability(data && data.action);
+  if (!capability) return null;
+  const authenticated = resolveAuthenticatedRequestContext(data, { strictReadOnly: true });
+  if (!authenticated) return null;
+  const security = auth01ReadSecurityState(authenticated);
+  if (security.status !== "success" || security.authSecurityState !== "CLEAN_MODERN") {
+    const error = new Error("A clean modern authentication state is required.");
+    error.code = security.code || "AUTH_SECURITY_STATE_NOT_CLEAN";
+    throw error;
+  }
+  if (!protectedReadUserEnabled(authenticated.username)) {
+    const error = new Error("The authenticated account is disabled.");
+    error.code = "USER_DISABLED";
+    throw error;
+  }
+  // Keep session token/property/raw record out of the downstream capability.
+  const context = Object.freeze({
+    action: data.action,
+    user: authenticated.user,
+    permissions: authenticated.permissions,
+    securityState: "CLEAN_MODERN",
+    authMode: capability.authMode,
+    retrySafeAuth: true,
+    transportRetryEnabled: false
+  });
+  PROTECTED_READ_CONTEXTS.set(data, context);
+  return context;
+}
 
 function getCairoDateTime() {
   return Utilities.formatDate(new Date(), TIME_ZONE, "yyyy-MM-dd HH:mm:ss");
@@ -804,8 +909,12 @@ function auth01ReadOnlyThrottleSecurityState(username, properties, options) {
 }
 
 function getMyAuthSecurityState(_data, authContext) {
+  return jsonOutput(auth01ReadSecurityState(authContext));
+}
+
+function auth01ReadSecurityState(authContext) {
   if (!authContext || !AUTH01_AUTHENTICATED_SESSION_CONTEXTS.has(authContext)) {
-    return jsonOutput({ status: "error", code: "AUTH_REQUIRED", authRequired: true });
+    return { status: "error", code: "AUTH_REQUIRED", authRequired: true };
   }
 
   try {
@@ -871,7 +980,7 @@ function getMyAuthSecurityState(_data, authContext) {
           ? "LEGACY_COMPAT"
           : "INCONSISTENT";
 
-    return jsonOutput({
+    return {
       status: "success",
       credentialClass,
       credentialStructureValid,
@@ -890,13 +999,17 @@ function getMyAuthSecurityState(_data, authContext) {
       targetThrottleActiveBlock: throttle.activeBlock,
       targetThrottleMalformed: throttle.malformed,
       authSecurityState
-    });
+    };
   } catch (error) {
-    return jsonOutput({ status: "error", code: "AUTH_SECURITY_STATE_UNAVAILABLE" });
+    return { status: "error", code: "AUTH_SECURITY_STATE_UNAVAILABLE" };
   }
 }
 
 function getAuthenticatedUser(data) {
+  const protectedContext = protectedReadContext(data);
+  if (protectedContext) return protectedContext.user;
+  // Registered reads must never fall back to the cleanup-capable resolver.
+  if (data && protectedReadCapability(data.action)) return null;
   const authContext = resolveAuthenticatedRequestContext(data);
   return authContext ? authContext.user : null;
 }
@@ -3911,6 +4024,7 @@ const BALANCE_BEFORE_HEADER_ALIASES = [
 ];
 
 const BARBER_ID_HEADER_ALIASES = ["barberId", "barber id"];
+const BARBER_CODE_HEADER_ALIASES = ["barberCode", "barber code"];
 const BARBER_NAME_HEADER_ALIASES = ["barberName", "barber name"];
 
 function inventoryNumber(value) {
@@ -4981,21 +5095,36 @@ function normalizeStaffForSheet(staff, index) {
   };
 }
 
-function getStaff() {
+function getStaff(data) {
   try {
     const sheet = getStaffSheet();
     const lastRow = sheet.getLastRow();
-    const attendanceTotals = getApprovedAttendanceTotalsForCurrentMonth();
+    const attendanceTotals = getApprovedAttendanceTotalsForCurrentMonth(data);
 
     if (lastRow < 2) {
       return jsonOutput({ status: "success", staff: [] });
     }
 
-    const rows = sheet.getRange(2, 1, lastRow - 1, 11).getValues();
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+      .map(value => String(value).trim().toUpperCase());
+    const staffHeaders = ["NAME", "CODE", "SALARY", "PERCENTAGE", "ID", "BONUS", "DEDUCTION",
+      "ACTIVE", "CREATED_AT", "UPDATED_AT", "IS_BARBER"];
+    staffHeaders.forEach(header => {
+      if (headers.filter(value => value === header).length !== 1) throw new Error(`Invalid STAFF header: ${header}`);
+    });
+    const rawRows = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+    const rows = rawRows.map(row => staffHeaders.map(header => row[headers.indexOf(header)]));
+    const nameCounts = {};
+    rows.forEach(row => {
+      const key = normalizeLookupKey(row[0]);
+      nameCounts[key] = (nameCounts[key] || 0) + 1;
+    });
 
     const staff = rows
       .map((row, index) => ({
         rowNumber: index + 2,
+        version: JSON.stringify(rawRows[index]),
+        branchId: headers.indexOf("BRANCH_ID") >= 0 ? String(rawRows[index][headers.indexOf("BRANCH_ID")] || "").trim() : "",
         name: String(row[0] || "").trim(),
         code: String(row[1] || "").trim().toUpperCase(),
         salary: parseSheetAmount(row[2]),
@@ -5010,9 +5139,12 @@ function getStaff() {
       }))
       .filter(staffMember => staffMember.name && staffMember.active)
       .map(staffMember => {
-        const attendanceDeduction = attendanceTotals[normalizeLookupKey(staffMember.name)] || 0;
+        const nameKey = normalizeLookupKey(staffMember.name);
+        const attendanceDeduction = (attendanceTotals[`id:${staffMember.id}`] || 0) +
+          (nameCounts[nameKey] === 1 ? attendanceTotals[`name:${nameKey}`] || 0 : 0);
         return {
         id: staffMember.id,
+        branchId: staffMember.branchId,
         name: staffMember.name,
         code: staffMember.code,
         salary: staffMember.salary,
@@ -5021,6 +5153,8 @@ function getStaff() {
         deduction: staffMember.deduction,
         attendanceDeduction,
         totalDeduction: staffMember.deduction + attendanceDeduction,
+        updatedAt: staffMember.updatedAt,
+        version: staffMember.version,
         isBarber: staffMember.isBarber
         };
       });
@@ -5035,10 +5169,117 @@ function getStaff() {
   }
 }
 
+// Single-member editor. The legacy list API remains separate for add/delete callers.
+function updateExistingStaffMember(data) {
+  assertStagingEnvironment();
+  return withBookingMutationLock({ employeeId: data.staffId }, () => {
+    const sheet = getStaffSheet();
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+      .map(value => String(value).trim().toUpperCase());
+    const required = ["NAME", "CODE", "SALARY", "PERCENTAGE", "ID", "BONUS",
+      "DEDUCTION", "ACTIVE", "CREATED_AT", "UPDATED_AT", "IS_BARBER", "BRANCH_ID"];
+    required.forEach(header => {
+      if (headers.filter(value => value === header).length !== 1) {
+        throw new Error(`STAFF schema requires exactly one ${header} column.`);
+      }
+    });
+    const id = String(data.staffId || "").trim();
+    if (!id) throw new Error("A stable staff ID is required.");
+    const rows = sheet.getLastRow() > 1
+      ? sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues() : [];
+    const matches = rows.map((row, index) => ({ row, rowNumber: index + 2 }))
+      .filter(item => String(item.row[headers.indexOf("ID")]).trim() === id);
+    if (matches.length !== 1) throw new Error("Staff ID is missing or ambiguous; no changes saved.");
+    const target = matches[0];
+    const value = header => target.row[headers.indexOf(header)];
+    if (!parseSheetBoolean(value("ACTIVE"), true)) throw new Error("Staff member is inactive.");
+    const actor = schedulePhase2Actor(data);
+    const branchId = String(value("BRANCH_ID") || "").trim();
+    if (!actor || (!actor.owner && !(actor.role === "MANAGER" && branchId &&
+        actor.branchIds.indexOf(branchId) !== -1))) {
+      throw new Error("Staff member is outside your permitted branch scope.");
+    }
+    if (typeof data.expectedUpdatedAt !== "string" ||
+        data.expectedUpdatedAt !== getDisplayDateTime(value("UPDATED_AT")) ||
+        data.expectedVersion !== JSON.stringify(target.row)) {
+      throw new Error("Staff data changed. Reload before saving.");
+    }
+    const changes = data.changes || {};
+    const fields = { name: "NAME", code: "CODE", salary: "SALARY", percentage: "PERCENTAGE",
+      bonus: "BONUS", deduction: "DEDUCTION", isBarber: "IS_BARBER" };
+    if (Object.keys(changes).some(key => !fields[key])) throw new Error("Unsupported staff field.");
+    const updates = [];
+    Object.keys(changes).forEach(key => {
+      let next = changes[key];
+      if (["salary", "percentage", "bonus", "deduction"].indexOf(key) !== -1) {
+        if (typeof next !== "number" || !Number.isFinite(next) || next < 0 ||
+            (key === "percentage" && next > 100)) throw new Error(`Invalid ${key}.`);
+      } else if (key === "isBarber") {
+        if (typeof next !== "boolean") throw new Error("Invalid barber flag.");
+        next = next ? "TRUE" : "FALSE";
+      } else {
+        next = String(next || "").trim();
+        if (key === "code") next = next.toUpperCase();
+        if (!next || /^[=+@]/.test(next)) throw new Error(`Invalid ${key}.`);
+        if (key === "code" && rows.some((row, index) => index + 2 !== target.rowNumber &&
+            String(row[headers.indexOf("CODE")]).trim().toUpperCase() === next)) {
+          throw new Error("Staff code is already in use.");
+        }
+      }
+      const column = headers.indexOf(fields[key]) + 1;
+      const previous = target.row[column - 1];
+      const same = key === "isBarber" ? parseSheetBoolean(previous, true) === changes[key]
+        : previous === next;
+      if (!same) updates.push({ column, previous, next });
+    });
+    if (!updates.length) return jsonOutput({ status: "success", updatedAt: data.expectedUpdatedAt, version: data.expectedVersion });
+    const now = getCairoDateTime();
+    updates.push({ column: headers.indexOf("UPDATED_AT") + 1, previous: value("UPDATED_AT"), next: now });
+    const applied = [];
+    const write = () => {
+      updates.forEach(update => {
+        // Retain formulas as well as values if compensation is required.
+        update.formula = sheet.getRange(target.rowNumber, update.column).getFormula();
+        applied.push(update);
+        sheet.getRange(target.rowNumber, update.column).setValue(update.next);
+      });
+      SpreadsheetApp.flush();
+      return { updatedAt: getDisplayDateTime(now),
+        version: JSON.stringify(sheet.getRange(target.rowNumber, 1, 1, headers.length).getValues()[0]) };
+    };
+    const undo = () => {
+      applied.slice().reverse().forEach(update =>
+        sheet.getRange(target.rowNumber, update.column).setValue(update.formula || update.previous));
+      SpreadsheetApp.flush();
+    };
+    let result;
+    if (typeof bookingAvailabilityPhase5RunTransaction === "function" && bookingAvailabilityEngineMode() === "PHASE5") {
+      const requestId = String(data.clientRequestId || Utilities.getUuid());
+      result = bookingAvailabilityPhase5RunTransaction({
+        data, requestId, action: "STAFF_MEMBER_UPDATE", entityType: "STAFF_MEMBERSHIP", entityId: id, actor,
+        beforeState: { rowNumber: target.rowNumber, row: target.row }, business: write,
+        version: () => bookingAvailabilityPhase5IncrementGeneration("staffMembership", "GLOBAL", "GLOBAL", actor, requestId),
+        audit: () => bookingAvailabilityPhase5AppendAudit({
+          action: "STAFF_MEMBER_UPDATED", entityType: "STAFF_MEMBERSHIP", entityId: id,
+          actorId: actor.actorId, actorRole: actor.role, reasonCode: "STAFF_MEMBERSHIP",
+          beforeState: { rowNumber: target.rowNumber }, afterState: { fields: Object.keys(changes) }, requestId
+        }), compensateBusiness: undo, response: value => value
+      });
+    } else {
+      try {
+        result = write();
+        logActivity(data, "update", "staff", id, "Updated staff member.");
+      } catch (error) { undo(); throw error; }
+    }
+    return jsonOutput({ status: "success", updatedAt: result.updatedAt, version: result.version });
+  });
+}
+
 function saveStaff(data) {
   try {
     const permissionError = requirePermission(data, "view_staff_accounting", "You do not have permission to edit staff.");
     if (permissionError) return permissionError;
+    if (data.mode === "updateExisting") return updateExistingStaffMember(data);
 
     const sheet = getStaffSheet();
     const staffList = Array.isArray(data.staff) ? data.staff : [];
@@ -5593,7 +5834,8 @@ function deleteAttendanceRecord(data) {
   }
 }
 
-function getApprovedAttendanceTotalsForCurrentMonth() {
+function getApprovedAttendanceTotalsForCurrentMonth(data) {
+  const range = getOptionalDateRange(data || {}, null, true);
   try {
     const today = getCairoDateKey();
     const monthKey = today.slice(0, 7);
@@ -5604,17 +5846,18 @@ function getApprovedAttendanceTotalsForCurrentMonth() {
     const rows = sheet.getRange(2, 1, lastRow - 1, ATTENDANCE_HEADERS.length).getValues();
     return rows.reduce((totals, row) => {
       const record = attendanceRecordFromRow(row, 0);
-      if (record.date.slice(0, 7) !== monthKey || record.approvalStatus !== "approved") {
+      if ((range ? !isDateInOptionalRange(record.date, range) : record.date.slice(0, 7) !== monthKey) ||
+          record.approvalStatus !== "approved") {
         return totals;
       }
 
-      const key = normalizeLookupKey(record.staffName);
+      const key = record.staffId ? `id:${record.staffId}` : `name:${normalizeLookupKey(record.staffName)}`;
       totals[key] = (totals[key] || 0) + record.approvedDeduction;
       return totals;
     }, {});
   } catch (error) {
-    if (error && /^ATTENDANCE_SCHEMA_/.test(String(error.code || ""))) throw error;
-    return {};
+    // A failed attendance read is not evidence of zero deduction.
+    throw error;
   }
 }
 function getDailyClosingSheet() {
@@ -6331,13 +6574,31 @@ function ensureDataInvoiceColumns(sheet) {
   sheet.getRange(1, 6, 1, 6).setValues([["TOTAL", "paid amount", "tip amount", "PAYMENT", "BARBER", "Notes"]]);
   sheet.getRange(1, 12, 1, 2).setValues([["discount percent", "discount amount"]]);
   return {
-    invoiceRequestIdColumn: ensureSheetHeaderColumn(
-      sheet,
-      INVOICE_REQUEST_ID_HEADER_ALIASES,
-      "invoice request id",
-      14
-    )
-  };
+  invoiceRequestIdColumn: ensureSheetHeaderColumn(
+    sheet,
+    INVOICE_REQUEST_ID_HEADER_ALIASES,
+    "invoice request id",
+    14
+  ),
+  barberIdColumn: ensureSheetHeaderColumn(
+    sheet,
+    BARBER_ID_HEADER_ALIASES,
+    "barberId",
+    15
+  ),
+  barberCodeColumn: ensureSheetHeaderColumn(
+    sheet,
+    BARBER_CODE_HEADER_ALIASES,
+    "barberCode",
+    16
+  ),
+  barberNameColumn: ensureSheetHeaderColumn(
+    sheet,
+    BARBER_NAME_HEADER_ALIASES,
+    "barberName",
+    17
+  )
+};
 }
 
 function getInvoiceRequestIdColumn(sheet) {
@@ -6443,7 +6704,8 @@ function createInvoice(data) {
     }
 
     persistedRequestId = requestId || `invoice-server-${Utilities.getUuid()}`;
-    invoiceRequestIdColumn = ensureDataInvoiceColumns(sheet).invoiceRequestIdColumn;
+    const invoiceColumns = ensureDataInvoiceColumns(sheet);
+    invoiceRequestIdColumn = invoiceColumns.invoiceRequestIdColumn;
     pdfUrl = createInvoicePdf(data);
     const paymentDetails = getInvoicePaymentDetails(data);
     const invoiceRow = [
@@ -6461,8 +6723,30 @@ function createInvoice(data) {
       parseSheetAmount(data.discountPercent || 0),
       parseSheetAmount(data.discountAmount || 0)
     ];
-    while (invoiceRow.length < invoiceRequestIdColumn) invoiceRow.push("");
-    invoiceRow[invoiceRequestIdColumn - 1] = persistedRequestId;
+    const requiredInvoiceRowLength = Math.max(
+      invoiceColumns.invoiceRequestIdColumn,
+      invoiceColumns.barberIdColumn,
+      invoiceColumns.barberCodeColumn,
+      invoiceColumns.barberNameColumn
+    );
+
+    while (invoiceRow.length < requiredInvoiceRowLength) {
+      invoiceRow.push("");
+    }
+
+    invoiceRow[invoiceColumns.invoiceRequestIdColumn - 1] = persistedRequestId;
+    invoiceRow[invoiceColumns.barberIdColumn - 1] = String(
+      data.barberId || ""
+    ).trim();
+
+    invoiceRow[invoiceColumns.barberCodeColumn - 1] = String(
+      data.barberCode || ""
+    ).trim().toUpperCase();
+
+    invoiceRow[invoiceColumns.barberNameColumn - 1] = String(
+      data.barberName || data.barber || ""
+    ).trim();
+
     sheet.appendRow(invoiceRow);
     invoiceRowNumber = sheet.getLastRow();
     const invoiceId = `DATA-${invoiceRowNumber}`;
@@ -6482,8 +6766,12 @@ function createInvoice(data) {
       console.warn("Invoice idempotency cache could not be updated:", cacheError);
     }
     return jsonOutput(response);
-  } catch (error) {
-    if (inventoryTransaction) {
+    } catch (error) {
+       console.error(
+          "CREATE_INVOICE_STAGING_ERROR:",
+         error && error.stack ? error.stack : error
+      );
+      if (inventoryTransaction) {
       try { rollbackInventoryCheckout(inventoryTransaction); } catch (rollbackError) {
         console.error("Inventory rollback failed:", rollbackError);
       }
@@ -6512,7 +6800,8 @@ function createInvoice(data) {
       success: false,
       status: "error",
       code: "INVOICE_COMPLETION_FAILED",
-      message: "The invoice could not be completed. No invoice or inventory changes were saved."
+      message: "The invoice could not be completed. No invoice or inventory changes were saved.",
+      debugError: String(error && error.stack ? error.stack : error)
     });
   } finally {
     try { lock.releaseLock(); } catch (ignore) {}
@@ -6547,8 +6836,28 @@ function updateInvoice(data) {
       return jsonOutput({ status: "error", message: "Invoice must be loaded from the sheet before editing." });
     }
 
-    ensureDataInvoiceColumns(sheet);
+    const invoiceColumns = ensureDataInvoiceColumns(sheet);
     const currentRow = sheet.getRange(targetRowNumber, 1, 1, 13).getValues()[0];
+    const currentBarberId = String(
+  sheet.getRange(
+    targetRowNumber,
+    invoiceColumns.barberIdColumn
+  ).getValue() || ""
+).trim();
+
+const currentBarberCode = String(
+  sheet.getRange(
+    targetRowNumber,
+    invoiceColumns.barberCodeColumn
+  ).getValue() || ""
+).trim().toUpperCase();
+
+const currentBarberName = String(
+  sheet.getRange(
+    targetRowNumber,
+    invoiceColumns.barberNameColumn
+  ).getValue() || ""
+).trim();
     const beforeUpdate = invoiceRowAuditSnapshot(currentRow);
     const currentDate = currentRow[0];
     const nextDate = getDateKey(data.date || data.dateKey || currentDate, TIME_ZONE) || currentDate;
@@ -6580,6 +6889,35 @@ function updateInvoice(data) {
     ];
 
     sheet.getRange(targetRowNumber, 1, 1, 13).setValues([updatedRow]);
+
+    sheet.getRange(
+  targetRowNumber,
+  invoiceColumns.barberIdColumn
+).setValue(
+  String(data.barberId || currentBarberId || "").trim()
+);
+
+sheet.getRange(
+  targetRowNumber,
+  invoiceColumns.barberCodeColumn
+).setValue(
+  String(data.barberCode || currentBarberCode || "")
+    .trim()
+    .toUpperCase()
+);
+
+sheet.getRange(
+  targetRowNumber,
+  invoiceColumns.barberNameColumn
+).setValue(
+  String(
+    data.barberName ||
+    data.barber ||
+    currentBarberName ||
+    currentRow[9] ||
+    ""
+  ).trim()
+);
     const afterUpdate = invoiceRowAuditSnapshot(updatedRow);
 
     logActivity(
@@ -6696,7 +7034,37 @@ function getInvoices(data) {
   const targetPayment = String(filters.payment || data.payment || data.paymentMethod || "").trim();
   const limit = Math.min(Math.max(Number(data.limit) || 100, 1), 500);
   const offset = Math.max(Number(data.offset) || 0, 0);
-  const rows = sheet.getRange(2, 1, lastRow - 1, Math.min(sheet.getLastColumn(), 13)).getValues();
+  const barberIdColumn = findSheetHeaderColumn(
+  sheet,
+  BARBER_ID_HEADER_ALIASES,
+  15
+);
+
+const barberCodeColumn = findSheetHeaderColumn(
+  sheet,
+  BARBER_CODE_HEADER_ALIASES,
+  16
+);
+
+const barberNameColumn = findSheetHeaderColumn(
+  sheet,
+  BARBER_NAME_HEADER_ALIASES,
+  17
+);
+
+const invoiceReadWidth = Math.max(
+  13,
+  barberIdColumn || 0,
+  barberCodeColumn || 0,
+  barberNameColumn || 0
+);
+
+const rows = sheet.getRange(
+  2,
+  1,
+  lastRow - 1,
+  invoiceReadWidth
+).getValues();
   const matches = [];
   const barberOptions = {};
   const paymentOptions = {};
@@ -6718,10 +7086,21 @@ function getInvoices(data) {
       tipAmount: parseSheetAmount(row[7]),
       paymentMethod: String(row[8] || "").trim(),
       barber: String(row[9] || "").trim(),
+      barberId: barberIdColumn
+        ? String(row[barberIdColumn - 1] || "").trim()
+        : "",
+
+      barberCode: barberCodeColumn
+        ? String(row[barberCodeColumn - 1] || "").trim().toUpperCase()
+        : "",
+
+      barberName: barberNameColumn
+        ? String(row[barberNameColumn - 1] || "").trim()
+        : String(row[9] || "").trim(),
       note: String(row[10] || "").trim(),
       discountPercent: parseSheetAmount(row[11]),
       discountAmount: parseSheetAmount(row[12])
-    };
+      };
 
     const hasData =
       invoice.date ||
@@ -7335,25 +7714,78 @@ function getCustomerLookup() {
 
 function getStaffClientCount(data) {
   const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
+
   let range;
   try {
     range = getOptionalDateRange(data, null, true);
   } catch (error) {
-    return jsonOutput({ status: "error", message: error.message });
+    return jsonOutput({
+      status: "error",
+      message: error.message
+    });
   }
+
   if (!sheet) {
-    return jsonOutput({ status: "success", totalClients: 0 });
+    return jsonOutput({
+      status: "success",
+      totalClients: 0
+    });
   }
-  const barber = normalizeBarberName(data.barber);
-  const rows = getSheetRangeFromRow2(sheet, 1, 10, true);
+
+  const barberIdColumn = findSheetHeaderColumn(
+    sheet,
+    BARBER_ID_HEADER_ALIASES,
+    15
+  );
+
+  const barberCodeColumn = findSheetHeaderColumn(
+    sheet,
+    BARBER_CODE_HEADER_ALIASES,
+    16
+  );
+
+  const barberNameColumn = findSheetHeaderColumn(
+    sheet,
+    BARBER_NAME_HEADER_ALIASES,
+    17
+  );
+
+  const readWidth = Math.max(
+    10,
+    barberIdColumn || 0,
+    barberCodeColumn || 0,
+    barberNameColumn || 0
+  );
+
+  const rows = getSheetRangeFromRow2(
+    sheet,
+    1,
+    readWidth,
+    true
+  );
+
+  const columns = {
+    barberIdColumn,
+    barberCodeColumn,
+    barberNameColumn
+  };
 
   const count = rows.filter(row => {
-    const hasData = row.some(cell => String(cell || "").trim() !== "");
-    const rowBarber = normalizeBarberName(row[9]);
-    return hasData && rowBarber === barber && isDateInOptionalRange(row[0], range);
+    const hasData = row.some(
+      cell => String(cell || "").trim() !== ""
+    );
+
+    return (
+      hasData &&
+      invoiceRowMatchesStaff(row, columns, data) &&
+      isDateInOptionalRange(row[0], range)
+    );
   }).length;
 
-  return jsonOutput({ status: "success", totalClients: count });
+  return jsonOutput({
+    status: "success",
+    totalClients: count
+  });
 }
 
 function normalizeBarberName(value) {
@@ -7366,31 +7798,116 @@ function normalizeBarberName(value) {
   return aliases[name] || name;
 }
 
+function invoiceRowMatchesStaff(row, columns, data) {
+  const targetId = String(data.barberId || "").trim();
+  const targetCode = String(data.barberCode || "").trim().toUpperCase();
+  const targetName = normalizeBarberName(data.barber || data.barberName || "");
+
+  const rowId = columns.barberIdColumn
+    ? String(row[columns.barberIdColumn - 1] || "").trim()
+    : "";
+
+  const rowCode = columns.barberCodeColumn
+    ? String(row[columns.barberCodeColumn - 1] || "").trim().toUpperCase()
+    : "";
+
+  const storedBarberName = columns.barberNameColumn
+  ? String(row[columns.barberNameColumn - 1] || "").trim()
+  : "";
+
+const rowName = normalizeBarberName(
+  storedBarberName || row[9]
+);
+
+  if (rowId) {
+    return !!targetId && rowId === targetId;
+  }
+
+  if (rowCode) {
+    return !!targetCode && rowCode === targetCode;
+  }
+
+  return !!targetName && rowName === targetName;
+}
+
 function getStaffTotalSales(data) {
   let range;
+
   try {
     range = getOptionalDateRange(data, null, true);
   } catch (error) {
-    return jsonOutput({ status: "error", message: error.message });
-  }
-  const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
-  if (!sheet) {
-    return jsonOutput({ status: "success", totalSales: 0 });
+    return jsonOutput({
+      status: "error",
+      message: error.message
+    });
   }
 
-  const barber = normalizeBarberName(data.barber);
-  const rows = getSheetRangeFromRow2(sheet, 1, 10);
+  const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
+
+  if (!sheet) {
+    return jsonOutput({
+      status: "success",
+      totalSales: 0
+    });
+  }
+
+  const barberIdColumn = findSheetHeaderColumn(
+    sheet,
+    BARBER_ID_HEADER_ALIASES,
+    15
+  );
+
+  const barberCodeColumn = findSheetHeaderColumn(
+    sheet,
+    BARBER_CODE_HEADER_ALIASES,
+    16
+  );
+
+  const barberNameColumn = findSheetHeaderColumn(
+    sheet,
+    BARBER_NAME_HEADER_ALIASES,
+    17
+  );
+
+  const readWidth = Math.max(
+    10,
+    barberIdColumn || 0,
+    barberCodeColumn || 0,
+    barberNameColumn || 0
+  );
+
+  const rows = getSheetRangeFromRow2(
+    sheet,
+    1,
+    readWidth
+  );
+
+  const columns = {
+    barberIdColumn,
+    barberCodeColumn,
+    barberNameColumn
+  };
 
   const totalSales = rows.reduce((sum, row) => {
-    const hasData = row.some(cell => cell !== "" && cell !== null);
-    const rowBarber = normalizeBarberName(row[9]);
+    const hasData = row.some(
+      cell => cell !== "" && cell !== null
+    );
 
-    if (!hasData || rowBarber !== barber || !isDateInOptionalRange(row[0], range)) return sum;
+    if (
+      !hasData ||
+      !invoiceRowMatchesStaff(row, columns, data) ||
+      !isDateInOptionalRange(row[0], range)
+    ) {
+      return sum;
+    }
 
     return sum + parseSheetAmount(row[5]);
   }, 0);
 
-  return jsonOutput({ status: "success", totalSales });
+  return jsonOutput({
+    status: "success",
+    totalSales
+  });
 }
 
 function getTodaySales(data) {
@@ -8606,7 +9123,8 @@ function bookingAvailabilityReadResponseSnapshot(token, context) {
   }
 }
 
-function getPublicBookingOptions(data) {
+function getBookingOptionsForAudience(data, forcedAudience) {
+  const audience = forcedAudience === "internal" ? "internal" : "public";
   try {
     if (!bookingServiceIdsInputIsValid(data)) {
       return bookingApiError("INVALID_SERVICES", "serviceIds must be an array.");
@@ -8637,12 +9155,30 @@ function getPublicBookingOptions(data) {
       && bookingAvailabilityEngineMode() === "PHASE5"
       ? bookingAvailabilityPhase5RequestSnapshot() : null;
     const selectedBranchId = String(data.branchId || "").trim();
+    if (audience === "internal") {
+      if (!selectedBranchId) {
+        throw BookingAvailabilityPhase5.availabilityError(
+          "AVAILABILITY_BRANCH_REQUIRED",
+          "A branch must be selected explicitly."
+        );
+      }
+      const actor = bookingAvailabilityPhase5Actor(data);
+      if (!bookingAvailabilityPhase5HasPermission(actor, "booking_availability.view")) {
+        throw BookingAvailabilityPhase5.availabilityError(
+          "AVAILABILITY_PERMISSION_DENIED",
+          "Booking Availability permission is required."
+        );
+      }
+      bookingAvailabilityPhase5AssertBranchScope(actor, selectedBranchId);
+    }
     if (availabilitySnapshot) {
       bookingAvailabilityPhase5Branch(
-        selectedBranchId, { publicAudience: true }, availabilitySnapshot.branches);
+        selectedBranchId, { publicAudience: audience === "public" }, availabilitySnapshot.branches);
     }
     const activeBarbers = publicBookingBarbers().filter((barber) =>
-      !availabilitySnapshot || barber.branchId === selectedBranchId);
+      audience === "internal"
+        ? barber.branchId === selectedBranchId
+        : (!availabilitySnapshot || barber.branchId === selectedBranchId));
     const barbers = activeBarbers.map((barber) => {
       const summary = calculatePublicBarberRatingSummary(barber.staffId, ratings, bookings);
       return {
@@ -8651,15 +9187,15 @@ function getPublicBookingOptions(data) {
         code: barber.code,
         averageRating: summary.averageRating,
         ratingsCount: summary.ratingsCount,
-        ...availableSlotsForBarber(barber, dateKey, durationMinutes, bookings, activeBarbers, {
+        ...availableSlotsForBarber(barber, dateKey, durationMinutes, bookings, activeBarbers, inheritProtectedReadContext(data, {
           ...data,
-          audience: "public",
+          audience,
           branchId: selectedBranchId,
           availabilitySnapshot,
           preparationMinutes,
           cleanupMinutes,
           serviceSetHash: bookingServiceSetHash(selectedServices, requestedServiceIds)
-        })
+        }))
       };
     });
     const responseToken = typeof BookingAvailabilityPhase5 !== "undefined"
@@ -8668,7 +9204,7 @@ function getPublicBookingOptions(data) {
       })))
       : "";
     const responseContext = {
-      audience: "public",
+      audience,
       date: dateKey,
       serviceSetHash: bookingServiceSetHash(selectedServices, requestedServiceIds)
     };
@@ -8676,7 +9212,7 @@ function getPublicBookingOptions(data) {
       return jsonOutput({
         status: "success", unchanged: true, availabilityToken: responseToken,
         generatedAt: getCairoDateTime(), retryAfterSeconds: 30,
-        liveRefreshEnabled: bookingAvailabilityLiveRefreshEnabled("public")
+        liveRefreshEnabled: bookingAvailabilityLiveRefreshEnabled(audience)
       });
     }
     if (data.ifNoneMatch && responseToken) {
@@ -8697,7 +9233,7 @@ function getPublicBookingOptions(data) {
           changedBarbers, removedStaffIds, availabilityToken: responseToken,
           generatedAt: getCairoDateTime(),
           retryAfterSeconds: 30,
-          liveRefreshEnabled: bookingAvailabilityLiveRefreshEnabled("public")
+          liveRefreshEnabled: bookingAvailabilityLiveRefreshEnabled(audience)
         });
       }
     }
@@ -8708,11 +9244,25 @@ function getPublicBookingOptions(data) {
       durationMinutes, preparationMinutes, cleanupMinutes, barbers,
       availabilityToken: responseToken, generatedAt: getCairoDateTime(),
       retryAfterSeconds: 30,
-      liveRefreshEnabled: bookingAvailabilityLiveRefreshEnabled("public")
+      liveRefreshEnabled: bookingAvailabilityLiveRefreshEnabled(audience)
     });
   } catch (error) {
-    return bookingPublicErrorResponse(error, "AVAILABILITY_OPTIONS_FAILED");
+    return audience === "internal"
+      ? bookingErrorResponse(error, "AVAILABILITY_OPTIONS_FAILED")
+      : bookingPublicErrorResponse(error, "AVAILABILITY_OPTIONS_FAILED");
   }
+}
+
+function getPublicBookingOptions(data) {
+  return getBookingOptionsForAudience(
+    Object.assign({}, data || {}, { audience: "public" }), "public"
+  );
+}
+
+function getInternalBookingOptions(data) {
+  return getBookingOptionsForAudience(
+    inheritProtectedReadContext(data, Object.assign({}, data || {}, { audience: "internal" })), "internal"
+  );
 }
 
 function normalizePublicPhone(value) {
@@ -10076,4 +10626,78 @@ function parseSheetAmount(value) {
 
   const num = parseFloat(text.replace(/[^\d.-]/g, ""));
   return isFinite(num) ? num : 0;
+}
+
+function previewStagingInventorySchema() {
+  const ss = SpreadsheetApp.getActive();
+
+  const schemas = {
+    INVENTORY_ITEMS: [
+      "ITEM_ID", "NAME", "CATEGORY", "ITEM_TYPE", "USAGE_UNIT",
+      "PACKAGE_SIZE", "PURCHASE_PRICE", "SALE_PRICE",
+      "SERVICE_ENABLED", "SALE_ENABLED", "MINIMUM_STOCK",
+      "BARCODE", "ACTIVE", "CREATED_AT", "UPDATED_AT"
+    ],
+
+    INVENTORY_BATCHES: [
+      "BATCH_ID", "ITEM_ID", "PURCHASE_DATE", "SUPPLIER",
+      "PURCHASED_PACKS", "PACKAGE_SIZE", "USAGE_UNIT",
+      "SEALED_PACKS", "OPENED_PACKS", "OPENED_QUANTITY",
+      "PURCHASE_PRICE", "EXPIRY_DATE", "STATUS",
+      "CREATED_AT", "UPDATED_AT"
+    ],
+
+    SERVICE_RECIPES: [
+      "RECIPE_ID", "SERVICE_ID", "SERVICE_NAME",
+      "ITEM_ID", "ITEM_NAME", "QUANTITY", "UNIT",
+      "USAGE_TYPE", "ACTIVE", "CREATED_AT", "UPDATED_AT"
+    ],
+
+    INVENTORY_LOG: [
+      "TRANSACTION_ID", "DATE_TIME", "ITEM_ID", "ITEM_NAME",
+      "BATCH_ID", "MOVEMENT_TYPE", "STOCK_BUCKET", "QUANTITY",
+      "UNIT", "INVOICE_ID", "SERVICE_ID", "USERNAME",
+      "BALANCE_AFTER", "NOTE", "REQUEST_ID",
+      "barberId", "barberName", "balanceBefore"
+    ],
+
+    INVOICE_ITEMS: [
+      "INVOICE_ITEM_ID", "INVOICE_ID", "LINE_TYPE",
+      "REFERENCE_ID", "ITEM_NAME", "QUANTITY",
+      "UNIT_PRICE", "GROSS_TOTAL", "DISCOUNT_PERCENT",
+      "DISCOUNT_AMOUNT", "NET_TOTAL", "UNIT_COST",
+      "TOTAL_COST", "CREATED_AT"
+    ]
+  };
+
+  const result = Object.keys(schemas).map(name => {
+    const expectedHeaders = schemas[name];
+    const sheet = ss.getSheetByName(name);
+
+    if (!sheet) {
+      return {
+        sheetName: name,
+        exists: false,
+        expectedHeaders,
+        existingHeaders: [],
+        rowCount: 0
+      };
+    }
+
+    const width = Math.max(sheet.getLastColumn(), expectedHeaders.length);
+    const existingHeaders = width
+      ? sheet.getRange(1, 1, 1, width).getDisplayValues()[0]
+      : [];
+
+    return {
+      sheetName: name,
+      exists: true,
+      expectedHeaders,
+      existingHeaders,
+      rowCount: Math.max(0, sheet.getLastRow() - 1)
+    };
+  });
+
+  console.log(JSON.stringify(result, null, 2));
+  return result;
 }

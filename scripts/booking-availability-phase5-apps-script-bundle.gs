@@ -3306,6 +3306,9 @@ function schedulePhase2CreateRepository() {
 }
 
 function schedulePhase2Actor(data) {
+  var cachedActor = typeof protectedReadCachedActor === "function"
+    ? protectedReadCachedActor(data) : null;
+  if (cachedActor) return cachedActor;
   var user = getAuthenticatedUser(data || {});
   if (!user) return null;
   var username = schedulePhase2Text(user.username);
@@ -3349,7 +3352,7 @@ function schedulePhase2Actor(data) {
       throw branchError;
     }
   }
-  return {
+  var actor = {
     username: username,
     actorId: username,
     actorName: schedulePhase2Text(user.displayName || username),
@@ -3359,6 +3362,8 @@ function schedulePhase2Actor(data) {
     permissions: normalizeManagedPermissions(user.username, user.permissions),
     owner: owner
   };
+  return typeof protectedReadRememberActor === "function"
+    ? protectedReadRememberActor(data, actor) : actor;
 }
 
 function schedulePhase2WithLock(_details, callback) {
@@ -10253,6 +10258,29 @@ function diagnosticCoreStagingBootstrapRecovery() {
     return { allowed: true, reasonCode: "AVAILABLE" };
   }
 
+  function bookingOccupiedDate(booking) {
+    const proposed = upper(booking && booking.status) === "PROPOSED" &&
+      text(booking && booking.proposedDate) && text(booking && booking.proposedTime);
+    return text(proposed ? booking.proposedDate : booking && booking.date);
+  }
+
+  function bookingMatchesTargetScope(booking, staff, branchId) {
+    const employeeId = text(booking && (booking.employeeId || booking.staffId));
+    const bookingBranchId = text(booking && booking.branchId);
+    const targetStaffId = text(staff && staff.staffId);
+    const targetBranchId = text(branchId);
+
+    if (bookingBranchId && bookingBranchId !== targetBranchId) return false;
+    if (employeeId && employeeId !== targetStaffId) return false;
+    if (!employeeId || !bookingBranchId) {
+      throw availabilityError(
+        "AVAILABILITY_BOOKING_SCOPE_UNRESOLVED",
+        "A blocking Booking row is missing canonical staff or branch scope."
+      );
+    }
+    return true;
+  }
+
   function calculateAvailability(input) {
     const data = input || {};
     const date = text(data.date);
@@ -10309,6 +10337,25 @@ function diagnosticCoreStagingBootstrapRecovery() {
       return interval;
     });
     const bookings = (data.bookings || []).filter(item => bookingBlocks(item, serverNowMs))
+      .filter(item => {
+        const occupiedDate = bookingOccupiedDate(item);
+        if (occupiedDate && occupiedDate !== date) return false;
+
+        const employeeId = text(item && (item.employeeId || item.staffId));
+        const bookingBranchId = text(item && item.branchId);
+        const targetStaffId = text(staff && staff.staffId);
+        const targetBranchId = text(data.branchId);
+        if (bookingBranchId && bookingBranchId !== targetBranchId) return false;
+        if (employeeId && employeeId !== targetStaffId) return false;
+
+        if (!occupiedDate) {
+          throw availabilityError(
+            "AVAILABILITY_BOOKING_SCOPE_UNRESOLVED",
+            "A blocking Booking row is missing its occupied date."
+          );
+        }
+        return bookingMatchesTargetScope(item, staff, data.branchId);
+      })
       .map(item => bookingInterval(item, date, anchor)).filter(Boolean);
     const firstShiftMinute = Math.min(...segments.map(item => item.startMinute));
     const lastShiftMinute = Math.max(...segments.map(item => item.endMinute));
@@ -11688,6 +11735,84 @@ function bookingAvailabilityPhase5CachedResult(value, input) {
   }
 }
 
+function bookingAvailabilityPhase5StaffNameKey(value) {
+  if (typeof normalizeLookupKey === "function") return normalizeLookupKey(value);
+  return bookingAvailabilityPhase5Text(value).toLowerCase().replace(/\s+/g, " ");
+}
+
+function bookingAvailabilityPhase5BookingScopeError() {
+  return BookingAvailabilityPhase5.availabilityError(
+    "AVAILABILITY_BOOKING_SCOPE_UNRESOLVED",
+    "A legacy Booking row cannot be resolved to a unique staff and branch scope."
+  );
+}
+
+function bookingAvailabilityPhase5BookingOccupiedDate(booking) {
+  var status = String((booking && booking.status) || "").toUpperCase();
+  var proposed = status === "PROPOSED" &&
+    bookingAvailabilityPhase5Text(booking && booking.proposedDate) &&
+    bookingAvailabilityPhase5Text(booking && booking.proposedTime);
+  return bookingAvailabilityPhase5Text(
+    proposed ? booking.proposedDate : (booking && booking.date)
+  );
+}
+
+function bookingAvailabilityPhase5ScopedBookings(bookings, staff, branchId, date, snapshot, serverNowMs) {
+  var rows = snapshot && Array.isArray(snapshot.staff) ? snapshot.staff : [];
+  var targetStaffId = bookingAvailabilityPhase5Text(staff && staff.staffId);
+  var targetBranchId = bookingAvailabilityPhase5Text(branchId);
+  var targetDate = bookingAvailabilityPhase5Text(date);
+  var trustedNowMs = Number(serverNowMs);
+
+  return (bookings || []).map(function (booking) {
+    var copy = Object.assign({}, booking);
+
+    if (!BookingAvailabilityPhase5.bookingBlocks(
+      copy, Number.isFinite(trustedNowMs) ? trustedNowMs : Date.now()
+    )) return null;
+
+    var occupiedDate = bookingAvailabilityPhase5BookingOccupiedDate(copy);
+    if (occupiedDate && occupiedDate !== targetDate) return null;
+
+    var bookingBranchId = bookingAvailabilityPhase5Text(copy.branchId);
+    if (bookingBranchId && bookingBranchId !== targetBranchId) return null;
+
+    var employeeId = bookingAvailabilityPhase5Text(copy.employeeId || copy.staffId);
+    if (employeeId && employeeId !== targetStaffId) return null;
+
+    if (!occupiedDate) throw bookingAvailabilityPhase5BookingScopeError();
+
+    if (!employeeId) {
+      var nameKey = bookingAvailabilityPhase5StaffNameKey(
+        copy.employee || copy.staffName || copy.barber
+      );
+      if (!nameKey) throw bookingAvailabilityPhase5BookingScopeError();
+
+      var matches = rows.filter(function (item) {
+        return item.active !== false &&
+          bookingAvailabilityPhase5Text(item.branchId) === targetBranchId &&
+          bookingAvailabilityPhase5StaffNameKey(item.staffName) === nameKey;
+      });
+      if (matches.length !== 1) throw bookingAvailabilityPhase5BookingScopeError();
+
+      employeeId = bookingAvailabilityPhase5Text(matches[0].staffId);
+      bookingBranchId = bookingBranchId ||
+        bookingAvailabilityPhase5Text(matches[0].branchId);
+    }
+
+    if (employeeId !== targetStaffId) return null;
+
+    if (!bookingBranchId) bookingBranchId = targetBranchId;
+    if (!bookingBranchId || bookingBranchId !== targetBranchId) {
+      throw bookingAvailabilityPhase5BookingScopeError();
+    }
+
+    copy.employeeId = employeeId;
+    copy.branchId = bookingBranchId;
+    return copy;
+  }).filter(Boolean);
+}
+
 function bookingAvailabilityPhase5BookingBuffers(bookings) {
   return (bookings || []).map(function (booking) {
     var copy = Object.assign({}, booking);
@@ -11793,7 +11918,12 @@ function bookingAvailabilityPhase5Evaluate(options) {
   input.attendance = attendance;
   input.branchOpen = branchSegments.length > 0;
   input.branchSegments = branchSegments;
-  input.bookings = bookingAvailabilityPhase5BookingBuffers(data.bookings || snapshot.bookings);
+  input.bookings = bookingAvailabilityPhase5BookingBuffers(
+    bookingAvailabilityPhase5ScopedBookings(
+      data.bookings || snapshot.bookings, staff, branchId, data.date,
+      snapshot, now.getTime()
+    )
+  );
   input.operationalOverrides = bookingAvailabilityPhase5ActiveOverrides(
     staff.staffId, branchId, data.date, audience, actor, flags, snapshot.overrides);
   var result = BookingAvailabilityPhase5.calculateAvailability(input);

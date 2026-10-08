@@ -4,6 +4,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { SOURCE_ORDER } = require("./build-booking-availability-phase5-bundle");
+const backendSources = require("../config/backend-sources.json");
+const productionSourceMap = require("../apps-script/production/source-map.json");
 
 const ROOT = path.resolve(__dirname, "..");
 const OUTPUT = "docs/release-manifest.md";
@@ -32,7 +34,15 @@ const localStagingOnlyPaths = new Set([
 ]);
 
 const explicitPaths = [
-  ".gitignore", ".apps-script-staging/", ".clasp.json",
+  ".gitattributes", "backend/README.md", "config/backend-sources.json",
+  "scripts/build-backend.js", "tests/backend-modularization.test.js",
+  "docs/backend-refactor-baseline.json",
+  ...backendSources.outputs.flatMap(output => output.sources),
+  "apps-script/production/README.md", "apps-script/production/source-map.json",
+  ...productionSourceMap.fileOrder.map(file => `apps-script/production/${file}`),
+  "scripts/build-production-apps-script.js", "tests/production-backend-modularization.test.js",
+  "docs/backend-refactor-production-deployment.md",
+  ".gitignore", ".apps-script-staging/", ".clasp.json", "THIRD_PARTY_NOTICES.md",
   "attendance.html", "bookings.html", "cashier.html", "login.html",
   "system-access.html", "schedule-management.html", "booking-availability-admin.html",
   "config/apps-script-deployment-package.json",
@@ -101,7 +111,12 @@ const explicitPaths = [
   "scripts/booking-rating-standalone-migration-runner/appsscript.json",
   "scripts/booking-rating-standalone-migration-runner/booking-rating-production-migration-core.js",
   "scripts/booking-rating-standalone-migration-runner/standalone-migration-adapter.js",
-  "tests/auth-navigation.test.js", "tests/staff-attendance-core.test.js",
+  "tests/auth-navigation.test.js", "tests/auth01-local-implementation.test.js",
+  "tests/auth01-v25-browser-smoke-harness.test.js",
+  "tests/fixtures/auth01-v25-browser-smoke-harness.js",
+  "tests/auth01-combined-runtime-package.test.js",
+  "tests/auth01-crypto-vectors.test.js",
+  "tests/staff-attendance-core.test.js",
   "tests/staff-scheduling-phase2.test.js", "tests/staff-scheduling-phase2-contract.test.js",
   "tests/staff-scheduling-phase2-review.test.js", "tests/staff-attendance-phase3.test.js",
   "tests/staff-import-preview.test.js", "tests/staff-import-preview-staging.test.js",
@@ -232,6 +247,9 @@ function phaseFor(file) {
 function testsFor(file) {
   const tests = [];
   if (/auth|login|system-access|layout|api\.js/.test(file)) tests.push("tests/auth-navigation.test.js");
+  if (/auth01|app-script-final-owner-access|core-staging-auth-bootstrap|owner-password-reset-staging/.test(file)) {
+    tests.push("tests/auth01-local-implementation.test.js");
+  }
   if (/scheduling-phase2|schedule-management/.test(file)) tests.push(
     "tests/staff-scheduling-phase2.test.js", "tests/staff-scheduling-phase2-contract.test.js");
   if (/attendance-phase3|pages\/attendance|attendance\.css/.test(file)) tests.push(
@@ -316,6 +334,7 @@ function describe(file, sourceOrder) {
     reason = "Runtime visual asset referenced by an in-scope UI page.";
   } else if (file === "scripts/app-script-final-owner-access.js") {
     classification = "backend integration"; order = "Apps Script package review/load order 1";
+    generated = true; authority = "scripts/build-backend.js + config/backend-sources.json";
     reason = "Sole doPost router plus authentication, authorization, environment identity, and legacy/V2 integration.";
   } else if (file === "scripts/booking-availability-phase5-apps-script-bundle.gs") {
     classification = "generated bundle"; generated = true;
@@ -331,8 +350,20 @@ function describe(file, sourceOrder) {
     reason = "Obsolete for the aggregate package and overlaps globals already contained in Phase 5.";
   } else if (sourceOrder.has(path.basename(file))) {
     classification = file.endsWith("-gas.js") ? "backend integration" : "authoritative source";
+    generated = true; authority = "scripts/build-backend.js + config/backend-sources.json";
     order = `Aggregate internal order ${sourceOrder.get(path.basename(file))}; exclude direct upload`;
-    reason = "Authoritative constituent of the generated aggregate bundle.";
+    reason = "Generated compatibility constituent; edit its registered backend source instead.";
+  } else if (file.startsWith("backend/") && file.endsWith(".js")) {
+    classification = "authoritative source";
+    order = "config/backend-sources.json source order; exclude direct upload";
+    reason = "Authoritative modular backend source; assembled into the existing deployment allowlist.";
+  } else if (file.startsWith("apps-script/production/")) {
+    classification = file.endsWith(".md") ? "documentation" : "authoritative source";
+    order = "Separate Production modular package; not part of the legacy two-file allowlist";
+    reason = "Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js.";
+  } else if (file === "backend/README.md") {
+    classification = "documentation";
+    reason = "Backend source map and deterministic build workflow.";
   } else if (/build-.*-bundle\.js$|validate-apps-script|generate-(?:release-manifest|source-control-inclusion-plan)/.test(file)) {
     classification = "authoritative source"; order = "Local build/validation only";
     reason = "Deterministic local generator or package safety validator.";
@@ -384,7 +415,7 @@ function buildEntries() {
       required: description.required, generated: description.generated,
       authority: description.authority, order: description.order,
       tests: testsFor(normalized), classification: description.classification,
-      reason: exists ? description.reason : `${description.reason} Expected pre-Staging artifact is currently missing.`
+      reason: exists || !description.required ? description.reason : `${description.reason} Expected pre-Staging artifact is currently missing.`
     };
   });
 }

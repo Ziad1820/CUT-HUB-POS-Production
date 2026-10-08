@@ -36,7 +36,7 @@ function harness() {
     result: { slots: [{ start: '12:00', end: '12:30', status: 'AVAILABLE' }], availability: 'AVAILABLE',
       reasonCode: 'AVAILABLE', availabilityToken: 'test-availability', generatedAt: '2026-09-09T12:00:00',
       staffId: barber.staffId, branchId: barber.branchId, date: '2026-09-30', durationMinutes: 30 } };
-  state.snapshot = { staff: [barber], bookings: [{ privateCustomer: 'DO_NOT_EXPOSE' }] };
+  state.snapshot = { staff: [barber], bookings: [{ privateCustomer: 'DO_NOT_EXPOSE', employeeId: barber.staffId, branchId: barber.branchId }] };
   const forbid = kind => () => { counters[kind]++; throw new Error('FORBIDDEN'); };
   const props = { getProperty: key => { calls.reads.push(key); return properties[key] ?? null; },
     setProperty: forbid('scriptProperties'), setProperties: forbid('scriptProperties'),

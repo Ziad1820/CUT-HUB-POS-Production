@@ -1,0 +1,166 @@
+{
+  "version": 1,
+  "outputs": [
+    {
+      "path": "scripts/app-script-final-owner-access.js",
+      "sources": [
+        "backend/core/environment.js",
+        "backend/core/http-router.js",
+        "backend/auth/runtime-policy.js",
+        "backend/auth/protected-reads.js",
+        "backend/shared/cairo-clock.js",
+        "backend/auth/sessions.js",
+        "backend/auth/security-state.js",
+        "backend/auth/authorization.js",
+        "backend/audit/activity-log.js",
+        "backend/auth/user-repository.js",
+        "backend/auth/credential-policy.js",
+        "backend/auth/crypto.js",
+        "backend/auth/credentials.js",
+        "backend/auth/identifiers.js",
+        "backend/auth/credential-migration.js",
+        "backend/auth/login-throttle.js",
+        "backend/auth/user-actions.js",
+        "backend/catalog/services.js",
+        "backend/staging/legacy-auth-preview.js",
+        "backend/shared/sheet-schema.js",
+        "backend/inventory/repository.js",
+        "backend/inventory/stock.js",
+        "backend/inventory/item-actions.js",
+        "backend/inventory/purchases.js",
+        "backend/inventory/service-recipes.js",
+        "backend/inventory/checkout-planning.js",
+        "backend/inventory/checkout-transaction.js",
+        "backend/inventory/barber-consumption.js",
+        "backend/staff/legacy-staff.js",
+        "backend/attendance/legacy-attendance.js",
+        "backend/accounting/daily-closing.js",
+        "backend/accounting/monthly-closing.js",
+        "backend/invoices/schema.js",
+        "backend/invoices/mutations.js",
+        "backend/invoices/queries.js",
+        "backend/invoices/deletion.js",
+        "backend/accounting/withdrawals.js",
+        "backend/accounting/expenses.js",
+        "backend/invoices/pdf.js",
+        "backend/reports/sales-customers.js",
+        "backend/booking/schema-and-validation.js",
+        "backend/booking/repository.js",
+        "backend/booking/idempotency.js",
+        "backend/booking/service-snapshots.js",
+        "backend/booking/legacy-availability.js",
+        "backend/booking/availability-authority.js",
+        "backend/booking/options.js",
+        "backend/booking/public-actions.js",
+        "backend/booking/internal-actions.js",
+        "backend/booking/ratings.js",
+        "backend/booking/legacy-actions.js",
+        "backend/shared/date-and-number.js",
+        "backend/staging/inventory-preview.js"
+      ]
+    },
+    {
+      "path": "scripts/booking-availability-phase5-gas.js",
+      "sources": [
+        "backend/availability/config-and-repository.js",
+        "backend/availability/request-snapshot.js",
+        "backend/availability/authorization-cache.js",
+        "backend/availability/booking-occupancy.js",
+        "backend/availability/evaluation.js",
+        "backend/availability/transactions.js",
+        "backend/availability/audit-versions.js",
+        "backend/availability/overrides.js",
+        "backend/availability/conflicts.js",
+        "backend/availability/work-policy-transactions.js",
+        "backend/availability/mutation-conflicts.js",
+        "backend/availability/branch-actions.js",
+        "backend/availability/no-check-in-detector.js",
+        "backend/availability/action-router.js"
+      ]
+    },
+    {
+      "path": "scripts/staff-attendance-schema.js",
+      "sources": [
+        "backend/staff/schema.js"
+      ]
+    },
+    {
+      "path": "scripts/staff-attendance-core.js",
+      "sources": [
+        "backend/staff/attendance-core.js"
+      ]
+    },
+    {
+      "path": "scripts/staff-scheduling-phase2.js",
+      "sources": [
+        "backend/scheduling/engine.js"
+      ]
+    },
+    {
+      "path": "scripts/staff-scheduling-phase2-gas.js",
+      "sources": [
+        "backend/scheduling/apps-script.js"
+      ]
+    },
+    {
+      "path": "scripts/staff-import-preview-staging.js",
+      "sources": [
+        "backend/staging/staff-import-preview.js"
+      ]
+    },
+    {
+      "path": "scripts/staff-attendance-phase3.js",
+      "sources": [
+        "backend/attendance/engine.js"
+      ]
+    },
+    {
+      "path": "scripts/staff-attendance-phase3-gas.js",
+      "sources": [
+        "backend/attendance/apps-script.js"
+      ]
+    },
+    {
+      "path": "scripts/staff-payroll-attendance-phase4.js",
+      "sources": [
+        "backend/payroll/engine.js"
+      ]
+    },
+    {
+      "path": "scripts/staff-payroll-attendance-phase4-gas.js",
+      "sources": [
+        "backend/payroll/apps-script.js"
+      ]
+    },
+    {
+      "path": "scripts/staff-schema-migration-staging-executor.js",
+      "sources": [
+        "backend/staging/staff-schema-migration.js"
+      ]
+    },
+    {
+      "path": "scripts/core-staging-auth-bootstrap.js",
+      "sources": [
+        "backend/staging/core-auth-bootstrap.js"
+      ]
+    },
+    {
+      "path": "scripts/booking-availability-phase5.js",
+      "sources": [
+        "backend/availability/engine.js"
+      ]
+    },
+    {
+      "path": "scripts/branch-foundation-staging.js",
+      "sources": [
+        "backend/staging/branch-foundation.js"
+      ]
+    },
+    {
+      "path": "scripts/branch-registry-row-staging.js",
+      "sources": [
+        "backend/staging/branch-registry-row.js"
+      ]
+    }
+  ]
+}

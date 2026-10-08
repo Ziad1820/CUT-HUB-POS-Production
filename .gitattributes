@@ -1,2 +1,31 @@
 # Keep the generated Production Apps Script aggregate byte-reproducible.
+*.js text eol=lf
+*.gs text eol=lf
+*.json text eol=lf
+*.md text eol=lf
 scripts/booking-availability-phase5-apps-script-bundle.gs text eol=lf
+
+# Preserve source bytes for deterministic backend assembly across checkouts.
+backend/**/*.js -text
+backend/**/*.js whitespace=-blank-at-eof
+scripts/app-script-final-owner-access.js -text
+scripts/booking-availability-phase5-gas.js -text
+scripts/staff-attendance-schema.js -text
+scripts/staff-attendance-core.js -text
+scripts/staff-scheduling-phase2.js -text
+scripts/staff-scheduling-phase2-gas.js -text
+scripts/staff-import-preview-staging.js -text
+scripts/staff-attendance-phase3.js -text
+scripts/staff-attendance-phase3-gas.js -text
+scripts/staff-payroll-attendance-phase4.js -text
+scripts/staff-payroll-attendance-phase4-gas.js -text
+scripts/staff-schema-migration-staging-executor.js -text
+scripts/core-staging-auth-bootstrap.js -text
+scripts/booking-availability-phase5.js -text
+scripts/branch-foundation-staging.js -text
+scripts/branch-registry-row-staging.js -text
+
+# The Production package retains the exact source snapshot from Google.
+apps-script/production/*.gs -text
+apps-script/production/*.gs whitespace=-blank-at-eof
+apps-script/production/appsscript.json -text

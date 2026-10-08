@@ -329,14 +329,22 @@ test("header normalization treats capitalization, spacing, underscores, and dash
 
 test("invoice request id reuses a legacy header at its actual column without duplication", () => {
   const context = createContext();
-  const headers = Array(16).fill("");
+  const headers = Array(19).fill("");
   headers[15] = " Client Request-ID ";
-  const sheet = createMemorySheet(headers, 16);
+  headers[16] = "barberId";
+  headers[17] = "barberCode";
+  headers[18] = "barberName";
+  const sheet = createMemorySheet(headers, 19);
   const first = context.ensureDataInvoiceColumns(sheet);
   const second = context.ensureDataInvoiceColumns(sheet);
   assert.equal(first.invoiceRequestIdColumn, 16);
   assert.equal(second.invoiceRequestIdColumn, 16);
   assert.equal(sheet._insertCalls(), 0);
+  for (const columns of [first, second]) {
+    assert.equal(columns.barberIdColumn, 17);
+    assert.equal(columns.barberCodeColumn, 18);
+    assert.equal(columns.barberNameColumn, 19);
+  }
 
   const invoiceRow = Array(16).fill("");
   invoiceRow[4] = "https://example.com/invoice.pdf";
@@ -348,15 +356,47 @@ test("invoice request id reuses a legacy header at its actual column without dup
   assert.equal(sheet._rows[0].filter(value => context.normalizeSheetHeader(value) === "clientrequestid").length, 1);
 });
 
-test("repeated invoice header creation adds exactly one canonical column", () => {
+test("legacy invoice schema creates only four missing canonical columns once", () => {
   const context = createContext();
   const sheet = createMemorySheet(Array(13).fill(""), 13);
   const first = context.ensureDataInvoiceColumns(sheet);
+  assert.equal(sheet._insertCalls(), 4);
+  const expectedHeaders = ["invoice request id", "barberId", "barberCode", "barberName"];
+  assert.deepEqual(sheet._rows[0].slice(13), expectedHeaders);
   const second = context.ensureDataInvoiceColumns(sheet);
   assert.equal(first.invoiceRequestIdColumn, 14);
   assert.equal(second.invoiceRequestIdColumn, 14);
-  assert.equal(sheet._insertCalls(), 1);
-  assert.equal(sheet._rows[0].filter(value => context.normalizeSheetHeader(value) === "invoicerequestid").length, 1);
+  assert.equal(sheet._insertCalls(), 4, "second preparation inserts nothing");
+  assert.deepEqual(sheet._rows[0].slice(13), expectedHeaders);
+  for (const [key, column] of Object.entries({ invoiceRequestIdColumn: 14, barberIdColumn: 15, barberCodeColumn: 16, barberNameColumn: 17 })) {
+    assert.equal(first[key], column);
+    assert.equal(second[key], column);
+  }
+  for (const header of expectedHeaders) {
+    assert.equal(sheet._rows[0].filter(value => context.normalizeSheetHeader(value) === context.normalizeSheetHeader(header)).length, 1);
+  }
+});
+
+test("invoice and staff aggregate reads never prepare or mutate schema", () => {
+  const context = createContext();
+  context.jsonOutput = payload => payload;
+  let mutations = 0;
+  const forbidden = () => { mutations++; throw new Error("read attempted schema mutation"); };
+  const sheet = createMemorySheet(["DATE", "CUSTOMER", "PHONE", "SERVICES", "PDF", "TOTAL", "PAID_AMOUNT", "TIP_AMOUNT", "PAYMENT", "BARBER", "NOTES", "DISCOUNT_PERCENT", "DISCOUNT_AMOUNT"], 13);
+  sheet.appendRow(["2026-07-28", "fixture", "", "service", "", 100, 100, 0, "cash", "fixture", "", 0, 0]);
+  sheet.insertColumnsAfter = forbidden;
+  const range = sheet.getRange.bind(sheet);
+  sheet.getRange = (...args) => {
+    const result = range(...args);
+    return Object.assign(result, { getDisplayValues: () => result.getValues().map(row => row.map(String)), setValues: forbidden, setValue: forbidden });
+  };
+  context.ensureDataInvoiceColumns = forbidden;
+  context.SpreadsheetApp = { getActive: () => ({ getSheetByName: () => sheet }) };
+  for (const name of ["getInvoices", "getStaffClientCount", "getStaffTotalSales"]) {
+    const result = context[name]({ barber: "fixture" });
+    assert.equal(result.status, "success", name + ": " + JSON.stringify(result));
+    assert.equal(mutations, 0, name);
+  }
 });
 
 test("balanceBefore reuses a legacy header and writes to its actual column", () => {

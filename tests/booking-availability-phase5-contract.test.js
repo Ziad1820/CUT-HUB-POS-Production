@@ -137,14 +137,27 @@ test("nominal Booking reads never expire holds or invoke mutation helpers", () =
   assert.match(backend, /status:\s*bookingEffectiveStatusV2\(booking\)/);
 });
 
-test("public options force public audience and explicit branch filtering", () => {
-  const start = backend.indexOf("function getPublicBookingOptions");
-  const end = backend.indexOf("function normalizePublicPhone", start);
-  const source = backend.slice(start, end);
-  assert.match(source, /audience:\s*"public"/);
-  assert.match(source, /barber\.branchId === selectedBranchId/);
-  assert.match(source, /bookingAvailabilityPhase5Branch\(/);
-  assert.doesNotMatch(source, /audience:\s*data\.audience/);
+test("public and internal Booking options have separate server-owned authorities", () => {
+  const helperStart = backend.indexOf("function getBookingOptionsForAudience");
+  const helperEnd = backend.indexOf("function normalizePublicPhone", helperStart);
+  const helper = backend.slice(helperStart, helperEnd);
+  const publicFn = backend.slice(
+    backend.indexOf("function getPublicBookingOptions"),
+    backend.indexOf("function getInternalBookingOptions")
+  );
+  const internalFn = backend.slice(
+    backend.indexOf("function getInternalBookingOptions"),
+    helperEnd
+  );
+  assert.match(publicFn, /audience:\s*"public"/);
+  assert.match(internalFn, /audience:\s*"internal"/);
+  assert.match(helper, /booking_availability\.view/);
+  assert.match(helper, /bookingAvailabilityPhase5AssertBranchScope/);
+  assert.match(helper, /!availabilitySnapshot \|\| barber\.branchId === selectedBranchId/);
+  assert.doesNotMatch(helper, /!selectedBranchId \|\| barber\.branchId === selectedBranchId/);
+  assert.match(helper, /audience === "internal"[\s\S]{0,100}\? barber\.branchId === selectedBranchId/);
+  assert.match(helper, /AVAILABILITY_BRANCH_REQUIRED/);
+  assert.match(helper, /publicAudience:\s*audience === "public"/);
 });
 
 test("active dispatcher exposes preview and permissioned conflict/override actions", () => {
@@ -230,12 +243,96 @@ test("public and internal polling use tokens, visibility pause, focus refresh, a
   assert.match(customer, /result\.delta === true/);
   assert.match(customer, /result\.removedStaffIds/);
   assert.match(internal, /availabilityPollDelay:\s*10000/);
-  assert.match(internal, /audience:\s*"internal"/);
+  assert.match(internal, /action:\s*"getInternalBookingOptions"/);
+  assert.doesNotMatch(internal, /action:\s*"getPublicBookingOptions"/);
   assert.match(internal, /document\.hidden/);
   assert.match(internal, /window\.addEventListener\("focus"/);
   assert.match(internal, /Math\.min\(120000/);
   assert.match(internal, /response\.delta === true/);
   assert.match(internal, /response\.removedStaffIds/);
+});
+
+test("Phase 5 adapter scopes Booking occupancy before the pure engine", () => {
+  assert.match(gas, /function bookingAvailabilityPhase5ScopedBookings/);
+  assert.match(gas, /AVAILABILITY_BOOKING_SCOPE_UNRESOLVED/);
+  assert.match(gas, /data\.bookings \|\| snapshot\.bookings, staff, branchId, data\.date/);
+  assert.match(gas, /snapshot, now\.getTime\(\)/);
+  assert.match(gas, /bookingAvailabilityPhase5Text\(item\.branchId\) === targetBranchId/);
+  assert.match(backend, /getInternalBookingOptions/);
+});
+
+test("legacy Booking scope resolution is branch-local and rejects ambiguity only after unrelated rows are removed", () => {
+  const start = gas.indexOf("function bookingAvailabilityPhase5StaffNameKey");
+  const end = gas.indexOf("function bookingAvailabilityPhase5BookingBuffers", start);
+  const scopeSource = gas.slice(start, end);
+  const context = {
+    BookingAvailabilityPhase5: {
+      bookingBlocks: phase5.bookingBlocks,
+      availabilityError: phase5.availabilityError
+    },
+    bookingAvailabilityPhase5Text: value =>
+      String(value === undefined || value === null ? "" : value).trim(),
+    normalizeLookupKey: value =>
+      String(value === undefined || value === null ? "" : value)
+        .trim().toLowerCase().replace(/\s+/g, " "),
+    Date, Number, String, Object, Array
+  };
+  vm.createContext(context);
+  vm.runInContext(scopeSource, context);
+
+  const target = { staffId: "STAFF-1", staffName: "Sam", branchId: "BR-1", active: true };
+  const snapshot = { staff: [
+    target,
+    { staffId: "STAFF-2", staffName: "Sam", branchId: "BR-2", active: true }
+  ]};
+  const now = Date.parse("2099-01-02T09:00:00Z");
+
+  const scoped = context.bookingAvailabilityPhase5ScopedBookings(
+    [{ status: "confirmed", date: "2099-01-02", time: "10:00", employee: "Sam" }],
+    target, "BR-1", "2099-01-02", snapshot, now
+  );
+  assert.equal(scoped.length, 1);
+  assert.equal(scoped[0].employeeId, "STAFF-1");
+  assert.equal(scoped[0].branchId, "BR-1");
+
+  assert.equal(context.bookingAvailabilityPhase5ScopedBookings(
+    [{ status: "confirmed", date: "2099-01-02", time: "10:00",
+       branchId: "BR-2", employee: "Sam" }],
+    target, "BR-1", "2099-01-02", snapshot, now
+  ).length, 0);
+
+  assert.equal(context.bookingAvailabilityPhase5ScopedBookings(
+    [{ status: "confirmed", date: "2099-01-03", time: "10:00" }],
+    target, "BR-1", "2099-01-02", snapshot, now
+  ).length, 0);
+
+  assert.equal(context.bookingAvailabilityPhase5ScopedBookings(
+    [{ status: "confirmed", date: "2099-01-02", time: "10:00",
+       employeeId: "STAFF-2" }],
+    target, "BR-1", "2099-01-02", snapshot, now
+  ).length, 0);
+
+  assert.equal(context.bookingAvailabilityPhase5ScopedBookings(
+    [{ status: "confirmed", time: "10:00", branchId: "BR-2" }],
+    target, "BR-1", "2099-01-02", snapshot, now
+  ).length, 0);
+
+  assert.equal(context.bookingAvailabilityPhase5ScopedBookings(
+    [{ status: "confirmed", time: "10:00", employeeId: "STAFF-2" }],
+    target, "BR-1", "2099-01-02", snapshot, now
+  ).length, 0);
+
+  const ambiguous = { staff: [
+    target,
+    { staffId: "STAFF-3", staffName: "Sam", branchId: "BR-1", active: true }
+  ]};
+  assert.throws(
+    () => context.bookingAvailabilityPhase5ScopedBookings(
+      [{ status: "confirmed", date: "2099-01-02", time: "10:00", employee: "Sam" }],
+      target, "BR-1", "2099-01-02", ambiguous, now
+    ),
+    error => error.code === "AVAILABILITY_BOOKING_SCOPE_UNRESOLVED"
+  );
 });
 
 test("availability permissions are separate from Attendance and Payroll permissions", () => {

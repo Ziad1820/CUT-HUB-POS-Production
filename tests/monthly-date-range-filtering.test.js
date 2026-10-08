@@ -129,11 +129,11 @@ test("backend preserves unfiltered compatibility and filters all target reads in
   assert.match(source, /getOptionalDateRange\(data, null, true\)/);
   assert.match(source, /filter\(withdrawal => isDateInOptionalRange\(withdrawal\.date, range\)\)/);
   assert.match(source, /filter\(expense => isDateInOptionalRange\(expense\.date, range\)\)/);
-  assert.match(source, /rowBarber === barber && isDateInOptionalRange\(row\[0\], range\)/);
-  assert.match(source, /rowBarber !== barber \|\| !isDateInOptionalRange\(row\[0\], range\)/);
+  assert.match(source, /invoiceRowMatchesStaff\(row, columns, data\) &&\s*isDateInOptionalRange\(row\[0\], range\)/);
+  assert.match(source, /!invoiceRowMatchesStaff\(row, columns, data\) \|\|\s*!isDateInOptionalRange\(row\[0\], range\)/);
 });
 
-test("canonical financial reads return a scoped empty result when legacy sheets are absent", () => {
+test("canonical financial reads preserve DATA-01 fail-closed schema behavior", () => {
   const source = read("scripts/app-script-final-owner-access.js");
   const invoices = source.slice(source.indexOf("function getInvoices(data)"), source.indexOf("function getDisplayDateTime"));
   const withdrawals = source.slice(source.indexOf("function getWithdrawals(data)"), source.indexOf("function deleteWithdrawal"));
@@ -142,12 +142,11 @@ test("canonical financial reads return a scoped empty result when legacy sheets 
   const sales = source.slice(source.indexOf("function getStaffTotalSales(data)"), source.indexOf("function getTodaySales"));
 
   assert.match(invoices, /getOptionalDateRange\(data, filters\)[\s\S]*?getSheetByName\("DATA"\)/);
-  assert.match(invoices, /if \(!sheet\)[\s\S]*?status: "success"[\s\S]*?invoices: \[\][\s\S]*?hasMore: false[\s\S]*?totalMatches: 0/);
-  assert.doesNotMatch(invoices, /Sheet DATA not found/);
+  assert.match(invoices, /if \(!sheet\)[\s\S]*?status: "error"[\s\S]*?code: "INVOICE_SCHEMA_NOT_READY"[\s\S]*?Sheet DATA not found/);
   assert.match(withdrawals, /getOptionalDateRange\(data, null, true\)[\s\S]*?if \(!sheet \|\| sheet\.getLastRow\(\) < 2\)[\s\S]*?withdrawals: \[\]/);
   assert.match(expenses, /getOptionalDateRange\(data, null, true\)[\s\S]*?if \(!sheet \|\| sheet\.getLastRow\(\) < 2\)[\s\S]*?expenses: \[\]/);
-  assert.match(clients, /if \(!sheet\)[\s\S]*?status: "success", totalClients: 0/);
-  assert.match(sales, /getOptionalDateRange\(data, null, true\)[\s\S]*?if \(!sheet\)[\s\S]*?status: "success", totalSales: 0/);
+  assert.match(clients, /if \(!sheet\)[\s\S]*?status: "success",\s*totalClients: 0/);
+  assert.match(sales, /getOptionalDateRange\(data, null, true\)[\s\S]*?if \(!sheet\)[\s\S]*?status: "success",\s*totalSales: 0/);
 });
 
 test("Dashboard keeps the canonical getInvoices API and never substitutes lifetime data", () => {

@@ -27,7 +27,7 @@ test("loadInternalSlots blocks without a branch and sends the selected branch", 
   const guard = body.indexOf("if (!branchId)");
   const request = body.indexOf("RomeoApi.request");
   assert.ok(guard >= 0 && request > guard, "missing branch must be rejected before the request");
-  assert.match(body, /action: "getPublicBookingOptions", branchId,/);
+  assert.match(body, /action: "getInternalBookingOptions", branchId,/);
 });
 
 test("CUT_HUB_MAIN propagates through the canonical branch value without a default constant", () => {

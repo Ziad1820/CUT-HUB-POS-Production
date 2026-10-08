@@ -15,7 +15,7 @@ function buildBundle(options = {}) {
   const directory = __dirname;
   const sources = SOURCE_ORDER.map(name => ({
     name,
-    source: fs.readFileSync(path.join(directory, name), "utf8").replace(/^\uFEFF/, "")
+    source: require("./build-backend").readBackendSource(`scripts/${name}`).replace(/^\uFEFF/, "")
   }));
   const bundle = [
     "/* GENERATED FILE. Upload this bundle instead of its four source modules. */",

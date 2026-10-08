@@ -30,7 +30,9 @@ function buildBundle(options = {}) {
   const sources = SOURCE_ORDER.map(name => ({
     name,
     source: normalizeLineEndings(
-      fs.readFileSync(path.join(__dirname, name), "utf8")
+      options.sourceOverrides && Object.prototype.hasOwnProperty.call(options.sourceOverrides, name)
+        ? options.sourceOverrides[name]
+        : require("./build-backend").readBackendSource(`scripts/${name}`)
     )
   }));
   const bundle = normalizeLineEndings([

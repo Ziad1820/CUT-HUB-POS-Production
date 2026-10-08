@@ -16,7 +16,7 @@ const OUTPUT_NAME = "staff-attendance-phase3-apps-script-bundle.gs";
 function buildBundle(options = {}) {
   const sources = SOURCE_ORDER.map(name => ({
     name,
-    source: fs.readFileSync(path.join(__dirname, name), "utf8").replace(/^\uFEFF/, "")
+    source: require("./build-backend").readBackendSource(`scripts/${name}`).replace(/^\uFEFF/, "")
   }));
   const bundle = [
     "/* GENERATED FILE. Upload this bundle instead of the six constituent modules. */",

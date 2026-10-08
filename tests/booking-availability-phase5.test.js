@@ -3,6 +3,12 @@ const assert = require("node:assert/strict");
 const phase5 = require("../scripts/booking-availability-phase5");
 
 function base(overrides = {}) {
+  const normalizedOverrides = { ...overrides };
+  if (Array.isArray(normalizedOverrides.bookings)) {
+    normalizedOverrides.bookings = normalizedOverrides.bookings.map(item => ({
+      employeeId: "STAFF-1", branchId: "BR-1", ...item
+    }));
+  }
   return {
     environment: "development",
     spreadsheetHash: "sheet",
@@ -35,7 +41,7 @@ function base(overrides = {}) {
     generatedAt: "2099-01-01T10:00:00+02:00",
     serverNowMs: Date.parse("2099-01-01T10:00:00+02:00"),
     serverNowMinute: 600,
-    ...overrides
+    ...normalizedOverrides
   };
 }
 
@@ -392,7 +398,7 @@ test("immutable Booking buffer snapshots do not change when current Service buff
 test("persisted occupied interval is authoritative and malformed intervals fail closed", () => {
   const input = base();
   input.bookings = [{
-    id: "B-SNAPSHOT", employeeId: "S-1", date: input.date, time: "10:00",
+    id: "B-SNAPSHOT", employeeId: "STAFF-1", branchId: "BR-1", date: input.date, time: "10:00",
     status: "confirmed", durationMinutes: 30,
     serviceDurationSnapshot: 30, preparationMinutesSnapshot: 0,
     cleanupMinutesSnapshot: 0, occupiedStartTime: "09:30",
@@ -436,6 +442,84 @@ test("a hold expiring exactly at the trusted server timestamp no longer blocks",
     }]
   }));
   assert.ok(result.slots.some(slot => slot.start === "10:00"));
+});
+
+test("Booking occupancy is isolated by staff and branch", () => {
+  const sameStaff = phase5.calculateAvailability(base({
+    durationMinutes: 30,
+    bookings: [{ status: "confirmed", date: "2099-01-02", time: "10:00", durationMinutes: 30 }]
+  }));
+  assert.equal(sameStaff.slots.some(slot => slot.start === "10:00"), false);
+
+  const otherStaff = phase5.calculateAvailability(base({
+    durationMinutes: 30,
+    bookings: [{ employeeId: "STAFF-2", branchId: "BR-1", status: "confirmed",
+      date: "2099-01-02", time: "10:00", durationMinutes: 30 }]
+  }));
+  assert.equal(otherStaff.slots.some(slot => slot.start === "10:00"), true);
+
+  const otherBranch = phase5.calculateAvailability(base({
+    durationMinutes: 30,
+    bookings: [{ employeeId: "STAFF-1", branchId: "BR-2", status: "confirmed",
+      date: "2099-01-02", time: "10:00", durationMinutes: 30 }]
+  }));
+  assert.equal(otherBranch.slots.some(slot => slot.start === "10:00"), true);
+});
+
+test("blocking Booking rows without canonical scope fail closed", () => {
+  const input = base({ durationMinutes: 30 });
+  input.bookings = [{ status: "confirmed", date: input.date, time: "10:00", durationMinutes: 30 }];
+  assert.throws(
+    () => phase5.calculateAvailability(input),
+    error => error.code === "AVAILABILITY_BOOKING_SCOPE_UNRESOLVED"
+  );
+});
+
+
+test("unrelated or non-blocking Booking rows are discarded before canonical-scope failure", () => {
+  const availableAtTen = input =>
+    phase5.calculateAvailability(input).slots.some(slot => slot.start === "10:00");
+
+  assert.equal(availableAtTen(base({
+    durationMinutes: 30,
+    bookings: [{
+      employeeId: "", branchId: "", status: "confirmed",
+      date: "2099-01-03", time: "10:00", durationMinutes: 30
+    }]
+  })), true);
+
+  assert.equal(availableAtTen(base({
+    durationMinutes: 30,
+    bookings: [{
+      employeeId: "", branchId: "", status: "cancelled",
+      date: "2099-01-02", time: "10:00", durationMinutes: 30
+    }]
+  })), true);
+
+  assert.equal(availableAtTen(base({
+    durationMinutes: 30,
+    bookings: [{
+      employeeId: "", branchId: "", status: "pending",
+      date: "2099-01-02", time: "10:00", durationMinutes: 30,
+      holdExpiresAt: "2099-01-01T07:00:00Z"
+    }]
+  })), true);
+
+  assert.equal(availableAtTen(base({
+    durationMinutes: 30,
+    bookings: [{
+      employeeId: "", branchId: "BR-2", status: "confirmed",
+      time: "10:00", durationMinutes: 30
+    }]
+  })), true);
+
+  assert.equal(availableAtTen(base({
+    durationMinutes: 30,
+    bookings: [{
+      employeeId: "STAFF-2", branchId: "", status: "confirmed",
+      time: "10:00", durationMinutes: 30
+    }]
+  })), true);
 });
 
 test("migration preview is append-only, zero-write, available in Staging, and blocked in Production", () => {

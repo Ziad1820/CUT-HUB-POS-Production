@@ -60,6 +60,7 @@ const PUBLIC_ACTIONS = vm.runInNewContext(publicMatch[1]);
 
 const harnessSource = `
 const PUBLIC_ACTIONS = Object.freeze(${JSON.stringify(PUBLIC_ACTIONS)});
+${source.slice(source.indexOf('const PROTECTED_READ_CAPABILITIES ='), source.indexOf('function protectedReadContext('))}
 ${extractFunction("isPublicAction")}
 ${extractFunction("doPost")}
 globalThis.__doPost = doPost;
@@ -98,6 +99,12 @@ function makeHarness() {
         : null;
     },
 
+    // Router isolation test: both authentication modes use the same token
+    // fixture. Full strict validation is covered by protected-read-auth-safety.
+    resolveProtectedReadAuthContext(data) {
+      return data.sessionToken === "valid-session" ? { username: "owner" } : null;
+    },
+
     jsonOutput(payload) {
       return payload;
     },
@@ -113,6 +120,7 @@ function makeHarness() {
     getMyAuthSecurityState: stub("getMyAuthSecurityState"),
     getActivityLogs: stub("getActivityLogs"),
     getPublicBookingOptions: stub("getPublicBookingOptions"),
+    getInternalBookingOptions: stub("getInternalBookingOptions"),
     handleBookingAvailabilityPhase5Action:
       stub("handleBookingAvailabilityPhase5Action"),
 
@@ -250,6 +258,21 @@ test("public action works anonymously", () => {
 
   assert.equal(r.handler, "getPublicBookingOptions");
   assert.equal(count(h, "getPublicBookingOptions"), 1);
+});
+
+test("internal booking options require authentication and route only after valid auth", () => {
+  const anonymous = makeHarness();
+  const denied = anonymous.post({ action: "getInternalBookingOptions", branchId: "CUT_HUB_MAIN" });
+  assert.equal(denied.status, "error");
+  assert.equal(denied.authRequired, true);
+  assert.equal(count(anonymous, "getInternalBookingOptions"), 0);
+
+  const authenticated = makeHarness();
+  const allowed = authenticated.post({
+    action: "getInternalBookingOptions", sessionToken: "valid-session", branchId: "CUT_HUB_MAIN"
+  });
+  assert.equal(allowed.handler, "getInternalBookingOptions");
+  assert.equal(count(authenticated, "getInternalBookingOptions"), 1);
 });
 
 test("logout is a router-authenticated special action with uniform anonymous cleanup response", () => {

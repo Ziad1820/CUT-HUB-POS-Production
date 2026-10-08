@@ -14,6 +14,14 @@ test("release manifest is deterministic and matches the generated repository doc
   assert.equal(fs.readFileSync(path.join(root, manifest.OUTPUT), "utf8"), first.document);
 });
 
+test("ignored local deployment artifacts do not change the generated release manifest", t => {
+  const before = manifest.generate({ write: false }).document;
+  const originalExists = fs.existsSync;
+  const ignored = new Set([".apps-script-staging/", ".clasp.json", ".sync-backups/"].map(file => path.join(root, file)));
+  t.mock.method(fs, "existsSync", file => ignored.has(file) ? false : originalExists(file));
+  assert.equal(manifest.generate({ write: false }).document, before);
+});
+
 test("every entry uses an allowed classification and required generated files name authority", () => {
   const entries = manifest.buildEntries();
   const allowed = new Set(manifest.ALLOWED_CLASSIFICATIONS);
@@ -91,4 +99,14 @@ test("later functional regressions ship while local Staging tools remain exclude
     assert.equal(byPath.get(file)?.required, false, file);
     assert.match(byPath.get(file)?.reason || "", /Local Staging/);
   }
+});
+
+test("complete noble hashes MIT attribution ships in the repository release inventory", () => {
+  const notice = fs.readFileSync(path.join(root, "THIRD_PARTY_NOTICES.md"), "utf8");
+  const generatedManifest = fs.readFileSync(path.join(root, "docs/release-manifest.md"), "utf8");
+  assert.match(notice, /@noble\/hashes 2\.3\.0/);
+  assert.match(notice, /Copyright \(c\) 2022 Paul Miller/);
+  assert.match(notice, /Permission is hereby granted, free of charge/);
+  assert.match(notice, /THE SOFTWARE IS PROVIDED "AS IS"/);
+  assert.match(generatedManifest, /THIRD_PARTY_NOTICES\.md/);
 });

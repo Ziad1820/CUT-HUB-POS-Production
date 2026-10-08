@@ -152,7 +152,7 @@ test("preview implementation has no browser-storage mutation or remote-write API
 test("CODE uniqueness is required by code-based cashier and withdrawal matching", () => {
   const cashier = fs.readFileSync(path.join(__dirname, "../public/assets/js/pages/cashier.js"), "utf8");
   const withdrawals = fs.readFileSync(path.join(__dirname, "../public/assets/js/pages/withdrawals.js"), "utf8");
-  assert.match(cashier, /BARBER_NAMES_BY_CODE/);
+  assert.doesNotMatch(cashier, /BARBER_NAMES_BY_CODE/);
   assert.match(cashier, /String\(staff\.code/);
   assert.match(withdrawals, /String\(staff\.code[^\n]+=== staffCode/);
   assert.equal(previewModule.previewLegacyStaffImport({}).uniqueness.code, "REQUIRED_UNIQUE_CASE_INSENSITIVE");
