@@ -1541,7 +1541,7 @@
 
     function syncServicesPanelHeight() {
       requestAnimationFrame(() => {
-        if (window.innerWidth <= 960) {
+        if (window.innerWidth <= 1100) {
           servicesPanel.style.height = "";
           return;
         }

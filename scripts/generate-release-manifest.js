@@ -40,6 +40,7 @@ const explicitPaths = [
   "docs/dashboard-analysis-loading-fix.md",
   "docs/apps-script-content-redirect-fix.md",
   "docs/cashier-responsive-layout-fix.md",
+  "docs/cashier-stacked-panel-height-fix.md", "tests/cashier-panel-height.test.js",
   "docs/dashboard-api-relay-deployment.md",
   ".gitattributes", "backend/README.md", "config/backend-sources.json",
   "scripts/build-backend.js", "tests/backend-modularization.test.js",
