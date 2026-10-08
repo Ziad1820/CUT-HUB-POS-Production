@@ -4,6 +4,29 @@
   let onlineState = navigator.onLine !== false;
   let offlineBanner = null;
   let sessionRedirectInProgress = false;
+  let relayActiveRequests = 0;
+  const relayQueue = [];
+
+  function acquireRelaySlot() {
+    if (API_URL !== "/api/apps-script") return Promise.resolve(() => {});
+    return new Promise(resolve => {
+      const enter = () => {
+        relayActiveRequests += 1;
+        let released = false;
+        resolve(() => {
+          if (released) return;
+          released = true;
+          relayActiveRequests -= 1;
+          const next = relayQueue.shift();
+          if (next) next();
+        });
+      };
+      if (relayActiveRequests < 2) enter();
+      else relayQueue.push(enter);
+    });
+  }
+
+
 
   function getLanguage() {
     return localStorage.getItem("romeo-pos-language") === "en" ? "en" : "ar";
@@ -134,10 +157,13 @@
     }
 
     let response;
+    let releaseSlot;
     try {
+      releaseSlot = await acquireRelaySlot();
       response = await fetch(API_URL, {
         method: "POST",
         keepalive: true,
+        cache: "no-store",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(bodyPayload)
       });
@@ -149,6 +175,8 @@
       }
       setOnlineState(true);
       throw new Error(getApiErrorMessage());
+    } finally {
+      if (releaseSlot) releaseSlot();
     }
 
     if (!response.ok) {

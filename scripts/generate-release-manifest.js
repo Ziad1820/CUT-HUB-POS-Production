@@ -34,6 +34,9 @@ const localStagingOnlyPaths = new Set([
 ]);
 
 const explicitPaths = [
+  "api/apps-script.js", "lib/apps-script-http.js", "config/apps-script-proxy.json",
+  "tests/apps-script-proxy.test.js", "tests/apps-script-http.test.js", "tests/frontend-relay-queue.test.js",
+  "docs/dashboard-api-relay-deployment.md",
   ".gitattributes", "backend/README.md", "config/backend-sources.json",
   "scripts/build-backend.js", "tests/backend-modularization.test.js",
   "docs/backend-refactor-baseline.json",
@@ -367,6 +370,9 @@ function describe(file, sourceOrder) {
   } else if (/build-.*-bundle\.js$|validate-apps-script|generate-(?:release-manifest|source-control-inclusion-plan)/.test(file)) {
     classification = "authoritative source"; order = "Local build/validation only";
     reason = "Deterministic local generator or package safety validator.";
+  } else if (["api/apps-script.js", "lib/apps-script-http.js", "config/apps-script-proxy.json"].includes(file)) {
+    classification = "backend integration"; order = "Vercel server function; exclude Apps Script upload";
+    reason = "Same-origin relay to the fixed Production Apps Script deployment, without automatic request replay.";
   } else if (file.startsWith("tests/")) {
     classification = "test"; order = "Local validation only";
     reason = "Release-blocking local regression or safety evidence.";

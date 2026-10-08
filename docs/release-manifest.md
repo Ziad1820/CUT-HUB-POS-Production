@@ -4,9 +4,9 @@ Generated locally by `scripts/generate-release-manifest.js`. Do not hand-edit. T
 
 ## Counts
 
-- Required tracked files: **332**
+- Required tracked files: **339**
 - Required untracked files: **0**
-- Total classified entries: **363**
+- Total classified entries: **370**
 
 ## Intended Apps Script application package
 
@@ -65,6 +65,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `.sync-backups/` | untracked | Cross-phase/local | unrelated/pre-existing | no | no | — | Never package | — | Local editor, backup, or scratch artifact; excluded from release. |
 | `.vscode/settings.json` | tracked | Cross-phase/local | unrelated/pre-existing | no | no | — | Never package | — | Local editor, backup, or scratch artifact; excluded from release. |
 | `THIRD_PARTY_NOTICES.md` | tracked | Cross-phase/local | authoritative source | yes | no | — | Release evidence; not runtime-loaded | — | Required source or verification evidence for the complete implementation. |
+| `api/apps-script.js` | tracked | Cross-phase/local | backend integration | yes | no | — | Vercel server function; exclude Apps Script upload | — | Same-origin relay to the fixed Production Apps Script deployment, without automatic request replay. |
 | `apps-script/production/001_core_environment.gs` | tracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/002_core_http-router.gs` | tracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/003_auth_runtime-policy.gs` | tracked | Authentication & navigation | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | tests/auth-navigation.test.js | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
@@ -244,11 +245,13 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `bookings.html` | tracked | Booking integration | excluded intentionally | no | no | — | Do not deploy | — | Root compatibility wrapper duplicates public output; Vercel serves the public directory. |
 | `cashier.html` | tracked | Booking integration | excluded intentionally | no | no | — | Do not deploy | tests/booking-upgrade.test.js | Root compatibility wrapper duplicates public output; Vercel serves the public directory. |
 | `config/apps-script-deployment-package.json` | tracked | Deployment package | operational runbook | yes | no | — | Read by local package validator | tests/apps-script-deployment-package.test.js | Machine-readable allowlist and exclusion list for the future Apps Script package. |
+| `config/apps-script-proxy.json` | tracked | Cross-phase/local | backend integration | yes | no | — | Vercel server function; exclude Apps Script upload | — | Same-origin relay to the fixed Production Apps Script deployment, without automatic request replay. |
 | `config/backend-sources.json` | tracked | Cross-phase/local | authoritative source | yes | no | — | Release evidence; not runtime-loaded | — | Required source or verification evidence for the complete implementation. |
 | `config/frontend-runtime-config.staging.example.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | Release evidence; not runtime-loaded | — | Required source or verification evidence for the complete implementation. |
 | `docs/backend-refactor-baseline.json` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/backend-refactor-production-deployment.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/booking-no-check-in-trigger-runbook.md` | tracked | Phase 5 Booking Availability | operational runbook | yes | no | — | Release evidence; not runtime-loaded | tests/booking-availability-phase5.test.js<br>tests/booking-availability-phase5-gas.test.js<br>tests/booking-availability-phase5-contract.test.js<br>tests/booking-no-check-in-detector.test.js | Required pre-Staging operational control document. |
+| `docs/dashboard-api-relay-deployment.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/release-manifest.md` | tracked | Pre-Staging operations | operational runbook | yes | yes | scripts/generate-release-manifest.js | Release evidence; not runtime-loaded | tests/release-manifest.test.js | Required pre-Staging operational control document. |
 | `docs/release/frontend-staging-configuration.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/release/human-approval-packet.md` | tracked | Cross-phase/local | documentation | yes | yes | scripts/build-local-release-candidate.js | Commit as release evidence; exclude from deployment payload and its own content hash | — | Generated approval/inventory evidence is required in source control but excluded from deployment payload hashing to avoid recursion. |
@@ -276,6 +279,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `docs/staff-scheduling-phase-2-engineering-review.md` | untracked | Phase 2 Scheduling | documentation | no | no | — | Release evidence; not runtime-loaded | — | Historical engineering review; documentation-only and not deployed. |
 | `docs/staff-scheduling-phase-2.md` | tracked | Phase 2 Scheduling | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/staging-entry-checklist.md` | tracked | Pre-Staging operations | operational runbook | yes | no | — | Release evidence; not runtime-loaded | — | Required pre-Staging operational control document. |
+| `lib/apps-script-http.js` | tracked | Cross-phase/local | backend integration | yes | no | — | Vercel server function; exclude Apps Script upload | — | Same-origin relay to the fixed Production Apps Script deployment, without automatic request replay. |
 | `login.html` | tracked | Authentication & navigation | excluded intentionally | no | no | — | Do not deploy | tests/auth-navigation.test.js | Root compatibility wrapper duplicates public output; Vercel serves the public directory. |
 | `public/assets/css/pages/attendance.css` | tracked | Phase 3 Attendance | UI stylesheet | yes | no | — | Browser: linked by its UI page | tests/staff-attendance-phase3.test.js | Runtime RTL/accessibility styling for an in-scope page. |
 | `public/assets/css/pages/booking-availability-admin.css` | tracked | Phase 5 Booking Availability | UI stylesheet | yes | no | — | Browser: linked by its UI page | tests/booking-availability-phase5.test.js<br>tests/booking-availability-phase5-gas.test.js<br>tests/booking-availability-phase5-contract.test.js<br>tests/booking-no-check-in-detector.test.js | Runtime RTL/accessibility styling for an in-scope page. |
@@ -370,6 +374,8 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `scripts/validate-apps-script-deployment-package.js` | tracked | Deployment package | authoritative source | yes | no | — | Local build/validation only | tests/apps-script-deployment-package.test.js | Deterministic local generator or package safety validator. |
 | `system-access.html` | tracked | Authentication & navigation | excluded intentionally | no | no | — | Do not deploy | tests/auth-navigation.test.js | Root compatibility wrapper duplicates public output; Vercel serves the public directory. |
 | `tests/apps-script-deployment-package.test.js` | tracked | Deployment package | test | yes | no | — | Local validation only | tests/apps-script-deployment-package.test.js | Release-blocking local regression or safety evidence. |
+| `tests/apps-script-http.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
+| `tests/apps-script-proxy.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/attendance-page-functional.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/auth-navigation.test.js` | tracked | Authentication & navigation | test | yes | no | — | Local validation only | tests/auth-navigation.test.js | Release-blocking local regression or safety evidence. |
 | `tests/auth01-combined-runtime-package.test.js` | tracked | Authentication & navigation | test | yes | no | — | Local validation only | tests/auth-navigation.test.js<br>tests/auth01-local-implementation.test.js | Release-blocking local regression or safety evidence. |
@@ -394,6 +400,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `tests/customer-tracking-ratings.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/fixtures/auth01-v25-browser-smoke-harness.js` | tracked | Authentication & navigation | test | yes | no | — | Local validation only | tests/auth-navigation.test.js<br>tests/auth01-local-implementation.test.js | Release-blocking local regression or safety evidence. |
 | `tests/frontend-api-configuration.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
+| `tests/frontend-relay-queue.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/internal-booking-branch.test.js` | tracked | Booking integration | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/legacy-staff-snapshot-export.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/legacy-staff-snapshot-local.test.js` | untracked | Cross-phase/local | test | no | no | — | Never package | — | Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit. |

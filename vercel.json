@@ -1,4 +1,7 @@
 {
   "buildCommand": null,
-  "outputDirectory": "public"
+  "outputDirectory": "public",
+  "functions": {
+    "api/apps-script.js": { "maxDuration": 60 }
+  }
 }

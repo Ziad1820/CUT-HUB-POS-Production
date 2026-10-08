@@ -8,6 +8,7 @@
     "cut-hub-pos-production-ziad1820s-projects.vercel.app",
     "cut-hub-pos-production-ziad1820-ziad1820s-projects.vercel.app"
   ]);
+  const PRODUCTION_RELAY_PATH = "/api/apps-script";
 
   function normalizeAppsScriptUrl(value) {
     const candidate = String(value || "").trim();
@@ -27,12 +28,14 @@
   const hostname = String(window.location?.hostname || "").trim().toLowerCase();
   const injectedUrl = String(window.ROMEO_API_URL || "").trim();
 
-  if (PRODUCTION_HOSTS.has(hostname)) {
+  const productionPreview = /^cut-hub-pos-production-[a-z0-9]+-ziad1820s-projects\.vercel\.app$/.test(hostname);
+  if (PRODUCTION_HOSTS.has(hostname) || productionPreview) {
     // Production accepts only its pinned endpoint. A conflicting injection
     // fails closed instead of silently selecting another environment.
-    window.ROMEO_API_URL = injectedUrl && normalizeAppsScriptUrl(injectedUrl) !== PRODUCTION_API_URL
+    window.ROMEO_API_URL = injectedUrl && injectedUrl !== PRODUCTION_RELAY_PATH &&
+      normalizeAppsScriptUrl(injectedUrl) !== PRODUCTION_API_URL
       ? ""
-      : PRODUCTION_API_URL;
+      : PRODUCTION_RELAY_PATH;
     return;
   }
 

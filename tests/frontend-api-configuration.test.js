@@ -48,9 +48,12 @@ assert.ok(apiSource.indexOf("if (!API_URL)") < apiSource.indexOf("fetch(API_URL"
 assert.match(authSource,
   /if \(!window\.RomeoApi \|\| typeof RomeoApi\.request !== "function"\)[\s\S]*API endpoint is not configured/);
 
-assert.equal(resolveRuntimeConfig("cut-hub-pos-production.vercel.app"), productionApiUrl);
-assert.equal(resolveRuntimeConfig("cut-hub-pos-production-ziad1820s-projects.vercel.app"), productionApiUrl);
-assert.equal(resolveRuntimeConfig("cut-hub-pos-production-ziad1820-ziad1820s-projects.vercel.app"), productionApiUrl);
+assert.equal(resolveRuntimeConfig("cut-hub-pos-production.vercel.app"), "/api/apps-script");
+assert.equal(resolveRuntimeConfig("cut-hub-pos-production-ziad1820s-projects.vercel.app"), "/api/apps-script");
+assert.equal(resolveRuntimeConfig("cut-hub-pos-production-ziad1820-ziad1820s-projects.vercel.app"), "/api/apps-script");
+assert.equal(resolveRuntimeConfig("cut-hub-pos-production-tested-ziad1820s-projects.vercel.app"), "/api/apps-script");
+assert.equal(resolveRuntimeConfig("cut-hub-pos-production.vercel.app", productionApiUrl), "/api/apps-script");
+assert.equal(resolveRuntimeConfig("cut-hub-pos-production.vercel.app", "/api/apps-script"), "/api/apps-script");
 assert.equal(resolveRuntimeConfig("cut-hub-pos-production.vercel.app", stagingApiUrl), "");
 assert.equal(resolveRuntimeConfig("127.0.0.1", stagingApiUrl), stagingApiUrl);
 assert.equal(resolveRuntimeConfig("127.0.0.1"), "");

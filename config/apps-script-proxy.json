@@ -1,0 +1,6 @@
+{
+  "deploymentId": "AKfycbzWjM4X4JDTXRYe14oHL8m1Ex3GT9B8kMT6q8yp9eNMw6F6eSEY4zCXTYkyIL7K1ejR",
+  "timeoutMs": 55000,
+  "maxRequestBytes": 1048576,
+  "maxResponseBytes": 4194304
+}
