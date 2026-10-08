@@ -39,6 +39,7 @@ const explicitPaths = [
   "public/assets/js/pages/dashboard-analysis.js", "tests/dashboard-analysis-loading.test.js",
   "docs/dashboard-analysis-loading-fix.md",
   "docs/apps-script-content-redirect-fix.md",
+  "docs/cashier-responsive-layout-fix.md",
   "docs/dashboard-api-relay-deployment.md",
   ".gitattributes", "backend/README.md", "config/backend-sources.json",
   "scripts/build-backend.js", "tests/backend-modularization.test.js",

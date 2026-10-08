@@ -4,9 +4,9 @@ Generated locally by `scripts/generate-release-manifest.js`. Do not hand-edit. T
 
 ## Counts
 
-- Required tracked files: **343**
+- Required tracked files: **344**
 - Required untracked files: **0**
-- Total classified entries: **374**
+- Total classified entries: **375**
 
 ## Intended Apps Script application package
 
@@ -252,6 +252,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `docs/backend-refactor-baseline.json` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/backend-refactor-production-deployment.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/booking-no-check-in-trigger-runbook.md` | tracked | Phase 5 Booking Availability | operational runbook | yes | no | — | Release evidence; not runtime-loaded | tests/booking-availability-phase5.test.js<br>tests/booking-availability-phase5-gas.test.js<br>tests/booking-availability-phase5-contract.test.js<br>tests/booking-no-check-in-detector.test.js | Required pre-Staging operational control document. |
+| `docs/cashier-responsive-layout-fix.md` | tracked | Authentication & navigation | documentation | yes | no | — | Release evidence; not runtime-loaded | tests/auth-navigation.test.js<br>tests/booking-upgrade.test.js | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/dashboard-analysis-loading-fix.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/dashboard-api-relay-deployment.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/release-manifest.md` | tracked | Pre-Staging operations | operational runbook | yes | yes | scripts/generate-release-manifest.js | Release evidence; not runtime-loaded | tests/release-manifest.test.js | Required pre-Staging operational control document. |
