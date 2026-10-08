@@ -3,6 +3,8 @@
 *.gs text eol=lf
 *.json text eol=lf
 *.md text eol=lf
+apps-script/production/baseline/*.js -text
+apps-script/production/baseline/*.js whitespace=-blank-at-eof
 scripts/booking-availability-phase5-apps-script-bundle.gs text eol=lf
 
 # Preserve source bytes for deterministic backend assembly across checkouts.

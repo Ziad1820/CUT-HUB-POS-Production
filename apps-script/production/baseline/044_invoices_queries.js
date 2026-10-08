@@ -34,31 +34,6 @@ function isDateInOptionalRange(value, range) {
     (!range.toDate || dateKey <= range.toDate);
 }
 
-function isTransientInvoiceReadFailure(error) {
-  return /^Service Spreadsheets failed while accessing document\b/i.test(String(error && error.message || ""));
-}
-
-function readInvoiceDataSnapshot() {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
-      if (!sheet) return { sheetFound: false };
-      inspectDataInvoiceSchemaReadOnly(sheet);
-      const lastRow = sheet.getLastRow();
-      return {
-        sheetFound: true,
-        lastRow,
-        rows: lastRow < 2 ? [] : sheet.getRange(2, 1, lastRow - 1, Math.min(sheet.getLastColumn(), 13)).getValues()
-      };
-    } catch (error) {
-      if (!isTransientInvoiceReadFailure(error) || attempt === 2) throw error;
-      // Retry only these read-only sheet calls, after authentication has run.
-      // No request, session handling, invoice creation or mutation is replayed.
-      Utilities.sleep(attempt === 0 ? 250 : 750);
-    }
-  }
-}
-
 function getInvoices(data) {
   const filters = data.filters || {};
   let range;
@@ -67,21 +42,8 @@ function getInvoices(data) {
   } catch (error) {
     return jsonOutput({ status: "error", message: error.message });
   }
-  let snapshot;
-  try {
-    snapshot = readInvoiceDataSnapshot();
-  } catch (error) {
-    const temporary = isTransientInvoiceReadFailure(error);
-    const schema = /^INVOICE_SCHEMA_/.test(String(error.code || ""));
-    return jsonOutput({
-      status: "error",
-      code: temporary ? "INVOICE_READ_TEMPORARILY_UNAVAILABLE" : schema ? error.code : "INVOICE_READ_FAILED",
-      message: temporary ? "تعذر قراءة الفواتير مؤقتًا. حاول تحميلها مرة أخرى." : schema
-        ? error.message : "تعذر قراءة بيانات الفواتير.",
-      retryable: temporary
-    });
-  }
-  if (!snapshot.sheetFound) {
+  const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
+  if (!sheet) {
     return jsonOutput({
       status: "error",
       code: "INVOICE_SCHEMA_NOT_READY",
@@ -89,7 +51,17 @@ function getInvoices(data) {
     });
   }
 
-  const lastRow = snapshot.lastRow;
+  try {
+    inspectDataInvoiceSchemaReadOnly(sheet);
+  } catch (error) {
+    return jsonOutput({
+      status: "error",
+      code: error.code || "INVOICE_SCHEMA_INCOMPATIBLE",
+      message: error.message || "Invoice DATA schema is incompatible."
+    });
+  }
+
+  const lastRow = sheet.getLastRow();
   if (lastRow < 2) {
     return jsonOutput({
       status: "success",
@@ -106,7 +78,7 @@ function getInvoices(data) {
   const targetPayment = String(filters.payment || data.payment || data.paymentMethod || "").trim();
   const limit = Math.min(Math.max(Number(data.limit) || 100, 1), 500);
   const offset = Math.max(Number(data.offset) || 0, 0);
-  const rows = snapshot.rows;
+  const rows = sheet.getRange(2, 1, lastRow - 1, Math.min(sheet.getLastColumn(), 13)).getValues();
   const matches = [];
   const barberOptions = {};
   const paymentOptions = {};
@@ -182,3 +154,4 @@ function getDisplayDateTime(value) {
 
   return String(value || "").trim();
 }
+

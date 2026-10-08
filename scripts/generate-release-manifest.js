@@ -41,6 +41,7 @@ const explicitPaths = [
   "docs/apps-script-content-redirect-fix.md",
   "docs/cashier-responsive-layout-fix.md",
   "docs/cashier-stacked-panel-height-fix.md", "tests/cashier-panel-height.test.js",
+  "docs/invoice-load-more-recovery.md", "tests/invoice-sheet-read-recovery.test.js", "tests/invoice-load-more-recovery.test.js",
   "docs/dashboard-api-relay-deployment.md",
   ".gitattributes", "backend/README.md", "config/backend-sources.json",
   "scripts/build-backend.js", "tests/backend-modularization.test.js",
@@ -48,6 +49,8 @@ const explicitPaths = [
   ...backendSources.outputs.flatMap(output => output.sources),
   "apps-script/production/README.md", "apps-script/production/source-map.json",
   ...productionSourceMap.fileOrder.map(file => `apps-script/production/${file}`),
+  ...productionSourceMap.groups.flatMap(group => group.files.filter(file => file.baselineSourcePath)
+    .map(file => `apps-script/production/${file.baselineSourcePath}`)),
   "scripts/build-production-apps-script.js", "tests/production-backend-modularization.test.js",
   "docs/backend-refactor-production-deployment.md",
   ".gitignore", ".apps-script-staging/", ".clasp.json", "THIRD_PARTY_NOTICES.md",

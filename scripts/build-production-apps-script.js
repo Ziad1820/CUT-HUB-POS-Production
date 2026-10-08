@@ -17,20 +17,29 @@ function buildProductionPackage() {
   if (serverNames.length !== registered.length || new Set(serverNames).size !== registered.length ||
       serverNames.some(file => !byPath.has(file))) throw new Error("PRODUCTION_FILE_ORDER_INVALID");
   const sources = new Map();
+  const baselineSources = new Map();
   const files = sourceMap.fileOrder.map(file => {
     if (!/^\d{3}_[A-Za-z0-9_-]+\.gs$/.test(file) && file !== "appsscript.json") throw new Error("PRODUCTION_FILE_PATH_INVALID");
     const source = fs.readFileSync(path.join(DIRECTORY, file), "utf8");
     sources.set(file, source);
     if (file !== "appsscript.json") {
+      const record = byPath.get(file);
       new vm.Script(source, { filename: file });
-      if (sha256(source) !== byPath.get(file).sha256) throw new Error(`PRODUCTION_MODULE_CHANGED: ${file}`);
+      if (sha256(source) !== (record.currentSha256 || record.sha256)) throw new Error(`PRODUCTION_MODULE_CHANGED: ${file}`);
+      let baseline = source;
+      if (record.baselineSourcePath) {
+        if (!/^baseline\/\d{3}_[A-Za-z0-9_-]+\.js$/.test(record.baselineSourcePath)) throw new Error("PRODUCTION_BASELINE_PATH_INVALID");
+        baseline = fs.readFileSync(path.join(DIRECTORY, record.baselineSourcePath), "utf8");
+        if (sha256(baseline) !== record.sha256) throw new Error(`PRODUCTION_BASELINE_MODULE_CHANGED: ${file}`);
+      }
+      baselineSources.set(file, baseline);
     } else if (JSON.parse(source).runtimeVersion !== "V8" || sha256(source) !== sourceMap.manifestSha256) {
       throw new Error("PRODUCTION_MANIFEST_CHANGED");
     }
     return { name: file.replace(/\.(gs|json)$/, ""), type: file.endsWith(".gs") ? "SERVER_JS" : "JSON", source };
   });
   for (const group of sourceMap.groups) {
-    const reconstructed = group.files.map(file => sources.get(file.path)).join("");
+    const reconstructed = group.files.map(file => baselineSources.get(file.path)).join("");
     if (sha256(reconstructed) !== group.originalSha256 || Buffer.byteLength(reconstructed) !== group.originalBytes) {
       throw new Error(`PRODUCTION_BASELINE_CHANGED: ${group.originalName}`);
     }

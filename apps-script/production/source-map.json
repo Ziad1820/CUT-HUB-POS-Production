@@ -182,7 +182,17 @@
         },
         {
           "path": "044_invoices_queries.gs",
-          "sha256": "65e8301cc5ca083d41e55f78d7826102d80fa58d1fcc12d5e4609ca4cf8bc6d8"
+          "sha256": "65e8301cc5ca083d41e55f78d7826102d80fa58d1fcc12d5e4609ca4cf8bc6d8",
+          "baselineSourcePath": "baseline/044_invoices_queries.js",
+          "currentSha256": "8d7de0ac461b4bd71d9266cdb8af273215e69eb55c412bf7181754d31debc2a4",
+          "changedGlobals": [
+            "getInvoices"
+          ],
+          "addedGlobals": [
+            "isTransientInvoiceReadFailure",
+            "readInvoiceDataSnapshot"
+          ],
+          "changeReason": "Bounded retries of read-only invoice sheet operations; no authentication or mutation replay."
         },
         {
           "path": "045_invoices_deletion.gs",

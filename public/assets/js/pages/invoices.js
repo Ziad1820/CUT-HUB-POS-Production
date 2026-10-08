@@ -207,7 +207,12 @@
     async function postToApi(payload) {
       const result = await RomeoApi.request(payload);
       if (result.status !== "success") {
-        throw new Error(result.message || "تعذر تنفيذ الطلب.");
+        const temporarySheetFailure = /^Service Spreadsheets failed while accessing document\b/i.test(String(result.message || ""));
+        const error = new Error(temporarySheetFailure
+          ? localizeText("تعذر قراءة الفواتير مؤقتًا. حاول تحميلها مرة أخرى.", "Invoice reading is temporarily unavailable. Please try again.")
+          : result.message || "تعذر تنفيذ الطلب.");
+        error.code = temporarySheetFailure ? "INVOICE_READ_TEMPORARILY_UNAVAILABLE" : result.code;
+        throw error;
       }
       return result;
     }
@@ -272,16 +277,28 @@
       } catch (error) {
         console.error(error);
         const message = String(error?.message || "");
-        const friendlyMessage = message.includes("Unexpected token")
+        const sheetUnavailable = /^Service Spreadsheets failed while accessing document\b/i.test(message) ||
+          error?.code === "INVOICE_READ_TEMPORARILY_UNAVAILABLE";
+        const friendlyMessage = sheetUnavailable
+          ? localizeText("تعذر قراءة الفواتير مؤقتًا. حاول تحميلها مرة أخرى.", "Invoice reading is temporarily unavailable. Please try again.")
+          : message.includes("Unexpected token")
           ? localizeText(
             "تعذر قراءة رد قاعدة البيانات. اضغط تحديث مرة أخرى.",
             "Could not read the database response. Please refresh again."
           )
           : (message || localizeText("تعذر تحميل الفواتير من الشيت.", "Could not load invoices from the sheet."));
-        elements.invoiceRows.innerHTML = `<tr><td colspan="14" class="empty-state">${escapeHtml(friendlyMessage)}</td></tr>`;
-        renderSummary([]);
-        hasMoreInvoices = false;
-        updateLoadMoreUi();
+        if (append) {
+          renderRows();
+          renderSummary(filteredInvoices);
+          elements.invoiceRows.innerHTML += `<tr><td colspan="14" class="status-line" role="status">${escapeHtml(friendlyMessage)}</td></tr>`;
+          updateLoadMoreUi();
+          if (elements.loadMoreBtn) elements.loadMoreBtn.textContent = localizeText("إعادة تحميل المزيد", "Retry Load More");
+        } else {
+          elements.invoiceRows.innerHTML = `<tr><td colspan="14" class="empty-state">${escapeHtml(friendlyMessage)}</td></tr>`;
+          renderSummary([]);
+          hasMoreInvoices = false;
+          updateLoadMoreUi();
+        }
       } finally {
         elements.reloadBtn.disabled = false;
         if (elements.loadMoreBtn) elements.loadMoreBtn.disabled = false;

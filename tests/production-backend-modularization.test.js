@@ -19,11 +19,15 @@ test("the production package retains every source byte from the live baseline", 
 test("production modules preserve every global function and staff lifecycle handler", () => {
   const files = buildProductionPackage().files.filter(file => file.type === "SERVER_JS");
   const byName = new Map(files.map(file => [`${file.name}.gs`, file.source]));
-  const before = runtime(sourceMap.groups.map(group => group.files.map(file => byName.get(file.path)).join("")));
+  const records = sourceMap.groups.flatMap(group => group.files);
+  const before = runtime(sourceMap.groups.map(group => group.files.map(file => file.baselineSourcePath
+    ? fs.readFileSync(`${DIRECTORY}/${file.baselineSourcePath}`, "utf8") : byName.get(file.path)).join("")));
   const after = runtime(files.map(file => file.source));
-  assert.deepEqual(Object.keys(after).sort(), Object.keys(before).sort());
+  const added = records.flatMap(file => file.addedGlobals || []);
+  const changed = new Set(records.flatMap(file => file.changedGlobals || []));
+  assert.deepEqual(Object.keys(after).sort(), [...Object.keys(before), ...added].sort());
   for (const name of Object.keys(before)) {
-    if (typeof before[name] === "function") assert.equal(String(after[name]), String(before[name]), name);
+    if (typeof before[name] === "function" && !changed.has(name)) assert.equal(String(after[name]), String(before[name]), name);
   }
   for (const handler of ["doPost", "loginUser", "createStaffMember", "deactivateStaffMember",
     "recoverStaffMemberTransaction", "inspectStaffMemberTransaction"]) assert.equal(typeof after[handler], "function", handler);
