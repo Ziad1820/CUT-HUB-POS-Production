@@ -333,7 +333,6 @@
     <button class="sidebar-link" type="button" data-href="invoices.html">الفواتير</button>
     <button class="sidebar-link" type="button" data-href="income-statement.html" data-permission="view_income_statement">قائمة الدخل</button>
     <button class="sidebar-link" type="button" data-href="daily-closing.html" data-permission="view_income_statement">تقفيلة اليوم</button>
-    <button class="sidebar-link" type="button" data-href="data-analysis.html" data-permission="view_income_statement">تحليل البيانات</button>
       <button class="sidebar-link" type="button" data-href="activity-log.html" data-permission="manage_users">سجل العمليات</button>
     <button class="sidebar-link" type="button" data-href="staff-accounting.html" data-permission="view_staff_accounting">حسابات الموظفين</button>
     <button class="sidebar-link active" type="button">صلاحيات النظام</button>
@@ -348,8 +347,8 @@
   <script src="../assets/js/utils/text-fix.js"></script>
   <script src="../assets/js/core/runtime-config.js?v=20261008-relay-1"></script>
   <script src="../assets/js/core/api.js?v=20261008-relay-1"></script>
-  <script src="../assets/js/core/auth.js"></script>
-  <script src="../assets/js/utils/layout.js"></script>
+  <script src="../assets/js/core/auth.js?v=20261009-single-analysis-1"></script>
+  <script src="../assets/js/utils/layout.js?v=20261009-single-analysis-1"></script>
   <script>
     const currentUser = RomeoAuth.requireOwner();
     if (!currentUser) {
@@ -463,7 +462,6 @@
       [".sidebar-link[data-href='invoices.html']", "الفواتير", "Invoices"],
       [".sidebar-link[data-href='income-statement.html']", "قائمة الدخل", "Income Statement"],
       [".sidebar-link[data-href='daily-closing.html']", "تقفيلة اليوم", "Daily Closing"],
-      [".sidebar-link[data-href='data-analysis.html']", "تحليل البيانات", "Data Analysis"],
       [".sidebar-link[data-href='activity-log.html']", "سجل العمليات", "Activity Log"],
       [".sidebar-link[data-href='staff-accounting.html']", "حسابات الموظفين", "Staff Accounting"],
       [".sidebar-link.active", "صلاحيات النظام", "System Access"],

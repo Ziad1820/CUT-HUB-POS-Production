@@ -235,7 +235,7 @@ test("missing, empty, and unknown permissions fail closed", () => {
 [
   ["payroll_attendance.view", "payroll-attendance.html"],
   ["booking_availability.view", "booking-availability-admin.html"],
-  ["view_data_analysis", "data-analysis.html"],
+  ["view_data_analysis", "login.html"],
   ["view_staff_discount", "staff-discount.html"]
 ].forEach(([permission, expectedPage]) => {
   test(`limited ${permission} user is routed to ${expectedPage}`, () => {
@@ -518,7 +518,7 @@ test("Web Crypto random-byte fallback creates one opaque correlation identifier"
 });
 
 test("login page cache-busts the canonical AUTH-01 auth module", () => {
-  assert.match(loginPageSource, /core\/auth\.js\?v=auth01-login-20260830/);
+  assert.match(loginPageSource, /core\/auth\.js\?v=20261009-single-analysis-1/);
   assert.equal((loginPageSource.match(/initializeLoginPage\s*\(/g) || []).length, 1);
 });
 

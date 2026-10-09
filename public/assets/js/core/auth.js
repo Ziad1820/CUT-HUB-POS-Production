@@ -409,7 +409,6 @@ const RomeoAuth = (() => {
       ["view_invoices", "invoices.html"],
       ["view_income_statement", "income-statement.html"],
       ["view_daily_closing", "daily-closing.html"],
-      ["view_data_analysis", "data-analysis.html"],
       ["view_activity_log", "activity-log.html"],
       ["view_staff_accounting", "staff-accounting.html"],
       ["view_staff_discount", "staff-discount.html"],

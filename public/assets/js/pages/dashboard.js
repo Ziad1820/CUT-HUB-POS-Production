@@ -425,7 +425,6 @@ function getInvoicesForDate(invoices, dateKey) {
         ["cashier.html", t("cashier")],
         ["invoices.html", t("invoicesPage")],
         ["income-statement.html", t("income")],
-        ["data-analysis.html", t("analysis")],
         ["daily-closing.html", t("closing")],
         ["activity-log.html", t("activity")],
         ["staff-accounting.html", t("staffAccounting")],

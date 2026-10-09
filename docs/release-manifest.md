@@ -285,6 +285,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `docs/staff-scheduling-phase-2-engineering-review.md` | untracked | Phase 2 Scheduling | documentation | no | no | — | Release evidence; not runtime-loaded | — | Historical engineering review; documentation-only and not deployed. |
 | `docs/staff-scheduling-phase-2.md` | tracked | Phase 2 Scheduling | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/staging-entry-checklist.md` | tracked | Pre-Staging operations | operational runbook | yes | no | — | Release evidence; not runtime-loaded | — | Required pre-Staging operational control document. |
+| `docs/standalone-data-analysis-removal.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `lib/apps-script-http.js` | tracked | Cross-phase/local | backend integration | yes | no | — | Vercel server function; exclude Apps Script upload | — | Same-origin relay to the fixed Production Apps Script deployment, without automatic request replay. |
 | `login.html` | tracked | Authentication & navigation | excluded intentionally | no | no | — | Do not deploy | tests/auth-navigation.test.js | Root compatibility wrapper duplicates public output; Vercel serves the public directory. |
 | `public/assets/css/pages/attendance.css` | tracked | Phase 3 Attendance | UI stylesheet | yes | no | — | Browser: linked by its UI page | tests/staff-attendance-phase3.test.js | Runtime RTL/accessibility styling for an in-scope page. |
@@ -326,7 +327,6 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `public/pages/customer-data.html` | tracked | Cross-phase/local | UI page | yes | no | — | Static public package | — | Runtime page for an in-scope workflow. |
 | `public/pages/daily-closing.html` | tracked | Cross-phase/local | UI page | yes | no | — | Static public package | — | Runtime page for an in-scope workflow. |
 | `public/pages/dashboard.html` | tracked | Cross-phase/local | UI page | yes | no | — | Static public package | — | Runtime page for an in-scope workflow. |
-| `public/pages/data-analysis.html` | tracked | Cross-phase/local | UI page | yes | no | — | Static public package | — | Runtime page for an in-scope workflow. |
 | `public/pages/enventory.html` | tracked | Cross-phase/local | UI page | yes | no | — | Static public package | — | Runtime page for an in-scope workflow. |
 | `public/pages/expenses.html` | tracked | Cross-phase/local | UI page | yes | no | — | Static public package | — | Runtime page for an in-scope workflow. |
 | `public/pages/income-statement.html` | tracked | Cross-phase/local | UI page | yes | no | — | Static public package | — | Runtime page for an in-scope workflow. |
