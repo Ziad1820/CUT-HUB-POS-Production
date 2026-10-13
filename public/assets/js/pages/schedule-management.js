@@ -15,6 +15,17 @@ function shouldShowWorkPolicyUi(permissions) {
   return permissions?.owner === true;
 }
 
+function scheduleManagementErrorMessage(error) {
+  if (["SCHEDULE_SHIFT_CONFLICT", "SCHEDULE_DUPLICATE_ACTIVE_SEGMENT"].includes(error.code)) {
+    return "الفترة تتداخل مع شفت موجود للموظف خلال نفس التواريخ. استخدم «تعديل» بجوار الشفت الموجود، أو اختر وقتًا أو تواريخ لا تتداخل معه. لم تُحفظ الإضافة.";
+  }
+  if (["SCHEDULE_DAY_OFF_CONFLICT", "SCHEDULE_DUPLICATE_WEEKLY_DAY_OFF"].includes(error.code)) {
+    return "يوجد شفت أو راحة أسبوعية لهذا اليوم خلال نفس التواريخ. راجع الجدول الموجود قبل إضافة فترة أخرى. لم يُحفظ التغيير.";
+  }
+  if (error.details?.recoveryRequired) return "تعذر إكمال الحفظ ويحتاج مراجعة. لا تكرر الإجراء قبل التأكد من حالته.";
+  return `${error.code || "REQUEST_FAILED"}: ${error.message}`;
+}
+
 function buildWorkPolicyCreatePayload(input, generatedRequestId) {
   const payload = {
     action: "createWorkPolicy",
@@ -101,7 +112,8 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
   const state = {
     staff: [], schedules: [], overrides: [], resolved: [], scopes: [], policies: [],
     permissions: {}, dirty: false, busy: false, policyBusy: false, decisionResolve: null,
-    selectedRequestSequence: 0, policyRequestSequence: 0
+    selectedRequestSequence: 0, policyRequestSequence: 0,
+    weeklyLoading: false, weeklyLoadFailed: false
   };
   const byId = id => document.getElementById(id);
 
@@ -273,7 +285,8 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
         DAY_LABELS[day],
         dayOff ? "راحة أسبوعية" : (rows.map(item =>
           item.resolutionEligible === false
-            ? "سجل قديم غير محلول" : shiftLabel(item)).join("، ") || "غير مجدول"),
+            ? "سجل قديم غير محلول" : shiftLabel(item)).join("، ") ||
+            (state.weeklyLoading ? "جارٍ تحميل الجدول…" : state.weeklyLoadFailed ? "تعذر تحميل الجدول" : "غير مجدول")),
         rows.reduce((sum, item) => sum + Number(item.requiredWorkMinutes || 0), 0) || "—",
         rows.reduce((sum, item) => sum + Number(item.allowedBreakMinutes || 0), 0) || "—",
         (dayOff ? [dayOff] : rows)
@@ -286,7 +299,7 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
       });
       const actions = document.createElement("td");
       actions.className = "row-actions";
-      if (state.permissions.manage) {
+      if (state.permissions.manage && !state.weeklyLoading && !state.weeklyLoadFailed) {
         if (dayOff && !dayOff.readOnly) {
           actions.appendChild(actionButton("إلغاء الراحة", "deactivate-segment", dayOff.scheduleId, true));
         } else if (!dayRecords.some(item => item.readOnly)) {
@@ -308,7 +321,10 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
       tr.appendChild(actions);
       body.appendChild(tr);
     });
-    byId("weeklyEmpty").hidden = !!records.length;
+    byId("weeklyEmpty").hidden = !!records.length || state.weeklyLoading || state.weeklyLoadFailed;
+    ["addSegmentBtn", "copyDayBtn", "copyEmployeeBtn", "applyRangeBtn"].forEach(id => {
+      byId(id).disabled = state.weeklyLoading || state.weeklyLoadFailed || !staffId;
+    });
   }
 
   function renderRange() {
@@ -463,6 +479,7 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
       renderWorkPolicies();
       setWorkPolicyStatus("");
     } catch (error) {
+      if (sequence !== state.policyRequestSequence || selectedStaff()?.staffId !== staff.staffId) return;
       setWorkPolicyStatus(`${error.code}: ${error.message}`, "error");
     }
   }
@@ -638,12 +655,14 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     const sequence = ++state.selectedRequestSequence;
     const staff = selectedStaff();
     if (!staff) {
+      state.weeklyLoading = false; state.weeklyLoadFailed = false;
       state.schedules = []; state.overrides = []; state.resolved = [];
       renderWeekly(); renderOverrides(); renderRange(); renderAudit([]);
       await loadWorkPolicies();
       return;
     }
     setStatus("جارٍ تحميل الجدول…", "loading");
+    state.weeklyLoading = true; state.weeklyLoadFailed = false;
     document.querySelector("main").setAttribute("aria-busy", "true");
     state.schedules = []; state.overrides = []; state.resolved = [];
     renderWeekly(); renderOverrides(); renderRange(); renderAudit([]);
@@ -652,7 +671,20 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     const policyLoad = loadWorkPolicies(staff.staffId);
     try {
       const [weekly, overrides, resolved, audit] = await Promise.all([
-        api("getStaffWeeklySchedule", { staffId: staff.staffId }),
+        api("getStaffWeeklySchedule", { staffId: staff.staffId }).then(result => {
+          if (sequence === state.selectedRequestSequence && selectedStaff()?.staffId === staff.staffId) {
+            state.schedules = result.schedules || [];
+            state.weeklyLoading = false;
+            renderWeekly();
+          }
+          return result;
+        }).catch(error => {
+          if (sequence === state.selectedRequestSequence) {
+            state.weeklyLoading = false; state.weeklyLoadFailed = true;
+            renderWeekly();
+          }
+          throw error;
+        }),
         api("listScheduleOverrides", { staffId: staff.staffId, dateFrom: from, dateTo: to, limit: 200 }),
         api("resolveStaffSchedulesRange", { staffIds: [staff.staffId], dateFrom: from, dateTo: to }),
         api("getScheduleAuditHistory", { staffId: staff.staffId })
@@ -745,8 +777,7 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
       document.querySelectorAll("dialog[open]").forEach(dialog => dialog.close());
       await loadSelected();
     } catch (error) {
-      const details = error.details ? ` · ${JSON.stringify(error.details)}` : "";
-      const message = `${error.code}: ${error.message}${details}`;
+      const message = scheduleManagementErrorMessage(error);
       setStatus(message, "error");
       toast(message, true);
     } finally {

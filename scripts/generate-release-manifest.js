@@ -44,6 +44,7 @@ const explicitPaths = [
   "docs/invoice-load-more-recovery.md", "tests/invoice-sheet-read-recovery.test.js", "tests/invoice-load-more-recovery.test.js",
   "docs/standalone-data-analysis-removal.md",
   "docs/staff-minute-workflow.md", "tests/staff-minute-workflow.test.js", "scripts/register-minute-workflow-production.js",
+  "docs/schedule-performance-fix.md", "tests/schedule-performance-production.test.js",
   "docs/dashboard-api-relay-deployment.md",
   ".gitattributes", "backend/README.md", "config/backend-sources.json",
   "scripts/build-backend.js", "tests/backend-modularization.test.js",

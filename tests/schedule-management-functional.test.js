@@ -63,7 +63,8 @@ test("load failure clears the misleading empty-roster message for API failures",
 test("valid employee-empty and valid schedule-empty states remain separate", () => {
   assert.match(js, /const emptyMessage = !state\.staff\.length/);
   assert.match(js, /if \(!staff\) \{[\s\S]*?renderWeekly\(\); renderOverrides\(\);/);
-  assert.match(js, /join\("، "\) \|\| "غير مجدول"/);
+  assert.match(js, /state\.weeklyLoading \? "جارٍ تحميل الجدول…"/);
+  assert.match(js, /state\.weeklyLoadFailed \? "تعذر تحميل الجدول" : "غير مجدول"/);
 });
 
 test("refresh reloads page data before the selected employee schedule and reports failure", () => {

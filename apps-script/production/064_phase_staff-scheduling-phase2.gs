@@ -1211,13 +1211,14 @@
           : repository.listStaff().map((item) => item.staffId);
         if (requestedIds.length > 100) throw schedulingError("SCHEDULE_RESOLUTION_STAFF_LIMIT", "At most 100 staff may be resolved.");
         const results = [];
+        // One consistent request snapshot; never repeat sheet reads for every day.
+        const overrides = repository.listOverrides({ dateFrom: from.text, dateTo: to.text });
+        const policies = repository.listPolicies();
         requestedIds.forEach((staffId) => {
           const staff = staffFor(actor, staffId, false);
+          const schedules = repository.listSchedules({ staffId });
           for (let epoch = from.epochDay; epoch <= to.epochDay; epoch += 1) {
             const date = new Date(epoch * 86400000).toISOString().slice(0, 10);
-            const schedules = repository.listSchedules({ staffId });
-            const overrides = repository.listOverrides({ dateFrom: date, dateTo: date });
-            const policies = repository.listPolicies();
             const policyResolution = policies.length
               ? core.resolveEffectivePolicy(policies, staffId, date) : { snapshot: {} };
             results.push(filterSensitiveFields(resolveSchedule({
