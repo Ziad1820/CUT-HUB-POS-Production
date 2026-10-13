@@ -134,7 +134,7 @@
           "path": "030_staff_branch-repository.gs",
           "sha256": "8d94d2aa6cd8834b29a0003442edf83a71d33d8cdc4b56f960cf13971248e43b",
           "baselineSourcePath": "baseline/030_staff_branch-repository.js",
-          "currentSha256": "35a03e47b8d7f37b4eb079ad1bc2bf2ca89143f9859ef332d7360d7d2188afa7",
+          "currentSha256": "ef8efa73304ae0ee08b921e22688bb0222349e588f5cfe28f97b5860874d578b",
           "changedGlobals": [
             "getStaff"
           ],

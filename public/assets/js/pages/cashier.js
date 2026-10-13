@@ -689,7 +689,7 @@
 
     async function loadBarbersFromSheet() {
       try {
-        const data = await RomeoApi.request({ action: "getStaff" });
+        const data = await RomeoApi.request({ action: "getStaff", staffView: "cashier" });
         if (data.status !== "success" || !Array.isArray(data.staff)) {
           return;
         }
@@ -1081,41 +1081,29 @@
       }
     }
 
+    let cashierTotalsSequence = 0;
     async function fetchTodaySales() {
+      const sequence = ++cashierTotalsSequence;
+      const date = getReportDateKey();
       setDailyNetLoading(true);
       try {
-        if (todaySalesAmount) {
-          todaySalesAmount.textContent = "Ã˜Â¬Ã˜Â§Ã˜Â±Ã™Å  Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž...";
-        }
-        const data = await RomeoApi.request({
-          action: "todaySales",
-          reportDate: getReportDateKey()
-        });
-
-        if (data.status !== "success") {
-          throw new Error(data.message || "Failed to load today's sales");
-        }
-
-        latestTodaySales = numberValue(data.todaySales);
-        latestTodayTips = numberValue(data.todayTips);
-        if (todaySalesAmount) {
-          todaySalesAmount.textContent = formatCurrency(latestTodaySales);
-        }
-        await Promise.all([
-          fetchDailyNetTotals(),
-          fetchTodayPaymentTotals()
-        ]);
+        const data = await RomeoApi.request({ action: "getDailyClosingPreview", date });
+        if (sequence !== cashierTotalsSequence || date !== getReportDateKey()) return;
+        if (data.status !== "success" || !data.preview) throw new Error(data.message || "Daily totals unavailable");
+        const preview = data.preview;
+        latestTodaySales = numberValue(preview.salesTotal);
+        latestTodayTips = numberValue(preview.tipTotal);
+        latestTodayExpenses = numberValue(preview.expensesTotal);
+        latestTodayWithdrawals = numberValue(preview.withdrawalsTotal);
+        updatePaymentMethodTotals({ cash: numberValue(preview.cashTotal), instapay: numberValue(preview.instapayTotal),
+          vodafoneCash: numberValue(preview.vodafoneCashTotal), visa: numberValue(preview.visaTotal), tips: latestTodayTips });
       } catch (error) {
-        console.error(error);
-        latestTodaySales = 0;
-        latestTodayTips = 0;
-        if (todaySalesAmount) {
-          todaySalesAmount.textContent = formatCurrency(0);
-        }
-        await fetchDailyNetTotals();
-        updatePaymentMethodTotals();
+        if (sequence !== cashierTotalsSequence) return;
+        console.warn("Daily cashier totals could not be refreshed.");
+        if (dailyNetAmount) dailyNetAmount.textContent = localizeText("تعذر تحديث أرقام اليوم", "Daily totals could not be refreshed");
+        if (dailyNetBreakdown) dailyNetBreakdown.textContent = localizeText("أعد اختيار تاريخ الإجماليات للتحديث.", "Select the totals date again to refresh.");
       } finally {
-        setDailyNetLoading(false);
+        if (sequence === cashierTotalsSequence) setDailyNetLoading(false);
       }
     }
 
@@ -2644,10 +2632,10 @@
     renderServices();
     renderCart();
     loadServicesFromSheet();
+    fetchTodaySales();
     loadInventoryProducts();
     loadStoredLatestInvoices();
     loadLatestInvoicesFromSheet();
-    fetchTodaySales();
     updateOnlineControls();
     fixArabicInNode(document.body);
 

@@ -51,6 +51,25 @@ function getStaff(data) {
   try {
     const sheet = getStaffSheet();
     const lastRow = sheet.getLastRow();
+    if (data && data.staffView === "cashier") {
+      const permissionError = requirePermission(data, "access_cashier", "Cashier permission is required.");
+      if (permissionError) return permissionError;
+      if (lastRow < 2) return jsonOutput({ status: "success", staff: [] });
+      const headers = staffResolveHeaders_(sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]);
+      ["NAME", "CODE", "ID", "ACTIVE", "IS_BARBER"].forEach(header => {
+        if (headers.filter(value => value === header).length !== 1) throw new Error(`Invalid STAFF header: ${header}`);
+      });
+      const rows = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+      const get = (row, name) => row[headers.indexOf(name)];
+      const ids = {};
+      rows.forEach(row => { const id = String(get(row, "ID") || "").trim(); if (id) ids[id] = (ids[id] || 0) + 1; });
+      return jsonOutput({ status: "success", staff: rows.map(row => {
+        const id = String(get(row, "ID") || "").trim();
+        return { id, staffId: id && ids[id] === 1 ? id : "",
+          name: String(get(row, "NAME") || "").trim(), code: String(get(row, "CODE") || "").trim().toUpperCase(),
+          active: parseSheetBoolean(get(row, "ACTIVE"), true), isBarber: parseSheetBoolean(get(row, "IS_BARBER"), true) };
+      }).filter(item => item.name && item.active) });
+    }
     const attendanceTotals = getApprovedAttendanceTotalsForCurrentMonth(data);
     const minuteTotals = {};
     const seenDays = new Set();

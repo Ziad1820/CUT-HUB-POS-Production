@@ -156,10 +156,13 @@
       throw new Error(getOfflineMessage());
     }
 
+    const timingQueuedAt = Date.now();
+    let timingEnteredAt = timingQueuedAt;
     let response;
     let releaseSlot;
     try {
       releaseSlot = await acquireRelaySlot();
+      timingEnteredAt = Date.now();
       response = await fetch(API_URL, {
         method: "POST",
         keepalive: true,
@@ -167,6 +170,19 @@
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(bodyPayload)
       });
+      try {
+        const safeActions = ["getStaff", "getServices", "getSellableProducts", "getInvoices", "todaySales", "todayPaymentTotals", "getDailyClosingPreview", "customerLookup", "invoice"];
+        if (new URLSearchParams(window.location?.search || "").get("performance") === "1" && response && safeActions.includes(payload?.action)) {
+          const timing = {};
+          const header = String(response.headers.get("server-timing") || "");
+          for (const name of ["google_execution", "google_content", "relay"]) {
+            const match = new RegExp(name + ";dur=([0-9.]+)").exec(header);
+            if (match && Number.isFinite(Number(match[1]))) timing[name] = Number(match[1]);
+          }
+          console.info("[CASHIER_PERF] " + JSON.stringify({ action: payload.action, queueMs: timingEnteredAt - timingQueuedAt,
+            requestMs: Date.now() - timingEnteredAt, totalMs: Date.now() - timingQueuedAt, httpStatus: response.status, ...timing }));
+        }
+      } catch (_) {}
       setOnlineState(true);
     } catch (error) {
       if (browserReportsOffline()) {

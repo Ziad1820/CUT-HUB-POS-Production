@@ -39,6 +39,9 @@ function createHandler(fetchUpstream = requestGoogle, log = console.warn) {
     } catch (_) { return fail(400, "INVALID_JSON_REQUEST"); }
 
     let phase = "EXECUTION";
+    const startedAt = performance.now();
+    let executionMs = 0;
+    let contentStartedAt = null;
     let upstreamStatus = null;
     let errorClass = null;
     let redirectClass = null;
@@ -51,6 +54,7 @@ function createHandler(fetchUpstream = requestGoogle, log = console.warn) {
         method: "POST", redirect: "manual", cache: "no-store", signal,
         headers: { "Content-Type": "text/plain;charset=utf-8" }, body
       });
+      executionMs = performance.now() - startedAt;
       upstreamStatus = response.status;
       if ([302, 303].includes(response.status)) {
         const location = response.headers.get("location");
@@ -62,6 +66,7 @@ function createHandler(fetchUpstream = requestGoogle, log = console.warn) {
         // Execution is already complete. Fetch its one-time response with GET.
         // Never replay the POST, including after a failed content redirect.
         phase = "CONTENT";
+        contentStartedAt = performance.now();
         const visited = new Set();
         let contentUrl = url;
         for (let hop = 0; hop < 4; hop++) {
@@ -93,6 +98,9 @@ function createHandler(fetchUpstream = requestGoogle, log = console.warn) {
       const result = JSON.parse(source);
       if (!result || typeof result !== "object" || Array.isArray(result)) return fail(502, "UPSTREAM_INVALID_JSON", true);
       res.statusCode = 200;
+      const totalMs = performance.now() - startedAt;
+      const contentMs = contentStartedAt === null ? 0 : performance.now() - contentStartedAt;
+      res.setHeader("Server-Timing", `google_execution;dur=${executionMs.toFixed(1)}, google_content;dur=${contentMs.toFixed(1)}, relay;dur=${totalMs.toFixed(1)}`);
       res.end(source);
     } catch (error) {
       // No bodies, URLs, cookies, session tokens, or provider HTML in logs.
