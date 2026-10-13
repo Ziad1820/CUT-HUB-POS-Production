@@ -81,7 +81,8 @@ function findInvoiceByRequestId(sheet, requestId, requestIdColumn) {
       pdfUrl: inventoryText(row[4]),
       invoiceId: `DATA-${rowNumber}`,
       rowNumber,
-      duplicate: true
+      duplicate: true,
+      invoiceRequestId: requestId
     };
   }
   return null;

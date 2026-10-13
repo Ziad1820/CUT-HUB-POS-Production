@@ -1,10 +1,69 @@
+function getInvoicePdf(data) {
+  if (!actorHasPermission(data, "access_cashier") && !actorHasPermission(data, "view_invoices")) {
+    return requirePermission(data, "view_invoices", "Invoice permission is required.");
+  }
+  const requestId = String(data.invoiceRequestId || "").trim();
+  if (!requestId || requestId.length > 200) return jsonOutput({ status: "error", code: "INVOICE_PDF_ID_REQUIRED", message: "أعد تحميل الفاتورة قبل تجهيز ملفها." });
+  const lock = LockService.getScriptLock();
+  let held = false;
+  let createdUrl = "";
+  let published = false;
+  let publicationAttempted = false;
+  let publicationUncertain = false;
+  function readSource() {
+    const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
+    if (!sheet) throw new Error("INVOICE_PDF_NOT_FOUND");
+    const schema = inspectDataInvoiceSchemaReadOnly(sheet);
+    const column = schema.invoiceRequestIdColumn;
+    if (!column || sheet.getLastRow() < 2) throw new Error("INVOICE_PDF_NOT_FOUND");
+    const ids = sheet.getRange(2, column, sheet.getLastRow() - 1, 1).getValues();
+    const matches = ids.map((row, index) => String(row[0] || "").trim() === requestId ? index + 2 : 0).filter(Boolean);
+    if (matches.length !== 1) throw new Error("INVOICE_PDF_NOT_FOUND");
+    const row = sheet.getRange(matches[0], 1, 1, 13).getValues()[0];
+    return { sheet, rowNumber: matches[0], row, version: JSON.stringify(row.slice(0, 4).concat(row.slice(5, 13))) };
+  }
+  try {
+    lock.waitLock(30000); held = true;
+    const source = readSource();
+    if (source.row[4]) return jsonOutput({ status: "success", pdfUrl: String(source.row[4]), reused: true });
+    lock.releaseLock(); held = false;
+    // Drive conversion is outside the checkout lock. The stored row is authoritative.
+    createdUrl = createInvoicePdf({ invoiceDateTime: getDisplayDateTime(source.row[0]),
+      customerName: source.row[1], customerPhone: source.row[2], services: source.row[3],
+      total: source.row[5], paidAmount: source.row[6], tipAmount: source.row[7],
+      payment: source.row[8], barber: source.row[9], note: source.row[10],
+      discountPercent: source.row[11], discountAmount: source.row[12] });
+    lock.waitLock(30000); held = true;
+    const current = readSource();
+    if (current.version !== source.version) throw new Error("INVOICE_PDF_SOURCE_CHANGED");
+    if (current.row[4]) return jsonOutput({ status: "success", pdfUrl: String(current.row[4]), reused: true });
+    publicationAttempted = true;
+    current.sheet.getRange(current.rowNumber, 5).setValue(createdUrl);
+    published = true;
+    return jsonOutput({ status: "success", pdfUrl: createdUrl, reused: false });
+  } catch (error) {
+    if (publicationAttempted && !published) {
+      try { published = String(readSource().row[4] || "") === createdUrl; }
+      catch (_) { publicationUncertain = true; }
+    }
+    const changed = error.message === "INVOICE_PDF_SOURCE_CHANGED";
+    return jsonOutput({ status: "error", code: changed ? "INVOICE_PDF_SOURCE_CHANGED" : "INVOICE_PDF_UNAVAILABLE",
+      message: changed ? "الفاتورة اتعدلت أثناء تجهيز الملف. أعد تحميلها وجرب تاني." : "تعذر تجهيز PDF. الفاتورة محفوظة؛ جرب تجهيز الملف لاحقًا." });
+  } finally {
+    if (held) { try { lock.releaseLock(); } catch (_) {} }
+    if (createdUrl && !published && !publicationUncertain) {
+      try { const match = createdUrl.match(/\/d\/([^/]+)/); if (match) DriveApp.getFileById(match[1]).setTrashed(true); } catch (_) {}
+    }
+  }
+}
+
 function createInvoicePdf(data) {
   const invoiceNumber = `INV-${Utilities.formatDate(new Date(), TIME_ZONE, "yyyyMMdd-HHmmss")}`;
   const customerName = escapeHtml(data.customerName || "-");
   const customerPhone = escapeHtml(data.customerPhone || "-");
   const paymentMethod = escapeHtml(data.payment || data.paymentMethod || "-");
   const barber = escapeHtml(data.barber || "-");
-  const invoiceDate = escapeHtml(getInvoiceDateTime(data));
+  const invoiceDate = escapeHtml(data.invoiceDateTime || getInvoiceDateTime(data));
   const total = formatInvoiceMoney(data.total || 0);
   const discountPercent = parseSheetAmount(data.discountPercent || 0);
   const discountAmount = formatInvoiceMoney(data.discountAmount || 0);

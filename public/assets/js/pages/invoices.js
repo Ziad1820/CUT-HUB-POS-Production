@@ -448,7 +448,7 @@
               <button type="button" class="mini-btn dark" data-action="view" data-id="${escapeHtml(invoice.invoiceId)}">${localizeText("عرض", "View")}</button>
               ${invoice.pdfUrl
                 ? `<a class="mini-btn" href="${escapeHtml(invoice.pdfUrl)}" target="_blank" rel="noopener">PDF</a>`
-                : `<button type="button" class="mini-btn" disabled>PDF</button>`}
+                : window.RomeoInvoicePdf.button(invoice)}
               <button type="button" class="mini-btn danger" data-action="delete" data-id="${escapeHtml(invoice.invoiceId)}">${localizeText("حذف", "Delete")}</button>
             </div>
           </td>
@@ -535,7 +535,7 @@
         <div class="detail-item"><span>${tipLabel}</span><input class="detail-input" id="editTipAmount" type="number" min="0" step="1" value="${escapeHtml(parseAmount(invoice.tipAmount))}"></div>
         <div class="detail-item full"><span>${servicesLabel}</span><textarea class="detail-input" id="editInvoiceServices">${escapeHtml(formatServices(invoice.services || ""))}</textarea></div>
         <div class="detail-item full"><span>${noteLabel}</span><textarea class="detail-input" id="editInvoiceNote">${escapeHtml(invoice.note || invoice.invoiceNote || "")}</textarea></div>
-        <div class="detail-item full"><span>PDF</span><strong>${invoice.pdfUrl ? `<a href="${escapeHtml(invoice.pdfUrl)}" target="_blank" rel="noopener">${localizeText("فتح الفاتورة", "Open Invoice")}</a>` : "-"}</strong></div>
+        <div class="detail-item full"><span>PDF</span><strong>${invoice.pdfUrl ? `<a href="${escapeHtml(invoice.pdfUrl)}" target="_blank" rel="noopener">${localizeText("فتح الفاتورة", "Open Invoice")}</a>` : window.RomeoInvoicePdf.button(invoice)}</strong></div>
         <div class="modal-status" id="invoiceModalStatus"></div>
         <div class="modal-actions full">
           <button type="button" class="mini-btn" id="cancelEditInvoiceBtn">${localizeText("إلغاء", "Cancel")}</button>
@@ -553,7 +553,7 @@
         <div class="detail-item"><span>${tipLabel}</span><strong>${formatMoney(invoice.tipAmount || 0)}</strong></div>
         <div class="detail-item full"><span>${servicesLabel}</span><strong>${escapeHtml(formatServices(invoice.services || "-"))}</strong></div>
         <div class="detail-item full"><span>${noteLabel}</span><strong>${escapeHtml(invoice.note || invoice.invoiceNote || "-")}</strong></div>
-        <div class="detail-item full"><span>PDF</span><strong>${invoice.pdfUrl ? `<a href="${escapeHtml(invoice.pdfUrl)}" target="_blank" rel="noopener">${localizeText("فتح الفاتورة", "Open Invoice")}</a>` : "-"}</strong></div>
+        <div class="detail-item full"><span>PDF</span><strong>${invoice.pdfUrl ? `<a href="${escapeHtml(invoice.pdfUrl)}" target="_blank" rel="noopener">${localizeText("فتح الفاتورة", "Open Invoice")}</a>` : window.RomeoInvoicePdf.button(invoice)}</strong></div>
         ${canEditInvoice(invoice) ? `
           <div class="modal-actions full">
             <button type="button" class="mini-btn dark" id="editInvoiceBtn">${localizeText("تعديل", "Edit")}</button>
@@ -620,9 +620,9 @@
       setModalStatus(localizeText("جاري حفظ التعديل...", "Saving invoice changes..."));
 
       try {
-        await postToApi(payload);
+        const updateResult = await postToApi(payload);
         await loadInvoices();
-        const updatedInvoice = findInvoice(activeInvoice.invoiceId) || { ...activeInvoice, ...payload };
+        const updatedInvoice = findInvoice(activeInvoice.invoiceId) || { ...activeInvoice, ...payload, ...(updateResult.invoice || {}) };
         activeInvoice = updatedInvoice;
         detailsEditMode = false;
         renderDetails(updatedInvoice, false);

@@ -92,6 +92,7 @@ function doPost(e) {
 
   if (data.action === "invoice") return createInvoice(data);
   if (data.action === "getInvoices") return getInvoices(data);
+  if (data.action === "getInvoicePdf") return getInvoicePdf(data);
   if (data.action === "deleteInvoice") return deleteInvoice(data);
   if (data.action === "updateInvoice") return updateInvoice(data);
 

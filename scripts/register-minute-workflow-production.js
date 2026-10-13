@@ -11,6 +11,11 @@ const map = JSON.parse(fs.readFileSync(mapPath, "utf8"));
 const files = {
   "002_core_http-router.gs": ["doPost"],
   "030_staff_branch-repository.gs": ["getStaff"],
+  "042_invoices_schema.gs": ["findInvoiceByRequestId"],
+  "043_invoices_mutations.gs": ["createInvoice", "updateInvoice"],
+  "044_invoices_queries.gs": ["getInvoices", "readInvoiceDataSnapshot"],
+  "045_invoices_deletion.gs": ["deleteInvoice"],
+  "048_invoices_pdf.gs": ["createInvoicePdf"],
   "064_phase_staff-scheduling-phase2.gs": [],
   "065_phase_staff-scheduling-phase2-gas.gs": ["schedulePhase2CreateRepository"],
   "067_phase_staff-attendance-phase3.gs": [],
@@ -32,6 +37,7 @@ for (const [name, changedGlobals] of Object.entries(files)) {
   }
   record.currentSha256 = hash(fs.readFileSync(path.join(base, name)));
   record.changedGlobals = changedGlobals;
+  if (name === "048_invoices_pdf.gs") record.addedGlobals = ["getInvoicePdf"];
   record.changeReason = "Owner-configured minute attendance accounting and shared live booking availability";
 }
 fs.writeFileSync(mapPath, JSON.stringify(map, null, 2) + "\n");

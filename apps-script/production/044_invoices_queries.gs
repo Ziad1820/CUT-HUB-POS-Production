@@ -43,12 +43,13 @@ function readInvoiceDataSnapshot() {
     try {
       const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
       if (!sheet) return { sheetFound: false };
-      inspectDataInvoiceSchemaReadOnly(sheet);
+      const schema = inspectDataInvoiceSchemaReadOnly(sheet) || {};
       const lastRow = sheet.getLastRow();
       return {
         sheetFound: true,
         lastRow,
-        rows: lastRow < 2 ? [] : sheet.getRange(2, 1, lastRow - 1, Math.min(sheet.getLastColumn(), 13)).getValues()
+        invoiceRequestIdColumn: schema.invoiceRequestIdColumn || 0,
+        rows: lastRow < 2 ? [] : sheet.getRange(2, 1, lastRow - 1, Math.max(Math.min(sheet.getLastColumn(), 13), schema.invoiceRequestIdColumn || 0)).getValues()
       };
     } catch (error) {
       if (!isTransientInvoiceReadFailure(error) || attempt === 2) throw error;
@@ -116,6 +117,7 @@ function getInvoices(data) {
     const rowNumber = index + 2;
     const invoice = {
       invoiceId: `DATA-${rowNumber}`,
+      invoiceRequestId: snapshot.invoiceRequestIdColumn ? String(row[snapshot.invoiceRequestIdColumn - 1] || "").trim() : "",
       rowNumber,
       date: getDisplayDateTime(row[0]),
       dateKey: getDateKey(row[0], TIME_ZONE),

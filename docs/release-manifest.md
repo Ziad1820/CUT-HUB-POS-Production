@@ -4,9 +4,9 @@ Generated locally by `scripts/generate-release-manifest.js`. Do not hand-edit. T
 
 ## Counts
 
-- Required tracked files: **366**
-- Required untracked files: **2**
-- Total classified entries: **399**
+- Required tracked files: **368**
+- Required untracked files: **7**
+- Total classified entries: **406**
 
 ## Intended Apps Script application package
 
@@ -17,8 +17,13 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 
 ## Required untracked files
 
-- `docs/cashier-performance-audit.md`
-- `tests/cashier-performance.test.js`
+- `apps-script/production/baseline/042_invoices_schema.js`
+- `apps-script/production/baseline/043_invoices_mutations.js`
+- `apps-script/production/baseline/045_invoices_deletion.js`
+- `apps-script/production/baseline/048_invoices_pdf.js`
+- `docs/invoice-on-demand-pdf.md`
+- `public/assets/js/utils/invoice-pdf.js`
+- `tests/invoice-on-demand-pdf.test.js`
 
 ## Intentionally excluded or documentation-only artifacts
 
@@ -160,7 +165,11 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `apps-script/production/appsscript.json` | tracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/002_core_http-router.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/030_staff_branch-repository.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
+| `apps-script/production/baseline/042_invoices_schema.js` | untracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
+| `apps-script/production/baseline/043_invoices_mutations.js` | untracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/044_invoices_queries.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
+| `apps-script/production/baseline/045_invoices_deletion.js` | untracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
+| `apps-script/production/baseline/048_invoices_pdf.js` | untracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/064_phase_staff-scheduling-phase2.js` | tracked | Phase 2 Scheduling | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | tests/staff-scheduling-phase2.test.js<br>tests/staff-scheduling-phase2-contract.test.js | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/065_phase_staff-scheduling-phase2-gas.js` | tracked | Phase 2 Scheduling | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | tests/staff-scheduling-phase2.test.js<br>tests/staff-scheduling-phase2-contract.test.js | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/067_phase_staff-attendance-phase3.js` | tracked | Phase 3 Attendance | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | tests/staff-attendance-phase3.test.js | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
@@ -263,12 +272,13 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `docs/backend-refactor-baseline.json` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/backend-refactor-production-deployment.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/booking-no-check-in-trigger-runbook.md` | tracked | Phase 5 Booking Availability | operational runbook | yes | no | — | Release evidence; not runtime-loaded | tests/booking-availability-phase5.test.js<br>tests/booking-availability-phase5-gas.test.js<br>tests/booking-availability-phase5-contract.test.js<br>tests/booking-no-check-in-detector.test.js | Required pre-Staging operational control document. |
-| `docs/cashier-performance-audit.md` | untracked | Booking integration | documentation | yes | no | — | Release evidence; not runtime-loaded | tests/booking-upgrade.test.js | Phase specification and operational reference; documentation-only and not runtime-loaded. |
+| `docs/cashier-performance-audit.md` | tracked | Booking integration | documentation | yes | no | — | Release evidence; not runtime-loaded | tests/booking-upgrade.test.js | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/cashier-responsive-layout-fix.md` | tracked | Authentication & navigation | documentation | yes | no | — | Release evidence; not runtime-loaded | tests/auth-navigation.test.js<br>tests/booking-upgrade.test.js | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/cashier-stacked-panel-height-fix.md` | tracked | Booking integration | documentation | yes | no | — | Release evidence; not runtime-loaded | tests/booking-upgrade.test.js | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/dashboard-analysis-loading-fix.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/dashboard-api-relay-deployment.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/invoice-load-more-recovery.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
+| `docs/invoice-on-demand-pdf.md` | untracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/release-manifest.md` | tracked | Pre-Staging operations | operational runbook | yes | yes | scripts/generate-release-manifest.js | Release evidence; not runtime-loaded | tests/release-manifest.test.js | Required pre-Staging operational control document. |
 | `docs/release/frontend-staging-configuration.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/release/human-approval-packet.md` | tracked | Cross-phase/local | documentation | yes | yes | scripts/build-local-release-candidate.js | Commit as release evidence; exclude from deployment payload and its own content hash | — | Generated approval/inventory evidence is required in source control but excluded from deployment payload hashing to avoid recursion. |
@@ -328,6 +338,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `public/assets/js/pages/dashboard-analysis.js` | tracked | Cross-phase/local | UI JavaScript | yes | no | — | Browser: after shared core and page markup | — | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/pages/payroll-attendance.js` | tracked | Phase 4 Payroll Attendance | UI JavaScript | yes | no | — | Browser: after shared core and page markup | tests/staff-payroll-attendance-phase4.test.js | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/pages/schedule-management.js` | tracked | Phase 2 Scheduling | UI JavaScript | yes | no | — | Browser: after shared core and page markup | tests/staff-scheduling-phase2.test.js<br>tests/staff-scheduling-phase2-contract.test.js | Runtime client logic for an in-scope workflow. |
+| `public/assets/js/utils/invoice-pdf.js` | untracked | Cross-phase/local | UI JavaScript | yes | no | — | Browser: after shared core and page markup | — | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/utils/keyboard-navigation.js` | tracked | Cross-phase/local | UI JavaScript | yes | no | — | Browser: after shared core and page markup | — | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/utils/language.js` | tracked | Cross-phase/local | UI JavaScript | yes | no | — | Browser: after shared core and page markup | — | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/utils/layout.js` | tracked | Authentication & navigation | UI JavaScript | yes | no | — | Browser: shared layout before/with page module | tests/auth-navigation.test.js | Runtime client logic for an in-scope workflow. |
@@ -418,7 +429,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `tests/branch-registry-bootstrap-preview-staging.test.js` | untracked | Cross-phase/local | test | no | no | — | Never package | — | Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit. |
 | `tests/branch-registry-row-staging.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/cashier-panel-height.test.js` | tracked | Booking integration | test | yes | no | — | Local validation only | tests/booking-upgrade.test.js | Release-blocking local regression or safety evidence. |
-| `tests/cashier-performance.test.js` | untracked | Booking integration | test | yes | no | — | Local validation only | tests/booking-upgrade.test.js | Release-blocking local regression or safety evidence. |
+| `tests/cashier-performance.test.js` | tracked | Booking integration | test | yes | no | — | Local validation only | tests/booking-upgrade.test.js | Release-blocking local regression or safety evidence. |
 | `tests/core-staging-auth-bootstrap.test.js` | tracked | Authentication & navigation | test | yes | no | — | Local validation only | tests/auth-navigation.test.js<br>tests/auth01-local-implementation.test.js<br>tests/core-staging-auth-bootstrap.test.js | Release-blocking local regression or safety evidence. |
 | `tests/customer-booking-branch.test.js` | tracked | Booking integration | test | yes | no | — | Local validation only | tests/booking-upgrade.test.js | Release-blocking local regression or safety evidence. |
 | `tests/customer-tracking-ratings.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
@@ -428,6 +439,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `tests/frontend-relay-queue.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/internal-booking-branch.test.js` | tracked | Booking integration | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/invoice-load-more-recovery.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
+| `tests/invoice-on-demand-pdf.test.js` | untracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/invoice-sheet-read-recovery.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/legacy-staff-snapshot-export.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/legacy-staff-snapshot-local.test.js` | untracked | Cross-phase/local | test | no | no | — | Never package | — | Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit. |

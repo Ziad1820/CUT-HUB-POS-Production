@@ -16,7 +16,7 @@
           "path": "002_core_http-router.gs",
           "sha256": "2e44415efd4e9b8fb43037197feb0461662a11236523bc247487941be64c2614",
           "baselineSourcePath": "baseline/002_core_http-router.js",
-          "currentSha256": "fad6e7099879ff8f6c0553009cf02936fb0e4d6ee1e7880e2ca9f72059459f80",
+          "currentSha256": "19f60d6d9c3a26990a191c2f59a8ac6fa18dbc0e0b554876162cf5390b530aaa",
           "changedGlobals": [
             "doPost"
           ],
@@ -186,29 +186,49 @@
         },
         {
           "path": "042_invoices_schema.gs",
-          "sha256": "51b0382abc7deed1076a725f2916b670201f353c87bee47163d9a1e8224a5365"
+          "sha256": "51b0382abc7deed1076a725f2916b670201f353c87bee47163d9a1e8224a5365",
+          "baselineSourcePath": "baseline/042_invoices_schema.js",
+          "currentSha256": "8a8fef68d10ac0786578a0f97f30d5d98f02042d76492ad5e87e10808be8252b",
+          "changedGlobals": [
+            "findInvoiceByRequestId"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "043_invoices_mutations.gs",
-          "sha256": "c30d36eafd0c020bc09fd25ec9cf937443617f38ab7bd2fdcf4da7631812a851"
+          "sha256": "c30d36eafd0c020bc09fd25ec9cf937443617f38ab7bd2fdcf4da7631812a851",
+          "baselineSourcePath": "baseline/043_invoices_mutations.js",
+          "currentSha256": "910eca33dcdb2aa80ef6fab1697ad4e7aa2a72f2b35f36fc3845670220688ff0",
+          "changedGlobals": [
+            "createInvoice",
+            "updateInvoice"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "044_invoices_queries.gs",
           "sha256": "65e8301cc5ca083d41e55f78d7826102d80fa58d1fcc12d5e4609ca4cf8bc6d8",
           "baselineSourcePath": "baseline/044_invoices_queries.js",
-          "currentSha256": "8d7de0ac461b4bd71d9266cdb8af273215e69eb55c412bf7181754d31debc2a4",
+          "currentSha256": "a5545a8b4bce516128f6980cfb39ee113d9aa1d483f8fbfe79a35105a037ef1a",
           "changedGlobals": [
-            "getInvoices"
+            "getInvoices",
+            "readInvoiceDataSnapshot"
           ],
           "addedGlobals": [
             "isTransientInvoiceReadFailure",
             "readInvoiceDataSnapshot"
           ],
-          "changeReason": "Bounded retries of read-only invoice sheet operations; no authentication or mutation replay."
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "045_invoices_deletion.gs",
-          "sha256": "5aeff0a62153089c2d9b20dfc5370070489a900c2fe324ab73b0b70e8296d332"
+          "sha256": "5aeff0a62153089c2d9b20dfc5370070489a900c2fe324ab73b0b70e8296d332",
+          "baselineSourcePath": "baseline/045_invoices_deletion.js",
+          "currentSha256": "b8f201c124c56f844f19c5be9990d681cd5522f93b3b37fd7610565a26b75fd0",
+          "changedGlobals": [
+            "deleteInvoice"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "046_accounting_withdrawals.gs",
@@ -220,7 +240,16 @@
         },
         {
           "path": "048_invoices_pdf.gs",
-          "sha256": "9e34754a1164f29bd7138f5588d4c3dc732d770685f27c3cb5c66b1d99a3213c"
+          "sha256": "9e34754a1164f29bd7138f5588d4c3dc732d770685f27c3cb5c66b1d99a3213c",
+          "baselineSourcePath": "baseline/048_invoices_pdf.js",
+          "currentSha256": "feb4c63bf5f8696fef62c050fb15c210cfaea741f027c9ad557549bdd9332e71",
+          "changedGlobals": [
+            "createInvoicePdf"
+          ],
+          "addedGlobals": [
+            "getInvoicePdf"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "049_reports_sales-customers.gs",

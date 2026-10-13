@@ -368,6 +368,7 @@
         paidAmount: numberValue(invoice.paidAmount || invoice.total),
         tipAmount: numberValue(invoice.tipAmount),
         note: invoice.note || invoice.invoiceNote || "",
+        invoiceRequestId: invoice.invoiceRequestId || invoice.clientRequestId || invoice.idempotencyKey || "",
         pdfUrl: invoice.pdfUrl || ""
       };
     }
@@ -537,6 +538,7 @@
         <div class="detail-item"><span>${tipLabel}</span><strong>${escapeHtml(formatCurrency(invoice.tipAmount || 0))}</strong></div>
         <div class="detail-item full"><span>${servicesLabel}</span><strong>${escapeHtml(invoice.services || "-")}</strong></div>
         <div class="detail-item full"><span>${noteLabel}</span><strong>${escapeHtml(invoice.note || "-")}</strong></div>
+        <div class="detail-item full"><span>PDF</span><strong>${invoice.pdfUrl ? `<a class="mini-btn" href="${escapeHtml(invoice.pdfUrl)}" target="_blank" rel="noopener">PDF</a>` : window.RomeoInvoicePdf.button(invoice)}</strong></div>
         ${canEditLatestInvoice(invoice) ? `
           <div class="modal-actions full">
             <button type="button" class="mini-btn dark" id="editLatestInvoiceBtn">${localizeText("تعديل", "Edit")}</button>
@@ -607,7 +609,7 @@
           throw new Error(result.message || localizeText("تعذر حفظ تعديل الفاتورة.", "Could not save invoice changes."));
         }
 
-        const updatedInvoice = normalizeLatestInvoice({ ...activeLatestInvoice, ...payload });
+        const updatedInvoice = normalizeLatestInvoice({ ...activeLatestInvoice, ...payload, ...(result.invoice || {}) });
         activeLatestInvoice = updatedInvoice;
         latestInvoices = latestInvoices.map(invoice =>
           String(invoice.invoiceId) === String(updatedInvoice.invoiceId) ? updatedInvoice : invoice
@@ -1972,6 +1974,7 @@
           ...requestPayload,
           ...(saveResult.invoice || saveResult.data || {}),
           invoiceId: saveResult.invoiceId || saveResult.id || saveResult.invoice?.invoiceId || saveResult.data?.invoiceId || requestPayload.invoiceId,
+          invoiceRequestId: saveResult.invoiceRequestId || saveResult.invoice?.invoiceRequestId || requestPayload.clientRequestId,
           rowNumber: saveResult.rowNumber || saveResult.invoice?.rowNumber || saveResult.data?.rowNumber || requestPayload.rowNumber,
           pdfUrl: saveResult.pdfUrl || saveResult.invoice?.pdfUrl || saveResult.data?.pdfUrl || requestPayload.pdfUrl
         });

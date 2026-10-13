@@ -42,7 +42,6 @@ function createInvoice(data) {
 
     persistedRequestId = requestId || `invoice-server-${Utilities.getUuid()}`;
     invoiceRequestIdColumn = ensureDataInvoiceColumns(sheet).invoiceRequestIdColumn;
-    pdfUrl = createInvoicePdf(data);
     const paymentDetails = getInvoicePaymentDetails(data);
     const invoiceRow = [
       invoiceDateTime,
@@ -71,7 +70,8 @@ function createInvoice(data) {
     );
 
     logActivity(data, "create", "invoice", invoiceId, `Created invoice for ${data.customerName || "-"} | Total: ${data.total || 0} | Barber: ${data.barber || "-"}`);
-    const response = { success: true, status: "success", pdfUrl, invoiceId, rowNumber: invoiceRowNumber, duplicate: false };
+    const response = { success: true, status: "success", pdfUrl, pdfPending: true, invoiceRequestId: persistedRequestId,
+      invoiceId, rowNumber: invoiceRowNumber, duplicate: false };
     const cachedResponse = JSON.stringify(response);
     try {
       if (requestCacheKey) invoiceCache.put(requestCacheKey, cachedResponse, 21600);
@@ -119,9 +119,13 @@ function createInvoice(data) {
 
 
 function updateInvoice(data) {
+  const lock = LockService.getScriptLock();
+  let held = false;
   try {
     const permissionError = requirePermission(data, "view_invoices", "You do not have permission to edit invoices.");
     if (permissionError) return permissionError;
+
+    lock.waitLock(30000); held = true;
 
     const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
     if (!sheet) {
@@ -146,6 +150,8 @@ function updateInvoice(data) {
     }
 
     ensureDataInvoiceColumns(sheet);
+    const requestIdColumn = getInvoiceRequestIdColumn(sheet);
+    const invoiceRequestId = requestIdColumn ? String(sheet.getRange(targetRowNumber, requestIdColumn).getValue() || "").trim() : "";
     const currentRow = sheet.getRange(targetRowNumber, 1, 1, 13).getValues()[0];
     const beforeUpdate = invoiceRowAuditSnapshot(currentRow);
     const currentDate = currentRow[0];
@@ -166,7 +172,7 @@ function updateInvoice(data) {
       data.customerName || "",
       data.customerPhone || "",
       data.services || "",
-      data.pdfUrl || currentRow[4] || "",
+      invoiceRequestId ? "" : (data.pdfUrl || currentRow[4] || ""),
       data.total || 0,
       data.paidAmount || currentRow[6] || data.total || 0,
       data.tipAmount || currentRow[7] || 0,
@@ -192,6 +198,7 @@ function updateInvoice(data) {
       status: "success",
       invoice: {
         invoiceId: targetInvoiceId || `DATA-${targetRowNumber}`,
+        invoiceRequestId,
         rowNumber: targetRowNumber,
         date: getDisplayDateTime(updatedRow[0]),
         dateKey: getDateKey(updatedRow[0], TIME_ZONE),
@@ -211,6 +218,8 @@ function updateInvoice(data) {
     });
   } catch (error) {
     return jsonOutput({ status: "error", message: error.message });
+  } finally {
+    if (held) { try { lock.releaseLock(); } catch (_) {} }
   }
 }
 

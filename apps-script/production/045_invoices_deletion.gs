@@ -2,6 +2,11 @@ function deleteInvoice(data) {
   const permissionError = requirePermission(data, "view_invoices", "You do not have permission to delete invoices.");
   if (permissionError) return permissionError;
 
+  const lock = LockService.getScriptLock();
+  let held = false;
+  try {
+  lock.waitLock(30000); held = true;
+
   const sheet = SpreadsheetApp.getActive().getSheetByName("DATA");
   if (!sheet) {
     return jsonOutput({ status: "error", message: "Sheet DATA not found" });
@@ -85,5 +90,10 @@ function deleteInvoice(data) {
   }
 
   return jsonOutput({ status: "error", message: "Invoice not found" });
+  } catch (_) {
+    return jsonOutput({ status: "error", message: "تعذر حذف الفاتورة. أعد تحميل البيانات للتحقق من حالتها." });
+  } finally {
+    if (held) { try { lock.releaseLock(); } catch (_) {} }
+  }
 }
 
