@@ -804,8 +804,8 @@
       });
     }
 
-    function scheduleRecord(input, actor, requestId, existing, allowDayOff) {
-      const staff = staffFor(actor, input.staffId, true);
+    function scheduleRecord(input, actor, requestId, existing, allowDayOff, snapshot) {
+      const staff = snapshot ? snapshot.staff : staffFor(actor, input.staffId, true);
       const validated = validateScheduleSegment(input, { staff });
       if (validated.recordType === "WEEKLY_DAY_OFF" && allowDayOff !== true) {
         throw schedulingError("SCHEDULE_DAY_OFF_ACTION_REQUIRED", "Use the weekly day-off action.");
@@ -816,7 +816,8 @@
       const record = {
         ...validated,
         scheduleId: validated.scheduleId || allocateId(
-          "SCH", (id) => !!repository.getSchedule(id), "SCHEDULE_ID_ALLOCATION_FAILED"
+          "SCH", (id) => snapshot ? snapshot.schedules.some(item => item.scheduleId === id)
+            : !!repository.getSchedule(id), "SCHEDULE_ID_ALLOCATION_FAILED"
         ),
         createdAt: existing ? existing.createdAt : now(),
         createdBy: existing ? existing.createdBy : actor.actorId,
@@ -824,9 +825,14 @@
         updatedBy: actor.actorId,
         lastRequestId: requestId
       };
-      const all = repository.listSchedules({});
+      const all = snapshot ? snapshot.schedules : repository.listSchedules({});
       assertNoScheduleConflicts(record, all);
       return record;
+    }
+
+    function saveCopiedSchedules(records) {
+      if (typeof repository.saveCopiedSchedules === "function") repository.saveCopiedSchedules(records);
+      else records.forEach(record => repository.saveSchedule(record));
     }
 
     function listSchedules(data) {
@@ -981,7 +987,9 @@
           const from = normalizeWeekday(data.fromWeekday);
           const targets = [...new Set((data.toWeekdays || []).map(normalizeWeekday))].filter((day) => day !== from);
           if (!targets.length) throw schedulingError("SCHEDULE_COPY_TARGET_REQUIRED", "At least one target weekday is required.");
-          const sources = repository.listSchedules({ staffId: staff.staffId, weekday: from, active: true });
+          const all = repository.listSchedules({});
+          const snapshot = { staff, schedules: all.slice() };
+          const sources = all.filter(item => item.staffId === staff.staffId && item.weekday === from && item.active === true);
           sources.sort((a, b) =>
             number(a.segmentIndex, 0) - number(b.segmentIndex, 0) ||
             text(a.shiftStart).localeCompare(text(b.shiftStart)) ||
@@ -994,11 +1002,11 @@
               ...source, scheduleId: "", weekday,
               effectiveFrom: data.effectiveFrom || source.effectiveFrom,
               effectiveTo: data.effectiveTo === undefined ? source.effectiveTo : data.effectiveTo
-            }, actor, requestId, null, true);
-            assertNoScheduleConflicts(record, repository.listSchedules({}).concat(records));
+            }, actor, requestId, null, true, snapshot);
+            snapshot.schedules.push(record);
             records.push(record);
           }));
-          records.forEach((record) => repository.saveSchedule(record));
+          saveCopiedSchedules(records);
           audit("COPY_DAY", "BARBER_SCHEDULE", records.map((item) => item.scheduleId).join(","),
             staff.staffId, actor, null, records, data.reason, requestId);
           return { schedules: records, count: records.length };
@@ -1011,21 +1019,25 @@
           if (sourceStaff.staffId === targetStaff.staffId) {
             throw schedulingError("SCHEDULE_COPY_SAME_STAFF", "Source and target staff must differ.");
           }
-          const sources = repository.listSchedules({ staffId: sourceStaff.staffId, active: true });
+          const all = repository.listSchedules({});
+          const snapshot = { staff: targetStaff, schedules: all.slice() };
+          const sources = all.filter(item => item.staffId === sourceStaff.staffId && item.active === true);
           sources.sort((a, b) =>
             WEEKDAYS.indexOf(a.weekday) - WEEKDAYS.indexOf(b.weekday) ||
             number(a.segmentIndex, 0) - number(b.segmentIndex, 0) ||
             text(a.shiftStart).localeCompare(text(b.shiftStart)) ||
             text(a.effectiveFrom).localeCompare(text(b.effectiveFrom)) ||
             text(a.scheduleId).localeCompare(text(b.scheduleId)));
-          const records = sources.map((source) => scheduleRecord({
+          const records = sources.map((source) => {
+            const record = scheduleRecord({
             ...source, scheduleId: "", staffId: targetStaff.staffId,
             effectiveFrom: data.effectiveFrom || source.effectiveFrom,
             effectiveTo: data.effectiveTo === undefined ? source.effectiveTo : data.effectiveTo
-          }, actor, requestId, null, true));
-          records.forEach((record, index) =>
-            assertNoScheduleConflicts(record, repository.listSchedules({}).concat(records.slice(0, index))));
-          records.forEach((record) => repository.saveSchedule(record));
+            }, actor, requestId, null, true, snapshot);
+            snapshot.schedules.push(record);
+            return record;
+          });
+          saveCopiedSchedules(records);
           audit("COPY_EMPLOYEE", "BARBER_SCHEDULE", records.map((item) => item.scheduleId).join(","),
             targetStaff.staffId, actor, null, records, data.reason, requestId);
           return { schedules: records, count: records.length };

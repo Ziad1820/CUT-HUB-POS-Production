@@ -768,14 +768,18 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     if (state.busy) return;
     state.busy = true;
     button.disabled = true;
+    const originalLabel = button.textContent;
+    const copying = ["copyScheduleDay", "copyEmployeeSchedule"].includes(action);
+    if (copying) button.textContent = "جارٍ النسخ…";
     const sourceDialog = button.closest("dialog");
     if (sourceDialog) sourceDialog.setAttribute("aria-busy", "true");
     try {
-      await api(action, { ...payload, requestId: requestId(action) });
+      const result = await api(action, { ...payload, requestId: requestId(action) });
       state.dirty = false;
       toast(successMessage);
       document.querySelectorAll("dialog[open]").forEach(dialog => dialog.close());
-      await loadSelected();
+      if (copying) await refreshCopiedSelection(result);
+      else await loadSelected();
     } catch (error) {
       const message = scheduleManagementErrorMessage(error);
       setStatus(message, "error");
@@ -783,8 +787,33 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     } finally {
       state.busy = false;
       button.disabled = false;
+      button.textContent = originalLabel;
       if (sourceDialog) sourceDialog.removeAttribute("aria-busy");
     }
+  }
+
+  async function refreshCopiedSelection(result) {
+    const staff = selectedStaff();
+    if (!staff) return;
+    if (state.weeklyLoading || state.weeklyLoadFailed) return loadSelected();
+    const sequence = ++state.selectedRequestSequence;
+    const added = (result.schedules || []).filter(item => item.staffId === staff.staffId);
+    const ids = new Set(added.map(item => item.scheduleId));
+    state.schedules = state.schedules.filter(item => !ids.has(item.scheduleId)).concat(added);
+    renderWeekly();
+    setStatus("تم النسخ. جارٍ تحديث عرض الفترة وسجل التغييرات…", "loading");
+    const responses = await Promise.allSettled([
+      api("resolveStaffSchedulesRange", { staffIds: [staff.staffId], dateFrom: byId("rangeStart").value, dateTo: byId("rangeEnd").value }),
+      api("getScheduleAuditHistory", { staffId: staff.staffId })
+    ]);
+    if (sequence !== state.selectedRequestSequence || selectedStaff()?.staffId !== staff.staffId) return;
+    if (responses[0].status === "fulfilled") {
+      state.resolved = responses[0].value.resolvedSchedules || [];
+      renderRange();
+    }
+    if (responses[1].status === "fulfilled") renderAudit(responses[1].value.audit || []);
+    const failure = responses.some(response => response.status === "rejected");
+    setStatus(failure ? "تم حفظ النسخ، لكن تعذر تحديث جزء من العرض. اضغط «عرض الفترة» لتحديثه؛ لا تعِد النسخ." : "", failure ? "error" : "");
   }
 
   function bindEvents() {

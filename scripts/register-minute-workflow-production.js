@@ -12,6 +12,7 @@ const files = {
   "002_core_http-router.gs": ["doPost"],
   "030_staff_branch-repository.gs": ["getStaff"],
   "064_phase_staff-scheduling-phase2.gs": [],
+  "065_phase_staff-scheduling-phase2-gas.gs": ["schedulePhase2CreateRepository"],
   "067_phase_staff-attendance-phase3.gs": [],
   "069_phase_staff-payroll-attendance-phase4.gs": [],
   "073_phase_booking-availability-phase5.gs": [],

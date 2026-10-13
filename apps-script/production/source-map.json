@@ -293,13 +293,19 @@
           "path": "064_phase_staff-scheduling-phase2.gs",
           "sha256": "676637c33650664b9a9145b70b1c27d889cf22e890c3bcde688d9df43bad3888",
           "baselineSourcePath": "baseline/064_phase_staff-scheduling-phase2.js",
-          "currentSha256": "e62fb127d44da5eda04634c2801c81215d26c75f89128c73d95ee8a8b5a4ab03",
+          "currentSha256": "6cc8da633d394b86986cb42dbb7c612bb7a0f49a1923c9310072b949d4fabb0b",
           "changedGlobals": [],
           "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "065_phase_staff-scheduling-phase2-gas.gs",
-          "sha256": "f7780cdc44903e1609faca27d279312b10b766d3a5733afa865456997ad1745f"
+          "sha256": "f7780cdc44903e1609faca27d279312b10b766d3a5733afa865456997ad1745f",
+          "baselineSourcePath": "baseline/065_phase_staff-scheduling-phase2-gas.js",
+          "currentSha256": "e3b3cff6f25fe0ec19c774cbb4be84f6d508f7b2248d2d7289d04e3ff8ae9e02",
+          "changedGlobals": [
+            "schedulePhase2CreateRepository"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "066_phase_staff-import-preview-staging.gs",

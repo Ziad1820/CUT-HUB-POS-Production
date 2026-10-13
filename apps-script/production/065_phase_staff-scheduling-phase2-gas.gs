@@ -322,6 +322,35 @@ function schedulePhase2CreateRepository() {
         "SCHEDULE_ID", record
       );
     },
+    saveCopiedSchedules: function (records) {
+      if (!records.length) return;
+      // Only fresh copied rows, inside the existing lock and undo transaction.
+      if (!schedulePhase2Transaction) throw StaffSchedulingPhase2.schedulingError(
+        "SCHEDULE_TRANSACTION_REQUIRED", "Copy requires an active schedule transaction.");
+      var schema = StaffSchedulingPhase2.PHASE2_SHEET_SCHEMAS.BARBER_SCHEDULE;
+      var ready = schedulePhase2AssertHeaders("BARBER_SCHEDULE", schema);
+      var ids = new Set(schedulePhase2ReadRows("BARBER_SCHEDULE").map(function (item) { return item.scheduleId; }));
+      var schemaHeaders = schema.map(schedulePhase2Canonical);
+      var start = ready.sheet.getLastRow() + 1;
+      var values = records.map(function (record) {
+        var id = schedulePhase2Text(record.scheduleId);
+        if (!id || ids.has(id)) throw StaffSchedulingPhase2.schedulingError(
+          "SCHEDULE_ENTITY_ID_AMBIGUOUS", "Copied schedule ID already exists.");
+        ids.add(id);
+        return ready.headers.map(function (header) {
+          return schemaHeaders.indexOf(header) === -1 ? "" : schedulePhase2CellValue(header, record);
+        });
+      });
+      records.forEach(function (record, index) {
+        schedulePhase2RecordUndo({ type: "APPEND", sheetName: "BARBER_SCHEDULE",
+          rowNumber: start + index, idHeader: "SCHEDULE_ID", id: record.scheduleId });
+      });
+      var requiredRows = start + records.length - 1;
+      if (ready.sheet.getMaxRows() < requiredRows) {
+        ready.sheet.insertRowsAfter(ready.sheet.getMaxRows(), requiredRows - ready.sheet.getMaxRows());
+      }
+      ready.sheet.getRange(start, 1, values.length, ready.headers.length).setValues(values);
+    },
     listOverrides: function (filters) {
       filters = filters || {};
       return schedulePhase2ReadRows("STAFF_SCHEDULE_OVERRIDES").filter(function (item) {
