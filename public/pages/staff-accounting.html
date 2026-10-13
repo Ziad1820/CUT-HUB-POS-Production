@@ -556,6 +556,11 @@
           </article>
         </section>
 
+        <section class="panel" aria-label="تفاصيل خصومات الحضور والإضافي">
+          <h2>الحضور والإضافي للفترة المختارة</h2>
+          <div id="attendanceFinancialDetails" aria-live="polite" style="max-height:320px;overflow:auto"></div>
+          <a href="attendance.html">مراجعة واعتماد الوقت الإضافي من صفحة الحضور</a>
+        </section>
         <section class="panel">
           <div class="editor-grid">
             <div class="field">
@@ -907,6 +912,8 @@
         withdraw: numberValue(staff.withdraw),
         debt: numberValue(staff.debt || staff.deduction),
         attendanceDeduction: numberValue(staff.attendanceDeduction),
+        attendanceOvertime: numberValue(staff.attendanceOvertime),
+        attendanceEntries: Array.isArray(staff.attendanceEntries) ? staff.attendanceEntries : [],
         lateDiscount: numberValue(staff.lateDiscount),
         salary: numberValue(staff.salary || staff.salaries),
         bonus: numberValue(staff.bonus)
@@ -1088,7 +1095,7 @@
     }
 
     function calculatePackage(staff) {
-      return numberValue(staff.salary) + calculateCommission(staff) + numberValue(staff.bonus);
+      return numberValue(staff.salary) + calculateCommission(staff) + numberValue(staff.bonus) + numberValue(staff.attendanceOvertime);
     }
 
     function calculateDeduction(staff) {
@@ -1115,6 +1122,28 @@
       elements.sumDedution.textContent = formatMoney(calculateDeduction(staff));
       elements.sumBonus.textContent = formatMoney(staff.bonus);
       elements.sumNet.textContent = formatMoney(calculateNet(staff));
+      const attendanceDetails = document.getElementById("attendanceFinancialDetails");
+      attendanceDetails.replaceChildren();
+      const overtime = document.createElement("p");
+      overtime.textContent = localizeText(`إضافي معتمد: ${formatMoney(staff.attendanceOvertime)} جنيه`,
+        `Approved overtime: ${formatMoney(staff.attendanceOvertime)} EGP`);
+      attendanceDetails.append(overtime);
+      const labels = { LATE: "تأخير الحضور", EARLY_LEAVE: "انصراف مبكر", EXCESS_BREAK: "تجاوز البريك" };
+      (staff.attendanceEntries || []).forEach(entry => {
+        const line = document.createElement("p");
+        line.textContent = `${entry.date}${entry.provisional ? " — قيد الاستكمال، غير محسوب في الصافي" : ""}`;
+        attendanceDetails.append(line);
+        (entry.reasons || []).filter(item => item.minutes > 0).forEach(item => {
+          const reason = document.createElement("p");
+          reason.textContent = `${labels[item.reason] || item.reason}: ${item.minutes} دقيقة × ${formatMoney(item.rateMinor / 100)} = ${formatMoney(item.amountMinor / 100)} جنيه`;
+          attendanceDetails.append(reason);
+        });
+        if (entry.eligibleOvertimeMinutes > 0) {
+          const extra = document.createElement("p");
+          extra.textContent = `إضافي: ${entry.eligibleOvertimeMinutes} دقيقة — المعتمد ${entry.approvedMinutes} دقيقة — ${formatMoney(entry.overtimeMinor / 100)} جنيه`;
+          attendanceDetails.append(extra);
+        }
+      });
     }
 
     function getSelectedStaff() {

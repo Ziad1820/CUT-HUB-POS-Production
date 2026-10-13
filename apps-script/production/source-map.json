@@ -14,7 +14,13 @@
         },
         {
           "path": "002_core_http-router.gs",
-          "sha256": "2e44415efd4e9b8fb43037197feb0461662a11236523bc247487941be64c2614"
+          "sha256": "2e44415efd4e9b8fb43037197feb0461662a11236523bc247487941be64c2614",
+          "baselineSourcePath": "baseline/002_core_http-router.js",
+          "currentSha256": "fad6e7099879ff8f6c0553009cf02936fb0e4d6ee1e7880e2ca9f72059459f80",
+          "changedGlobals": [
+            "doPost"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "003_auth_runtime-policy.gs",
@@ -126,7 +132,13 @@
         },
         {
           "path": "030_staff_branch-repository.gs",
-          "sha256": "8d94d2aa6cd8834b29a0003442edf83a71d33d8cdc4b56f960cf13971248e43b"
+          "sha256": "8d94d2aa6cd8834b29a0003442edf83a71d33d8cdc4b56f960cf13971248e43b",
+          "baselineSourcePath": "baseline/030_staff_branch-repository.js",
+          "currentSha256": "35a03e47b8d7f37b4eb079ad1bc2bf2ca89143f9859ef332d7360d7d2188afa7",
+          "changedGlobals": [
+            "getStaff"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "031_staff_mutable-fields.gs",
@@ -279,7 +291,11 @@
         },
         {
           "path": "064_phase_staff-scheduling-phase2.gs",
-          "sha256": "676637c33650664b9a9145b70b1c27d889cf22e890c3bcde688d9df43bad3888"
+          "sha256": "676637c33650664b9a9145b70b1c27d889cf22e890c3bcde688d9df43bad3888",
+          "baselineSourcePath": "baseline/064_phase_staff-scheduling-phase2.js",
+          "currentSha256": "e83d6c788a94f8ea4f5184df22922c30652df5b7ae0008b27dd6eb2307e1caee",
+          "changedGlobals": [],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "065_phase_staff-scheduling-phase2-gas.gs",
@@ -291,7 +307,11 @@
         },
         {
           "path": "067_phase_staff-attendance-phase3.gs",
-          "sha256": "4aa792673288a826c2d664f2539167b6059a6bf369677d539b3bfb73caf1b62a"
+          "sha256": "4aa792673288a826c2d664f2539167b6059a6bf369677d539b3bfb73caf1b62a",
+          "baselineSourcePath": "baseline/067_phase_staff-attendance-phase3.js",
+          "currentSha256": "02b55acfb0d2c81cb62eade6c19ebd7a1c32316bec323250390ebb0f80b4e5ae",
+          "changedGlobals": [],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "068_phase_staff-attendance-phase3-gas.gs",
@@ -299,7 +319,11 @@
         },
         {
           "path": "069_phase_staff-payroll-attendance-phase4.gs",
-          "sha256": "15b0e8f9c9e7e62df0891bdbc9058f3c090df8fc3b38ab91dc8d17b3df6e60ca"
+          "sha256": "15b0e8f9c9e7e62df0891bdbc9058f3c090df8fc3b38ab91dc8d17b3df6e60ca",
+          "baselineSourcePath": "baseline/069_phase_staff-payroll-attendance-phase4.js",
+          "currentSha256": "b7d72b470ae2c69f18d062357ca03d7029e9d8f2c938e49fce90a323a9309bc0",
+          "changedGlobals": [],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "070_phase_staff-payroll-attendance-phase4-gas.gs",
@@ -315,7 +339,11 @@
         },
         {
           "path": "073_phase_booking-availability-phase5.gs",
-          "sha256": "6be31b5cbcc146d45f5b73e942b31aec902f902a76e0fb974307c78282428109"
+          "sha256": "6be31b5cbcc146d45f5b73e942b31aec902f902a76e0fb974307c78282428109",
+          "baselineSourcePath": "baseline/073_phase_booking-availability-phase5.js",
+          "currentSha256": "d2a8ec28a83dc4b8cc5b6ba220f881a6e9a204c1f9c399cd4dd654a651c092ab",
+          "changedGlobals": [],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "074_phase_branch-foundation-staging.gs",
@@ -335,7 +363,13 @@
         },
         {
           "path": "078_availability_authorization-cache.gs",
-          "sha256": "8a525a73f653648dd9d7549a488a69346b0f4fa61adbea14191e73060b3d3336"
+          "sha256": "8a525a73f653648dd9d7549a488a69346b0f4fa61adbea14191e73060b3d3336",
+          "baselineSourcePath": "baseline/078_availability_authorization-cache.js",
+          "currentSha256": "dd31eb682075617ca1f43626dd792cbcab40390ad566a7e2537f092d370917a2",
+          "changedGlobals": [
+            "bookingAvailabilityPhase5CacheKey"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "079_availability_booking-occupancy.gs",
@@ -379,7 +413,13 @@
         },
         {
           "path": "089_availability_action-router.gs",
-          "sha256": "17d97927527a16f146b1e543edc8a56bce88672a0ddfb6564d3d5b979dc35010"
+          "sha256": "17d97927527a16f146b1e543edc8a56bce88672a0ddfb6564d3d5b979dc35010",
+          "baselineSourcePath": "baseline/089_availability_action-router.js",
+          "currentSha256": "97d55375c1333639a40fc835480fde2aa1d12649a92014354605193b3883ec60",
+          "changedGlobals": [
+            "handleBookingAvailabilityPhase5Action"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         }
       ]
     }

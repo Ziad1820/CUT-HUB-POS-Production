@@ -321,6 +321,11 @@
     const policy = value || {};
     return Object.freeze({
       policyId: text(policy.policyId),
+      settlementPeriod: upper(policy.settlementPeriod),
+      deficitRateType: upper(policy.deficitRateType),
+      deficitRateMinorPerMinute: number(policy.deficitRateMinorPerMinute, 0),
+      overtimeRateType: upper(policy.overtimeRateType),
+      overtimeRateMinorPerMinute: number(policy.overtimeRateMinorPerMinute, 0),
       requiredDailyMinutes: number(policy.requiredDailyMinutes, 0),
       allowedBreakMinutes: number(policy.allowedBreakMinutes, 0),
       breakPaymentType: upper(policy.breakPaymentType || "UNPAID"),
@@ -338,6 +343,41 @@
       roundingIncrementMinutes: number(policy.roundingIncrementMinutes, 0),
       roundingMode: upper(policy.roundingMode || "NONE")
     });
+  }
+  // DAILY fixed-minute policies are the direct staff-accounting contract.
+  // Reads derive one entry per stable day; they never append financial debits.
+  function calculateMinuteAccounting(day) {
+    const policy = day.policySnapshot || {};
+    if (upper(policy.settlementPeriod) !== "DAILY" ||
+        upper(policy.deficitRateType) !== "FIXED_PER_MINUTE" ||
+        upper(policy.overtimeRateType) !== "FIXED_PER_MINUTE") return null;
+    const rate = number(policy.deficitRateMinorPerMinute, 0);
+    const overtimeRate = number(policy.overtimeRateMinorPerMinute, 0);
+    if (![rate, overtimeRate].every(value => Number.isSafeInteger(value) && value >= 0)) {
+      throw attendanceError("ATTENDANCE_MINUTE_RATE_INVALID", "Minute prices must be non-negative integer piastres.");
+    }
+    const provisional = !!day.openSession || !!day.openBreak || !!day.staleCalculation ||
+      upper(day.dayLifecycle) === "REOPENED";
+    let remaining = Math.max(0, number(day.requiredWorkMinutesRaw, 0));
+    const reasons = [["LATE", day.lateMinutesRaw], ["EARLY_LEAVE", day.earlyLeaveMinutesRaw],
+      ["EXCESS_BREAK", day.excessBreakMinutesRaw]].map(([reason, raw]) => {
+      const minutes = Math.min(remaining, Math.max(0, Math.floor(number(raw, 0))));
+      remaining -= minutes;
+      const amountMinor = minutes * rate;
+      if (!Number.isSafeInteger(amountMinor)) throw attendanceError("ATTENDANCE_MONEY_OVERFLOW", "Attendance amount is too large.");
+      return { reason, minutes, rateMinor: rate, amountMinor };
+    });
+    const approvedMinutes = !provisional && upper(day.overtimeApprovalStatus) === "APPROVED"
+      ? Math.min(number(day.approvedOvertimeMinutes, 0), number(day.eligibleOvertimeMinutes, 0)) : 0;
+    const overtimeMinor = approvedMinutes * overtimeRate;
+    const deductionMinor = reasons.reduce((sum, item) => sum + item.amountMinor, 0);
+    if (![overtimeMinor, deductionMinor].every(Number.isSafeInteger)) {
+      throw attendanceError("ATTENDANCE_MONEY_OVERFLOW", "Attendance amount is too large.");
+    }
+    return { attendanceDayId: day.attendanceDayId, date: day.attendanceDate, provisional,
+      reasons, deductionMinor: provisional ? 0 : deductionMinor, overtimeMinor,
+      eligibleOvertimeMinutes: number(day.eligibleOvertimeMinutes, 0), approvedMinutes,
+      overtimeRateMinor: overtimeRate, overtimeStatus: day.overtimeApprovalStatus || "NOT_REQUESTED" };
   }
   function hasPermission(actor, permission) {
     return actor.owner || actor.permissions.includes(permission);
@@ -505,7 +545,8 @@
         openBreak = {
           breakIndex: number(event.breakIndex, breaks.length + 1),
           sessionIndex: openSession.sessionIndex,
-          startedAt: event.eventAt, endedAt: ""
+          startedAt: event.eventAt, endedAt: "",
+          plannedMinutes: number(parseJson(event.correctionPayloadJson, {}).plannedBreakMinutes, 0)
         };
         breaks.push(openBreak);
         state = "ON_BREAK";
@@ -610,6 +651,42 @@
           roundingMode: upper(policy.roundingMode || "NONE")
         }
       });
+    }
+    if (upper(policy.settlementPeriod) === "DAILY" && completeSessions.length && segments.length) {
+      const anchor = core.normalizeInterval(data.date, segments[0].shiftStart, segments[0].shiftEnd).startMinute;
+      const planned = segments.map(segment => core.normalizeInterval(data.date, segment.shiftStart, segment.shiftEnd, anchor));
+      const overlap = (start, end, range) => Math.max(0,
+        Math.min(end, range.endMinute) - Math.max(start, range.startMinute));
+      const civil = value => core.parseDateKey(text(value).slice(0, 10)).epochDay * 1440 +
+        core.parseClock(text(value).slice(11, 19));
+      const intervals = completeSessions.map(session => ({
+        start: civil(session.checkInAt), end: civil(session.checkOutAt)
+      }));
+      const breakIntervals = completeBreaks.map(item => ({
+        start: civil(item.startedAt), end: civil(item.endedAt)
+      }));
+      const inside = interval => planned.reduce((sum, range) => sum + overlap(interval.start, interval.end, range), 0);
+      const start = Math.min(...planned.map(range => range.startMinute));
+      const end = Math.max(...planned.map(range => range.endMinute));
+      const late = planned.reduce((sum, range) => sum + overlap(start, intervals[0].start, range), 0);
+      const early = planned.reduce((sum, range) => sum + overlap(intervals[intervals.length - 1].end, end, range), 0);
+      const grace = (minutes, allowance) => minutes <= number(allowance, 0) ? 0 : minutes;
+      result = { ...result,
+        lateMinutesRaw: grace(late, policy.graceLateMinutes),
+        earlyLeaveMinutesRaw: grace(early, policy.graceEarlyLeaveMinutes),
+        excessBreakMinutesRaw: Math.max(0, breakIntervals.reduce((sum, interval) => sum + inside(interval), 0) -
+          number(schedule.allowedBreakMinutes, number(policy.allowedBreakMinutes, 0)) - number(policy.breakGraceMinutes, 0)),
+        rawOvertimeMinutesRaw: Math.max(0,
+          intervals.reduce((sum, interval) => sum + interval.end - interval.start - inside(interval), 0) -
+          breakIntervals.reduce((sum, interval) => sum + interval.end - interval.start - inside(interval), 0))
+      };
+      result.rawOvertimeMinutes = result.rawOvertimeMinutesRaw;
+      result.lateMinutes = result.lateMinutesRaw;
+      result.earlyLeaveMinutes = result.earlyLeaveMinutesRaw;
+      result.excessBreakMinutes = result.excessBreakMinutesRaw;
+      result.deficitMinutesRaw = Math.min(number(schedule.requiredWorkMinutes, 0),
+        result.lateMinutesRaw + result.earlyLeaveMinutesRaw + result.excessBreakMinutesRaw);
+      result.deficitMinutes = result.deficitMinutesRaw;
     }
     const latestApproval = (data.overtimeApprovals || []).filter((item) =>
       ["APPROVED", "REJECTED"].includes(upper(item.status)) && !bool(item.stale))
@@ -939,6 +1016,10 @@
         effectiveFrom: text(item.effectiveFrom), effectiveTo: text(item.effectiveTo),
         requiredDailyMinutes: number(item.requiredDailyMinutes, 0),
         allowedBreakMinutes: number(item.allowedBreakMinutes, 0),
+        defaultShiftStart: text(item.defaultShiftStart), defaultShiftEnd: text(item.defaultShiftEnd),
+        graceLateMinutes: number(item.graceLateMinutes, 0),
+        deficitRateMinorPerMinute: number(item.deficitRateMinorPerMinute, 0),
+        overtimeRateMinorPerMinute: number(item.overtimeRateMinorPerMinute, 0),
         salaryBasis: upper(item.salaryBasis), currency: upper(item.currency),
         active: item.active !== false && upper(item.active) !== "FALSE",
         createdAt: text(item.createdAt), createdBy: text(item.createdBy),
@@ -951,6 +1032,37 @@
       return text(left.effectiveFrom) <= rightEnd && text(right.effectiveFrom) <= leftEnd;
     }
     function completeWorkPolicyPayload(data) {
+      if (data.simpleMinutePolicy === true) {
+        const defaults = {};
+        schema.SHEET_SCHEMAS.STAFF_WORK_POLICIES.map(workPolicyKey).forEach(key => {
+          if (WORK_POLICY_SERVER_FIELDS.has(key)) return;
+          defaults[key] = WORK_POLICY_BOOLEAN_FIELDS.has(key) ? false :
+            WORK_POLICY_NUMERIC_FIELDS.has(key) ? 0 : key.endsWith("Json") ? "[]" :
+              WORK_POLICY_ENUMS[key] ? WORK_POLICY_ENUMS[key][0] : "";
+        });
+        Object.assign(defaults, {
+          staffId: data.staffId, effectiveFrom: data.effectiveFrom, effectiveTo: data.effectiveTo || "",
+          defaultShiftStart: data.defaultShiftStart, defaultShiftEnd: data.defaultShiftEnd,
+          requiredDailyMinutes: data.requiredWorkMinutes, allowedBreakMinutes: data.allowedBreakMinutes,
+          graceLateMinutes: data.graceLateMinutes, deficitRateMinorPerMinute: data.deficitRateMinorPerMinute,
+          overtimeRateMinorPerMinute: data.overtimeRateMinorPerMinute,
+          currency: "EGP", currencyMinorScale: 2, salaryBasis: "MONTHLY",
+          breakPaymentType: "UNPAID", allowMultipleBreaks: true,
+          excessBreakContributesToDeficit: true, overtimeApprovalRequired: true,
+          deficitRateType: "FIXED_PER_MINUTE", overtimeRateType: "FIXED_PER_MINUTE",
+          overtimePolicy: "PAID", overtimeMultiplier: 1, overtimeMultiplierBps: 10000,
+          unpaidLeaveMultiplierBps: 10000, absenceMultiplierBps: 10000,
+          settlementPeriod: "DAILY", roundingMode: "NONE", unresolvedBehavior: "BLOCK"
+        });
+        const policy = normalizeCompleteWorkPolicy(defaults);
+        const interval = core.normalizeInterval(policy.effectiveFrom,
+          policy.defaultShiftStart, policy.defaultShiftEnd);
+        if (policy.requiredDailyMinutes <= 0 ||
+            policy.requiredDailyMinutes + policy.allowedBreakMinutes > interval.minutes) {
+          throw attendanceError("WORK_POLICY_SHIFT_TOO_SHORT", "Work and break minutes must fit inside the shift.");
+        }
+        return policy;
+      }
       if (data.policy) return normalizeCompleteWorkPolicy(data.policy);
       const sourcePolicyId = text(data.sourcePolicyId);
       if (!sourcePolicyId) {
@@ -1114,6 +1226,13 @@
           breakIndex: eventType === "BREAK_START" ? day.breaks.length + 1 :
             (["BREAK_END", "CHECK_OUT"].includes(eventType) ? day.breaks.length : 0)
         };
+        if (eventType === "BREAK_START") {
+          const planned = data.plannedBreakMinutes === undefined ? day.allowedBreakMinutes : Number(data.plannedBreakMinutes);
+          if (!Number.isInteger(planned) || planned <= 0 || planned > 1440) {
+            throw attendanceError("ATTENDANCE_BREAK_DURATION_INVALID", "Choose a break duration from 1 to 1440 minutes.");
+          }
+          eventIndex.correctionPayload = { plannedBreakMinutes: planned };
+        }
         const event = appendEvent(
           eventType, staff, day, resolvedActor, requestId, reason, at, eventIndex);
         const before = day;
@@ -1150,8 +1269,24 @@
               throw attendanceError("WORK_POLICY_STAFF_INACTIVE",
                 "An inactive employee cannot receive a new work policy.");
             }
+            let replacement = null;
+            if (data.simpleMinutePolicy === true) {
+              if (policy.effectiveFrom < dateFromInstant(at) || repository.listDays({ staffId: policy.staffId })
+                  .some(day => day.attendanceDate >= policy.effectiveFrom &&
+                    (!policy.effectiveTo || day.attendanceDate <= policy.effectiveTo))) {
+                throw attendanceError("WORK_POLICY_RECORDED_DAYS_PROTECTED", "Choose an effective date after recorded attendance days.");
+              }
+              if (data.replacePolicyId) {
+                replacement = repository.getPolicy(text(data.replacePolicyId));
+                if (!replacement || replacement.staffId !== policy.staffId ||
+                    replacement.active === false || upper(replacement.active) === "FALSE" || policy.effectiveFrom < replacement.effectiveFrom) {
+                  throw attendanceError("WORK_POLICY_REPLACEMENT_INVALID", "The replacement must start after the prior policy starts.");
+                }
+              }
+            }
             const overlap = repository.listPolicies().find((item) =>
               text(item.staffId) === policy.staffId &&
+              (!replacement || item.policyId !== replacement.policyId) &&
               item.active !== false && upper(item.active) !== "FALSE" &&
               workPolicyRangesOverlap(item, policy));
             if (overlap) throw attendanceError("WORK_POLICY_EFFECTIVE_OVERLAP",
@@ -1164,6 +1299,17 @@
               active: true, createdAt: at, createdBy: resolvedActor.actorId,
               updatedAt: at, updatedBy: resolvedActor.actorId
             };
+            if (replacement && workPolicyRangesOverlap(replacement, record)) {
+              const end = new Date(`${record.effectiveFrom}T00:00:00Z`);
+              end.setUTCDate(end.getUTCDate() - 1);
+              const updated = { ...replacement,
+                ...(record.effectiveFrom === replacement.effectiveFrom ? { active: false } :
+                  { effectiveTo: end.toISOString().slice(0, 10) }),
+                updatedAt: at, updatedBy: resolvedActor.actorId };
+              repository.savePolicy(updated);
+              audit("END_WORK_POLICY", "STAFF_WORK_POLICY", updated.policyId,
+                updated.staffId, resolvedActor, replacement, updated, reason, requestId, at);
+            }
             repository.savePolicy(record);
             audit("CREATE_WORK_POLICY", "STAFF_WORK_POLICY", record.policyId,
               record.staffId, resolvedActor, {}, record, reason, requestId, at);
@@ -1520,7 +1666,8 @@
               throw attendanceError("ATTENDANCE_OVERTIME_ALREADY_REVIEWED",
                 "Overtime request already has an append-only decision.");
             }
-            if (pending.createdBy === resolvedActor.actorId) throw attendanceError("ATTENDANCE_SELF_APPROVAL_FORBIDDEN", "Requester cannot approve their overtime.");
+            if (pending.staffId === resolvedActor.staffId ||
+                (pending.createdBy === resolvedActor.actorId && !resolvedActor.owner)) throw attendanceError("ATTENDANCE_SELF_APPROVAL_FORBIDDEN", "Employees cannot approve their own overtime.");
             const day = repository.getDay(pending.attendanceDayId);
             if (day.locked) throw attendanceError("ATTENDANCE_DAY_LOCKED", "Reopen the day before overtime review.");
             const staff = repository.getStaff(day.staffId); assertScope(resolvedActor, staff, false);
@@ -1530,7 +1677,7 @@
               throw attendanceError("ATTENDANCE_OVERTIME_STALE", "Attendance changed after the overtime request.");
             }
             const approved = number(data.approvedMinutes, day.eligibleOvertimeMinutes);
-            if (approved < 0 || approved > number(day.eligibleOvertimeMinutes, 0)) {
+            if (!Number.isInteger(approved) || approved < 0 || approved > number(day.eligibleOvertimeMinutes, 0)) {
               throw attendanceError("ATTENDANCE_OVERTIME_EXCEEDS_ELIGIBLE", "Approved overtime exceeds raw overtime or policy cap.");
             }
             const decision = { ...pending,
@@ -1562,7 +1709,8 @@
               throw attendanceError("ATTENDANCE_OVERTIME_ALREADY_REVIEWED",
                 "Overtime request already has an append-only decision.");
             }
-            if (pending.createdBy === resolvedActor.actorId) throw attendanceError("ATTENDANCE_SELF_APPROVAL_FORBIDDEN", "Requester cannot reject their overtime.");
+            if (pending.staffId === resolvedActor.staffId ||
+                (pending.createdBy === resolvedActor.actorId && !resolvedActor.owner)) throw attendanceError("ATTENDANCE_SELF_APPROVAL_FORBIDDEN", "Employees cannot decide their own overtime.");
             const day = repository.getDay(pending.attendanceDayId);
             if (day.locked) throw attendanceError(
               "ATTENDANCE_DAY_LOCKED", "Reopen the day before overtime review.");
@@ -1660,7 +1808,7 @@
   return Object.freeze({
     PHASE3_VERSION, TIME_ZONE, EVENT_TYPES, ACTIONS, WRITE_ACTIONS,
     SHEET_SCHEMAS: schema.SHEET_SCHEMAS, filterSensitiveFields,
-    resolveAttendanceContext, effectiveEvents, buildEventState, calculateDay,
+    resolveAttendanceContext, effectiveEvents, buildEventState, calculateDay, calculateMinuteAccounting,
     createMemoryRepository, createService, normalizeLegacyAttendanceRows,
     planAttendanceMigration, attendanceError
   });

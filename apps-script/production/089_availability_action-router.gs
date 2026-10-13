@@ -14,6 +14,63 @@ function handleBookingAvailabilityPhase5Action(data) {
     }
     bookingAvailabilityPhase5AssertIdentity();
     var actor = bookingAvailabilityPhase5Actor(data);
+    if (data.action === "setBookingAttendanceIntegration") {
+      if (!actor.owner || typeof data.enabled !== "boolean" ||
+          !bookingAvailabilityPhase5Text(data.reason) ||
+          !bookingAvailabilityPhase5ValidRequestId(data.clientRequestId)) {
+        throw BookingAvailabilityPhase5.availabilityError("AVAILABILITY_OWNER_CONFIGURATION_REQUIRED",
+          "Owner, explicit enable/disable, reason and request ID are required.");
+      }
+      return bookingAvailabilityPhase5WithLock(function () {
+        actor = bookingAvailabilityPhase5Actor(data);
+        if (!actor.owner) throw BookingAvailabilityPhase5.availabilityError("AVAILABILITY_PERMISSION_DENIED", "Owner required.");
+        if (data.enabled) {
+          // Check the authoritative schema before changing public availability.
+          var snapshot = bookingAvailabilityPhase5RequestSnapshot();
+          var today = Utilities.formatDate(new Date(), BookingAvailabilityPhase5.TIME_ZONE, "yyyy-MM-dd");
+          var barbers = publicBookingBarbers();
+          if (!barbers.length) throw BookingAvailabilityPhase5.availabilityError("AVAILABILITY_SETUP_REQUIRED", "Configure active bookable employees first.");
+          barbers.forEach(function (staff) {
+            var resolution = StaffAttendanceCore.resolveEffectivePolicy(snapshot.policies, staff.staffId, today);
+            if (!staff.branchId || String(resolution.snapshot.settlementPeriod).toUpperCase() !== "DAILY") {
+              throw BookingAvailabilityPhase5.availabilityError("AVAILABILITY_SETUP_REQUIRED",
+                "Configure shift, break and minute prices for every active bookable employee before enabling integration.");
+            }
+          });
+        }
+        var properties = PropertiesService.getScriptProperties();
+        var after = {
+          BOOKING_AVAILABILITY_ENGINE: data.enabled ? "PHASE5" : "SHADOW",
+          BOOKING_PHASE2_PLANNED_ENABLED: "true",
+          BOOKING_ATTENDANCE_LIVE_ENABLED: String(data.enabled),
+          BOOKING_CUSTOMER_LIVE_REFRESH_ENABLED: String(data.enabled),
+          BOOKING_INTERNAL_LIVE_REFRESH_ENABLED: String(data.enabled),
+          BOOKING_MANAGER_OVERRIDE_ENABLED: "false"
+        };
+        var before = {};
+        Object.keys(after).forEach(function (key) { before[key] = properties.getProperty(key); });
+        var result = bookingAvailabilityPhase5RunTransaction({
+          data: data, requestId: data.clientRequestId, action: "BOOKING_ATTENDANCE_INTEGRATION",
+          entityType: "BOOKING_ENGINE", entityId: "GLOBAL", actor: actor, beforeState: before,
+          business: function () { properties.setProperties(after); return after; },
+          version: function () {
+            return bookingAvailabilityPhase5IncrementGeneration("recurringSchedule", "GLOBAL", "GLOBAL", actor, data.clientRequestId);
+          },
+          audit: function () {
+            return bookingAvailabilityPhase5AppendAudit({ action: "BOOKING_ATTENDANCE_INTEGRATION",
+              entityType: "BOOKING_ENGINE", entityId: "GLOBAL", actorId: actor.actorId, actorRole: actor.role,
+              reasonCode: data.reason, beforeState: before, afterState: after, requestId: data.clientRequestId });
+          },
+          compensateBusiness: function () {
+            Object.keys(before).forEach(function (key) {
+              if (before[key] === null) properties.deleteProperty(key); else properties.setProperty(key, before[key]);
+            });
+          },
+          response: function () { return { enabled: data.enabled }; }
+        });
+        return jsonOutput({ status: "success", integration: result });
+      });
+    }
     if (data.action === "getBookingAvailabilityFlags") {
       if (!bookingAvailabilityPhase5HasPermission(actor, "booking_availability.view")) {
         throw BookingAvailabilityPhase5.availabilityError(

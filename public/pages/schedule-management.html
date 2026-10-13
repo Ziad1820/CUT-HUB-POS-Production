@@ -207,14 +207,19 @@
   <dialog id="workPolicyDialog" aria-labelledby="workPolicyDialogTitle">
     <form id="workPolicyForm" method="dialog">
       <div class="dialog-title"><h2 id="workPolicyDialogTitle">إضافة سياسة عمل</h2><button type="button" data-close="workPolicyDialog" aria-label="إغلاق">×</button></div>
-      <p class="dialog-hint">يتم نسخ الحقول الكاملة من سياسة سابقة لنفس الموظف، ثم تطبيق القيم المحددة أدناه فقط.</p>
+      <p class="dialog-hint">حدد إعدادات الموظف وتاريخ سريانها. اختيار سياسة سابقة يستبدلها من هذا التاريخ ويحافظ على الأيام المسجلة. الجدول الأسبوعي والاستثناءات لهما الأولوية على الشفت الافتراضي.</p>
       <div class="form-grid work-policy-form-grid">
         <label class="wide">الموظف<input id="policyStaffName" readonly></label>
-        <label class="wide">السياسة المصدر<select id="policySourceId" required></select></label>
+        <label class="wide">الإعداد السابق المراد تغييره<select id="policySourceId"></select></label>
         <label>فعالة من<input id="policyEffectiveFrom" type="date" required></label>
-        <label>فعالة إلى<input id="policyEffectiveTo" type="date" required></label>
+        <label>فعالة إلى (اختياري)<input id="policyEffectiveTo" type="date"></label>
+        <label>بداية الشفت الافتراضي<input id="policyShiftStart" type="time" required></label>
+        <label>نهاية الشفت الافتراضي<input id="policyShiftEnd" type="time" required></label>
         <label>دقائق العمل المطلوبة<input id="policyRequiredMinutes" type="number" min="0" step="1" required></label>
         <label>دقائق البريك المسموح<input id="policyBreakMinutes" type="number" min="0" step="1" required></label>
+        <label>خصم الدقيقة (جنيه)<input id="policyDeductionRate" type="number" min="0" step="0.01" required></label>
+        <label>سعر دقيقة الإضافي (جنيه)<input id="policyOvertimeRate" type="number" min="0" step="0.01" required></label>
+        <label>سماح تأخير الحضور (دقائق)<input id="policyLateGrace" type="number" min="0" step="1" required></label>
         <label>أساس الراتب<select id="policySalaryBasis" required><option value="MONTHLY">شهري</option><option value="DAILY">يومي</option><option value="HOURLY">بالساعة</option><option value="PER_MINUTE">بالدقيقة</option></select></label>
         <label>العملة<input id="policyCurrency" maxlength="3" value="EGP" required></label>
         <label class="wide">سبب الإنشاء<input id="policyReason" maxlength="500" required></label>
@@ -251,6 +256,6 @@
   <script src="../assets/js/utils/layout.js?v=20261009-single-analysis-1"></script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>
-  <script src="../assets/js/pages/schedule-management.js?v=20260811-1"></script>
+  <script src="../assets/js/pages/schedule-management.js?v=20261013-minute-workflow-1"></script>
 </body>
 </html>

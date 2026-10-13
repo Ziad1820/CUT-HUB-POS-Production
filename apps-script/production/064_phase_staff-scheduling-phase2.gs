@@ -522,7 +522,13 @@
       (item.recordType || "SHIFT") === "SHIFT")
       .sort((a, b) => number(a.segmentIndex, 1) - number(b.segmentIndex, 1) ||
         a.shiftStart.localeCompare(b.shiftStart));
-    const source = custom.length ? custom : recurring;
+    const fallbackPolicy = (data.policyResolution && data.policyResolution.snapshot) || data.policy || {};
+    const fallback = text(fallbackPolicy.settlementPeriod).toUpperCase() === "DAILY" &&
+        fallbackPolicy.defaultShiftStart && fallbackPolicy.defaultShiftEnd
+      ? [{ scheduleId: fallbackPolicy.policyId, shiftStart: fallbackPolicy.defaultShiftStart,
+          shiftEnd: fallbackPolicy.defaultShiftEnd, requiredWorkMinutes: fallbackPolicy.requiredDailyMinutes,
+          allowedBreakMinutes: fallbackPolicy.allowedBreakMinutes, segmentIndex: 1 }] : [];
+    const source = custom.length ? custom : recurring.length ? recurring : fallback;
     const sourceType = custom.length ? "CUSTOM_SHIFT" : recurring.length ? "RECURRING" : "POLICY_FALLBACK";
     trace.push({ step: "SHIFT_SOURCE", sourceType, ids: source.map((item) => item.overrideId || item.scheduleId) });
     const segments = source.map((item) => ({

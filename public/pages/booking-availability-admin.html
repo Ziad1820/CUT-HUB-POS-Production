@@ -22,11 +22,15 @@
       <article class="panel engine-panel" aria-labelledby="engineStatusTitle">
         <div class="panel-heading">
           <div><h2 id="engineStatusTitle">حالة محرك الإتاحة</h2>
-            <p>حالة تشغيلية للقراءة فقط من إعدادات الخادم الحالية.</p></div>
+            <p>إتاحة الحجوزات الداخلية والخارجية حسب الجدول والحضور والبريك.</p></div>
           <span id="engineBadge" class="engine-badge">—</span>
         </div>
         <dl id="engineSummary" class="engine-summary" aria-live="polite"></dl>
         <div id="featureFlags" class="flag-grid"></div>
+        <div class="owner-only">
+          <p>أكمل إعداد الشفت والبريك وأسعار الدقائق للموظفين في صفحة الجداول، ثم شغّل الربط. التشغيل يمنع حجز اليوم قبل الحضور وأثناء البريك وبعد الانصراف.</p>
+          <button id="attendanceIntegrationBtn" type="button">تشغيل ربط الحضور بالحجوزات</button>
+        </div>
       </article>
       <article class="panel" data-permission="booking_availability.view_restrictions">
         <h2>تعارضات الحجوزات</h2><div id="conflicts" class="records"></div>
@@ -101,6 +105,6 @@
   <script src="../assets/js/core/auth.js?v=20261009-single-analysis-1"></script>
   <script src="../assets/js/utils/layout.js?v=20261009-single-analysis-1"></script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
-  <script src="../assets/js/pages/booking-availability-admin.js"></script>
+  <script src="../assets/js/pages/booking-availability-admin.js?v=20261013-minute-workflow-1"></script>
 </body>
 </html>

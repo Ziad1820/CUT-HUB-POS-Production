@@ -87,6 +87,8 @@
     applyFeatureState();
   }
   function applyFeatureState() {
+    byId("attendanceIntegrationBtn").textContent = state.flags?.engine === "PHASE5" && state.flags?.attendanceLiveEnabled
+      ? "إيقاف ربط الحضور بالحجوزات" : "تشغيل ربط الحضور بالحجوزات";
     const overrideEnabled = state.flags?.managerOverrideEnabled === true;
     Array.from(byId("overrideForm").elements).forEach(node => {
       node.disabled = !overrideEnabled;
@@ -314,6 +316,15 @@
     load();
   });
   byId("refreshBtn").addEventListener("click", load);
+  byId("attendanceIntegrationBtn").addEventListener("click", () => {
+    const enabled = !(state.flags?.engine === "PHASE5" && state.flags?.attendanceLiveEnabled);
+    const reason = prompt(enabled ? "سبب تشغيل ربط الحضور بالحجوزات:" : "سبب إيقاف ربط الحضور بالحجوزات:");
+    if (!reason) return;
+    guarded(async () => {
+      await api("setBookingAttendanceIntegration", { enabled, reason, clientRequestId: requestId("integration") });
+      await refreshData();
+    });
+  });
   byId("overrideForm").addEventListener("submit", event => {
     event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget));
     guarded(async () => {

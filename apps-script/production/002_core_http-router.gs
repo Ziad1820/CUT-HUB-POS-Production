@@ -166,7 +166,7 @@ function doPost(e) {
   }
 
   if ([
-    "previewBookingAvailabilityMigration", "getBookingAvailabilityFlags",
+    "previewBookingAvailabilityMigration", "getBookingAvailabilityFlags", "setBookingAttendanceIntegration",
     "listPublicBookingBranches", "listBookingBranches", "saveBookingBranchHours",
     "saveBookingBranchConfiguration",
     "recoverBookingAvailabilityTransaction",

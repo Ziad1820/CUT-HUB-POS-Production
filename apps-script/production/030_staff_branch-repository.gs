@@ -52,6 +52,24 @@ function getStaff(data) {
     const sheet = getStaffSheet();
     const lastRow = sheet.getLastRow();
     const attendanceTotals = getApprovedAttendanceTotalsForCurrentMonth(data);
+    const minuteTotals = {};
+    const seenDays = new Set();
+    const selectedRange = getOptionalDateRange(data || {}, null, true);
+    const currentMonth = getCairoDateKey().slice(0, 7);
+    attendancePhase3ReadDays().forEach(day => {
+      if (selectedRange ? !isDateInOptionalRange(day.attendanceDate, selectedRange) :
+          day.attendanceDate.slice(0, 7) !== currentMonth) return;
+      const entry = StaffAttendancePhase3.calculateMinuteAccounting(day);
+      if (!entry) return;
+      const key = `${day.staffId}:${day.attendanceDate}`;
+      if (seenDays.has(key)) throw new Error("ATTENDANCE_ACCOUNTING_DAY_AMBIGUOUS");
+      seenDays.add(key);
+      const summary = minuteTotals[day.staffId] ||
+        (minuteTotals[day.staffId] = { deductionMinor: 0, overtimeMinor: 0, entries: [] });
+      summary.deductionMinor += entry.deductionMinor;
+      summary.overtimeMinor += entry.overtimeMinor;
+      summary.entries.push(entry);
+    });
 
     if (lastRow < 2) {
       return jsonOutput({ status: "success", staff: [] });
@@ -96,7 +114,9 @@ function getStaff(data) {
       .filter(staffMember => staffMember.name && staffMember.active)
       .map(staffMember => {
         const nameKey = normalizeLookupKey(staffMember.name);
-        const attendanceDeduction = (staffMember.id && idCounts[staffMember.id] === 1 ? attendanceTotals[`id:${staffMember.id}`] || 0 : 0) +
+        const minuteSummary = staffMember.id && idCounts[staffMember.id] === 1 ? minuteTotals[staffMember.id] : null;
+        const attendanceDeduction = (minuteSummary ? minuteSummary.deductionMinor / 100 : 0) +
+          (staffMember.id && idCounts[staffMember.id] === 1 ? attendanceTotals[`id:${staffMember.id}`] || 0 : 0) +
           (nameCounts[nameKey] === 1 ? attendanceTotals[`name:${nameKey}`] || 0 : 0);
         return {
         id: staffMember.id,
@@ -110,6 +130,8 @@ function getStaff(data) {
         bonus: staffMember.bonus,
         deduction: staffMember.deduction,
         attendanceDeduction,
+        attendanceOvertime: minuteSummary ? minuteSummary.overtimeMinor / 100 : 0,
+        attendanceEntries: minuteSummary ? minuteSummary.entries : [],
         totalDeduction: staffMember.deduction + attendanceDeduction,
         updatedAt: staffMember.updatedAt,
         version: staffMember.version,

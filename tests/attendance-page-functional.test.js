@@ -20,7 +20,7 @@ test("changing branch clears stale employee identity before reloading", () => {
 });
 
 test("Attendance page cache-busts the corrected selector behavior", () => {
-  assert.match(html, /attendance\.js\?v=20260811-1/);
+  assert.match(html, /attendance\.js\?v=20261013-minute-workflow-1/);
 });
 
 test("Attendance renders server-derived fractional durations as whole minutes", () => {

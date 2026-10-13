@@ -38,6 +38,7 @@ function bookingAvailabilityPhase5ActiveOverrides(staffId, branchId, date, audie
 
 function bookingAvailabilityPhase5CacheKey(input) {
   return "BA5:" + BookingAvailabilityPhase5.hash({
+    attendanceRulesVersion: "MINUTE_WORKFLOW_20261013",
     environment: input.environment, spreadsheetHash: input.spreadsheetHash,
     branchId: input.branchId, date: input.date, audience: input.audience,
     staffId: input.staff.staffId, serviceSetHash: input.serviceSetHash,

@@ -140,6 +140,9 @@
         ? minutes(elapsedMinutes(day.breaks && day.breaks.at(-1)?.startedAt)) : "—"),
       metric("العمل", minutes(day.workedMinutesRaw)),
       metric("العجز التقديري", minutes(day.deficitMinutesRaw)),
+      metric("تأخير الحضور", minutes(day.lateMinutesRaw)),
+      metric("انصراف مبكر", minutes(day.earlyLeaveMinutesRaw)),
+      metric("تجاوز البريك", minutes(day.excessBreakMinutesRaw)),
       metric("إضافي خام", minutes(day.rawOvertimeMinutes)),
       metric("إضافي مؤهل", minutes(day.eligibleOvertimeMinutes)),
       metric("إضافي معتمد", minutes(day.approvedOvertimeMinutes))
@@ -174,10 +177,16 @@
       actions.append(actionButton("طلب تصحيح", "requestAttendanceCorrection", day));
     }
     if ((state.permissions.selfAction || state.permissions.manage) &&
-        day.eligibleOvertimeMinutes > 0 && !day.locked) {
+        day.eligibleOvertimeMinutes > 0 && !day.locked &&
+        !(RomeoAuth.isOwnerUser(user) && state.permissions.approveOvertime)) {
       actions.append(actionButton("مراجعة الإضافي", "requestAttendanceOvertime", day));
     }
     if (state.permissions.approveOvertime) {
+      if (RomeoAuth.isOwnerUser(user) && !day.locked && !day.openSession && !day.openBreak &&
+          day.eligibleOvertimeMinutes > 0 && !(day.pendingOvertime || []).length &&
+          !["APPROVED", "REJECTED"].includes(day.overtimeApprovalStatus)) {
+        actions.append(actionButton("إضافة الوقت الإضافي", "reviewOvertime", day, "primary"));
+      }
       (day.pendingOvertime || []).forEach(entry => {
         actions.append(actionButton("اعتماد الإضافي", "approveAttendanceOvertime", day,
           "primary", entry.overtimeApprovalId));
@@ -291,6 +300,10 @@
     byId("actionDayId").dataset.entityId = entityId || "";
     byId("actionReason").value = "";
     byId("approvedMinutesField").hidden = !["approveAttendanceOvertime"].includes(action);
+    byId("approvedMinutes").value = day.eligibleOvertimeMinutes || 0;
+    byId("plannedBreakField").hidden = action !== "attendanceStartBreak";
+    byId("plannedBreakMinutes").value = day.allowedBreakMinutes || "";
+    byId("plannedBreakMinutes").required = action === "attendanceStartBreak";
     const correction = action === "requestAttendanceCorrection";
     byId("correctionTypeField").hidden = !correction;
     byId("correctionEventField").hidden = !correction;
@@ -316,6 +329,9 @@
       cancelAttendanceEvent: "إلغاء حدث عرضي بسجل تعويضي"
     };
     byId("actionDialogTitle").textContent = labels[action] || "تأكيد الإجراء";
+    if (["attendanceCheckIn", "attendanceCheckOut", "attendanceStartBreak", "attendanceEndBreak"].includes(action)) {
+      byId("actionReason").value = labels[action];
+    }
     actionDialog.showModal();
     byId("actionReason").focus();
   }
@@ -381,6 +397,7 @@
       attendanceDayId: state.selected.attendanceDayId
     };
     if (action === "attendanceCheckOut" && state.selected.openBreak) payload.closeOpenBreak = true;
+    if (action === "attendanceStartBreak") payload.plannedBreakMinutes = Number(byId("plannedBreakMinutes").value);
     if (action === "requestAttendanceCorrection") {
       const local = byId("correctionEventAt").value;
       if (!local) {
@@ -447,7 +464,16 @@
     const day = state.days.find(item => item.attendanceDayId === button.dataset.dayId);
     if (!day) return;
     if (button.dataset.action === "details") showDetails(day);
-    else configureActionDialog(button.dataset.action, day, button.dataset.entityId);
+    else if (button.dataset.action === "reviewOvertime") {
+      button.disabled = true;
+      api({ action: "requestAttendanceOvertime", attendanceDayId: day.attendanceDayId,
+        requestId: requestId("OVT"), reason: "مراجعة المالك للوقت الإضافي" })
+        .then(async result => {
+          await loadDashboard();
+          configureActionDialog("approveAttendanceOvertime", day, result.overtimeApproval.overtimeApprovalId);
+        }).catch(error => showMessage(errorMessage(error)))
+        .finally(() => { button.disabled = false; });
+    } else configureActionDialog(button.dataset.action, day, button.dataset.entityId);
   });
   byId("actionForm").addEventListener("submit", submitAction);
   byId("actionForm").addEventListener("input", () => { state.dirtyDialog = true; });

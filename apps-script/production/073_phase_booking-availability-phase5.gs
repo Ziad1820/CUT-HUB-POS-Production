@@ -370,6 +370,16 @@
     const firstShift = number(data.firstShiftMinute, 0);
     const grace = number(data.noCheckInGraceMinutes, DEFAULTS.noCheckInGraceMinutes);
 
+    // Same-day availability requires factual attendance for both audiences.
+    // Operational overrides do not bypass an open break or checkout.
+    if (state === "NOT_STARTED") return { allowed: false, reasonCode: "NO_CHECK_IN" };
+    if (state === "ON_BREAK" && attendance.openBreak !== false) {
+      return { allowed: false, reasonCode: "OPEN_BREAK", conflictCode: "OPEN_BREAK_CONFLICT" };
+    }
+    if (state === "CHECKED_OUT") {
+      return { allowed: false, reasonCode: "CHECKED_OUT", conflictCode: "EARLY_CHECKOUT_CONFLICT" };
+    }
+
     if (slot.startMinute < now + number(data.sameDayLeadMinutes, DEFAULTS.sameDayLeadMinutes) +
         number(data.preparationMinutes, 0)) {
       return { allowed: false, reasonCode: "ALREADY_STARTED" };

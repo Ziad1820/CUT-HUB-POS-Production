@@ -61,6 +61,24 @@ function buildWorkPolicyDeactivatePayload(policyId, reason, generatedRequestId) 
   };
 }
 
+function buildMinuteWorkPolicyPayload(input, requestId) {
+  const minor = value => {
+    const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(String(value).trim());
+    if (!match) throw new Error("سعر الدقيقة لازم يكون مبلغ موجب أو صفر، بحد أقصى رقمين بعد العلامة.");
+    const amount = Number(match[1]) * 100 + Number((match[2] || "").padEnd(2, "0"));
+    if (!Number.isSafeInteger(amount)) throw new Error("سعر الدقيقة أكبر من الحد المسموح.");
+    return amount;
+  };
+  return { action: "createWorkPolicy", simpleMinutePolicy: true, requestId,
+    staffId: input.staffId, replacePolicyId: input.sourcePolicyId || "",
+    effectiveFrom: input.effectiveFrom, effectiveTo: input.effectiveTo || "", reason: input.reason,
+    defaultShiftStart: input.defaultShiftStart, defaultShiftEnd: input.defaultShiftEnd,
+    requiredWorkMinutes: Number(input.requiredWorkMinutes), allowedBreakMinutes: Number(input.allowedBreakMinutes),
+    graceLateMinutes: Number(input.graceLateMinutes),
+    deficitRateMinorPerMinute: minor(input.deductionPerMinute),
+    overtimeRateMinorPerMinute: minor(input.overtimePerMinute) };
+}
+
 (function () {
   "use strict";
 
@@ -454,7 +472,7 @@ function buildWorkPolicyDeactivatePayload(policyId, reason, generatedRequestId) 
     if (!staff) return toast("اختر موظفًا أولًا.", true);
     const source = byId("policySourceId");
     const activePolicies = state.policies.filter(policy => policy.active);
-    source.replaceChildren(option("", "اختر سياسة مصدر"));
+    source.replaceChildren(option("", "إعداد جديد بدون سياسة سابقة"));
     activePolicies.forEach(policy => source.appendChild(option(
       policy.policyId,
       `${policy.policyId} · ${policy.effectiveFrom}${policy.effectiveTo ? ` ← ${policy.effectiveTo}` : ""}`
@@ -467,6 +485,10 @@ function buildWorkPolicyDeactivatePayload(policyId, reason, generatedRequestId) 
     byId("policySalaryBasis").value = "MONTHLY";
     byId("policyCurrency").value = "EGP";
     byId("policyReason").value = "";
+    ["policyShiftStart", "policyShiftEnd", "policyDeductionRate", "policyOvertimeRate"].forEach(id => {
+      byId(id).value = "";
+    });
+    byId("policyLateGrace").value = "0";
     state.dirty = false;
     byId("workPolicyDialog").showModal();
   }
@@ -480,7 +502,7 @@ function buildWorkPolicyDeactivatePayload(policyId, reason, generatedRequestId) 
     button.disabled = true;
     byId("workPolicyDialog").setAttribute("aria-busy", "true");
     try {
-      const payload = buildWorkPolicyCreatePayload({
+      const payload = buildMinuteWorkPolicyPayload({
         sourcePolicyId: byId("policySourceId").value,
         staffId: staff.staffId,
         effectiveFrom: byId("policyEffectiveFrom").value,
@@ -489,6 +511,11 @@ function buildWorkPolicyDeactivatePayload(policyId, reason, generatedRequestId) 
         allowedBreakMinutes: byId("policyBreakMinutes").value,
         salaryBasis: byId("policySalaryBasis").value,
         currency: byId("policyCurrency").value,
+        defaultShiftStart: byId("policyShiftStart").value,
+        defaultShiftEnd: byId("policyShiftEnd").value,
+        graceLateMinutes: byId("policyLateGrace").value,
+        deductionPerMinute: byId("policyDeductionRate").value,
+        overtimePerMinute: byId("policyOvertimeRate").value,
         reason: byId("policyReason").value
       }, requestId("createWorkPolicy"));
       const result = await api(payload.action, payload);
@@ -730,6 +757,17 @@ function buildWorkPolicyDeactivatePayload(policyId, reason, generatedRequestId) 
   }
 
   function bindEvents() {
+    byId("policySourceId").addEventListener("change", () => {
+      const policy = state.policies.find(item => item.policyId === byId("policySourceId").value);
+      if (!policy) return;
+      byId("policyRequiredMinutes").value = policy.requiredDailyMinutes;
+      byId("policyBreakMinutes").value = policy.allowedBreakMinutes;
+      byId("policyShiftStart").value = policy.defaultShiftStart || "";
+      byId("policyShiftEnd").value = policy.defaultShiftEnd || "";
+      byId("policyLateGrace").value = policy.graceLateMinutes || 0;
+      byId("policyDeductionRate").value = (policy.deficitRateMinorPerMinute || 0) / 100;
+      byId("policyOvertimeRate").value = (policy.overtimeRateMinorPerMinute || 0) / 100;
+    });
     byId("staffFilter").addEventListener("change", loadSelected);
     byId("branchFilter").addEventListener("change", () => {
       populateSelectors();

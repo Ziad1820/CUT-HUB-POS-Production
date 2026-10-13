@@ -245,6 +245,7 @@
     const source = policy || {};
     return Object.freeze({
       policyId: text(source.policyId),
+      settlementPeriod: upper(source.settlementPeriod),
       currency: upper(source.currency || CURRENCY),
       currencyMinorScale: number(source.currencyMinorScale, MINOR_SCALE),
       salaryBasis: upper(source.salaryBasis || "MONTHLY"),
@@ -425,6 +426,9 @@
         day.workedMinutesRounded, day.workedMinutesRaw, day.workedMinutes), 0), "worked minutes"),
       deficitMinutes: nonNegativeInteger(number(firstPresent(
         day.deficitMinutesRounded, day.deficitMinutesRaw, day.deficitMinutes), 0), "deficit minutes"),
+      lateMinutesRaw: number(day.lateMinutesRaw, 0),
+      earlyLeaveMinutesRaw: number(day.earlyLeaveMinutesRaw, 0),
+      excessBreakMinutesRaw: number(day.excessBreakMinutesRaw, 0),
       rawOvertimeMinutes: nonNegativeInteger(number(day.rawOvertimeMinutes, 0), "raw overtime minutes"),
       approvedOvertimeMinutes: nonNegativeInteger(number(day.approvedOvertimeMinutes, 0),
         "approved overtime minutes"),
@@ -503,7 +507,11 @@
     const policyResolutions = dateKeysBetween(period.startDate, period.endDate)
       .map((date) => resolvePolicy(data.policies || [], staff, date));
     const policyResolution = policyResolutions[0];
-    if (policyResolutions.some((item) =>
+    const directMinutes = days.length > 0 && days.every(day =>
+      upper(day.policySnapshot.settlementPeriod) === "DAILY" &&
+      upper(day.policySnapshot.deficitRateType) === "FIXED_PER_MINUTE" &&
+      upper(day.policySnapshot.overtimeRateType) === "FIXED_PER_MINUTE");
+    if (!directMinutes && policyResolutions.some((item) =>
       item.policyId !== policyResolution.policyId ||
       stable(item.snapshot) !== stable(policyResolution.snapshot))) {
       throw error("PAYROLL_PERIOD_POLICY_AMBIGUOUS",
@@ -544,7 +552,9 @@
         paidLeaveMinutes += day.requiredMinutes;
       } else if (!EXEMPT_DAY.has(classification) && !EXEMPT_DAY.has(day.status)) {
         deficitMinutes += day.deficitMinutes;
-        let dayDeduction = multiplyDivide(day.deficitMinutes,
+        const directEntry = directMinutes ? StaffAttendancePhase3.calculateMinuteAccounting({ ...day,
+          requiredWorkMinutesRaw: day.requiredMinutes }) : null;
+        let dayDeduction = directEntry ? directEntry.deductionMinor : multiplyDivide(day.deficitMinutes,
           deficitRate.numerator, deficitRate.denominator);
         const dailyCapMinor = policy.dailyDeductionCapMinor > 0
           ? policy.dailyDeductionCapMinor
@@ -571,7 +581,8 @@
       multiplyDivide(absenceMinutes, deficitRate.numerator, deficitRate.denominator),
       nonNegativeInteger(policy.absenceMultiplierBps, "absence multiplier")), 10000);
     approvedOvertimeMinutes = cap(approvedOvertimeMinutes, policy.periodOvertimeCapMinutes);
-    const overtimeCompensationMinor = roundDivide(
+    const overtimeCompensationMinor = directMinutes ? days.reduce((sum, day) => checkedAdd(sum,
+      StaffAttendancePhase3.calculateMinuteAccounting({ ...day, requiredWorkMinutesRaw: day.requiredMinutes }).overtimeMinor), 0) : roundDivide(
       checkedMultiply(checkedMultiply(approvedOvertimeMinutes, overtimeRate.numerator),
         overtimeRate.multiplierBps),
       checkedMultiply(overtimeRate.denominator, 10000));

@@ -66,6 +66,10 @@
       <label id="approvedMinutesField" hidden>الدقائق المعتمدة
         <input id="approvedMinutes" type="number" min="0" step="1">
       </label>
+      <label id="plannedBreakField" hidden>مدة البريك المخططة (دقائق)
+        <input id="plannedBreakMinutes" type="number" min="1" max="1440" step="1">
+        <small>الموظف يظل غير متاح للحجز حتى يسجل الرجوع.</small>
+      </label>
       <label id="correctionTypeField" hidden>نوع التصحيح
         <select id="correctionType">
           <option value="INSERT_EVENT">إضافة حدث مفقود</option>
@@ -105,6 +109,6 @@
   <script src="../assets/js/utils/layout.js?v=20261009-single-analysis-1"></script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>
-  <script src="../assets/js/pages/attendance.js?v=20260811-1"></script>
+  <script src="../assets/js/pages/attendance.js?v=20261013-minute-workflow-1"></script>
 </body>
 </html>
