@@ -196,7 +196,13 @@
         },
         {
           "path": "041_accounting_monthly-closing.gs",
-          "sha256": "4847c188d15f532414ce883437c11742290182e34bb7af914d15d4774335e7c5"
+          "sha256": "4847c188d15f532414ce883437c11742290182e34bb7af914d15d4774335e7c5",
+          "baselineSourcePath": "baseline/041_accounting_monthly-closing.js",
+          "currentSha256": "2620b82a33f59621df8ac433ce0afad29f49ff2d2a34ab8f8546264a7f56e236",
+          "changedGlobals": [
+            "calculateIncomeStatementRange"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "042_invoices_schema.gs",

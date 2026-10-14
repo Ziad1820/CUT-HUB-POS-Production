@@ -56,6 +56,27 @@ function calculateIncomeStatementRange(fromDateValue, toDateValue) {
   const expenseRows = expensesSheet ? getSheetRangeFromRow2(expensesSheet, 1, 6) : [];
   const withdrawalRows = withdrawalsSheet ? getSheetRangeFromRow2(withdrawalsSheet, 1, 5) : [];
 
+  let dateBounds = null;
+  if (typeof Utilities !== "undefined" && Utilities.parseDate && Number(fromDate.slice(0, 4)) >= 100 && Number(toDate.slice(0, 4)) >= 100) {
+    try {
+      const nextDay = new Date(toDate + "T00:00:00Z");
+      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+      const nextKey = nextDay.toISOString().slice(0, 10);
+      const start = Utilities.parseDate(fromDate, TIME_ZONE, "yyyy-MM-dd");
+      const end = Utilities.parseDate(nextKey, TIME_ZONE, "yyyy-MM-dd");
+      // If a midnight is normalized across a calendar boundary, retain legacy parsing.
+      if (getDateKey(start, TIME_ZONE) === fromDate && getDateKey(end, TIME_ZONE) === nextKey) {
+        dateBounds = { from: start.getTime(), to: end.getTime() };
+      }
+    } catch (_) { dateBounds = null; }
+  }
+  function matchesRangeDate(value) {
+    if (dateBounds && value instanceof Date && !isNaN(value.getTime())) {
+      return value.getTime() >= dateBounds.from && value.getTime() < dateBounds.to;
+    }
+    return isDateKeyBetween(getDateKey(value, TIME_ZONE), fromDate, toDate);
+  }
+
   let totalSales = 0;
   let totalTips = 0;
   let cashTotal = 0;
@@ -66,8 +87,7 @@ function calculateIncomeStatementRange(fromDateValue, toDateValue) {
   const customers = {};
 
   invoiceRows.forEach(row => {
-    const dateKey = getDateKey(row[0], TIME_ZONE);
-    if (!isDateKeyBetween(dateKey, fromDate, toDate)) return;
+    if (!matchesRangeDate(row[0])) return;
 
     const hasData = row.some(cell => cell !== "" && cell !== null);
     if (!hasData) return;
@@ -92,15 +112,13 @@ function calculateIncomeStatementRange(fromDateValue, toDateValue) {
   });
 
   const totalExpenses = expenseRows.reduce((sum, row) => {
-    const dateKey = getDateKey(row[4], TIME_ZONE);
-    return isDateKeyBetween(dateKey, fromDate, toDate)
+    return matchesRangeDate(row[4])
       ? sum + parseSheetAmount(row[1])
       : sum;
   }, 0);
 
   const totalWithdrawals = withdrawalRows.reduce((sum, row) => {
-    const dateKey = getDateKey(row[3], TIME_ZONE);
-    return isDateKeyBetween(dateKey, fromDate, toDate)
+    return matchesRangeDate(row[3])
       ? sum + parseSheetAmount(row[1])
       : sum;
   }, 0);

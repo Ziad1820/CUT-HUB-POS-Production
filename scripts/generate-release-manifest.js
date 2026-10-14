@@ -50,6 +50,7 @@ const explicitPaths = [
   "docs/invoice-on-demand-pdf.md", "tests/invoice-on-demand-pdf.test.js", "public/assets/js/utils/invoice-pdf.js",
   "docs/cashier-six-second-target.md", "tests/cashier-six-seconds.test.js",
   "docs/invoice-page-performance.md", "tests/invoice-page-performance.test.js",
+  "docs/income-statement-performance.md", "tests/income-statement-performance.test.js",
   "docs/dashboard-api-relay-deployment.md",
   ".gitattributes", "backend/README.md", "config/backend-sources.json",
   "scripts/build-backend.js", "tests/backend-modularization.test.js",

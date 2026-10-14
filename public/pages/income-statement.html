@@ -519,7 +519,7 @@
 
   <script src="../assets/js/utils/text-fix.js"></script>
   <script src="../assets/js/core/runtime-config.js?v=20261008-relay-1"></script>
-  <script src="../assets/js/core/api.js?v=20261008-relay-1"></script>
+  <script src="../assets/js/core/api.js?v=20261014-income-timing-1"></script>
   <script src="../assets/js/core/auth.js?v=20261009-single-analysis-1"></script>
   <script src="../assets/js/utils/layout.js?v=20261009-single-analysis-1"></script>
   <script>
@@ -708,38 +708,78 @@
       averageInvoiceEl.textContent = formatCurrency(Math.round(currentSummary.averageInvoice));
     }
 
-    async function loadStatement() {
-      const fromDate = fromDateInput.value;
-      const toDate = toDateInput.value;
+    let statementReadSequence = 0;
+    let activeStatementRead = null;
+    let pendingStatementRead = null;
+    let statementHasLoaded = false;
 
-      if (!fromDate || !toDate) {
-        setStatus(localize("اختار تاريخ البداية والنهاية.", "Choose from date and to date."), "error");
-        return;
+    function reportIncomeTiming(operation, startedAt, outcome) {
+      if (new URLSearchParams(window.location.search).get("performance") === "1") {
+        console.info("[INCOME_PERF] " + JSON.stringify({ operation, totalMs: Date.now() - startedAt, outcome }));
       }
+    }
 
-      if (fromDate > toDate) {
-        setStatus(localize("تاريخ البداية لازم يكون قبل تاريخ النهاية.", "From date must be before to date."), "error");
-        return;
+    function isCurrentStatement(request) {
+      return request.sequence === statementReadSequence && request.fromDate === fromDateInput.value && request.toDate === toDateInput.value;
+    }
+
+    function loadStatement() {
+      const fromDate = fromDateInput.value, toDate = toDateInput.value;
+      if (!fromDate || !toDate || fromDate > toDate) {
+        statementReadSequence++;
+        if (pendingStatementRead) pendingStatementRead.resolve();
+        pendingStatementRead = null;
+        monthLockBtn.disabled = true;
+        setStatus(!fromDate || !toDate ? localize("اختار تاريخ البداية والنهاية.", "Choose from date and to date.") : localize("تاريخ البداية لازم يكون قبل تاريخ النهاية.", "From date must be before to date."), "error");
+        return Promise.resolve();
       }
+      const key = fromDate + "/" + toDate;
+      if (pendingStatementRead?.key === key && pendingStatementRead.sequence === statementReadSequence) return pendingStatementRead.promise;
+      if (!pendingStatementRead && activeStatementRead?.key === key && activeStatementRead.sequence === statementReadSequence) return activeStatementRead.promise;
+      const request = { fromDate, toDate, key, sequence: ++statementReadSequence, startedAt: Date.now() };
+      request.promise = new Promise(resolve => { request.resolve = resolve; });
+      monthLockBtn.disabled = true;
+      setStatus(localize("جاري تحميل قائمة الدخل...", "Loading income statement..."));
+      if (activeStatementRead) {
+        if (pendingStatementRead) pendingStatementRead.resolve();
+        pendingStatementRead = request;
+      } else startStatementRead(request);
+      return request.promise;
+    }
 
+    function startStatementRead(request) {
+      activeStatementRead = request;
+      executeStatementRead(request).finally(() => {
+        activeStatementRead = null;
+        request.resolve();
+        const next = pendingStatementRead;
+        pendingStatementRead = null;
+        if (next) startStatementRead(next);
+      });
+    }
+
+    async function executeStatementRead(request) {
+      let outcome = "superseded";
       try {
-        setStatus(localize("جاري تحميل قائمة الدخل...", "Loading income statement..."));
-        const result = await RomeoApi.request({
-          action: "getIncomeStatementRange",
-          fromDate,
-          toDate
-        });
-
-        if (result.status !== "success") {
-          throw new Error(result.message || "Could not load income statement.");
-        }
-
+        const result = await RomeoApi.request({ action: "getIncomeStatementRange", fromDate: request.fromDate, toDate: request.toDate });
+        if (!isCurrentStatement(request)) return;
+        if (result.status !== "success") throw new Error(result.message || "Could not load income statement.");
         renderSummary(result);
-        setStatus(localize(`عرض الأرقام من ${fromDate} إلى ${toDate}.`, `Showing numbers from ${fromDate} to ${toDate}.`), "success");
+        statementHasLoaded = true;
+        monthLockBtn.disabled = !isOwner;
+        outcome = "success";
+        setStatus(localize(`عرض الأرقام من ${request.fromDate} إلى ${request.toDate}.`, `Showing numbers from ${request.fromDate} to ${request.toDate}.`), "success");
       } catch (error) {
+        if (!isCurrentStatement(request)) return;
+        outcome = "error";
         console.error(error);
-        renderSummary({});
-        setStatus(error instanceof Error ? error.message : localize("تعذر تحميل قائمة الدخل.", "Could not load income statement."), "error");
+        const message = error instanceof Error ? error.message : localize("تعذر تحميل قائمة الدخل.", "Could not load income statement.");
+        setStatus(message + (statementHasLoaded ? localize(" — الأرقام المعروضة تخص آخر تحميل ناجح.", " — Displayed figures are from the last successful load.") : ""), "error");
+      } finally {
+        if (request.sequence === statementReadSequence && !isCurrentStatement(request)) {
+          setStatus(localize("الفترة اتغيرت. اضغط تطبيق الفلتر لعرض أرقامها.", "The range changed. Apply the filter to load its figures."));
+        }
+        reportIncomeTiming("statement", request.startedAt, outcome);
       }
     }
 
@@ -793,7 +833,17 @@
       }).join("");
     }
 
-    async function loadClosings() {
+    let closingsRead = null;
+    function loadClosings(options = {}) {
+      if (closingsRead) return options.fresh ? closingsRead.then(() => loadClosings()) : closingsRead;
+      closingsRead = executeClosingsRead().finally(() => { closingsRead = null; });
+      return closingsRead;
+    }
+
+    async function executeClosingsRead() {
+      const startedAt = Date.now();
+      let outcome = "error";
+      monthlyClosingsBody.querySelectorAll("[data-closing-read-error]").forEach(row => row.remove());
       try {
         const result = await RomeoApi.request({ action: "getMonthlyClosings" });
         if (result.status !== "success") {
@@ -801,10 +851,13 @@
         }
 
         renderClosings(result.closings || result.monthlyClosings || []);
+        outcome = "success";
       } catch (error) {
         console.error(error);
-        monthlyClosings = [];
-        monthlyClosingsBody.innerHTML = `<tr><td colspan="11">${error instanceof Error ? error.message : localize("تعذر تحميل التقفيلات الشهرية.", "Could not load monthly closings.")}</td></tr>`;
+        if (!monthlyClosings.length) monthlyClosingsBody.innerHTML = "";
+        monthlyClosingsBody.innerHTML += `<tr data-closing-read-error><td colspan="11">${localize("تعذر تحديث التقفيلات الشهرية. حاول مرة أخرى.", "Could not refresh monthly closings. Please try again.")}</td></tr>`;
+      } finally {
+        reportIncomeTiming("closings", startedAt, outcome);
       }
     }
 
@@ -879,7 +932,7 @@
 
       if (deletedCount > 0) {
         setStatus(localize(`تم حذف ${deletedCount} تقفيلة شهرية.`, `${deletedCount} monthly closing(s) deleted.`), "success");
-        await loadClosings();
+        await loadClosings({ fresh: true });
       }
     }
 
@@ -914,7 +967,7 @@
         }
 
         setStatus(localize(`تم قفل شهر ${monthKey} بنجاح.`, `Month ${monthKey} locked successfully.`), "success");
-        await loadClosings();
+        await loadClosings({ fresh: true });
       } catch (error) {
         console.error(error);
         setStatus(error instanceof Error ? error.message : localize("تعذر قفل الشهر.", "Could not lock month."), "error");
@@ -930,7 +983,7 @@
       setCurrentMonthRange();
       loadStatement();
     });
-    refreshClosingsBtn.addEventListener("click", loadClosings);
+    refreshClosingsBtn.addEventListener("click", () => loadClosings());
     monthLockBtn.addEventListener("click", lockMonth);
     deleteSelectedClosingsBtn.addEventListener("click", deleteSelectedClosings);
     selectAllClosings.addEventListener("change", () => {
@@ -946,7 +999,7 @@
       const closing = monthlyClosings.find((item, index) => getClosingKey(item, index) === key);
       if (closing) {
         deleteMonthlyClosing(closing).then(deleted => {
-          if (deleted) loadClosings();
+          if (deleted) loadClosings({ fresh: true });
         });
       }
     });

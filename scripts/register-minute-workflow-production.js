@@ -12,6 +12,7 @@ const files = {
   "002_core_http-router.gs": ["doPost"],
   "030_staff_branch-repository.gs": ["getStaff"],
   "040_accounting_daily-closing.gs": ["buildDailyClosingPreview", "getDailyClosingPreview"],
+  "041_accounting_monthly-closing.gs": ["calculateIncomeStatementRange"],
   "042_invoices_schema.gs": ["findInvoiceByRequestId"],
   "043_invoices_mutations.gs": ["createInvoice", "updateInvoice"],
   "044_invoices_queries.gs": ["getInvoices", "readInvoiceDataSnapshot"],
