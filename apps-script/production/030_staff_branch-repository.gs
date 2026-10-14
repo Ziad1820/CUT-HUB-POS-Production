@@ -47,12 +47,12 @@ function staffResolveHeaders_(rawHeaders) {
   return headers;
 }
 
-function getStaff(data) {
+function getStaff(data, authenticatedContext) {
   try {
     const sheet = getStaffSheet();
     const lastRow = sheet.getLastRow();
     if (data && data.staffView === "cashier") {
-      const permissionError = requirePermission(data, "access_cashier", "Cashier permission is required.");
+      const permissionError = cashierContextAllows(authenticatedContext) ? null : requirePermission(data, "access_cashier", "Cashier permission is required.");
       if (permissionError) return permissionError;
       if (lastRow < 2) return jsonOutput({ status: "success", staff: [] });
       const headers = staffResolveHeaders_(sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]);
@@ -166,6 +166,28 @@ function getStaff(data) {
       message: error.message
     });
   }
+}
+
+function cashierContextAllows(context) {
+  return !!context && !!context.user && (String(context.user.username || "").toLowerCase() === "owner" ||
+    Array.isArray(context.permissions) && context.permissions.indexOf("access_cashier") !== -1);
+}
+
+function getCashierCatalog(data, authenticatedContext) {
+  if (!cashierContextAllows(authenticatedContext)) return jsonOutput({ status: "error", code: "PERMISSION_DENIED", message: "Cashier permission is required." });
+  try {
+    const read = output => typeof output.getContent === "function" ? JSON.parse(output.getContent()) : output;
+    const staff = read(getStaff(Object.assign({}, data, { staffView: "cashier" }), authenticatedContext));
+    const services = read(getServices());
+    if (staff.status !== "success" || services.status !== "success") return jsonOutput({ status: "error", message: "تعذر تحديث خدمات الكاشير والحلاقين." });
+    const result = { status: "success", staff: staff.staff, services: services.services };
+    if (data.includeRecentInvoices === true) {
+      // Fixed read-only projection: client filters, limits and offsets cannot expand it.
+      try { result.recentInvoices = read(getInvoices({ limit: 5, offset: 0, filters: {} })); }
+      catch (_) { result.recentInvoices = { status: "error" }; }
+    }
+    return jsonOutput(result);
+  } catch (_) { return jsonOutput({ status: "error", message: "تعذر تحديث خدمات الكاشير والحلاقين." }); }
 }
 
 // Comparison keys only: preserve raw sheet cells and sealed transaction evidence.

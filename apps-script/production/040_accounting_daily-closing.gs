@@ -122,12 +122,16 @@ function calculateWithdrawalsTotal(dateKey) {
   }, 0);
 }
 
-function buildDailyClosingPreview(dateKey) {
+function buildDailyClosingPreview(dateKey, summaryOnly) {
+  if (summaryOnly) {
+    const fastSummary = buildCashierSummaryFromSheets(dateKey);
+    if (fastSummary) return fastSummary;
+  }
   const paymentTotals = calculateSalesAndPaymentTotals(dateKey);
   const expensesTotal = calculateExpensesTotal(dateKey);
   const withdrawalsTotal = calculateWithdrawalsTotal(dateKey);
   const netTotal = paymentTotals.salesTotal + paymentTotals.tipTotal - expensesTotal - withdrawalsTotal;
-  const existingClosing = findDailyClosingByDate(dateKey);
+  const existingClosing = summaryOnly ? null : findDailyClosingByDate(dateKey);
 
   return {
     date: dateKey,
@@ -146,6 +150,52 @@ function buildDailyClosingPreview(dateKey) {
     closedBy: existingClosing ? (existingClosing.closedByDisplayName || existingClosing.closedByUserName) : "",
     closedAt: existingClosing ? existingClosing.closedAt : ""
   };
+}
+
+function buildCashierSummaryFromSheets(dateKey) {
+  buildCashierSummaryFromSheets.diagnostics = { mode: "UNAVAILABLE", readMs: 0 };
+  if (typeof SpreadsheetApp === "undefined" || typeof Utilities === "undefined" || !Utilities.parseDate) return null;
+  const started = Date.now();
+  try {
+    const midnight = Utilities.parseDate(dateKey, TIME_ZONE, "yyyy-MM-dd").getTime();
+    const parts = dateKey.split("-").map(Number);
+    const nextDate = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + 1)).toISOString().slice(0, 10);
+    const nextMidnight = Utilities.parseDate(nextDate, TIME_ZONE, "yyyy-MM-dd").getTime();
+    const spreadsheet = SpreadsheetApp.getActive();
+    const totals = { date: dateKey, salesTotal: 0, tipTotal: 0, salesIncludesTips: false,
+      cashTotal: 0, visaTotal: 0, instapayTotal: 0, vodafoneCashTotal: 0, expensesTotal: 0, withdrawalsTotal: 0 };
+    const fields = { cash: "cashTotal", visa: "visaTotal", instapay: "instapayTotal", vodafone_cash: "vodafoneCashTotal" };
+    const specs = [{ name: "DATA", dateColumn: 0, width: 9 },
+      { name: "EXPENSES", dateColumn: 4, width: 5 }, { name: "WITHDRAWLS", dateColumn: 3, width: 4 }];
+    specs.forEach(spec => {
+      const sheet = spreadsheet.getSheetByName(spec.name);
+      if (!sheet) return;
+      const lastRow = sheet.getLastRow();
+      if (lastRow < 2) return;
+      const rows = sheet.getRange(2, 1, lastRow - 1, spec.width).getValues();
+      rows.forEach(row => {
+        const rawDate = row[spec.dateColumn];
+        // Compare timestamps with two Cairo midnights, including 23/25-hour DST days.
+        // String cells retain the legacy parser and its calendar-date semantics.
+        const matches = rawDate instanceof Date && !isNaN(rawDate.getTime())
+          ? rawDate.getTime() >= midnight && rawDate.getTime() < nextMidnight
+          : getDateKey(rawDate, TIME_ZONE) === dateKey;
+        if (!matches) return;
+        if (spec.name === "DATA") {
+          const amount = parseSheetAmount(row[5]), tip = parseSheetAmount(row[7]);
+          totals.salesTotal += amount; totals.tipTotal += tip;
+          const payment = normalizePaymentMethod(row[8]);
+          if (fields[payment]) totals[fields[payment]] += amount + tip;
+        } else totals[spec.name === "EXPENSES" ? "expensesTotal" : "withdrawalsTotal"] += parseSheetAmount(row[1]);
+      });
+    });
+    totals.netTotal = totals.salesTotal + totals.tipTotal - totals.expensesTotal - totals.withdrawalsTotal;
+    buildCashierSummaryFromSheets.diagnostics = { mode: "ROWS", readMs: Date.now() - started };
+    return totals;
+  } catch (_) {
+    buildCashierSummaryFromSheets.diagnostics = { mode: "ROWS_FALLBACK", readMs: Date.now() - started };
+    return null;
+  }
 }
 
 function dashboardTodayStats(data) {
@@ -189,14 +239,23 @@ function dashboardTodayStats(data) {
     return jsonOutput({ status: "error", message: error.message });
   }
 }
-function getDailyClosingPreview(data) {
+function getDailyClosingPreview(data, authenticatedContext) {
   try {
+    const started = Date.now();
+    if (data.cashierSummary === true) {
+      if (!cashierContextAllows(authenticatedContext)) return jsonOutput({ status: "error", code: "PERMISSION_DENIED", message: "Cashier permission is required." });
+    }
     const dateKey = getRequestedDateKey(data, TIME_ZONE);
-    const preview = buildDailyClosingPreview(dateKey);
+    const preview = buildDailyClosingPreview(dateKey, data.cashierSummary === true);
+    if (data.cashierSummary === true) {
+      ["alreadyClosed", "closingId", "closedBy", "closedAt"].forEach(key => { delete preview[key]; });
+    }
 
     return jsonOutput({
       status: "success",
-      preview
+      preview,
+      performanceDiagnostics: data.cashierSummary === true && data.performanceProbe === true
+        ? Object.assign({}, buildCashierSummaryFromSheets.diagnostics, { calculationMs: Date.now() - started }) : undefined
     });
   } catch (error) {
     return jsonOutput({ status: "error", message: error.message });

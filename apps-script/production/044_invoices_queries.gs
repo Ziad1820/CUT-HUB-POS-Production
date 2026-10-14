@@ -111,6 +111,18 @@ function getInvoices(data) {
   const matches = [];
   const barberOptions = {};
   const paymentOptions = {};
+  function invoiceResponse(row, rowNumber) {
+    return {
+      invoiceId: `DATA-${rowNumber}`,
+      invoiceRequestId: snapshot.invoiceRequestIdColumn ? String(row[snapshot.invoiceRequestIdColumn - 1] || "").trim() : "",
+      rowNumber, date: getDisplayDateTime(row[0]), dateKey: getDateKey(row[0], TIME_ZONE),
+      customerName: String(row[1] || "").trim(), customerPhone: String(row[2] || "").trim(),
+      services: String(row[3] || "").trim(), pdfUrl: String(row[4] || "").trim(),
+      total: parseSheetAmount(row[5]), paidAmount: parseSheetAmount(row[6]), tipAmount: parseSheetAmount(row[7]),
+      paymentMethod: String(row[8] || "").trim(), barber: String(row[9] || "").trim(), note: String(row[10] || "").trim(),
+      discountPercent: parseSheetAmount(row[11]), discountAmount: parseSheetAmount(row[12])
+    };
+  }
 
   for (let index = rows.length - 1; index >= 0; index--) {
     const row = rows[index];
@@ -119,8 +131,8 @@ function getInvoices(data) {
       invoiceId: `DATA-${rowNumber}`,
       invoiceRequestId: snapshot.invoiceRequestIdColumn ? String(row[snapshot.invoiceRequestIdColumn - 1] || "").trim() : "",
       rowNumber,
-      date: getDisplayDateTime(row[0]),
-      dateKey: getDateKey(row[0], TIME_ZONE),
+      date: String(row[0] || "").trim(),
+      dateKey: targetDate || range ? getDateKey(row[0], TIME_ZONE) : "",
       customerName: String(row[1] || "").trim(),
       customerPhone: String(row[2] || "").trim(),
       services: String(row[3] || "").trim(),
@@ -158,10 +170,10 @@ function getInvoices(data) {
       if (searchText.indexOf(search) === -1) continue;
     }
 
-    matches.push(invoice);
+    matches.push({ row, rowNumber });
   }
 
-  const invoices = matches.slice(offset, offset + limit);
+  const invoices = matches.slice(offset, offset + limit).map(item => invoiceResponse(item.row, item.rowNumber));
   const nextOffset = offset + invoices.length;
 
   return jsonOutput({

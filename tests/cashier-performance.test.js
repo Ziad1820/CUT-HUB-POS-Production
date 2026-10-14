@@ -4,12 +4,12 @@ const root=path.resolve(__dirname,"..");
 const page=fs.readFileSync(process.env.CUT_HUB_CASHIER_SOURCE_OVERRIDE||path.join(root,"public/assets/js/pages/cashier.js"),"utf8");
 test("initial pageshow does not reload boot data; restored pages still refresh",()=>{
  const body=page.match(/window\.addEventListener\("pageshow", event => \{([\s\S]*?)\n    \}\);/)[1];
- const calls=[];const c=vm.createContext({renderBarberOptions(){},loadBarbersFromSheet:()=>calls.push("staff"),loadInventoryProducts:()=>calls.push("stock"),fetchTodaySales:()=>calls.push("totals"),updateOnlineControls(){}});
+ const calls=[];const c=vm.createContext({inventoryProductsLoaded:true,activeServiceFilter:"all",renderBarberOptions(){},loadBarbersFromSheet:()=>calls.push("staff"),loadInventoryProducts:()=>calls.push("stock"),fetchTodaySales:()=>calls.push("totals"),updateOnlineControls(){}});
  vm.runInContext('function handler(event){'+body+'}',c);c.handler({persisted:false});assert.deepEqual(calls,[]);c.handler({persisted:true});assert.deepEqual(calls,["staff","stock","totals"]);
 });
 function totalsFixture(request){
  let date="2026-10-13";const writes=[],requests=[],busy=[];
- const c=vm.createContext({RomeoApi:{request:payload=>{requests.push(payload);return request(payload);}},getReportDateKey:()=>date,setDailyNetLoading:value=>busy.push(value),numberValue:value=>Number(value)||0,
+ const c=vm.createContext({window:{location:{search:""}},URLSearchParams,RomeoApi:{request:payload=>{requests.push(payload);return request(payload);}},getReportDateKey:()=>date,setDailyNetLoading:value=>busy.push(value),numberValue:value=>Number(value)||0,
    latestTodaySales:0,latestTodayTips:0,latestTodayExpenses:0,latestTodayWithdrawals:0,
    updatePaymentMethodTotals:values=>writes.push(values),localizeText:value=>value,dailyNetAmount:{textContent:""},dailyNetBreakdown:{textContent:""},console:{warn(){}}});
  vm.runInContext('let cashierTotalsSequence=0;'+page.match(/    async function fetchTodaySales\(\) \{[\s\S]*?\n    \}/)[0],c);

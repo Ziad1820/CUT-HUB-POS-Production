@@ -16,7 +16,7 @@
           "path": "002_core_http-router.gs",
           "sha256": "2e44415efd4e9b8fb43037197feb0461662a11236523bc247487941be64c2614",
           "baselineSourcePath": "baseline/002_core_http-router.js",
-          "currentSha256": "19f60d6d9c3a26990a191c2f59a8ac6fa18dbc0e0b554876162cf5390b530aaa",
+          "currentSha256": "e9eca1385f55ccd21492b242085be846f2590f9cead2a28c0dc81f035ffd2ae5",
           "changedGlobals": [
             "doPost"
           ],
@@ -134,11 +134,15 @@
           "path": "030_staff_branch-repository.gs",
           "sha256": "8d94d2aa6cd8834b29a0003442edf83a71d33d8cdc4b56f960cf13971248e43b",
           "baselineSourcePath": "baseline/030_staff_branch-repository.js",
-          "currentSha256": "ef8efa73304ae0ee08b921e22688bb0222349e588f5cfe28f97b5860874d578b",
+          "currentSha256": "839f60fd62b3453b6388baa3927b8cd78e8512f63fd8047a37eeef22783e30f5",
           "changedGlobals": [
             "getStaff"
           ],
-          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability",
+          "addedGlobals": [
+            "cashierContextAllows",
+            "getCashierCatalog"
+          ]
         },
         {
           "path": "031_staff_mutable-fields.gs",
@@ -178,7 +182,17 @@
         },
         {
           "path": "040_accounting_daily-closing.gs",
-          "sha256": "a0ea2bcf73a23fc75c8c7d0dc86224fde917d27abf428b98de6758105a226085"
+          "sha256": "a0ea2bcf73a23fc75c8c7d0dc86224fde917d27abf428b98de6758105a226085",
+          "baselineSourcePath": "baseline/040_accounting_daily-closing.js",
+          "currentSha256": "02dc0d8378a11fd2089d7c1d1ab6d1d5800ad465f742084fbd05feeaca8a8f12",
+          "changedGlobals": [
+            "buildDailyClosingPreview",
+            "getDailyClosingPreview"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability",
+          "addedGlobals": [
+            "buildCashierSummaryFromSheets"
+          ]
         },
         {
           "path": "041_accounting_monthly-closing.gs",
@@ -209,7 +223,7 @@
           "path": "044_invoices_queries.gs",
           "sha256": "65e8301cc5ca083d41e55f78d7826102d80fa58d1fcc12d5e4609ca4cf8bc6d8",
           "baselineSourcePath": "baseline/044_invoices_queries.js",
-          "currentSha256": "a5545a8b4bce516128f6980cfb39ee113d9aa1d483f8fbfe79a35105a037ef1a",
+          "currentSha256": "1454b2127fffe226a160a530dc774d21896b0576f220b59a14717941dcbf6587",
           "changedGlobals": [
             "getInvoices",
             "readInvoiceDataSnapshot"

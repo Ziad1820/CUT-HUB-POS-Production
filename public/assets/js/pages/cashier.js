@@ -634,20 +634,17 @@
       renderLatestInvoices();
     }
 
-    async function loadLatestInvoicesFromSheet() {
+    async function loadLatestInvoicesFromSheet(useCatalog = false) {
       if (!isConnectionOnline()) {
         return;
       }
 
       try {
-        const result = await RomeoApi.request({
-          action: "getInvoices",
-          limit: 5,
-          offset: 0,
-          filters: {}
-        });
+        const result = useCatalog
+          ? (await loadCashierCatalog()).recentInvoices
+          : await RomeoApi.request({ action: "getInvoices", limit: 5, offset: 0, filters: {} });
 
-        if (result.status !== "success" || !Array.isArray(result.invoices)) {
+        if (!result || result.status !== "success" || !Array.isArray(result.invoices)) {
           return;
         }
 
@@ -689,9 +686,15 @@
       };
     }
 
+    let cashierCatalogRequest = null;
+    function loadCashierCatalog() {
+      if (!cashierCatalogRequest) cashierCatalogRequest = RomeoApi.request({ action: "getCashierCatalog", includeRecentInvoices: true }).finally(() => { cashierCatalogRequest = null; });
+      return cashierCatalogRequest;
+    }
+
     async function loadBarbersFromSheet() {
       try {
-        const data = await RomeoApi.request({ action: "getStaff", staffView: "cashier" });
+        const data = await loadCashierCatalog();
         if (data.status !== "success" || !Array.isArray(data.staff)) {
           return;
         }
@@ -1089,7 +1092,9 @@
       const date = getReportDateKey();
       setDailyNetLoading(true);
       try {
-        const data = await RomeoApi.request({ action: "getDailyClosingPreview", date });
+        const probe = new URLSearchParams(window.location.search).get("performance") === "1";
+        const data = await RomeoApi.request({ action: "getDailyClosingPreview", date, cashierSummary: true, performanceProbe: probe });
+        if (probe && data.performanceDiagnostics) console.info("[CASHIER_DETAIL] " + JSON.stringify(data.performanceDiagnostics));
         if (sequence !== cashierTotalsSequence || date !== getReportDateKey()) return;
         if (data.status !== "success" || !data.preview) throw new Error(data.message || "Daily totals unavailable");
         const preview = data.preview;
@@ -1217,7 +1222,7 @@
 
     async function loadServicesFromSheet() {
       try {
-        const result = await RomeoApi.request({ action: "getServices" });
+        const result = await loadCashierCatalog();
         if (result.status === "success" && Array.isArray(result.services)) {
           applyServicesList(result.services);
         }
@@ -1284,11 +1289,18 @@
       }
     }
 
+    let inventoryProductsLoaded = false;
+    let inventoryProductsLoading = false;
+    let inventoryProductsError = false;
     async function loadInventoryProducts() {
+      if (inventoryProductsLoading) return;
+      inventoryProductsLoading = true; inventoryProductsError = false;
+      if (activeServiceFilter === "product") renderServices();
       try {
         const result = await RomeoApi.request({ action: "getSellableProducts" });
-        if (result.status !== "success" || !Array.isArray(result.products)) return;
+        if (result.status !== "success" || !Array.isArray(result.products)) throw new Error("Products unavailable");
 
+        inventoryProductsLoaded = true;
         availableProducts = result.products
           .map(item => ({
             itemId: String(item.itemId || "").trim(),
@@ -1302,7 +1314,11 @@
 
         if (activeServiceFilter === "product") renderServices();
       } catch (error) {
-        console.warn("Inventory products are not available yet", error);
+        inventoryProductsError = true;
+        console.warn("Inventory products are not available yet");
+      } finally {
+        inventoryProductsLoading = false;
+        if (activeServiceFilter === "product") renderServices();
       }
     }
 
@@ -1660,6 +1676,12 @@
     }
 
     function renderServices() {
+      if (activeServiceFilter === "product" && (inventoryProductsLoading || inventoryProductsError)) {
+        updateServiceFilterTabs();
+        servicesGrid.innerHTML = '<div class="empty-state">' + (inventoryProductsLoading ? "جارٍ تحميل المنتجات…" : "تعذر تحميل المنتجات. اضغط المنتجات للمحاولة مرة أخرى.") + '</div>';
+        syncServicesPanelHeight();
+        return;
+      }
       if (activeServiceFilter === "product") {
         const query = serviceSearchInput?.value || "";
         const filteredProducts = availableProducts
@@ -1982,7 +2004,7 @@
         showStatus(localizeText("تم حفظ الفاتورة بنجاح.", "Invoice completed successfully."), "success");
         if (shouldPrint === true) printInvoice(printData);
         resetForm();
-        loadInventoryProducts();
+        if (inventoryProductsLoaded || activeServiceFilter === "product") loadInventoryProducts();
         fetchTodaySales();
         loadLatestInvoicesFromSheet();
         if (shouldPrint === null) openPrintConfirmationModal(printData);
@@ -2511,7 +2533,7 @@
 
       renderBarberOptions();
       loadBarbersFromSheet();
-      loadInventoryProducts();
+      if (inventoryProductsLoaded || activeServiceFilter === "product") loadInventoryProducts();
       fetchTodaySales();
       updateOnlineControls();
     });
@@ -2548,6 +2570,7 @@
         if (!tab) return;
 
         activeServiceFilter = tab.dataset.serviceFilter || "all";
+        if (activeServiceFilter === "product") loadInventoryProducts();
         renderServices();
       });
     }
@@ -2636,9 +2659,9 @@
     renderCart();
     loadServicesFromSheet();
     fetchTodaySales();
-    loadInventoryProducts();
+    if (inventoryProductsLoaded || activeServiceFilter === "product") loadInventoryProducts();
     loadStoredLatestInvoices();
-    loadLatestInvoicesFromSheet();
+    loadLatestInvoicesFromSheet(true);
     updateOnlineControls();
     fixArabicInNode(document.body);
 

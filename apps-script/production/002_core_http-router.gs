@@ -126,7 +126,8 @@ function doPost(e) {
   if (data.action === "saveServiceRecipe") return saveServiceRecipe(data);
   if (data.action === "getBarberConsumptionReport") return getBarberConsumptionReport(data);
 
-  if (data.action === "getStaff") return getStaff(data);
+  if (data.action === "getStaff") return getStaff(data, authenticatedRequestContext);
+  if (data.action === "getCashierCatalog") return getCashierCatalog(data, authenticatedRequestContext);
   if (data.action === "listStaffBranches") return listStaffBranches(data);
   if (data.action === "saveStaff") return saveStaff(data);
   if (data.action === "updateStaffMember") return saveStaff({ ...data, mode: "updateExisting" });
@@ -195,7 +196,7 @@ function doPost(e) {
   if (data.action === "getRatingsAdmin") return getRatingsAdmin(data);
   if (data.action === "updateRatingStatus") return updateRatingStatus(data);
 
-  if (data.action === "getDailyClosingPreview") return getDailyClosingPreview(data);
+  if (data.action === "getDailyClosingPreview") return getDailyClosingPreview(data, authenticatedRequestContext);
   if (data.action === "dashboardTodayStats") return dashboardTodayStats(data);
   if (data.action === "getDailyClosings") return getDailyClosings(data);
   if (data.action === "closeDay") return closeDay(data);
