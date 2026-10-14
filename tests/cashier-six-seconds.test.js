@@ -38,7 +38,7 @@ test('cashier summary uses bounded native reads and two Cairo midnights includin
  const start=Date.parse('2026-04-23T22:00:00Z'),end=Date.parse('2026-04-24T21:00:00Z');
  let reads=0,parses=0,stringDates=0;
  const data={DATA:[[new Date(start),'','','','',100,100,20,'cash'],[new Date(end-1),'','','','',50,50,5,'visa'],[new Date(end),'','','','',999,999,0,'cash'],['2026-04-24','','','','',30,30,0,'instapay']],EXPENSES:[['',10,'','',new Date(start)]],WITHDRAWLS:[['',15,'',new Date(start)]]};
- const c=vm.createContext({Date,TIME_ZONE:'Africa/Cairo',getDateKey:x=>{stringDates++;return String(x).slice(0,10);},parseSheetAmount:x=>Number(x)||0,
+ const c=vm.createContext({Date,TIME_ZONE:'Africa/Cairo',getDateKey:x=>{if(x instanceof Date){const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(x).map(p=>[p.type,p.value]));return p.year+'-'+p.month+'-'+p.day;}stringDates++;return String(x).slice(0,10);},parseSheetAmount:x=>Number(x)||0,
  Utilities:{parseDate:key=>{parses++;return new Date(key==='2026-04-24'?start:end);}},
  Sheets:{Spreadsheets:{get:()=>{throw Error('Advanced grid reads must not run');}}},
  SpreadsheetApp:{getActive:()=>({getSheetByName:name=>({getLastRow:()=>data[name].length+1,getRange:(r,col,count,width)=>{assert.equal(r,2);assert.equal(col,1);assert.equal(count,data[name].length);assert.equal(width,name==='DATA'?9:name==='EXPENSES'?5:4);reads++;return {getValues:()=>data[name]};}})})}});
@@ -47,7 +47,7 @@ test('cashier summary uses bounded native reads and two Cairo midnights includin
  assert.equal(summary.salesTotal,180);assert.equal(summary.cashTotal,120);assert.equal(summary.visaTotal,55);assert.equal(summary.instapayTotal,30);assert.equal(summary.expensesTotal,10);assert.equal(summary.withdrawalsTotal,15);assert.equal(summary.netTotal,180);assert.equal(c.buildCashierSummaryFromSheets.diagnostics.mode,'ROWS');
 });
 test('native read failures fall back to the existing calculation rather than returning partial totals',()=>{
- const c=vm.createContext({Date,TIME_ZONE:'Africa/Cairo',Utilities:{parseDate:key=>new Date(key)},SpreadsheetApp:{getActive:()=>{throw Error('Unavailable');}}});
+ const c=vm.createContext({Date,TIME_ZONE:'Africa/Cairo',getDateKey:x=>x.toISOString().slice(0,10),Utilities:{parseDate:key=>new Date(key)},SpreadsheetApp:{getActive:()=>{throw Error('Unavailable');}}});
  vm.runInContext(fs.readFileSync('apps-script/production/040_accounting_daily-closing.gs','utf8'),c);assert.equal(c.buildCashierSummaryFromSheets('2026-10-13'),null);assert.equal(c.buildCashierSummaryFromSheets.diagnostics.mode,'ROWS_FALLBACK');
 });
 test('catalog recent invoice projection fixes the limit and cannot be expanded by client filters',()=>{

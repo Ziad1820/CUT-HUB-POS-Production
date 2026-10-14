@@ -4,9 +4,9 @@ Generated locally by `scripts/generate-release-manifest.js`. Do not hand-edit. T
 
 ## Counts
 
-- Required tracked files: **383**
+- Required tracked files: **385**
 - Required untracked files: **0**
-- Total classified entries: **414**
+- Total classified entries: **416**
 
 ## Intended Apps Script application package
 
@@ -272,6 +272,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `docs/cashier-responsive-layout-fix.md` | tracked | Authentication & navigation | documentation | yes | no | — | Release evidence; not runtime-loaded | tests/auth-navigation.test.js<br>tests/booking-upgrade.test.js | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/cashier-six-second-target.md` | tracked | Booking integration | documentation | yes | no | — | Release evidence; not runtime-loaded | tests/booking-upgrade.test.js | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/cashier-stacked-panel-height-fix.md` | tracked | Booking integration | documentation | yes | no | — | Release evidence; not runtime-loaded | tests/booking-upgrade.test.js | Phase specification and operational reference; documentation-only and not runtime-loaded. |
+| `docs/daily-closing-performance.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/dashboard-analysis-loading-fix.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/dashboard-api-relay-deployment.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/income-statement-performance.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
@@ -433,6 +434,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `tests/core-staging-auth-bootstrap.test.js` | tracked | Authentication & navigation | test | yes | no | — | Local validation only | tests/auth-navigation.test.js<br>tests/auth01-local-implementation.test.js<br>tests/core-staging-auth-bootstrap.test.js | Release-blocking local regression or safety evidence. |
 | `tests/customer-booking-branch.test.js` | tracked | Booking integration | test | yes | no | — | Local validation only | tests/booking-upgrade.test.js | Release-blocking local regression or safety evidence. |
 | `tests/customer-tracking-ratings.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
+| `tests/daily-closing-performance.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/dashboard-analysis-loading.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/fixtures/auth01-v25-browser-smoke-harness.js` | tracked | Authentication & navigation | test | yes | no | — | Local validation only | tests/auth-navigation.test.js<br>tests/auth01-local-implementation.test.js | Release-blocking local regression or safety evidence. |
 | `tests/frontend-api-configuration.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |

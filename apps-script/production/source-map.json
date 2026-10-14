@@ -184,8 +184,10 @@
           "path": "040_accounting_daily-closing.gs",
           "sha256": "a0ea2bcf73a23fc75c8c7d0dc86224fde917d27abf428b98de6758105a226085",
           "baselineSourcePath": "baseline/040_accounting_daily-closing.js",
-          "currentSha256": "02dc0d8378a11fd2089d7c1d1ab6d1d5800ad465f742084fbd05feeaca8a8f12",
+          "currentSha256": "174927a1bc2675d777844b399417a04f1b6b1671f11fc2b4f0788cbff9a49186",
           "changedGlobals": [
+            "readDailyClosings",
+            "findDailyClosingByDate",
             "buildDailyClosingPreview",
             "getDailyClosingPreview"
           ],

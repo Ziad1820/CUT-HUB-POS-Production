@@ -6,7 +6,7 @@ function getDailyClosingSheet() {
   return sheet;
 }
 
-function readDailyClosings() {
+function readDailyClosings(dateFilter) {
   const sheet = getDailyClosingSheet();
   const lastRow = sheet.getLastRow();
 
@@ -15,7 +15,9 @@ function readDailyClosings() {
   const rows = sheet.getRange(2, 1, lastRow - 1, 13).getValues();
 
   return rows
-    .map((row, index) => ({
+    .map((row, index) => {
+      if (dateFilter && (getDateKey(row[1], TIME_ZONE) || String(row[1] || "").trim()) !== dateFilter) return null;
+      return {
       rowNumber: index + 2,
       closingId: String(row[0] || "").trim(),
       date: getDateKey(row[1], TIME_ZONE) || String(row[1] || "").trim(),
@@ -30,12 +32,13 @@ function readDailyClosings() {
       closedByUserName: String(row[10] || "").trim(),
       closedByDisplayName: String(row[11] || "").trim(),
       closedAt: getDisplayDateTime(row[12])
-    }))
-    .filter(item => item.closingId || item.date);
+      };
+    })
+    .filter(item => item && (item.closingId || item.date));
 }
 
 function findDailyClosingByDate(dateKey) {
-  return readDailyClosings().find(item => item.date === dateKey) || null;
+  return readDailyClosings(dateKey).find(item => item.date === dateKey) || null;
 }
 
 function normalizePaymentMethod(value) {
@@ -123,13 +126,11 @@ function calculateWithdrawalsTotal(dateKey) {
 }
 
 function buildDailyClosingPreview(dateKey, summaryOnly) {
-  if (summaryOnly) {
-    const fastSummary = buildCashierSummaryFromSheets(dateKey);
-    if (fastSummary) return fastSummary;
-  }
-  const paymentTotals = calculateSalesAndPaymentTotals(dateKey);
-  const expensesTotal = calculateExpensesTotal(dateKey);
-  const withdrawalsTotal = calculateWithdrawalsTotal(dateKey);
+  const fastSummary = buildCashierSummaryFromSheets(dateKey);
+  if (summaryOnly && fastSummary) return fastSummary;
+  const paymentTotals = fastSummary || calculateSalesAndPaymentTotals(dateKey);
+  const expensesTotal = fastSummary ? fastSummary.expensesTotal : calculateExpensesTotal(dateKey);
+  const withdrawalsTotal = fastSummary ? fastSummary.withdrawalsTotal : calculateWithdrawalsTotal(dateKey);
   const netTotal = paymentTotals.salesTotal + paymentTotals.tipTotal - expensesTotal - withdrawalsTotal;
   const existingClosing = summaryOnly ? null : findDailyClosingByDate(dateKey);
 
@@ -157,10 +158,17 @@ function buildCashierSummaryFromSheets(dateKey) {
   if (typeof SpreadsheetApp === "undefined" || typeof Utilities === "undefined" || !Utilities.parseDate) return null;
   const started = Date.now();
   try {
-    const midnight = Utilities.parseDate(dateKey, TIME_ZONE, "yyyy-MM-dd").getTime();
-    const parts = dateKey.split("-").map(Number);
-    const nextDate = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + 1)).toISOString().slice(0, 10);
-    const nextMidnight = Utilities.parseDate(nextDate, TIME_ZONE, "yyyy-MM-dd").getTime();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || Number(dateKey.slice(0, 4)) < 100) return null;
+    const start = Utilities.parseDate(dateKey, TIME_ZONE, "yyyy-MM-dd");
+    const nextDay = new Date(dateKey + "T00:00:00Z");
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+    const nextDate = nextDay.toISOString().slice(0, 10);
+    const end = Utilities.parseDate(nextDate, TIME_ZONE, "yyyy-MM-dd");
+    if (getDateKey(start, TIME_ZONE) !== dateKey || getDateKey(end, TIME_ZONE) !== nextDate) {
+      buildCashierSummaryFromSheets.diagnostics.mode = "DATE_BOUNDARY_FALLBACK";
+      return null;
+    }
+    const midnight = start.getTime(), nextMidnight = end.getTime();
     const spreadsheet = SpreadsheetApp.getActive();
     const totals = { date: dateKey, salesTotal: 0, tipTotal: 0, salesIncludesTips: false,
       cashTotal: 0, visaTotal: 0, instapayTotal: 0, vodafoneCashTotal: 0, expensesTotal: 0, withdrawalsTotal: 0 };
