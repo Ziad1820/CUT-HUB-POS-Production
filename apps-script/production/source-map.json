@@ -223,7 +223,7 @@
           "path": "044_invoices_queries.gs",
           "sha256": "65e8301cc5ca083d41e55f78d7826102d80fa58d1fcc12d5e4609ca4cf8bc6d8",
           "baselineSourcePath": "baseline/044_invoices_queries.js",
-          "currentSha256": "1454b2127fffe226a160a530dc774d21896b0576f220b59a14717941dcbf6587",
+          "currentSha256": "ee3e14d1331ed6cea97ab06c3ba6d31f561b6feb6638a48c8ce3470b588c1e35",
           "changedGlobals": [
             "getInvoices",
             "readInvoiceDataSnapshot"

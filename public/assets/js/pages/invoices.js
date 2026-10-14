@@ -200,6 +200,7 @@
     }
 
     function scheduleFilterReload() {
+      invoiceReadSequence++;
       window.clearTimeout(filterTimer);
       filterTimer = window.setTimeout(() => loadInvoices(), 350);
     }
@@ -225,22 +226,49 @@
       return [];
     }
 
-    async function loadInvoices(options = {}) {
-      const append = Boolean(options.append);
+    let invoiceReadSequence = 0;
+    let invoiceReadActive = null;
+    let invoiceReadPending = null;
+    let invoiceLoadedFilterKey = null;
+
+    function loadInvoices(options = {}) {
+      window.clearTimeout(filterTimer);
+      const filters = getServerFilters();
+      const filterKey = JSON.stringify(filters);
+      const append = Boolean(options.append) && (invoiceLoadedFilterKey === null || invoiceLoadedFilterKey === filterKey);
       const offset = append ? nextOffset : 0;
+      const key = JSON.stringify([filterKey, append, offset]);
+      if (invoiceReadPending?.key === key && invoiceReadPending.sequence === invoiceReadSequence) return invoiceReadPending.promise;
+      if (!invoiceReadPending && invoiceReadActive?.key === key && invoiceReadActive.sequence === invoiceReadSequence) return invoiceReadActive.promise;
+      const request = { append, offset, filters, filterKey, key, sequence: ++invoiceReadSequence, startedAt: Date.now() };
+      request.promise = new Promise(resolve => { request.resolve = resolve; });
+      if (invoiceReadActive) {
+        if (invoiceReadPending) invoiceReadPending.resolve();
+        invoiceReadPending = request;
+      } else startInvoiceRead(request);
+      return request.promise;
+    }
+
+    function startInvoiceRead(request) {
+      invoiceReadActive = request;
+      executeInvoiceLoad(request).finally(() => {
+        invoiceReadActive = null;
+        request.resolve();
+        const next = invoiceReadPending;
+        invoiceReadPending = null;
+        if (next) startInvoiceRead(next);
+      });
+    }
+
+    async function executeInvoiceLoad(request) {
+      const { append, offset, filters, sequence, filterKey } = request;
 
       elements.reloadBtn.disabled = true;
       if (elements.loadMoreBtn) elements.loadMoreBtn.disabled = true;
       elements.reloadBtn.textContent = localizeText("جاري التحديث...", "Updating...");
 
-      if (!append) {
-        invoices = [];
-        filteredInvoices = [];
-        nextOffset = 0;
-        hasMoreInvoices = false;
-        totalMatches = 0;
-        selectedInvoiceIds.clear();
-        updateLoadMoreUi();
+      elements.invoiceRows.setAttribute?.("aria-busy", "true");
+      if (!append && !invoices.length) {
         elements.invoiceRows.innerHTML = `<tr><td colspan="14" class="status-line">${localizeText("جاري تحميل الفواتير...", "Loading invoices...")}</td></tr>`;
       }
 
@@ -249,9 +277,10 @@
           action: "getInvoices",
           limit: PAGE_SIZE,
           offset,
-          filters: getServerFilters()
+          filters
         });
 
+        if (sequence !== invoiceReadSequence || JSON.stringify(getServerFilters()) !== filterKey) return;
         const nextInvoices = getInvoicesFromResult(result);
         if (!nextInvoices.length && Number(result.totalMatches || 0) > 0) {
           throw new Error(localizeText(
@@ -259,6 +288,8 @@
             "The database returned invoice matches but no invoice rows. Refresh or try loading a smaller batch."
           ));
         }
+        if (!append) selectedInvoiceIds.clear();
+        invoiceLoadedFilterKey = filterKey;
         invoices = append ? invoices.concat(nextInvoices) : nextInvoices;
         filteredInvoices = invoices;
         nextOffset = Number(result.nextOffset || invoices.length || 0);
@@ -274,7 +305,10 @@
         renderSummary(filteredInvoices);
         renderRows();
         updateLoadMoreUi();
+        request.outcome = "success";
       } catch (error) {
+        if (sequence !== invoiceReadSequence || JSON.stringify(getServerFilters()) !== filterKey) return;
+        request.outcome = "error";
         console.error(error);
         const message = String(error?.message || "");
         const sheetUnavailable = /^Service Spreadsheets failed while accessing document\b/i.test(message) ||
@@ -294,15 +328,20 @@
           updateLoadMoreUi();
           if (elements.loadMoreBtn) elements.loadMoreBtn.textContent = localizeText("إعادة تحميل المزيد", "Retry Load More");
         } else {
-          elements.invoiceRows.innerHTML = `<tr><td colspan="14" class="empty-state">${escapeHtml(friendlyMessage)}</td></tr>`;
-          renderSummary([]);
-          hasMoreInvoices = false;
+          renderRows();
+          elements.invoiceRows.innerHTML += `<tr><td colspan="14" class="status-line" role="status">${escapeHtml(friendlyMessage)}</td></tr>`;
+          renderSummary(filteredInvoices);
           updateLoadMoreUi();
         }
       } finally {
+        if (sequence !== invoiceReadSequence) return;
+        elements.invoiceRows.setAttribute?.("aria-busy", "false");
         elements.reloadBtn.disabled = false;
         if (elements.loadMoreBtn) elements.loadMoreBtn.disabled = false;
         elements.reloadBtn.textContent = localizeText("تحديث", "Update");
+        if (window.location && new URLSearchParams(window.location.search).get("performance") === "1") {
+          console.info("[INVOICE_PERF] " + JSON.stringify({ operation: append ? "more" : "refresh", totalMs: Date.now() - request.startedAt, outcome: request.outcome }));
+        }
       }
     }
     function renderBarberOptions() {

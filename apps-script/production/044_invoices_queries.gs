@@ -111,6 +111,37 @@ function getInvoices(data) {
   const matches = [];
   const barberOptions = {};
   const paymentOptions = {};
+  let dateBounds = null;
+  if ((targetDate || range) && (!targetDate || isCanonicalDateKey(targetDate)) &&
+      typeof Utilities !== "undefined" && Utilities.parseDate) {
+    try {
+      function midnight(key, followingDay) {
+        if (followingDay) {
+          const parts = key.split("-").map(Number);
+          key = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + 1)).toISOString().slice(0, 10);
+        }
+        const boundary = Utilities.parseDate(key, TIME_ZONE, "yyyy-MM-dd");
+        // Some clocks normalize a nonexistent midnight into the preceding day.
+        // Keep the original per-row parser for that edge instead of shifting results.
+        if (getDateKey(boundary, TIME_ZONE) !== key) throw new Error("DATE_BOUNDARY_NORMALIZED");
+        return boundary.getTime();
+      }
+      dateBounds = { from: -Infinity, to: Infinity };
+      if (targetDate) dateBounds = { from: midnight(targetDate), to: midnight(targetDate, true) };
+      if (range && range.fromDate) dateBounds.from = Math.max(dateBounds.from, midnight(range.fromDate));
+      if (range && range.toDate) dateBounds.to = Math.min(dateBounds.to, midnight(range.toDate, true));
+      if (isNaN(dateBounds.from) || isNaN(dateBounds.to)) dateBounds = null;
+    } catch (_) { dateBounds = null; }
+  }
+  function dateMatches(value) {
+    if (!targetDate && !range) return true;
+    if (dateBounds && value instanceof Date && !isNaN(value.getTime())) {
+      return value.getTime() >= dateBounds.from && value.getTime() < dateBounds.to;
+    }
+    const key = getDateKey(value, TIME_ZONE);
+    return (!targetDate || key === targetDate) && (!range || Boolean(key) &&
+      (!range.fromDate || key >= range.fromDate) && (!range.toDate || key <= range.toDate));
+  }
   function invoiceResponse(row, rowNumber) {
     return {
       invoiceId: `DATA-${rowNumber}`,
@@ -132,7 +163,6 @@ function getInvoices(data) {
       invoiceRequestId: snapshot.invoiceRequestIdColumn ? String(row[snapshot.invoiceRequestIdColumn - 1] || "").trim() : "",
       rowNumber,
       date: String(row[0] || "").trim(),
-      dateKey: targetDate || range ? getDateKey(row[0], TIME_ZONE) : "",
       customerName: String(row[1] || "").trim(),
       customerPhone: String(row[2] || "").trim(),
       services: String(row[3] || "").trim(),
@@ -161,8 +191,7 @@ function getInvoices(data) {
     if (!hasData) continue;
     if (invoice.barber) barberOptions[invoice.barber] = true;
     if (invoice.paymentMethod) paymentOptions[invoice.paymentMethod] = true;
-    if (targetDate && invoice.dateKey !== targetDate) continue;
-    if (!isDateInOptionalRange(invoice.dateKey, range)) continue;
+    if (!dateMatches(row[0])) continue;
     if (targetBarber && invoice.barber !== targetBarber) continue;
     if (targetPayment && invoice.paymentMethod !== targetPayment) continue;
     if (search) {

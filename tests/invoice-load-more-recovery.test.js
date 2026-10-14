@@ -4,7 +4,7 @@ function setup(request){
  const source=fs.readFileSync(process.env.CUT_HUB_INVOICES_SOURCE_OVERRIDE||'public/assets/js/pages/invoices.js','utf8');
  const start=source.indexOf('    function updateLoadMoreUi()'),end=source.indexOf('    function renderBarberOptions()',start);
  const elements={reloadBtn:{},loadMoreBtn:{},invoiceRows:{innerHTML:''}};
- const c=vm.createContext({elements,RomeoApi:{request},localizeText:ar=>ar,escapeHtml:String,
+ const c=vm.createContext({window:{clearTimeout(){}},elements,RomeoApi:{request},localizeText:ar=>ar,escapeHtml:String,
   console:{error(){}},getServerFilters:()=>({}),renderBarberOptions(){},renderPaymentOptions(){},pruneSelectedInvoices(){},
   renderSummary:items=>{elements.summary=items.reduce((sum,i)=>sum+i.total,0);},
   renderRows:()=>{elements.invoiceRows.innerHTML='<tr><td>Existing invoice</td></tr>';},PAGE_SIZE:25});
