@@ -1,6 +1,6 @@
 // Backend-owned foundations only. None of these capabilities enables replay.
 const PROTECTED_READ_CAPABILITIES = Object.freeze(Object.fromEntries(
-  ["getBookings", "getInternalBookingOptions", "staffTotalSales", "staffClientCount", "listStaffBranches"]
+  ["getBookings", "getInternalBookingOptions", "staffTotalSales", "staffClientCount", "listStaffBranches", "getStaffAccountingPeriod"]
     .map(action => [action, Object.freeze({
       protectedRead: true,
       authMode: "STRICT_READ_ONLY",

@@ -113,9 +113,8 @@ test("Staff accounting applies one selected range to clients, sales, and withdra
   const source = read("public/pages/staff-accounting.html");
   assert.match(source, /id="staffFromDate"/);
   assert.match(source, /id="staffToDate"/);
-  assert.match(source, /action:\s*"getWithdrawals",\s*fromDate:\s*range\.fromDate,\s*toDate:\s*range\.toDate/s);
-  assert.match(source, /action:\s*"staffClientCount",[\s\S]*?fromDate:\s*range\.fromDate,[\s\S]*?toDate:\s*range\.toDate/);
-  assert.match(source, /action:\s*"staffTotalSales",[\s\S]*?fromDate:\s*range\.fromDate,[\s\S]*?toDate:\s*range\.toDate/);
+  assert.match(source, /action:\s*"getStaffAccountingPeriod",\s*fromDate:\s*request\.range\.fromDate,\s*toDate:\s*request\.range\.toDate/s);
+  assert.doesNotMatch(source, /action:\s*"(?:getWithdrawals|staffClientCount|staffTotalSales)"/);
   assert.equal((source.match(/id="staffFromDate"/g) || []).length, 1);
   assert.equal((source.match(/id="staffToDate"/g) || []).length, 1);
 });

@@ -168,6 +168,38 @@ function getStaff(data, authenticatedContext) {
   }
 }
 
+function getStaffAccountingPeriod(data, authenticatedContext) {
+  if (!authenticatedContext || !authenticatedContext.user ||
+      !(String(authenticatedContext.user.username || "").toLowerCase() === "owner" ||
+        Array.isArray(authenticatedContext.permissions) && authenticatedContext.permissions.indexOf("view_staff_accounting") !== -1)) {
+    return jsonOutput({ status: "error", code: "PERMISSION_DENIED", message: "Staff accounting permission is required." });
+  }
+  try {
+    const range = getOptionalDateRange(data || {}, null, true);
+    if (!range || !range.fromDate || !range.toDate) throw new Error("Both dates are required.");
+    // Fixed server-owned projection. Ignore client STAFF rows, totals and view flags.
+    const input = { action: "getStaffAccountingPeriod", fromDate: range.fromDate, toDate: range.toDate };
+    const read = output => typeof output.getContent === "function" ? JSON.parse(output.getContent()) : output;
+    const timing = {}, startedAt = Date.now();
+    const staffResult = read(getStaff(input, authenticatedContext));
+    timing.staffMs = Date.now() - startedAt;
+    if (staffResult.status !== "success") return jsonOutput(staffResult);
+    const withdrawalStartedAt = Date.now();
+    const withdrawalsResult = read(getWithdrawals(input));
+    timing.withdrawalsMs = Date.now() - withdrawalStartedAt;
+    if (withdrawalsResult.status !== "success") return jsonOutput(withdrawalsResult);
+    const activityStartedAt = Date.now();
+    const activity = buildStaffAccountingActivity(input, staffResult.staff, timing);
+    timing.activityMs = Date.now() - activityStartedAt;
+    const staff = staffResult.staff.map((item, index) => Object.assign({}, item, activity[index]));
+    return jsonOutput({ status: "success", fromDate: range.fromDate, toDate: range.toDate,
+      staff, withdrawals: withdrawalsResult.withdrawals,
+      ...(data.performance === true ? { performance: timing } : {}) });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
+}
+
 function cashierContextAllows(context) {
   return !!context && !!context.user && (String(context.user.username || "").toLowerCase() === "owner" ||
     Array.isArray(context.permissions) && context.permissions.indexOf("access_cashier") !== -1);

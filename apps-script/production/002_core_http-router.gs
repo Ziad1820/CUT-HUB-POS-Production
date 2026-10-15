@@ -127,6 +127,7 @@ function doPost(e) {
   if (data.action === "getBarberConsumptionReport") return getBarberConsumptionReport(data);
 
   if (data.action === "getStaff") return getStaff(data, authenticatedRequestContext);
+  if (data.action === "getStaffAccountingPeriod") return getStaffAccountingPeriod(data, authenticatedRequestContext);
   if (data.action === "getCashierCatalog") return getCashierCatalog(data, authenticatedRequestContext);
   if (data.action === "listStaffBranches") return listStaffBranches(data);
   if (data.action === "saveStaff") return saveStaff(data);

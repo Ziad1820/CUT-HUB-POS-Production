@@ -10,6 +10,7 @@ const mapPath = path.join(base, "source-map.json");
 const map = JSON.parse(fs.readFileSync(mapPath, "utf8"));
 const files = {
   "002_core_http-router.gs": ["doPost"],
+  "004_auth_protected-reads.gs": ["PROTECTED_READ_CAPABILITIES"],
   "030_staff_branch-repository.gs": ["getStaff"],
   "040_accounting_daily-closing.gs": ["readDailyClosings", "findDailyClosingByDate", "buildDailyClosingPreview", "getDailyClosingPreview"],
   "041_accounting_monthly-closing.gs": ["calculateIncomeStatementRange"],
@@ -18,6 +19,7 @@ const files = {
   "044_invoices_queries.gs": ["getInvoices", "readInvoiceDataSnapshot"],
   "045_invoices_deletion.gs": ["deleteInvoice"],
   "048_invoices_pdf.gs": ["createInvoicePdf"],
+  "049_reports_sales-customers.gs": [],
   "064_phase_staff-scheduling-phase2.gs": [],
   "065_phase_staff-scheduling-phase2-gas.gs": ["schedulePhase2CreateRepository"],
   "067_phase_staff-attendance-phase3.gs": [],
@@ -40,7 +42,8 @@ for (const [name, changedGlobals] of Object.entries(files)) {
   record.currentSha256 = hash(fs.readFileSync(path.join(base, name)));
   record.changedGlobals = changedGlobals;
   if (name === "048_invoices_pdf.gs") record.addedGlobals = ["getInvoicePdf"];
-  if (name === "030_staff_branch-repository.gs") record.addedGlobals = ["cashierContextAllows", "getCashierCatalog"];
+  if (name === "030_staff_branch-repository.gs") record.addedGlobals = ["cashierContextAllows", "getCashierCatalog", "getStaffAccountingPeriod"];
+  if (name === "049_reports_sales-customers.gs") record.addedGlobals = ["buildStaffAccountingActivity"];
   if (name === "040_accounting_daily-closing.gs") record.addedGlobals = ["buildCashierSummaryFromSheets"];
   record.changeReason = "Owner-configured minute attendance accounting and shared live booking availability";
 }

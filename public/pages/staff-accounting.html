@@ -112,7 +112,8 @@
     }
 
     .search-box,
-    .field input {
+    .field input,
+    .field select {
       width: 100%;
       border: 1px solid var(--line);
       border-radius: 16px;
@@ -124,7 +125,8 @@
     }
 
     .search-box:focus,
-    .field input:focus {
+    .field input:focus,
+    .field select:focus {
       outline: none;
       border-color: #2a2118;
       box-shadow: 0 0 0 3px rgba(183,134,63,.16);
@@ -509,7 +511,7 @@
             <label class="field"><span data-i18n-ar="إلى تاريخ" data-i18n-en="To Date">إلى تاريخ</span><input id="staffToDate" type="date"></label>
           </div>
           <div class="actions"><button type="button" class="primary" id="staffApplyRange" data-i18n-ar="تطبيق الفترة" data-i18n-en="Apply Period">تطبيق الفترة</button></div>
-          <p class="muted" data-i18n-ar="الفترة تطبق على المبيعات والعملاء والنسبة والسحوبات والصافي؛ الراتب والمكافآت والخصومات قيم إعداد ثابتة." data-i18n-en="The period applies to sales, clients, commission, withdrawals, and net; salary, bonus, and deductions remain configured values.">الفترة تطبق على المبيعات والعملاء والنسبة والسحوبات والصافي؛ الراتب والمكافآت والخصومات قيم إعداد ثابتة.</p>
+          <p class="muted" data-i18n-ar="الفترة تطبق على المبيعات والعملاء والعمولة والسحوبات وخصم الحضور والصافي؛ الراتب والمكافأة والخصم اليدوي قيم ثابتة." data-i18n-en="The period applies to sales, clients, commission, withdrawals, attendance deduction, and net; salary, bonus, and manual deduction remain configured values.">الفترة تطبق على المبيعات والعملاء والعمولة والسحوبات وخصم الحضور والصافي؛ الراتب والمكافأة والخصم اليدوي قيم ثابتة.</p>
           <div id="staffRangeStatus" role="status" aria-live="polite"></div>
         </section>
         <section class="panel hero">
@@ -545,6 +547,7 @@
           <article class="summary-card">
             <span data-i18n-ar="الخصومات" data-i18n-en="Deduction">الخصومات</span>
             <strong id="sumDedution">0</strong>
+            <small id="deductionBreakdown" style="display:block; margin-top:6px; line-height:1.5"></small>
           </article>
           <article class="summary-card">
             <span data-i18n-ar="المكافأة" data-i18n-en="Bonus">المكافأة</span>
@@ -581,16 +584,30 @@
               <label for="staffSalary" data-i18n-ar="المرتبات" data-i18n-en="Salaries">المرتبات</label>
               <input id="staffSalary" type="number">
             </div>
+            <div class="field">
+              <label for="staffBranchId" data-i18n-ar="الفرع" data-i18n-en="Branch">الفرع</label>
+              <select id="staffBranchId" aria-describedby="staffIdentityStatus"></select>
+              <small id="staffIdentityStatus" role="status"></small>
+            </div>
             <label class="check-field" for="staffIsBarber">
               <span data-i18n-ar="إظهاره كحلاق" data-i18n-en="Show as Barber">إظهاره كحلاق</span>
               <input id="staffIsBarber" type="checkbox">
             </label>
+            <div class="field">
+              <label for="staffBonus" data-i18n-ar="المكافأة" data-i18n-en="Bonus">المكافأة</label>
+              <input id="staffBonus" type="number" min="0" step="0.01">
+            </div>
+            <div class="field">
+              <label for="staffDeduction" data-i18n-ar="الخصم اليدوي" data-i18n-en="Manual Deduction">الخصم اليدوي</label>
+              <input id="staffDeduction" type="number" min="0" step="0.01">
+            </div>
           </div>
         </section>
 
         <section class="panel">
           <div class="detail-actions">
             <button type="button" class="action-btn primary" id="saveBtn" data-i18n-ar="حفظ التعديلات" data-i18n-en="Save Changes">حفظ التعديلات</button>
+            <span id="staffSaveStatus" role="status" aria-live="polite"></span>
             <button type="button" class="action-btn danger" id="deleteBtn" data-i18n-ar="حذف الموظف" data-i18n-en="Delete Employee">حذف الموظف</button>
           </div>
         </section>
@@ -675,9 +692,43 @@
     </div>
   </dialog>
 
+  <section class="panel" id="staffRecoveryPanel" hidden>
+    <h2 data-i18n-ar="استرداد معاملة موظف — OWNER" data-i18n-en="Staff transaction recovery — OWNER">استرداد معاملة موظف — OWNER</h2>
+    <p data-i18n-ar="أدخل هوية المعاملة المطابقة للدليل المراجع. الاسترداد يعيد الحالة السابقة وقد يزيل الموظف الذي أنشأته المعاملة. راجع الحالة بعد النتيجة؛ لا توجد إعادة محاولة تلقائية." data-i18n-en="Enter the exact transaction ID from reviewed evidence. Recovery restores the previous state and may remove the staff member created by the transaction. Review state after the result; there is no automatic retry.">أدخل هوية المعاملة المطابقة للدليل المراجع. الاسترداد يعيد الحالة السابقة وقد يزيل الموظف الذي أنشأته المعاملة. راجع الحالة بعد النتيجة؛ لا توجد إعادة محاولة تلقائية.</p>
+    <form id="staffRecoveryForm">
+      <div class="field"><label for="recovery-transactionId">Transaction ID</label><input id="recovery-transactionId" required type="text" maxlength="1000" autocomplete="off" spellcheck="false" pattern="BAT-[a-zA-Z0-9-]+"></div>
+      <label><input type="checkbox" id="staffRecoveryConfirmation" required> أؤكد مراجعة المعاملة واستعادة حالتها السابقة / I reviewed this transaction and confirm restoring its previous state.</label>
+      <button type="submit" class="action-btn danger" id="staffRecoverySubmit" disabled>استرداد المعاملة / Recover transaction</button>
+      <span id="staffRecoveryStatus" role="status" aria-live="polite"></span>
+    </form>
+  </section>
+  <section class="panel" id="staffSettlementPanel" hidden>
+    <h2 data-i18n-ar="تسوية يدوية لمعاملة موظف قديمة — OWNER" data-i18n-en="Legacy staff manual settlement — OWNER">تسوية يدوية لمعاملة موظف قديمة — OWNER</h2>
+    <p data-i18n-ar="انقل الهوية والبصمة من الأدلة المراجعة. التسوية تسجل القرار ولا تعدل بيانات الموظف. لا تستخدم رقم الصف بدل هوية المعاملة." data-i18n-en="Copy exact identity and hash from reviewed evidence. Settlement records the decision without changing staff data. A sheet row number is not a transaction identity.">انقل الهوية والبصمة من الأدلة المراجعة. التسوية تسجل القرار ولا تعدل بيانات الموظف. لا تستخدم رقم الصف بدل هوية المعاملة.</p>
+    <form id="staffSettlementForm">
+      <div class="editor-grid"><div class="field"><label for="settlement-transactionId">Transaction ID</label><input id="settlement-transactionId" required type="text" maxlength="1000" placeholder="BAT-…" ></div>
+<div class="field"><label for="settlement-requestId">Request ID</label><input id="settlement-requestId" required type="text" maxlength="1000" placeholder="" ></div>
+<div class="field"><label for="settlement-action">Original action</label><select id="settlement-action" required><option value="">Choose original action</option><option value="STAFF_MEMBER_UPDATE">STAFF_MEMBER_UPDATE</option><option value="STAFF_MEMBER_CREATE">STAFF_MEMBER_CREATE</option><option value="STAFF_MEMBER_DEACTIVATE">STAFF_MEMBER_DEACTIVATE</option></select></div>
+<div class="field"><label for="settlement-entityType">Entity type</label><input id="settlement-entityType" required type="text" maxlength="1000" placeholder="STAFF_MEMBERSHIP" value="STAFF_MEMBERSHIP" readonly></div>
+<div class="field"><label for="settlement-staffId">Staff ID</label><input id="settlement-staffId" required type="text" maxlength="1000" placeholder="" ></div>
+<div class="field"><label for="settlement-environment">Environment</label><input id="settlement-environment" required type="text" maxlength="1000" placeholder="" ></div>
+<div class="field"><label for="settlement-transactionHash">Transaction SHA-256</label><input id="settlement-transactionHash" required type="text" maxlength="64" placeholder="" ></div>
+<div class="field"><label for="settlement-reference">Evidence reference</label><input id="settlement-reference" required type="text" maxlength="1000" placeholder="" ></div>
+<div class="field"><label for="settlement-sha256">Evidence SHA-256</label><input id="settlement-sha256" required type="text" maxlength="64" placeholder="" ></div>
+<div class="field"><label for="settlement-summary">Decision / evidence summary</label><textarea id="settlement-summary" required maxlength="4000"></textarea></div></div>
+      <label><input type="checkbox" id="settlement-attestation" required> أؤكد مراجعة الدليل وحل المعاملة / I reviewed the evidence and attest the transaction was resolved.</label>
+      <button type="submit" class="action-btn danger" id="staffSettlementSubmit">تسجيل التسوية / Record settlement</button>
+      <span id="staffSettlementStatus" role="status" aria-live="polite"></span>
+    </form>
+  </section>
+  <dialog id="staffActionConfirmation">
+    <p id="staffActionConfirmationText"></p>
+    <button type="button" class="action-btn danger" id="staffActionConfirm">تأكيد / Confirm</button>
+    <button type="button" class="action-btn" id="staffActionCancel">إلغاء / Cancel</button>
+  </dialog>
   <script src="../assets/js/utils/text-fix.js"></script>
   <script src="../assets/js/core/runtime-config.js?v=20261008-relay-1"></script>
-  <script src="../assets/js/core/api.js?v=20261008-relay-1"></script>
+  <script src="../assets/js/core/api.js?v=20261015-staff-accounting-1"></script>
   <script src="../assets/js/core/auth.js?v=20261009-single-analysis-1"></script>
   <script src="../assets/js/utils/date-range.js?v=20260813-1"></script>
   <script src="../assets/js/core/staff-import-preview.js"></script>
@@ -793,23 +844,6 @@
     const STAFF_KEY = "romeo-pos-staff-accounting-v2";
     const OPERATOR_EXCLUSION_RULE = Object.freeze({ code: "C06", salary: 0, isBarber: false });
     const WITHDRAWALS_KEY = "romeo-pos-withdrawals";
-    const BARBER_NAMES_BY_CODE = {
-      R01: "KAREEM",
-      R02: "8AYTH",
-      R03: "ELEBY",
-      R07: "RAMDAN",
-      R08: "KHALED",
-      R09: "MOHAMED"
-    };
-    const DEFAULT_STAFF = [
-      { id: 1, name: "Ramdan", code: "R07", customers: 2, totalSales: 450, percentage: 225, withdraw: 380, debt: 0, lateDiscount: 0, salary: 0, bonus: 0 },
-      { id: 2, name: "Khaled", code: "R08", customers: 0, totalSales: 0, percentage: 0, withdraw: 65, debt: 0, lateDiscount: 0, salary: 2500, bonus: 0 },
-      { id: 3, name: "Mohamed Emmad", code: "R09", customers: 0, totalSales: 0, percentage: 0, withdraw: 0, debt: 0, lateDiscount: 0, salary: 2500, bonus: 0 },
-      { id: 4, name: "Karem", code: "R01", customers: 0, totalSales: 0, percentage: 0, withdraw: 5270, debt: 0, lateDiscount: 0, salary: 5500, bonus: 0 },
-      { id: 5, name: "Eleby", code: "R03", customers: 0, totalSales: 0, percentage: 0, withdraw: 0, debt: 0, lateDiscount: 0, salary: 3300, bonus: 0 },
-      { id: 6, name: "8atyh", code: "R02", customers: 0, totalSales: 0, percentage: 0, withdraw: 0, debt: 0, lateDiscount: 0, salary: 3300, bonus: 0 }
-    ];
-
     const elements = {
       employeeList: document.getElementById("employeeList"),
       searchInput: document.getElementById("searchInput"),
@@ -823,6 +857,7 @@
       sumCommission: document.getElementById("sumCommission"),
       sumWithdrawals: document.getElementById("sumWithdrawals"),
       sumDedution: document.getElementById("sumDedution"),
+      deductionBreakdown: document.getElementById("deductionBreakdown"),
       sumBonus: document.getElementById("sumBonus"),
       sumNet: document.getElementById("sumNet"),
       overallStaff: document.getElementById("overallStaff"),
@@ -832,12 +867,16 @@
       toDate: document.getElementById("staffToDate"),
       applyRange: document.getElementById("staffApplyRange"),
       rangeStatus: document.getElementById("staffRangeStatus"),
+      identityStatus: document.getElementById("staffIdentityStatus"),
       fields: {
         name: document.getElementById("staffName"),
         code: document.getElementById("staffCode"),
         percentage: document.getElementById("staffPercentage"),
         salary: document.getElementById("staffSalary"),
+        bonus: document.getElementById("staffBonus"),
+        deduction: document.getElementById("staffDeduction"),
         isBarber: document.getElementById("staffIsBarber"),
+        branchId: document.getElementById("staffBranchId"),
       }
     };
 
@@ -875,11 +914,6 @@
         element.placeholder = localizeText(element.dataset.i18nPlaceholderAr, element.dataset.i18nPlaceholderEn);
       });
     }
-
-    function cloneDefaults() {
-      return DEFAULT_STAFF.map(item => ({ ...item }));
-    }
-
     function readLegacyImportSource() {
       try {
         const parsed = JSON.parse(localStorage.getItem(STAFF_KEY) || "[]");
@@ -901,22 +935,25 @@
     }
 
     function normalizeStaffRecord(staff, index = 0) {
+      // Older local caches may contain invented IDs. Only canonical server metadata is authoritative.
+      const staffId = staff.identityStatus === "persisted" && typeof staff.version === "string" &&
+        typeof staff.updatedAt === "string" ? String(staff.staffId || "").trim() : "";
       return {
-        id: staff.id || staff.staffId || `staff-${Date.now()}-${index}`,
+        id: staffId,
+        staffId,
+        identityStatus: staffId ? "persisted" : staff.identityStatus || "missing",
+        uiKey: staffId ? "persisted:" + staffId : "missing:" + index,
         name: String(staff.name || staff.staffName || "").trim(),
         code: String(staff.code || staff.staffCode || "").trim().toUpperCase(),
         isBarber: staff.isBarber !== false,
-        customers: numberValue(staff.customers),
-        totalSales: numberValue(staff.totalSales),
-        percentage: numberValue(staff.percentage || staff.salaryPercentage),
-        withdraw: numberValue(staff.withdraw),
-        debt: numberValue(staff.debt || staff.deduction),
+        customers: numberValue(staff.customers), totalSales: numberValue(staff.totalSales),
+        percentage: numberValue(staff.percentage ?? staff.salaryPercentage),
+        withdraw: numberValue(staff.withdraw), debt: numberValue(staff.deduction ?? staff.debt),
         attendanceDeduction: numberValue(staff.attendanceDeduction),
         attendanceOvertime: numberValue(staff.attendanceOvertime),
-        attendanceEntries: Array.isArray(staff.attendanceEntries) ? staff.attendanceEntries : [],
-        lateDiscount: numberValue(staff.lateDiscount),
-        salary: numberValue(staff.salary || staff.salaries),
-        bonus: numberValue(staff.bonus)
+        attendanceEntries: Array.isArray(staff.attendanceEntries) ? staff.attendanceEntries : [], lateDiscount: numberValue(staff.lateDiscount),
+        salary: numberValue(staff.salary ?? staff.salaries), updatedAt: staff.updatedAt,
+        version: staff.version, branchId: String(staff.branchId || "").trim(), bonus: numberValue(staff.bonus)
       };
     }
 
@@ -926,65 +963,39 @@
 
     function getStoredStaff() {
       const stored = localStorage.getItem(STAFF_KEY);
-      if (!stored) {
-        const seed = cloneDefaults();
-        localStorage.setItem(STAFF_KEY, JSON.stringify(seed));
-        return seed;
-      }
+       if (!stored) {
+        return [];
+        }
 
       try {
         const parsed = JSON.parse(stored);
-        return Array.isArray(parsed) && parsed.length
-          ? parsed.map(normalizeStaffRecord).filter(staff => staff.name)
-          : cloneDefaults();
+        return Array.isArray(parsed)
+  ? parsed.map(normalizeStaffRecord).filter(staff => staff.name)
+  : [];
       } catch (error) {
-        return cloneDefaults();
+        return [];
       }
     }
 
     const legacyImportSourceSnapshot = readLegacyImportSource();
     const operatorExcludedStaffIds = resolveOperatorExcludedStaffIds(legacyImportSourceSnapshot);
     let canonicalStaffRows = [];
+    let creatingStaff = false;
+    let staffMutationPending = false;
+    let staffBranches = [];
     let staffList = getStoredStaff();
     let withdrawalsList = readArrayStore(WITHDRAWALS_KEY);
-    let selectedId = staffList[0]?.id || null;
+    let selectedId = staffList[0]?.uiKey || null;
     let staffClientRequestId = 0;
     let staffSalesRequestId = 0;
     let staffPeriodRequestId = 0;
     let withdrawalsPeriodRequestId = 0;
+    let staffLoadRequestId = 0;
 
     RomeoDateRange.setCurrentMonth(elements.fromDate, elements.toDate);
 
     function selectedDateRange() {
       return RomeoDateRange.validate(elements.fromDate.value, elements.toDate.value);
-    }
-
-    async function loadStaffFromSheet() {
-      try {
-        const data = await RomeoApi.request({ action: "getStaff" });
-        if (data.status !== "success" || !Array.isArray(data.staff)) {
-          return;
-        }
-
-        const sheetStaff = data.staff
-          .map(normalizeStaffRecord)
-          .filter(staff => staff.name);
-
-        canonicalStaffRows = sheetStaff.map(staff => ({ ...staff }));
-
-        if (!sheetStaff.length) {
-          return;
-        }
-
-        staffList = sheetStaff;
-        selectedId = staffList.some(staff => staff.id === selectedId)
-          ? selectedId
-          : staffList[0]?.id || null;
-        cacheStaffList();
-        renderAll();
-      } catch (error) {
-        console.warn("Staff sheet sync is not available yet.", error);
-      }
     }
 
     function normalizeWithdrawalRecord(withdrawal) {
@@ -997,60 +1008,17 @@
       };
     }
 
-    async function loadWithdrawalsFromSheet() {
-      const requestId = ++withdrawalsPeriodRequestId;
-      try {
-        const range = selectedDateRange();
-        if (!range.ok) throw new Error(range.message);
-        const data = await RomeoApi.request({
-          action: "getWithdrawals",
-          fromDate: range.fromDate,
-          toDate: range.toDate
-        });
-        if (requestId !== withdrawalsPeriodRequestId) return;
-        if (data.status !== "success" || !Array.isArray(data.withdrawals)) {
-          return;
-        }
-
-        withdrawalsList = data.withdrawals.map(normalizeWithdrawalRecord);
-        renderAll();
-      } catch (error) {
-        if (requestId !== withdrawalsPeriodRequestId) return;
-        console.warn("Withdrawals sheet sync is not available yet.", error);
-      }
-    }
-
-    async function saveStaff() {
-      cacheStaffList();
-
-      try {
-        const data = await RomeoApi.request({
-          action: "saveStaff",
-          staff: staffList.map(staff => ({
-            id: staff.id,
-            name: staff.name,
-            code: staff.code,
-            salary: numberValue(staff.salary),
-            percentage: numberValue(staff.percentage),
-            bonus: numberValue(staff.bonus),
-            deduction: calculateManualDeduction(staff),
-            isBarber: staff.isBarber !== false
-          }))
-        });
-
-        if (!data || data.status !== "success") {
-          throw new Error(data?.message || "Staff sheet save failed.");
-        }
-      } catch (error) {
-        console.warn("Staff sheet save is not available yet.", error);
-        alert(`ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„Ù…ÙˆØ¸ÙÙŠÙ† ÙÙŠ Ø§Ù„Ø´ÙŠØª: ${error.message}`);
-      }
-    }
-
     function numberValue(value) {
+      let text = String(value ?? "").trim()
+        .replace(/[٠-٩]/g, digit => String(digit.charCodeAt(0) - 1632))
+        .replace(/[۰-۹]/g, digit => String(digit.charCodeAt(0) - 1776))
+        .replace(/٬/g, "").replace(/٫/g, ".");
+      if (text.includes(",") && !text.includes(".")) {
+        text = /,\d{1,2}(?:\s*%?)$/.test(text) ? text.replace(",", ".") : text.replace(/,/g, "");
+      } else text = text.replace(/,/g, "");
       const parsed = typeof value === "number"
         ? value
-        : parseFloat(String(value).replace(/[^\d.-]/g, ""));
+        : parseFloat(text.replace(/[^\d.-]/g, ""));
       return Number.isFinite(parsed) ? parsed : 0;
     }
 
@@ -1076,7 +1044,7 @@
     }
 
     function getStaffWithdrawalsTotal(staff) {
-      const staffId = String(staff.id);
+      const staffId = String(staff.staffId || "");
       const staffName = normalizeName(staff.name);
       const staffCode = String(staff.code || "").trim().toUpperCase();
 
@@ -1085,7 +1053,9 @@
           const sameId = String(item.staffId) === staffId;
           const sameName = item.staffName && normalizeName(item.staffName) === staffName;
           const sameCode = staffCode && String(item.staffCode || "").trim().toUpperCase() === staffCode;
-          return sameId || sameName || sameCode;
+          if (item.staffId) return sameId;
+          if (item.staffCode) return sameCode;
+          return sameName;
         })
         .reduce((sum, item) => sum + numberValue(item.amount), 0);
     }
@@ -1120,6 +1090,10 @@
       );
       elements.sumWithdrawals.textContent = formatMoney(withdrawalsTotal);
       elements.sumDedution.textContent = formatMoney(calculateDeduction(staff));
+      elements.deductionBreakdown.textContent = localizeText(
+        `يدوي: ${formatMoney(calculateManualDeduction(staff))} — حضور: ${formatMoney(staff.attendanceDeduction)}`,
+        `Manual: ${formatMoney(calculateManualDeduction(staff))} — Attendance: ${formatMoney(staff.attendanceDeduction)}`
+      );
       elements.sumBonus.textContent = formatMoney(staff.bonus);
       elements.sumNet.textContent = formatMoney(calculateNet(staff));
       const attendanceDetails = document.getElementById("attendanceFinancialDetails");
@@ -1147,150 +1121,93 @@
     }
 
     function getSelectedStaff() {
-      return staffList.find(staff => staff.id === selectedId) || null;
+      return staffList.find(staff => staff.uiKey === selectedId) || null;
     }
 
-    function getBarberSheetName(staff) {
-      const code = String(staff.code || "").trim().toUpperCase();
-      return BARBER_NAMES_BY_CODE[code] || String(staff.name || "").trim().toUpperCase();
-    }
-
-    async function fetchStaffClientCount(staff) {
-      const requestId = ++staffClientRequestId;
-      elements.sumClients.textContent = "Loading...";
-
-      try {
-        const range = selectedDateRange();
-        if (!range.ok) throw new Error(range.message);
-        const data = await RomeoApi.request({
-          action: "staffClientCount",
-          barber: getBarberSheetName(staff),
-          fromDate: range.fromDate,
-          toDate: range.toDate
-        });
-        if (data.status !== "success") {
-          throw new Error(data.message || "Ã˜ÂªÃ˜Â¹Ã˜Â°Ã˜Â± Ã˜ÂªÃ˜Â­Ã™â€¦Ã™Å Ã™â€ž Ã˜Â¹Ã˜Â¯Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€žÃ˜Â§Ã˜Â¡");
+        function getBarberSheetName(staff) {
+          return String(staff.name || staff.staffName || "")
+            .trim()
+            .toUpperCase();
         }
 
-        if (requestId === staffClientRequestId && selectedId === staff.id) {
-          staff.customers = numberValue(data.totalClients);
-          elements.sumClients.textContent = formatMoney(data.totalClients);
-        }
-      } catch (error) {
-        console.error(error);
-        if (requestId === staffClientRequestId && selectedId === staff.id) {
-          elements.sumClients.textContent = "0";
-        }
+    let staffAccountingRead = null;
+    let pendingStaffAccountingRead = null;
+    let staffAccountingSequence = 0;
+
+    function reportStaffTiming(operation, startedAt, outcome) {
+      if (new URLSearchParams(window.location.search).get("performance") === "1") {
+        console.info("[STAFF_ACCOUNTING_PERF] " + JSON.stringify({ operation, totalMs: Date.now() - startedAt, outcome }));
       }
     }
 
-    async function fetchStaffTotalSales(staff) {
-      const requestId = ++staffSalesRequestId;
-      elements.sumSales.textContent = "Loading...";
-
-      try {
-        const range = selectedDateRange();
-        if (!range.ok) throw new Error(range.message);
-        const data = await RomeoApi.request({
-          action: "staffTotalSales",
-          barber: getBarberSheetName(staff),
-          fromDate: range.fromDate,
-          toDate: range.toDate
-        });
-        if (data.status !== "success") {
-          throw new Error(data.message || "Failed to load total sales");
-        }
-
-        if (requestId === staffSalesRequestId && selectedId === staff.id) {
-          staff.totalSales = numberValue(data.totalSales);
-          elements.sumSales.textContent = formatMoney(staff.totalSales);
-          refreshSelectedFinancialSummary(staff);
-          renderEmployeeList();
-          renderOverall();
-        }
-      } catch (error) {
-        console.error(error);
-        if (requestId === staffSalesRequestId && selectedId === staff.id) {
-          elements.sumSales.textContent = "0";
-        }
-      }
-    }
-
-    async function loadStaffPeriodActivity() {
+    function loadSelectedPeriod() {
+      if (staffMutationPending || creatingStaff) return Promise.resolve(false);
       const range = selectedDateRange();
       if (!range.ok) {
-        elements.rangeStatus.textContent = localizeText("اختر فترة صحيحة.", range.message);
-        return false;
+        ++staffAccountingSequence;
+        elements.rangeStatus.textContent = localizeText("اختر فترة صحيحة.", "Choose a valid period.");
+        return Promise.resolve(false);
       }
+      const key = range.fromDate + ":" + range.toDate;
+      if (staffAccountingRead?.key === key && !pendingStaffAccountingRead) return staffAccountingRead.promise;
+      if (pendingStaffAccountingRead?.key === key) return pendingStaffAccountingRead.promise;
+      const request = { key, range, sequence: ++staffAccountingSequence, startedAt: Date.now() };
+      request.promise = new Promise(resolve => { request.resolve = resolve; });
+      if (staffAccountingRead) {
+        if (pendingStaffAccountingRead) pendingStaffAccountingRead.resolve(false);
+        pendingStaffAccountingRead = request;
+      } else startStaffAccountingRead(request);
+      return request.promise;
+    }
 
-      const requestId = ++staffPeriodRequestId;
-      elements.applyRange.disabled = true;
-      elements.rangeStatus.textContent = localizeText("جاري تحميل نشاط الفترة...", "Loading period activity...");
-
+    async function startStaffAccountingRead(request) {
+      staffAccountingRead = request;
+      elements.rangeStatus.textContent = localizeText("جاري تحميل حسابات الفترة...", "Loading period accounts...");
+      saveBtn.disabled = true; deleteBtn.disabled = true; addStaffBtn.disabled = true; resetBtn.disabled = true;
+      const isCurrent = () => request.sequence === staffAccountingSequence &&
+        request.range.fromDate === elements.fromDate.value && request.range.toDate === elements.toDate.value;
+      let outcome = "superseded", ok = false;
       try {
-        const summaries = await Promise.all(staffList.map(async staff => {
-          const barber = getBarberSheetName(staff);
-          const [clients, sales] = await Promise.all([
-            RomeoApi.request({
-              action: "staffClientCount",
-              barber,
-              fromDate: range.fromDate,
-              toDate: range.toDate
-            }),
-            RomeoApi.request({
-              action: "staffTotalSales",
-              barber,
-              fromDate: range.fromDate,
-              toDate: range.toDate
-            })
-          ]);
-          if (clients.status !== "success" || sales.status !== "success") {
-            throw new Error(clients.message || sales.message || "Failed to load staff period activity.");
-          }
-          return {
-            id: staff.id,
-            customers: numberValue(clients.totalClients),
-            totalSales: numberValue(sales.totalSales)
-          };
-        }));
-
-        if (requestId !== staffPeriodRequestId) return false;
-        const byId = new Map(summaries.map(summary => [String(summary.id), summary]));
-        staffList.forEach(staff => {
-          const summary = byId.get(String(staff.id));
-          staff.customers = summary ? summary.customers : 0;
-          staff.totalSales = summary ? summary.totalSales : 0;
-        });
-        elements.rangeStatus.textContent = localizeText(
-          `الفترة: ${range.fromDate} إلى ${range.toDate}`,
-          `Period: ${range.fromDate} to ${range.toDate}`
-        );
+        const data = await RomeoApi.request({ action: "getStaffAccountingPeriod",
+          fromDate: request.range.fromDate, toDate: request.range.toDate,
+          performance: new URLSearchParams(window.location.search).get("performance") === "1" });
+        if (!isCurrent()) return;
+        if (data.status !== "success" || !Array.isArray(data.staff) || !Array.isArray(data.withdrawals) ||
+            data.fromDate !== request.range.fromDate || data.toDate !== request.range.toDate) throw new Error("STAFF_PERIOD_READ_FAILED");
+        const nextStaff = data.staff.map(normalizeStaffRecord).filter(staff => staff.name);
+        if (new URLSearchParams(window.location.search).get("performance") === "1" && data.performance) {
+          const timing = Object.fromEntries(["staffMs", "withdrawalsMs", "activityMs", "dataReadMs"]
+            .map(key => [key, Number(data.performance[key])]).filter(([, value]) => Number.isFinite(value)));
+          console.info("[STAFF_ACCOUNTING_PHASES] " + JSON.stringify(timing));
+        }
+        const nextWithdrawals = data.withdrawals.map(normalizeWithdrawalRecord);
+        canonicalStaffRows = nextStaff.map(staff => ({ ...staff }));
+        staffList = nextStaff;
+        withdrawalsList = nextWithdrawals;
+        selectedId = staffList.some(staff => staff.uiKey === selectedId) ? selectedId : staffList[0]?.uiKey || null;
+        try { cacheStaffList(); } catch (_) { /* Storage failures do not invalidate a successful server read. */ }
         renderAll();
-        return true;
+        elements.rangeStatus.textContent = localizeText(
+          "الفترة: " + request.range.fromDate + " إلى " + request.range.toDate,
+          "Period: " + request.range.fromDate + " to " + request.range.toDate);
+        outcome = "success"; ok = true;
       } catch (error) {
-        console.error(error);
-        if (requestId === staffPeriodRequestId) {
-          elements.rangeStatus.textContent = localizeText("تعذر تحميل نشاط الفترة.", error.message);
-        }
-        return false;
+        if (!isCurrent()) return;
+        outcome = "error";
+        elements.rangeStatus.textContent = localizeText(
+          "تعذر تحديث حسابات الفترة. الأرقام الظاهرة من آخر تحميل ناجح؛ حاول مرة أخرى.",
+          "Could not refresh this period. Displayed figures are from the last successful load; try again.");
       } finally {
-        if (requestId === staffPeriodRequestId) elements.applyRange.disabled = false;
+        reportStaffTiming("period", request.startedAt, outcome);
+        staffAccountingRead = null;
+        fillDetails(); addStaffBtn.disabled = staffMutationPending; resetBtn.disabled = staffMutationPending;
+        request.resolve(ok);
+        if (pendingStaffAccountingRead) {
+          const next = pendingStaffAccountingRead;
+          pendingStaffAccountingRead = null;
+          startStaffAccountingRead(next);
+        }
       }
-    }
-
-    async function loadSelectedPeriod() {
-      const range = selectedDateRange();
-      if (!range.ok) {
-        elements.rangeStatus.textContent = localizeText("اختر فترة صحيحة.", range.message);
-        return;
-      }
-      withdrawalsList = [];
-      staffList.forEach(staff => {
-        staff.customers = 0;
-        staff.totalSales = 0;
-      });
-      renderAll();
-      await Promise.all([loadWithdrawalsFromSheet(), loadStaffPeriodActivity()]);
     }
 
     function renderEmployeeList() {
@@ -1306,17 +1223,18 @@
       filtered.forEach(staff => {
         const card = document.createElement("button");
         card.type = "button";
-        card.className = `employee-card${staff.id === selectedId ? " active" : ""}`;
-        card.innerHTML = `
-          <strong>${staff.name}</strong>
-          <div class="employee-meta">
-            <span>${staff.code}</span>
-            <span>${localizeText("الصافي", "Net")} ${formatMoney(calculateNet(staff))}</span>
-          </div>
-        `;
+        card.className = `employee-card${staff.uiKey === selectedId ? " active" : ""}`;
+        const title = document.createElement("strong"); title.textContent = staff.name;
+        const meta = document.createElement("div"); meta.className = "employee-meta";
+        const code = document.createElement("span"); code.textContent = staff.code;
+        const net = document.createElement("span"); net.textContent = localizeText("الصافي", "Net") + " " + formatMoney(calculateNet(staff));
+        meta.appendChild(code); meta.appendChild(net); card.appendChild(title); card.appendChild(meta);
         card.addEventListener("click", () => {
-          selectedId = staff.id;
+          const startedAt = Date.now();
+          creatingStaff = false;
+          selectedId = staff.uiKey;
           renderAll();
+          reportStaffTiming("select", startedAt, "success");
         });
         elements.employeeList.appendChild(card);
       });
@@ -1329,6 +1247,12 @@
     function fillDetails() {
       const staff = getSelectedStaff();
 
+      if (creatingStaff) {
+        saveBtn.disabled = staffMutationPending; deleteBtn.disabled = true;
+        return;
+      }
+      renderStaffBranch(staff);
+      saveBtn.disabled = staffMutationPending || Boolean(staffAccountingRead) || !staff || !staff.staffId;
       if (!staff) {
         elements.employeeTitle.textContent = localizeText("لم يتم اختيار موظف", "No Staff Selected");
         elements.employeeSubtitle.textContent = localizeText("أضف موظف جديد عشان تبدأ.", "Add a new staff member to get started.");
@@ -1347,13 +1271,15 @@
         elements.sumCommission.textContent = localizeText("قيمة النسبة: 0 جنيه", "Commission value: 0 EGP");
         elements.sumWithdrawals.textContent = "0";
         elements.sumDedution.textContent = "0";
+        elements.deductionBreakdown.textContent = "";
         elements.sumBonus.textContent = "0";
         elements.sumNet.textContent = "0";
         deleteBtn.disabled = true;
+        renderStaffBranch(staff);
         return;
       }
 
-      deleteBtn.disabled = false;
+      deleteBtn.disabled = staffMutationPending || Boolean(staffAccountingRead) || !staff.staffId;
       elements.employeeTitle.textContent = staff.name;
       elements.employeeSubtitle.textContent = localizeText(
         `تفاصيل حساب ${staff.name} الحالية.`,
@@ -1364,7 +1290,12 @@
       elements.fields.code.value = staff.code;
       elements.fields.percentage.value = numberValue(staff.percentage);
       elements.fields.salary.value = staff.salary;
+      elements.fields.bonus.value = staff.bonus;
+      elements.fields.deduction.value = calculateManualDeduction(staff);
       elements.fields.isBarber.checked = staff.isBarber !== false;
+      elements.sumClients.textContent = formatMoney(staff.customers);
+      elements.sumSales.textContent = formatMoney(staff.totalSales);
+
       refreshSelectedFinancialSummary(staff);
     }
 
@@ -1389,75 +1320,224 @@
       applyPageLanguage();
     }
 
+    function validateStaffIdentity(name, code, currentId = null) {
+      const cleanName = String(name || "").trim();
+      const cleanCode = String(code || "").trim().toUpperCase();
+
+     if (/^[=+\-@]/.test(cleanName) || /^[=+\-@]/.test(cleanCode) || /[\u0000-\u001f\u007f]/.test(cleanName + cleanCode)) {
+       document.getElementById("staffSaveStatus").textContent = localizeText("اسم أو كود غير صالح.", "Invalid name or code."); return null;
+     }
+
+     if (!cleanName) {
+        document.getElementById("staffSaveStatus").textContent = localizeText("اكتب اسم الموظف.", "Enter staff name.");
+       return null;
+    }
+
+    if (!cleanCode) {
+     document.getElementById("staffSaveStatus").textContent = localizeText("اكتب كود الموظف.", "Enter staff code.");
+     return null;
+    }
+
+    const currentStaff = staffList.find(staff => staff.uiKey === currentId);
+    const duplicateCode = (!currentStaff || cleanCode !== currentStaff.code) && staffList.some(staff =>
+     staff.uiKey !== currentId &&
+     String(staff.code || "").trim().toUpperCase() === cleanCode
+    );
+
+    if (duplicateCode) {
+      document.getElementById("staffSaveStatus").textContent = localizeText("كود الموظف مستخدم بالفعل.", "Staff code already exists.");
+      return null;
+    }
+
+    return {
+      name: cleanName,
+      code: cleanCode
+    };
+  }
+
+    function renderStaffBranch(staff) {
+      const select = elements.fields.branchId;
+      const currentBranch = creatingStaff ? select.value : staff?.branchId || "";
+      select.replaceChildren();
+      const option = (value, text) => {
+        const item = document.createElement("option"); item.value = value; item.textContent = text;
+        select.appendChild(item);
+      };
+      option("", localizeText("غير معيّن — يحتاج مراجعة", "Unassigned / review required"));
+      staffBranches.forEach(branch => option(branch.branchId, branch.branchName));
+      if (staff?.branchId && !staffBranches.some(branch => branch.branchId === staff.branchId)) {
+        option(staff.branchId, staff.branchId);
+      }
+      select.value = currentBranch;
+      select.disabled = !creatingStaff;
+      elements.identityStatus.textContent = creatingStaff
+        ? localizeText("اختر فرعًا للموظف الجديد.", "Choose a branch for the new staff member.")
+        : staff && !staff.staffId
+          ? localizeText("هوية محفوظة مفقودة أو مكررة — المراجعة مطلوبة قبل التعديل.", "Missing or ambiguous persisted identity / review required before editing.")
+          : staff && !staff.branchId
+            ? localizeText("الفرع غير معيّن — يحتاج مراجعة. يمكن حفظ التعديلات المالية المصرح بها.", "Unassigned branch / review required. Authorized financial edits can still be saved.") : "";
+    }
+
+    async function loadStaffBranches() {
+      try {
+        const result = await RomeoApi.request({ action: "listStaffBranches" });
+        if (result.status !== "success" || !Array.isArray(result.branches)) throw new Error(result.message || "Branches unavailable.");
+        staffBranches = result.branches.filter(branch => branch.active === true && branch.branchId);
+        if (!creatingStaff) renderStaffBranch(getSelectedStaff());
+        return true;
+      } catch (error) {
+        staffBranches = [];
+        document.getElementById("staffSaveStatus").textContent = localizeText(
+          "تعذر تحميل الفروع. حاول مرة أخرى.", "Unable to load branches. Try again.");
+        return false;
+      }
+    }
+
+    async function createStaffFromEditor() {
+      if (staffMutationPending) return;
+      const status = document.getElementById("staffSaveStatus");
+      const identity = validateStaffIdentity(elements.fields.name.value, elements.fields.code.value);
+      if (!identity) return;
+      const branchId = elements.fields.branchId.value;
+      if (!branchId || !staffBranches.some(branch => branch.branchId === branchId)) {
+        status.textContent = localizeText("اختر فرعًا صالحًا للموظف الجديد.", "Select a valid branch for the new staff member.");
+        return;
+      }
+      const staff = { ...identity, branchId, isBarber: elements.fields.isBarber.checked };
+      for (const key of ["salary", "percentage", "bonus", "deduction"]) {
+        const input = elements.fields[key];
+        const value = input.value.trim() === "" ? NaN : Number(input.value);
+        if (!Number.isFinite(value) || value < 0 || (key === "percentage" && value > 100)) {
+          status.textContent = localizeText("أدخل قيمًا صحيحة غير سالبة؛ النسبة من 0 إلى 100.", "Enter non-negative values; percentage must be between 0 and 100.");
+          input.focus(); return;
+        }
+        staff[key] = value;
+      }
+      staffMutationPending = true; saveBtn.disabled = true; addStaffBtn.disabled = true;
+      status.textContent = localizeText("جاري الحفظ...", "Saving...");
+      try {
+        const response = await RomeoApi.request({ action: "createStaffMember", staff });
+        if (response.status !== "success" || !response.staff?.staffId) throw new Error(response.message || "Staff creation failed.");
+        const created = normalizeStaffRecord(response.staff);
+        staffList.unshift(created); selectedId = created.uiKey; creatingStaff = false;
+        cacheStaffList(); renderAll();
+        status.textContent = localizeText("تمت الإضافة.", "Created.");
+      } catch (error) {
+        status.textContent = localizeText("لم يتم الإنشاء. راجع البيانات أو أعد تحميل الصفحة.", "Not created. Check details or reload the page.");
+      } finally { staffMutationPending = false; saveBtn.disabled = !creatingStaff && !getSelectedStaff()?.staffId; deleteBtn.disabled = creatingStaff || !getSelectedStaff()?.staffId; addStaffBtn.disabled = false; }
+    }
+
     async function saveSelectedStaff() {
+      if (saveBtn.disabled || staffMutationPending) return;
+      if (creatingStaff) return createStaffFromEditor();
       const staff = getSelectedStaff();
-      if (!staff) {
+      if (!staff || !staff.staffId || saveBtn.disabled) {
         return;
       }
 
-      staff.name = elements.fields.name.value.trim() || staff.name;
-      staff.code = elements.fields.code.value.trim().toUpperCase() || staff.code;
-      staff.percentage = numberValue(elements.fields.percentage.value);
-      staff.salary = numberValue(elements.fields.salary.value);
-      staff.isBarber = elements.fields.isBarber.checked;
+      const identity = validateStaffIdentity(
+        elements.fields.name.value,
+        elements.fields.code.value,
+        staff.uiKey
+      );
 
-      await saveStaff();
-      renderAll();
+      if (!identity) {
+        return;
+      }
+
+      const status = document.getElementById("staffSaveStatus");
+      const proposed = { name: identity.name, code: identity.code,
+        isBarber: elements.fields.isBarber.checked };
+      for (const key of ["salary", "percentage", "bonus", "deduction"]) {
+        const input = elements.fields[key];
+        const value = input.value.trim() === "" ? NaN : Number(input.value);
+        if (!Number.isFinite(value) || value < 0 || (key === "percentage" && value > 100)) {
+          status.textContent = localizeText("أدخل قيمًا صحيحة غير سالبة؛ النسبة من 0 إلى 100.",
+            "Enter non-negative values; percentage must be between 0 and 100.");
+          input.focus();
+          return;
+        }
+        proposed[key] = value;
+      }
+      const current = { ...staff, deduction: calculateManualDeduction(staff) };
+      const changes = Object.fromEntries(Object.entries(proposed).filter(([key, value]) => value !== current[key]));
+      if (!Object.keys(changes).length) {
+        status.textContent = localizeText("لا توجد تعديلات.", "No changes to save.");
+        return;
+      }
+      staffMutationPending = true; saveBtn.disabled = true; addStaffBtn.disabled = true;
+      status.textContent = localizeText("جاري الحفظ...", "Saving...");
+      try {
+        const response = await RomeoApi.request({ action: "updateStaffMember",
+          staffId: String(staff.staffId), expectedUpdatedAt: staff.updatedAt, expectedVersion: staff.version, changes });
+        if (response.status !== "success") throw new Error(response.message || "Staff save failed.");
+        Object.assign(staff, proposed, { debt: proposed.deduction, lateDiscount: 0,
+          updatedAt: response.updatedAt, version: response.version });
+        cacheStaffList();
+        renderAll();
+        status.textContent = localizeText("تم الحفظ.", "Saved.");
+      } catch (error) {
+        status.textContent = localizeText("لم يتم الحفظ. راجع البيانات أو أعد تحميل الصفحة.", "Not saved. Check details or reload the page.");
+      } finally {
+        staffMutationPending = false;
+        saveBtn.disabled = !getSelectedStaff()?.staffId; deleteBtn.disabled = !getSelectedStaff()?.staffId; addStaffBtn.disabled = false;
+      }
     }
 
     async function addStaff() {
-      const name = prompt("Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã˜Â§Ã˜Â³Ã™â€¦ Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â¸Ã™Â");
-      if (!name) return;
-
-      const code = prompt("Ã˜Â§Ã™Æ’Ã˜ÂªÃ˜Â¨ Ã™Æ’Ã™Ë†Ã˜Â¯ Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â¸Ã™Â", `C${String(staffList.length + 1).padStart(2, "0")}`);
-      if (!code) return;
-
-      const newStaff = {
-        id: Date.now(),
-        name: name.trim(),
-        code: code.trim().toUpperCase(),
-        percentage: 0,
-        salary: 0,
-        customers: 0,
-        totalSales: 0,
-        withdraw: 0,
-        debt: 0,
-        lateDiscount: 0,
-        bonus: 0,
-        isBarber: true
-      };
-
-      staffList.unshift(newStaff);
-      selectedId = newStaff.id;
-      await saveStaff();
+      if (staffMutationPending || creatingStaff) return;
+      if (!await loadStaffBranches()) return;
+      creatingStaff = false; selectedId = null;
       renderAll();
+      creatingStaff = true; saveBtn.disabled = false;
+      elements.employeeTitle.textContent = localizeText("موظف جديد", "New staff member");
+      elements.employeeSubtitle.textContent = localizeText("أدخل البيانات واختر الفرع ثم احفظ.", "Enter details, choose a branch, then save.");
+      for (const key of ["name", "code", "branchId"]) elements.fields[key].value = "";
+      for (const key of ["salary", "percentage", "bonus", "deduction"]) elements.fields[key].value = "0";
+      elements.fields.isBarber.checked = true;
+      renderStaffBranch(null); elements.fields.name.focus();
+      document.getElementById("staffSaveStatus").textContent = localizeText(
+        "أدخل بيانات الموظف واختر الفرع ثم اضغط حفظ.", "Enter staff details, choose a branch, then save.");
     }
 
     async function resetData() {
-      if (!confirm("Ã˜ÂªÃ˜Â±Ã˜Â¬Ã˜Â¹ Ã˜ÂµÃ™ÂÃ˜Â­Ã˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â¸Ã™ÂÃ™Å Ã™â€  Ã™â€žÃ˜Â¨Ã™Å Ã˜Â§Ã™â€ Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â¨Ã˜Â¯Ã˜Â§Ã™Å Ã˜Â©Ã˜Å¸")) {
-        return;
-      }
+      if (staffMutationPending) return;
+  if (!await confirmStaffAction(localizeText("إعادة تحميل بيانات الموظفين من STAFF؟", "Reload staff from STAFF?"))) {
+    return;
+  }
 
-      staffList = cloneDefaults();
-      selectedId = staffList[0]?.id || null;
-      await saveStaff();
-      renderAll();
-    }
+  localStorage.removeItem(STAFF_KEY);
+  staffList = [];
+  selectedId = null;
+  creatingStaff = false;
+  renderAll();
+
+  await loadSelectedPeriod();
+}
 
     async function deleteSelected() {
       const staff = getSelectedStaff();
-      if (!staff) {
-        return;
+      if (!staff || !staff.staffId || staffMutationPending || deleteBtn.disabled || saveBtn.disabled) return;
+      if (!await confirmStaffAction(localizeText(
+        "تعطيل الموظف " + staff.name + "؟", "Deactivate staff member " + staff.name + "?"))) return;
+      const status = document.getElementById("staffSaveStatus");
+      staffMutationPending = true; deleteBtn.disabled = true; saveBtn.disabled = true; addStaffBtn.disabled = true;
+      try {
+        const response = await RomeoApi.request({ action: "deactivateStaffMember", staffId: staff.staffId,
+          expectedUpdatedAt: staff.updatedAt, expectedVersion: staff.version });
+        if (response.status !== "success") throw new Error(response.message || "Staff deactivation failed.");
+        staffList = staffList.filter(item => item.uiKey !== staff.uiKey);
+        selectedId = staffList[0]?.uiKey || null;
+        cacheStaffList(); renderAll();
+        status.textContent = localizeText("تم التعطيل.", "Deactivated.");
+      } catch (error) {
+        status.textContent = localizeText("لم يتم التعطيل. أعد تحميل الصفحة قبل المحاولة.", "Not deactivated. Reload before trying again.");
+      } finally {
+        staffMutationPending = false;
+        deleteBtn.disabled = !getSelectedStaff()?.staffId;
+        saveBtn.disabled = !getSelectedStaff()?.staffId;
+        addStaffBtn.disabled = false;
       }
-
-      if (!confirm(localizeText(`تحذف الموظف ${staff.name}؟`, `Delete staff member ${staff.name}?`))) {
-        return;
-      }
-
-      staffList = staffList.filter(item => item.id !== staff.id);
-      selectedId = staffList[0]?.id || null;
-      await saveStaff();
-      renderAll();
     }
 
     function renderImportBranchFields() {
@@ -1547,21 +1627,84 @@
       });
     });
 
-    elements.searchInput.addEventListener("input", renderEmployeeList);
+    elements.searchInput.addEventListener("input", () => { const startedAt = Date.now(); renderEmployeeList(); reportStaffTiming("search", startedAt, "success"); });
     elements.applyRange.addEventListener("click", loadSelectedPeriod);
     [elements.fromDate, elements.toDate].forEach(input => input.addEventListener("change", () => {
-      ++staffPeriodRequestId;
-      ++withdrawalsPeriodRequestId;
-      withdrawalsList = [];
-      staffList.forEach(staff => {
-        staff.customers = 0;
-        staff.totalSales = 0;
-      });
+      ++staffAccountingSequence;
+      if (pendingStaffAccountingRead) { pendingStaffAccountingRead.resolve(false); pendingStaffAccountingRead = null; }
       elements.rangeStatus.textContent = selectedDateRange().ok
-        ? localizeText("اضغط تطبيق الفترة لتحديث الحسابات.", "Apply the period to refresh accounts.")
-        : localizeText("اختر فترة صحيحة.", selectedDateRange().message);
-      renderAll();
+        ? localizeText("اضغط تطبيق الفترة؛ الأرقام الظاهرة من آخر تحميل ناجح.", "Apply this period; displayed figures are from the last successful load.")
+        : localizeText("اختر فترة صحيحة.", "Choose a valid period.");
     }));
+    function confirmStaffAction(message) {
+      const dialog = document.getElementById("staffActionConfirmation");
+      if (dialog.open) return Promise.resolve(false);
+      document.getElementById("staffActionConfirmationText").textContent = message;
+      return new Promise(resolve => {
+        let confirmed = false;
+        const yes = document.getElementById("staffActionConfirm");
+        const no = document.getElementById("staffActionCancel");
+        const accept = () => { confirmed = true; dialog.close(); };
+        const cancel = () => dialog.close();
+        const close = () => { yes.removeEventListener("click", accept); no.removeEventListener("click", cancel); resolve(confirmed); };
+        yes.addEventListener("click", accept); no.addEventListener("click", cancel);
+        dialog.addEventListener("close", close, { once: true }); dialog.showModal();
+      });
+    }
+
+    function canSettleStaffTransaction() {
+      const auth = globalThis.RomeoAuth;
+      const user = auth?.getCurrentUser?.();
+      return auth?.isOwnerUser?.(user) === true && Array.isArray(user?.permissions) &&
+        user.permissions.includes("view_staff_accounting");
+    }
+
+    function buildStaffSettlementPayload() {
+      const read = key => document.getElementById("settlement-" + key).value.trim();
+      const identity = Object.fromEntries(["transactionId", "requestId", "action", "entityType", "staffId", "environment", "transactionHash"].map(key => [key, read(key)]));
+      const evidence = { reference: read("reference"), sha256: read("sha256"), summary: read("summary"), transactionHash: identity.transactionHash };
+      if (!document.getElementById("settlement-attestation").checked ||
+          Object.values(identity).some(value => !value) || !/^BAT-[a-zA-Z0-9-]+$/.test(identity.transactionId) ||
+          !/^STAFF_MEMBER_(UPDATE|CREATE|DEACTIVATE)$/.test(identity.action) || identity.entityType !== "STAFF_MEMBERSHIP" ||
+          !/^[a-f0-9]{64}$/.test(identity.transactionHash) || !/^[a-f0-9]{64}$/.test(evidence.sha256) ||
+          !evidence.reference || evidence.reference.length > 1000 || /^[=+\-@]/.test(evidence.reference) ||
+          !evidence.summary || evidence.summary.length > 4000) return null;
+      return { action: "settleLegacyStaffTransaction", identity, evidence };
+    }
+
+    let staffSettlementPending = false;
+    function displayStaffSettlementOutcome(code) {
+      const messages = {
+        SETTLED: ["تم تسجيل التسوية.", "Settlement recorded."],
+        ALREADY_SETTLED: ["التسوية مسجلة بنفس الدليل بالفعل.", "Already settled with the same evidence."],
+        BLOCKED_CONFLICT: ["تعارض؛ توقف وراجع الهوية والدليل.", "Conflict; stop and review identity and evidence."],
+        INVALID_EVIDENCE: ["الدليل غير صالح؛ راجع الحقول.", "Invalid evidence; check the fields."],
+        OWNER_REQUIRED: ["التسوية متاحة للمالك فقط.", "Owner access required."]
+      };
+      const pair = messages[code];
+      document.getElementById("staffSettlementStatus").textContent = pair
+        ? code + " — " + localizeText(...pair)
+        : localizeText("لم تتأكد التسوية. راجع الحالة قبل إعادة المحاولة.", "Settlement unconfirmed. Review state before retrying.");
+    }
+
+    async function submitStaffSettlement(event) {
+      event.preventDefault();
+      if (!canSettleStaffTransaction() || staffSettlementPending || staffMutationPending) return;
+      const payload = buildStaffSettlementPayload();
+      if (!payload) { displayStaffSettlementOutcome("INVALID_EVIDENCE"); return; }
+      staffSettlementPending = true;
+      const submit = document.getElementById("staffSettlementSubmit"); submit.disabled = true;
+      document.getElementById("staffSettlementStatus").textContent = localizeText("جاري تسجيل التسوية...", "Recording settlement...");
+      try {
+        const response = await RomeoApi.request(payload);
+        displayStaffSettlementOutcome(response.code);
+      } catch (_error) { displayStaffSettlementOutcome(null); }
+      finally { staffSettlementPending = false; submit.disabled = !canSettleStaffTransaction(); }
+    }
+    document.getElementById("staffSettlementPanel").hidden = !canSettleStaffTransaction();
+    document.getElementById("staffSettlementSubmit").disabled = !canSettleStaffTransaction();
+    document.getElementById("staffSettlementForm").addEventListener("submit", submitStaffSettlement);
+
     addStaffBtn.addEventListener("click", addStaff);
     resetBtn.addEventListener("click", resetData);
     importPreviewBtn.addEventListener("click", openImportPreview);
@@ -1576,7 +1719,80 @@
 
     applyPageLanguage();
     renderAll();
-    loadStaffFromSheet().then(loadSelectedPeriod);
+    loadSelectedPeriod();
+  </script>
+  <script id="staffRecoveryUi">
+    (() => {
+      const panel = document.getElementById("staffRecoveryPanel");
+      const form = document.getElementById("staffRecoveryForm");
+      const input = document.getElementById("recovery-transactionId");
+      const confirmation = document.getElementById("staffRecoveryConfirmation");
+      const submit = document.getElementById("staffRecoverySubmit");
+      const status = document.getElementById("staffRecoveryStatus");
+      let pending = false;
+      let dispatched = false;
+      function isOwner() {
+        const auth = globalThis.RomeoAuth;
+        return auth?.isOwnerUser?.(auth?.getCurrentUser?.()) === true;
+      }
+      function refreshAccess() {
+        const allowed = isOwner();
+        panel.hidden = !allowed;
+        submit.disabled = !allowed || pending || dispatched;
+      }
+      function show(ar, en) { status.textContent = localizeText(ar, en); }
+      function showResult(response) {
+        if (response?.sessionExpired === true || response?.authRequired === true) {
+          show("انتهت الجلسة؛ سجل الدخول وراجع الحالة. توقف دون إعادة المحاولة.", "Authentication required; sign in and review state. Stopped without retry.");
+        } else if (response?.code === "PERMISSION_DENIED" || response?.permissionDenied === true) {
+          show("PERMISSION_DENIED — لا توجد صلاحية للاسترداد. توقف.", "PERMISSION_DENIED — Recovery permission denied. Stopped.");
+        } else if (response?.code === "STAFF_RECOVERY_REQUIRED" || response?.recoveryRequired === true) {
+          show("STAFF_RECOVERY_REQUIRED — تعذر الاسترداد الآمن: تعارض أو هوية غير موجودة/ملتبسة أو دليل غير صالح. توقف وراجع الدليل والحالة.", "STAFF_RECOVERY_REQUIRED — Safe recovery blocked: conflict, missing/ambiguous ID, or invalid evidence. Stop and review evidence and state.");
+        } else if (response?.status === "success" && response.recovered === true &&
+            response.transactionId === input.value && response.resolution === "COMPENSATED") {
+          show("COMPENSATED — استعيدت الحالة السابقة أو كانت مستعادة بالفعل. راجع الحالة قبل أي إجراء آخر.", "COMPENSATED — Previous state restored or already restored. Review state before any further action.");
+        } else if (response?.status === "success" && response.recovered === true &&
+            response.transactionId === input.value && response.resolution === "COMMITTED") {
+          show("COMMITTED — المعاملة مكتملة بالفعل؛ لم يلزم استرداد جديد. راجع الحالة.", "COMMITTED — Transaction already completed; no new recovery needed. Review state.");
+        } else {
+          show("لم يتأكد الاسترداد. توقف وراجع الحالة قبل أي إجراء آخر.", "Recovery unconfirmed. Stop and review state before any further action.");
+        }
+      }
+      form.addEventListener("submit", async event => {
+        event.preventDefault();
+        refreshAccess();
+        if (!isOwner() || pending || dispatched) return;
+        const transactionId = input.value;
+        if (!transactionId || transactionId.length > 1000 || !/^BAT-[a-zA-Z0-9-]+$/.test(transactionId)) {
+          show("أدخل هوية المعاملة الدقيقة دون مسافات؛ لا تستخدم رقم الصف.", "Enter the exact transaction ID without spaces; do not use a row number.");
+          return;
+        }
+        if (!confirmation.checked) {
+          show("أكد مراجعة المعاملة واستعادة حالتها السابقة.", "Confirm review of this transaction and restoring its previous state.");
+          return;
+        }
+        if (staffMutationPending || staffSettlementPending) {
+          show("انتظر انتهاء الإجراء الجاري ثم راجع الحالة.", "Wait for the current operation to finish, then review state.");
+          return;
+        }
+        pending = true;
+        dispatched = true;
+        input.disabled = true;
+        confirmation.disabled = true;
+        refreshAccess();
+        show("جاري استرداد المعاملة مرة واحدة...", "Recovering this transaction once...");
+        try {
+          const response = await RomeoApi.request({ action: "recoverStaffMemberTransaction", transactionId });
+          showResult(response);
+        } catch (_error) {
+          show("لم يتأكد الاسترداد. توقف وراجع الحالة؛ لا تعد إرسال الطلب.", "Recovery unconfirmed. Stop and review state; do not resend the request.");
+        } finally {
+          pending = false;
+          refreshAccess();
+        }
+      });
+      refreshAccess();
+    })();
   </script>
   <script id="legacyStaffSnapshotExportUi">
     // TEMPORARY STAFF BOOTSTRAP SUPPORT: isolated from normal STAFF save/import behavior.
