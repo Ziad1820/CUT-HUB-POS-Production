@@ -4,6 +4,8 @@
 
 The deployed staff page had newer persisted-identity, individual mutation, branch, recovery and settlement UI than the old Git page. The existing isolated production frontend was used as the starting point and synchronized into Git before applying performance changes. These pre-existing deployed mutation flows were preserved. No real employee, approval, salary, settlement, recovery or withdrawal mutation is part of verification.
 
+Follow-up UI cleanup requested by the owner: removed the bottom transaction recovery and legacy manual settlement panels, their inputs, event listeners, payload builders and response handlers from `staff-accounting.html` (155 lines). Routine staff editing and confirmation remain. Backend transaction/recovery safeguards and historical data are unchanged; no recovery or settlement was executed. The focused staff, date-range and snapshot tests pass (32 tests).
+
 The former startup made one STAFF read, a withdrawal read, two activity requests per employee and a branch-list request (21 requests for nine employees). The new page sends one authenticated `getStaffAccountingPeriod` request for the whole selected period. Branch loading is deferred until Add Staff, whose existing handler already loads branches.
 
 ## Preserved financial and security behavior

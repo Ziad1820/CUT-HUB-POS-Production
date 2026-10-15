@@ -692,35 +692,6 @@
     </div>
   </dialog>
 
-  <section class="panel" id="staffRecoveryPanel" hidden>
-    <h2 data-i18n-ar="استرداد معاملة موظف — OWNER" data-i18n-en="Staff transaction recovery — OWNER">استرداد معاملة موظف — OWNER</h2>
-    <p data-i18n-ar="أدخل هوية المعاملة المطابقة للدليل المراجع. الاسترداد يعيد الحالة السابقة وقد يزيل الموظف الذي أنشأته المعاملة. راجع الحالة بعد النتيجة؛ لا توجد إعادة محاولة تلقائية." data-i18n-en="Enter the exact transaction ID from reviewed evidence. Recovery restores the previous state and may remove the staff member created by the transaction. Review state after the result; there is no automatic retry.">أدخل هوية المعاملة المطابقة للدليل المراجع. الاسترداد يعيد الحالة السابقة وقد يزيل الموظف الذي أنشأته المعاملة. راجع الحالة بعد النتيجة؛ لا توجد إعادة محاولة تلقائية.</p>
-    <form id="staffRecoveryForm">
-      <div class="field"><label for="recovery-transactionId">Transaction ID</label><input id="recovery-transactionId" required type="text" maxlength="1000" autocomplete="off" spellcheck="false" pattern="BAT-[a-zA-Z0-9-]+"></div>
-      <label><input type="checkbox" id="staffRecoveryConfirmation" required> أؤكد مراجعة المعاملة واستعادة حالتها السابقة / I reviewed this transaction and confirm restoring its previous state.</label>
-      <button type="submit" class="action-btn danger" id="staffRecoverySubmit" disabled>استرداد المعاملة / Recover transaction</button>
-      <span id="staffRecoveryStatus" role="status" aria-live="polite"></span>
-    </form>
-  </section>
-  <section class="panel" id="staffSettlementPanel" hidden>
-    <h2 data-i18n-ar="تسوية يدوية لمعاملة موظف قديمة — OWNER" data-i18n-en="Legacy staff manual settlement — OWNER">تسوية يدوية لمعاملة موظف قديمة — OWNER</h2>
-    <p data-i18n-ar="انقل الهوية والبصمة من الأدلة المراجعة. التسوية تسجل القرار ولا تعدل بيانات الموظف. لا تستخدم رقم الصف بدل هوية المعاملة." data-i18n-en="Copy exact identity and hash from reviewed evidence. Settlement records the decision without changing staff data. A sheet row number is not a transaction identity.">انقل الهوية والبصمة من الأدلة المراجعة. التسوية تسجل القرار ولا تعدل بيانات الموظف. لا تستخدم رقم الصف بدل هوية المعاملة.</p>
-    <form id="staffSettlementForm">
-      <div class="editor-grid"><div class="field"><label for="settlement-transactionId">Transaction ID</label><input id="settlement-transactionId" required type="text" maxlength="1000" placeholder="BAT-…" ></div>
-<div class="field"><label for="settlement-requestId">Request ID</label><input id="settlement-requestId" required type="text" maxlength="1000" placeholder="" ></div>
-<div class="field"><label for="settlement-action">Original action</label><select id="settlement-action" required><option value="">Choose original action</option><option value="STAFF_MEMBER_UPDATE">STAFF_MEMBER_UPDATE</option><option value="STAFF_MEMBER_CREATE">STAFF_MEMBER_CREATE</option><option value="STAFF_MEMBER_DEACTIVATE">STAFF_MEMBER_DEACTIVATE</option></select></div>
-<div class="field"><label for="settlement-entityType">Entity type</label><input id="settlement-entityType" required type="text" maxlength="1000" placeholder="STAFF_MEMBERSHIP" value="STAFF_MEMBERSHIP" readonly></div>
-<div class="field"><label for="settlement-staffId">Staff ID</label><input id="settlement-staffId" required type="text" maxlength="1000" placeholder="" ></div>
-<div class="field"><label for="settlement-environment">Environment</label><input id="settlement-environment" required type="text" maxlength="1000" placeholder="" ></div>
-<div class="field"><label for="settlement-transactionHash">Transaction SHA-256</label><input id="settlement-transactionHash" required type="text" maxlength="64" placeholder="" ></div>
-<div class="field"><label for="settlement-reference">Evidence reference</label><input id="settlement-reference" required type="text" maxlength="1000" placeholder="" ></div>
-<div class="field"><label for="settlement-sha256">Evidence SHA-256</label><input id="settlement-sha256" required type="text" maxlength="64" placeholder="" ></div>
-<div class="field"><label for="settlement-summary">Decision / evidence summary</label><textarea id="settlement-summary" required maxlength="4000"></textarea></div></div>
-      <label><input type="checkbox" id="settlement-attestation" required> أؤكد مراجعة الدليل وحل المعاملة / I reviewed the evidence and attest the transaction was resolved.</label>
-      <button type="submit" class="action-btn danger" id="staffSettlementSubmit">تسجيل التسوية / Record settlement</button>
-      <span id="staffSettlementStatus" role="status" aria-live="polite"></span>
-    </form>
-  </section>
   <dialog id="staffActionConfirmation">
     <p id="staffActionConfirmationText"></p>
     <button type="button" class="action-btn danger" id="staffActionConfirm">تأكيد / Confirm</button>
@@ -1652,59 +1623,6 @@
       });
     }
 
-    function canSettleStaffTransaction() {
-      const auth = globalThis.RomeoAuth;
-      const user = auth?.getCurrentUser?.();
-      return auth?.isOwnerUser?.(user) === true && Array.isArray(user?.permissions) &&
-        user.permissions.includes("view_staff_accounting");
-    }
-
-    function buildStaffSettlementPayload() {
-      const read = key => document.getElementById("settlement-" + key).value.trim();
-      const identity = Object.fromEntries(["transactionId", "requestId", "action", "entityType", "staffId", "environment", "transactionHash"].map(key => [key, read(key)]));
-      const evidence = { reference: read("reference"), sha256: read("sha256"), summary: read("summary"), transactionHash: identity.transactionHash };
-      if (!document.getElementById("settlement-attestation").checked ||
-          Object.values(identity).some(value => !value) || !/^BAT-[a-zA-Z0-9-]+$/.test(identity.transactionId) ||
-          !/^STAFF_MEMBER_(UPDATE|CREATE|DEACTIVATE)$/.test(identity.action) || identity.entityType !== "STAFF_MEMBERSHIP" ||
-          !/^[a-f0-9]{64}$/.test(identity.transactionHash) || !/^[a-f0-9]{64}$/.test(evidence.sha256) ||
-          !evidence.reference || evidence.reference.length > 1000 || /^[=+\-@]/.test(evidence.reference) ||
-          !evidence.summary || evidence.summary.length > 4000) return null;
-      return { action: "settleLegacyStaffTransaction", identity, evidence };
-    }
-
-    let staffSettlementPending = false;
-    function displayStaffSettlementOutcome(code) {
-      const messages = {
-        SETTLED: ["تم تسجيل التسوية.", "Settlement recorded."],
-        ALREADY_SETTLED: ["التسوية مسجلة بنفس الدليل بالفعل.", "Already settled with the same evidence."],
-        BLOCKED_CONFLICT: ["تعارض؛ توقف وراجع الهوية والدليل.", "Conflict; stop and review identity and evidence."],
-        INVALID_EVIDENCE: ["الدليل غير صالح؛ راجع الحقول.", "Invalid evidence; check the fields."],
-        OWNER_REQUIRED: ["التسوية متاحة للمالك فقط.", "Owner access required."]
-      };
-      const pair = messages[code];
-      document.getElementById("staffSettlementStatus").textContent = pair
-        ? code + " — " + localizeText(...pair)
-        : localizeText("لم تتأكد التسوية. راجع الحالة قبل إعادة المحاولة.", "Settlement unconfirmed. Review state before retrying.");
-    }
-
-    async function submitStaffSettlement(event) {
-      event.preventDefault();
-      if (!canSettleStaffTransaction() || staffSettlementPending || staffMutationPending) return;
-      const payload = buildStaffSettlementPayload();
-      if (!payload) { displayStaffSettlementOutcome("INVALID_EVIDENCE"); return; }
-      staffSettlementPending = true;
-      const submit = document.getElementById("staffSettlementSubmit"); submit.disabled = true;
-      document.getElementById("staffSettlementStatus").textContent = localizeText("جاري تسجيل التسوية...", "Recording settlement...");
-      try {
-        const response = await RomeoApi.request(payload);
-        displayStaffSettlementOutcome(response.code);
-      } catch (_error) { displayStaffSettlementOutcome(null); }
-      finally { staffSettlementPending = false; submit.disabled = !canSettleStaffTransaction(); }
-    }
-    document.getElementById("staffSettlementPanel").hidden = !canSettleStaffTransaction();
-    document.getElementById("staffSettlementSubmit").disabled = !canSettleStaffTransaction();
-    document.getElementById("staffSettlementForm").addEventListener("submit", submitStaffSettlement);
-
     addStaffBtn.addEventListener("click", addStaff);
     resetBtn.addEventListener("click", resetData);
     importPreviewBtn.addEventListener("click", openImportPreview);
@@ -1720,79 +1638,6 @@
     applyPageLanguage();
     renderAll();
     loadSelectedPeriod();
-  </script>
-  <script id="staffRecoveryUi">
-    (() => {
-      const panel = document.getElementById("staffRecoveryPanel");
-      const form = document.getElementById("staffRecoveryForm");
-      const input = document.getElementById("recovery-transactionId");
-      const confirmation = document.getElementById("staffRecoveryConfirmation");
-      const submit = document.getElementById("staffRecoverySubmit");
-      const status = document.getElementById("staffRecoveryStatus");
-      let pending = false;
-      let dispatched = false;
-      function isOwner() {
-        const auth = globalThis.RomeoAuth;
-        return auth?.isOwnerUser?.(auth?.getCurrentUser?.()) === true;
-      }
-      function refreshAccess() {
-        const allowed = isOwner();
-        panel.hidden = !allowed;
-        submit.disabled = !allowed || pending || dispatched;
-      }
-      function show(ar, en) { status.textContent = localizeText(ar, en); }
-      function showResult(response) {
-        if (response?.sessionExpired === true || response?.authRequired === true) {
-          show("انتهت الجلسة؛ سجل الدخول وراجع الحالة. توقف دون إعادة المحاولة.", "Authentication required; sign in and review state. Stopped without retry.");
-        } else if (response?.code === "PERMISSION_DENIED" || response?.permissionDenied === true) {
-          show("PERMISSION_DENIED — لا توجد صلاحية للاسترداد. توقف.", "PERMISSION_DENIED — Recovery permission denied. Stopped.");
-        } else if (response?.code === "STAFF_RECOVERY_REQUIRED" || response?.recoveryRequired === true) {
-          show("STAFF_RECOVERY_REQUIRED — تعذر الاسترداد الآمن: تعارض أو هوية غير موجودة/ملتبسة أو دليل غير صالح. توقف وراجع الدليل والحالة.", "STAFF_RECOVERY_REQUIRED — Safe recovery blocked: conflict, missing/ambiguous ID, or invalid evidence. Stop and review evidence and state.");
-        } else if (response?.status === "success" && response.recovered === true &&
-            response.transactionId === input.value && response.resolution === "COMPENSATED") {
-          show("COMPENSATED — استعيدت الحالة السابقة أو كانت مستعادة بالفعل. راجع الحالة قبل أي إجراء آخر.", "COMPENSATED — Previous state restored or already restored. Review state before any further action.");
-        } else if (response?.status === "success" && response.recovered === true &&
-            response.transactionId === input.value && response.resolution === "COMMITTED") {
-          show("COMMITTED — المعاملة مكتملة بالفعل؛ لم يلزم استرداد جديد. راجع الحالة.", "COMMITTED — Transaction already completed; no new recovery needed. Review state.");
-        } else {
-          show("لم يتأكد الاسترداد. توقف وراجع الحالة قبل أي إجراء آخر.", "Recovery unconfirmed. Stop and review state before any further action.");
-        }
-      }
-      form.addEventListener("submit", async event => {
-        event.preventDefault();
-        refreshAccess();
-        if (!isOwner() || pending || dispatched) return;
-        const transactionId = input.value;
-        if (!transactionId || transactionId.length > 1000 || !/^BAT-[a-zA-Z0-9-]+$/.test(transactionId)) {
-          show("أدخل هوية المعاملة الدقيقة دون مسافات؛ لا تستخدم رقم الصف.", "Enter the exact transaction ID without spaces; do not use a row number.");
-          return;
-        }
-        if (!confirmation.checked) {
-          show("أكد مراجعة المعاملة واستعادة حالتها السابقة.", "Confirm review of this transaction and restoring its previous state.");
-          return;
-        }
-        if (staffMutationPending || staffSettlementPending) {
-          show("انتظر انتهاء الإجراء الجاري ثم راجع الحالة.", "Wait for the current operation to finish, then review state.");
-          return;
-        }
-        pending = true;
-        dispatched = true;
-        input.disabled = true;
-        confirmation.disabled = true;
-        refreshAccess();
-        show("جاري استرداد المعاملة مرة واحدة...", "Recovering this transaction once...");
-        try {
-          const response = await RomeoApi.request({ action: "recoverStaffMemberTransaction", transactionId });
-          showResult(response);
-        } catch (_error) {
-          show("لم يتأكد الاسترداد. توقف وراجع الحالة؛ لا تعد إرسال الطلب.", "Recovery unconfirmed. Stop and review state; do not resend the request.");
-        } finally {
-          pending = false;
-          refreshAccess();
-        }
-      });
-      refreshAccess();
-    })();
   </script>
   <script id="legacyStaffSnapshotExportUi">
     // TEMPORARY STAFF BOOTSTRAP SUPPORT: isolated from normal STAFF save/import behavior.
