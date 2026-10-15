@@ -4,9 +4,9 @@ Generated locally by `scripts/generate-release-manifest.js`. Do not hand-edit. T
 
 ## Counts
 
-- Required tracked files: **385**
+- Required tracked files: **387**
 - Required untracked files: **0**
-- Total classified entries: **416**
+- Total classified entries: **418**
 
 ## Intended Apps Script application package
 
@@ -264,6 +264,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `config/apps-script-proxy.json` | tracked | Cross-phase/local | backend integration | yes | no | — | Vercel server function; exclude Apps Script upload | — | Same-origin relay to the fixed Production Apps Script deployment, without automatic request replay. |
 | `config/backend-sources.json` | tracked | Cross-phase/local | authoritative source | yes | no | — | Release evidence; not runtime-loaded | — | Required source or verification evidence for the complete implementation. |
 | `config/frontend-runtime-config.staging.example.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | Release evidence; not runtime-loaded | — | Required source or verification evidence for the complete implementation. |
+| `docs/activity-log-performance.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/apps-script-content-redirect-fix.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/backend-refactor-baseline.json` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/backend-refactor-production-deployment.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
@@ -406,6 +407,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `scripts/staff-schema-migration-staging-executor.js` | tracked | Cross-phase/local | authoritative source | yes | yes | scripts/build-backend.js + config/backend-sources.json | Aggregate internal order 10; exclude direct upload | tests/staff-schema-migration-staging-executor.test.js | Generated compatibility constituent; edit its registered backend source instead. |
 | `scripts/validate-apps-script-deployment-package.js` | tracked | Deployment package | authoritative source | yes | no | — | Local build/validation only | tests/apps-script-deployment-package.test.js | Deterministic local generator or package safety validator. |
 | `system-access.html` | tracked | Authentication & navigation | excluded intentionally | no | no | — | Do not deploy | tests/auth-navigation.test.js | Root compatibility wrapper duplicates public output; Vercel serves the public directory. |
+| `tests/activity-log-performance.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/apps-script-deployment-package.test.js` | tracked | Deployment package | test | yes | no | — | Local validation only | tests/apps-script-deployment-package.test.js | Release-blocking local regression or safety evidence. |
 | `tests/apps-script-http.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/apps-script-proxy.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |

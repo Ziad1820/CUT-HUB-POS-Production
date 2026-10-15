@@ -427,6 +427,7 @@
         <span class="selected-count" id="selectedLogsCount">0 selected</span>
         <button class="button danger" type="button" id="deleteSelectedLogsBtn" disabled data-i18n="Delete Selected">Delete Selected</button>
       </div>
+      <p id="logsStatus" role="status" aria-live="polite"></p>
       <div class="table-wrap">
         <table>
           <thead>
@@ -453,7 +454,7 @@
 
   <script src="../assets/js/utils/text-fix.js"></script>
   <script src="../assets/js/core/runtime-config.js?v=20261008-relay-1"></script>
-  <script src="../assets/js/core/api.js?v=20261008-relay-1"></script>
+  <script src="../assets/js/core/api.js?v=20261015-activity-timing-1"></script>
   <script src="../assets/js/core/auth.js?v=20261009-single-analysis-1"></script>
   <script src="../assets/js/utils/layout.js?v=20261009-single-analysis-1"></script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
@@ -479,6 +480,7 @@
       toDate: document.getElementById("toDate"),
       refresh: document.getElementById("refreshBtn"),
       body: document.getElementById("logsBody"),
+      status: document.getElementById("logsStatus"),
       total: document.getElementById("totalLogs"),
       deletes: document.getElementById("deleteLogs"),
       updates: document.getElementById("updateLogs"),
@@ -580,7 +582,7 @@
       const rowNumber = Number(log.rowNumber || 0);
       const rawLogId = decodeText(log.logId || log.id || "");
 
-      return {
+      const normalized = {
         logId: rawLogId || (rowNumber ? `ROW-${rowNumber}` : `LOG-${index + 1}`),
         rawLogId,
         rowNumber,
@@ -592,6 +594,10 @@
         details: decodeText(log.details || log.description || log.message || ""),
         createdAt: decodeText(log.createdAt || log.dateTime || log.timestamp || log.date || "")
       };
+      normalized.searchText = normalizeText([normalized.action, normalized.entityType, normalized.entityId,
+        normalized.userName, normalized.displayName, normalized.details, normalized.createdAt].join(" "));
+      normalized.dateKey = getDateKey(normalized.createdAt);
+      return normalized;
     }
 
     function getDateKey(value) {
@@ -640,7 +646,7 @@
       const visibleSelectedCount = visibleIds.filter(id => state.selectedIds.has(id)).length;
 
       els.selectedCount.textContent = localizeText(`${selectedCount} محدد`, `${selectedCount} selected`);
-      els.deleteSelected.disabled = selectedCount === 0;
+      els.deleteSelected.disabled = selectedCount === 0 || activityWriteActive || Boolean(activityRead);
       els.selectAll.disabled = visibleIds.length === 0;
       els.selectAll.checked = visibleIds.length > 0 && visibleSelectedCount === visibleIds.length;
       els.selectAll.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visibleIds.length;
@@ -651,6 +657,10 @@
       updateLoadMoreButton();
 
       if (!state.filtered.length) {
+        if (activityRead && !activityRead.published && !state.logs.length) {
+          setEmpty(localizeText("جاري تحميل آخر 100 عملية...", "Loading latest 100 activity logs..."));
+          return;
+        }
         setEmpty(localizeText("لا توجد عمليات مطابقة للفلاتر الحالية.", "No activity matches the current filters."));
         return;
       }
@@ -678,6 +688,7 @@
     }
 
     function applyFilters() {
+      const startedAt = Date.now();
       const query = normalizeText(els.search.value);
       const action = normalizeText(els.action.value);
       const entity = normalizeText(els.entity.value);
@@ -685,16 +696,8 @@
       const toDate = els.toDate.value;
 
       state.filtered = state.logs.filter(log => {
-        const haystack = normalizeText([
-          log.action,
-          log.entityType,
-          log.entityId,
-          log.userName,
-          log.displayName,
-          log.details,
-          log.createdAt
-        ].join(" "));
-        const dateKey = getDateKey(log.createdAt);
+        const haystack = log.searchText;
+        const dateKey = log.dateKey;
 
         if (query && !haystack.includes(query)) return false;
         if (action && log.action !== action) return false;
@@ -706,13 +709,14 @@
 
       updateSelectionControls();
       renderLogs();
+      reportActivityTiming("filter", startedAt, "success");
     }
 
     function updateLoadMoreButton() {
       if (!els.loadMoreWrap || !els.loadMore) return;
 
       els.loadMoreWrap.hidden = !state.hasMore;
-      els.loadMore.disabled = state.loadingMore;
+      els.loadMore.disabled = Boolean(activityRead) || activityWriteActive;
       els.loadMore.textContent = state.loadingMore
         ? localizeText("جاري تحميل المزيد...", "Loading more...")
         : localizeText("عرض المزيد", "Load More");
@@ -755,6 +759,7 @@
     }
 
     async function deleteSelectedLogs() {
+      if (activityWriteActive || activityRead) return;
       const selectedLogs = state.filtered
         .filter(log => state.selectedIds.has(String(log.logId || "")))
         .sort((a, b) => Number(b.rowNumber || 0) - Number(a.rowNumber || 0));
@@ -767,22 +772,26 @@
         return;
       }
 
+      activityWriteActive = true;
       els.deleteSelected.disabled = true;
       els.deleteSelected.textContent = localizeText("جاري الحذف...", "Deleting...");
 
       try {
         await deleteActivityLogs(selectedLogs);
         state.selectedIds.clear();
-        await loadLogs();
+        await loadLogs({ fresh: true });
       } catch (error) {
         alert(error.message || localizeText("تعذر حذف السجلات المحددة.", "Could not delete selected logs."));
       } finally {
+        activityWriteActive = false;
         els.deleteSelected.textContent = localizeText("حذف المحدد", "Delete Selected");
         updateSelectionControls();
+        updateLoadMoreButton();
       }
     }
 
     async function deleteSingleLog(logId) {
+      if (activityWriteActive || activityRead) return;
       const log = state.filtered.find(item => String(item.logId || "") === String(logId));
       if (!log) return;
 
@@ -790,66 +799,99 @@
         return;
       }
 
+      activityWriteActive = true;
+      updateLoadMoreButton();
       try {
         await deleteActivityLog(log);
         state.selectedIds.delete(String(logId));
-        await loadLogs();
+        await loadLogs({ fresh: true });
       } catch (error) {
         alert(error.message || localizeText("تعذر حذف السجل.", "Could not delete log."));
+      } finally {
+        activityWriteActive = false;
+        updateSelectionControls();
+        updateLoadMoreButton();
       }
     }
 
-    async function loadLogs({ append = false } = {}) {
-      state.loadingMore = append;
-      updateLoadMoreButton();
+    let activityRead = null;
+    let pendingActivityRead = null;
+    let activityReadSequence = 0;
+    let activityWriteActive = false;
 
-      if (!append) {
-        state.offset = 0;
-        state.hasMore = false;
-        state.logs = [];
-        state.filtered = [];
-        state.selectedIds.clear();
-        setEmpty(localizeText("جاري تحميل آخر 100 عملية...", "Loading latest 100 activity logs..."));
+    function reportActivityTiming(operation, startedAt, outcome) {
+      if (new URLSearchParams(window.location.search).get("performance") === "1") {
+        console.info("[ACTIVITY_PERF] " + JSON.stringify({ operation, totalMs: Date.now() - startedAt, outcome }));
       }
+    }
 
+    function loadLogs({ append = false, fresh = false } = {}) {
+      if (activityWriteActive && !fresh) return Promise.resolve();
+      if (activityRead) {
+        if (!fresh && (activityRead.append === append || append)) return activityRead.promise;
+        if (pendingActivityRead) return pendingActivityRead.promise;
+        const request = { append: false, sequence: ++activityReadSequence, startedAt: Date.now() };
+        request.promise = new Promise(resolve => { request.resolve = resolve; });
+        pendingActivityRead = request;
+        return request.promise;
+      }
+      if (append && !state.hasMore) return Promise.resolve();
+      const request = { append, sequence: ++activityReadSequence, startedAt: Date.now() };
+      request.promise = new Promise(resolve => { request.resolve = resolve; });
+      startActivityRead(request);
+      return request.promise;
+    }
+
+    async function startActivityRead(request) {
+      activityRead = request;
+      const offset = request.append ? state.offset : 0;
+      state.loadingMore = request.append;
+      updateLoadMoreButton();
+      updateSelectionControls();
+      els.status.textContent = localizeText("جاري تحميل السجل...", "Loading activity log...");
+      if (!state.logs.length) setEmpty(localizeText("جاري تحميل آخر 100 عملية...", "Loading latest 100 activity logs..."));
+      let outcome = "superseded";
       try {
-        const response = await RomeoApi.request({
-          action: "getActivityLogs",
-          limit: state.pageSize,
-          offset: append ? state.offset : 0
-        });
-        if (response.status !== "success") {
-          throw new Error(response.message || "Activity log API is not ready.");
-        }
-
+        const response = await RomeoApi.request({ action: "getActivityLogs", limit: state.pageSize, offset });
+        if (request.sequence !== activityReadSequence) return;
+        if (response.status !== "success") throw new Error("ACTIVITY_READ_FAILED");
         const rows = response.logs || response.activityLogs || [];
         const backendIgnoredPaging = rows.length > state.pageSize;
-        const pageRows = backendIgnoredPaging
-          ? rows.slice(state.offset, state.offset + state.pageSize)
-          : rows;
-        const normalizedRows = pageRows.map((log, index) => normalizeLog(log, state.offset + index));
-        state.logs = append ? state.logs.concat(normalizedRows) : normalizedRows;
-        state.logs = state.logs.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-        state.offset += pageRows.length;
-        state.hasMore = backendIgnoredPaging
-          ? state.offset < rows.length
-          : Boolean(response.hasMore);
+        const pageRows = backendIgnoredPaging ? rows.slice(offset, offset + state.pageSize) : rows;
+        const normalizedRows = pageRows.map((log, index) => normalizeLog(log, offset + index));
+        const combined = request.append ? state.logs.concat(normalizedRows) : normalizedRows;
+        const seen = new Set();
+        state.logs = combined.filter(log => {
+          if (!log.rawLogId) return true;
+          if (seen.has(log.rawLogId)) return false;
+          seen.add(log.rawLogId);
+          return true;
+        }).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+        state.offset = offset + pageRows.length;
+        state.hasMore = backendIgnoredPaging ? state.offset < rows.length : Boolean(response.hasMore);
+        request.published = true;
         applyFilters();
+        els.status.textContent = "";
+        outcome = "success";
       } catch (error) {
-        if (!append) {
-          state.logs = [];
-          state.filtered = [];
-          renderMetrics();
-          setEmpty(
-            localizeText(
-              "تعذر تحميل سجل العمليات.",
-              "Could not load activity log."
-            )
-          );
-        }
+        if (request.sequence !== activityReadSequence) return;
+        outcome = "error";
+        els.status.textContent = state.logs.length
+          ? localizeText("تعذر تحديث السجل. العمليات السابقة ما زالت ظاهرة؛ حاول مرة أخرى.", "Could not refresh. Previous records are still displayed; try again.")
+          : localizeText("تعذر تحميل سجل العمليات. حاول مرة أخرى.", "Could not load activity log. Try again.");
+        if (!state.logs.length) setEmpty(els.status.textContent);
       } finally {
+        reportActivityTiming(request.append ? "more" : "refresh", request.startedAt, outcome);
+        activityRead = null;
         state.loadingMore = false;
         updateLoadMoreButton();
+        updateSelectionControls();
+        request.resolve();
+        if (pendingActivityRead) {
+          const next = pendingActivityRead;
+          pendingActivityRead = null;
+          startActivityRead(next);
+        }
       }
     }
 

@@ -171,7 +171,7 @@
         body: JSON.stringify(bodyPayload)
       });
       try {
-        const safeActions = ["getDailyClosings", "getIncomeStatementRange", "getMonthlyClosings", "getCashierCatalog", "getStaff", "getServices", "getSellableProducts", "getInvoices", "todaySales", "todayPaymentTotals", "getDailyClosingPreview", "customerLookup", "invoice"];
+        const safeActions = ["getActivityLogs", "getDailyClosings", "getIncomeStatementRange", "getMonthlyClosings", "getCashierCatalog", "getStaff", "getServices", "getSellableProducts", "getInvoices", "todaySales", "todayPaymentTotals", "getDailyClosingPreview", "customerLookup", "invoice"];
         if (new URLSearchParams(window.location?.search || "").get("performance") === "1" && response && safeActions.includes(payload?.action)) {
           const timing = {};
           const header = String(response.headers.get("server-timing") || "");
