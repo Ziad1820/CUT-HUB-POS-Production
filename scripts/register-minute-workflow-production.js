@@ -19,6 +19,7 @@ const files = {
   "044_invoices_queries.gs": ["getInvoices", "readInvoiceDataSnapshot"],
   "045_invoices_deletion.gs": ["deleteInvoice"],
   "046_accounting_withdrawals.gs": [],
+  "047_accounting_expenses.gs": ["getExpenses"],
   "048_invoices_pdf.gs": ["createInvoicePdf"],
   "049_reports_sales-customers.gs": [],
   "064_phase_staff-scheduling-phase2.gs": [],

@@ -1,6 +1,8 @@
 # Production Apps Script package
 
-نسخة الإنتاج الحالية **61** تضيف قراءة موحدة لصفحة السحوبات مع بيانات الموظفين الأساسية فقط، وتحتفظ بعمليات الإضافة والحذف وقواعد الفترات المقفلة الأصلية. التفاصيل في [withdrawals-performance.md](../../docs/withdrawals-performance.md). تحسينات حسابات الموظفين من النسخة **60** وتقفيلة اليوم من النسخة **57** ما زالت محفوظة؛ التفاصيل في [staff-accounting-performance.md](../../docs/staff-accounting-performance.md) و[daily-closing-performance.md](../../docs/daily-closing-performance.md).
+نسخة الإنتاج الحالية **62** تسرّع فلترة المصروفات وتحتفظ بنفس السجلات والمبالغ وترتيبها، مع معالجة حدود يوم القاهرة. عمليات الإضافة والحذف الأصلية محفوظة. التفاصيل في [expenses-performance.md](../../docs/expenses-performance.md).
+
+نسخة **61** تضيف قراءة موحدة لصفحة السحوبات مع بيانات الموظفين الأساسية فقط، وتحتفظ بعمليات الإضافة والحذف وقواعد الفترات المقفلة الأصلية. التفاصيل في [withdrawals-performance.md](../../docs/withdrawals-performance.md). تحسينات حسابات الموظفين من النسخة **60** وتقفيلة اليوم من النسخة **57** ما زالت محفوظة؛ التفاصيل في [staff-accounting-performance.md](../../docs/staff-accounting-performance.md) و[daily-closing-performance.md](../../docs/daily-closing-performance.md).
 
 نسخة **55** تسرّع حساب فترة قائمة الدخل باستخدام حدود يوم القاهرة مرة واحدة، مع الحفاظ على جميع المبالغ والعدادات وحساب قفل الشهر من الخادم. الصفحة تجمع القراءات المتكررة وتحتفظ بآخر أرقام ناجحة عند فشل التحديث. التفاصيل في [income-statement-performance.md](../../docs/income-statement-performance.md).
 

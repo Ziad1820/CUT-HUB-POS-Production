@@ -47,7 +47,35 @@ function getExpenses(data) {
 
   const lastRow = sheet.getLastRow();
   const rows = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+  let dateBounds = null;
+  if (range && typeof Utilities !== "undefined" && Utilities.parseDate) {
+    try {
+      function midnight(key, followingDay) {
+        if (followingDay) {
+          const parts = key.split("-").map(Number);
+          key = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + 1)).toISOString().slice(0, 10);
+        }
+        const boundary = Utilities.parseDate(key, TIME_ZONE, "yyyy-MM-dd");
+        if (getDateKey(boundary, TIME_ZONE) !== key) throw new Error("DATE_BOUNDARY_NORMALIZED");
+        return boundary.getTime();
+      }
+      dateBounds = { from: range.fromDate ? midnight(range.fromDate) : -Infinity,
+        to: range.toDate ? midnight(range.toDate, true) : Infinity };
+      if (isNaN(dateBounds.from) || isNaN(dateBounds.to)) dateBounds = null;
+    } catch (_) { dateBounds = null; }
+  }
+  // Format only matching dates. Reuse exact timestamp conversions within this read.
+  const dateKeys = new Map();
   const expenses = rows.map((row, index) => {
+    const rawDate = row[4];
+    if (dateBounds && rawDate instanceof Date && !isNaN(rawDate.getTime()) &&
+        (rawDate.getTime() < dateBounds.from || rawDate.getTime() >= dateBounds.to)) return null;
+    const cacheKey = rawDate instanceof Date ? rawDate.getTime() : String(rawDate);
+    const cacheType = rawDate instanceof Date ? "date:" : typeof rawDate + ":";
+    const key = cacheType + cacheKey;
+    if (!dateKeys.has(key)) dateKeys.set(key, getDateKey(rawDate, TIME_ZONE));
+    const date = dateKeys.get(key);
+    if (!isDateInOptionalRange(date, range)) return null;
     const rowNumber = index + 2;
     const expenseId = row[5] || `EXPENSES-${rowNumber}`;
     return {
@@ -58,9 +86,9 @@ function getExpenses(data) {
       amount: parseSheetAmount(row[1]),
       title: row[2] || "",
       note: row[3] || "",
-      date: getDateKey(row[4], TIME_ZONE)
+      date
     };
-  }).filter(expense => isDateInOptionalRange(expense.date, range)).reverse();
+  }).filter(Boolean).reverse();
 
   return jsonOutput({ status: "success", expenses });
 }

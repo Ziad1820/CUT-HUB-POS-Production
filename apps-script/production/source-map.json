@@ -272,7 +272,13 @@
         },
         {
           "path": "047_accounting_expenses.gs",
-          "sha256": "79713c0a2324e5d687f28cd2aa7d11061ef63087af889943fe710229359ebc9d"
+          "sha256": "79713c0a2324e5d687f28cd2aa7d11061ef63087af889943fe710229359ebc9d",
+          "baselineSourcePath": "baseline/047_accounting_expenses.js",
+          "currentSha256": "7c7f768cd88e9a89920a52a0060423ef4b235303a51fc1c8a1dcf31235d0b317",
+          "changedGlobals": [
+            "getExpenses"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "048_invoices_pdf.gs",

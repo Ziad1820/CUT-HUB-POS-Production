@@ -4,9 +4,9 @@ Generated locally by `scripts/generate-release-manifest.js`. Do not hand-edit. T
 
 ## Counts
 
-- Required tracked files: **396**
+- Required tracked files: **399**
 - Required untracked files: **0**
-- Total classified entries: **427**
+- Total classified entries: **430**
 
 ## Intended Apps Script application package
 
@@ -167,6 +167,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `apps-script/production/baseline/044_invoices_queries.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/045_invoices_deletion.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/046_accounting_withdrawals.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
+| `apps-script/production/baseline/047_accounting_expenses.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/048_invoices_pdf.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/049_reports_sales-customers.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/064_phase_staff-scheduling-phase2.js` | tracked | Phase 2 Scheduling | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | tests/staff-scheduling-phase2.test.js<br>tests/staff-scheduling-phase2-contract.test.js | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
@@ -279,6 +280,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `docs/daily-closing-performance.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/dashboard-analysis-loading-fix.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/dashboard-api-relay-deployment.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
+| `docs/expenses-performance.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/income-statement-performance.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/invoice-load-more-recovery.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/invoice-on-demand-pdf.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
@@ -444,6 +446,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `tests/customer-tracking-ratings.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/daily-closing-performance.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/dashboard-analysis-loading.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
+| `tests/expenses-performance.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/fixtures/auth01-v25-browser-smoke-harness.js` | tracked | Authentication & navigation | test | yes | no | — | Local validation only | tests/auth-navigation.test.js<br>tests/auth01-local-implementation.test.js | Release-blocking local regression or safety evidence. |
 | `tests/frontend-api-configuration.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/frontend-relay-queue.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |

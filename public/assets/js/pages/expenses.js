@@ -30,7 +30,8 @@
       selectAllExpenses: document.getElementById("selectAllExpenses"),
       deleteSelectedBtn: document.getElementById("deleteSelectedBtn"),
       selectedExpensesCount: document.getElementById("selectedExpensesCount"),
-      historyList: document.getElementById("historyList")
+      historyList: document.getElementById("historyList"),
+      status: document.getElementById("expenseStatus")
     };
 
     const menuToggle = document.getElementById("menuToggle");
@@ -42,7 +43,12 @@
     const clearDateFilterBtn = document.getElementById("clearDateFilterBtn");
 
     let expenseList = [];
-    let expenseLoadRequestId = 0;
+    let expenseRead = null;
+    let pendingExpenseRead = null;
+    let expenseSequence = 0;
+    let expenseWriteActive = false;
+    let expensesFresh = false;
+    let loadedExpenseRange = null;
     let selectedExpenseIds = new Set();
     let selectedCategoryId = EXPENSE_CATEGORIES[0]?.id || null;
 
@@ -112,41 +118,82 @@
         rowNumber: expense.rowNumber || "",
         categoryId: expense.categoryId || getExpenseCategoryId(expense.category),
         amount: normalizeAmount(expense.amount),
-        date: expense.date || new Date().toISOString().slice(0, 10),
+        date: expense.date || RomeoDateRange.today(),
         title: String(expense.title || "").trim(),
         note: String(expense.note || "").trim()
       };
     }
 
-    async function loadExpensesFromSheet() {
-      const requestId = ++expenseLoadRequestId;
+    function reportExpenseTiming(operation, startedAt, outcome) {
+      if (new URLSearchParams(window.location.search).get("performance") === "1") {
+        console.info("[EXPENSES_PERF] " + JSON.stringify({ operation, totalMs: Date.now() - startedAt, outcome }));
+      }
+    }
+
+    function updateExpenseControls() {
+      const blocked = expenseWriteActive || Boolean(expenseRead) || !expensesFresh;
+      saveBtn.disabled = blocked || !getSelectedCategory();
+      clearBtn.disabled = expenseWriteActive;
+      [elements.expenseAmount, elements.expenseDate, elements.expenseCategory, elements.expenseTitle, elements.expenseNote].forEach(input => { input.disabled = expenseWriteActive; });
+      elements.deleteSelectedBtn.disabled = blocked || selectedExpenseIds.size === 0;
+      elements.historyList.querySelectorAll("[data-delete-id]").forEach(button => { button.disabled = blocked; });
+    }
+
+    function loadExpensesFromSheet({ fresh = false } = {}) {
+      if (expenseWriteActive && !fresh) return Promise.resolve(false);
       const range = RomeoDateRange.validate(elements.filterFromDate.value, elements.filterToDate.value);
       if (!range.ok) {
-        expenseList = [];
-        selectedExpenseIds.clear();
-        renderAll();
-        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("اختر تاريخ بداية ونهاية صحيحين.", range.message)}</div>`;
-        return;
+        ++expenseSequence;
+        elements.status.textContent = localizeText("اختر تاريخ بداية ونهاية صحيحين؛ الأرقام الظاهرة من آخر تحميل ناجح.", "Choose a valid period; displayed figures are from the last successful load.");
+        return Promise.resolve(false);
       }
-      try {
-        const data = await RomeoApi.request({ action: "getExpenses", fromDate: range.fromDate, toDate: range.toDate });
-        if (requestId !== expenseLoadRequestId) return;
-        if (data.status !== "success") {
-          throw new Error(data.message || "Failed to load expenses");
-        }
+      const key = range.fromDate + ":" + range.toDate;
+      if (!fresh && expenseRead?.key === key && !pendingExpenseRead) return expenseRead.promise;
+      if (pendingExpenseRead?.key === key) return pendingExpenseRead.promise;
+      const request = { key, range, sequence: ++expenseSequence, startedAt: Date.now() };
+      request.promise = new Promise(resolve => { request.resolve = resolve; });
+      if (expenseRead) {
+        if (pendingExpenseRead) pendingExpenseRead.resolve(false);
+        pendingExpenseRead = request;
+      } else startExpenseRead(request);
+      return request.promise;
+    }
 
-        expenseList = Array.isArray(data.expenses)
-          ? data.expenses.map(normalizeExpenseFromSheet)
-          : [];
+    async function startExpenseRead(request) {
+      expenseRead = request;
+      updateExpenseControls();
+      elements.status.textContent = localizeText("جاري تحميل المصروفات...", "Loading expenses...");
+      const isCurrent = () => request.sequence === expenseSequence &&
+        request.range.fromDate === elements.filterFromDate.value && request.range.toDate === elements.filterToDate.value;
+      let outcome = "superseded", ok = false;
+      try {
+        const data = await RomeoApi.request({ action: "getExpenses", fromDate: request.range.fromDate, toDate: request.range.toDate });
+        if (!isCurrent()) return;
+        if (data.status !== "success" || !Array.isArray(data.expenses)) throw new Error("EXPENSES_READ_FAILED");
+        const nextExpenses = data.expenses.map(normalizeExpenseFromSheet);
+        expenseList = nextExpenses;
+        loadedExpenseRange = request.range;
+        expensesFresh = true;
         selectedExpenseIds.clear();
         renderAll();
+        elements.status.textContent = "";
+        outcome = "success"; ok = true;
       } catch (error) {
-        if (requestId !== expenseLoadRequestId) return;
-        console.error(error);
-        expenseList = [];
-        selectedExpenseIds.clear();
-        renderAll();
-        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("تعذر تحميل المصروفات من الشيت.", "Could not load expenses from the sheet.")}</div>`;
+        if (!isCurrent()) return;
+        outcome = "error";
+        elements.status.textContent = localizeText("تعذر تحديث المصروفات. الأرقام الظاهرة من آخر تحميل ناجح؛ حاول مرة أخرى.",
+          "Could not refresh expenses. Displayed figures are from the last successful load; try again.");
+      } finally {
+        reportExpenseTiming("period", request.startedAt, outcome);
+        expenseRead = null;
+        if (outcome === "superseded" && !pendingExpenseRead) elements.status.textContent = localizeText("الفترة اتغيّرت؛ اضغط تطبيق الفلتر لتحديث الأرقام.", "Period changed; apply the filter to refresh figures.");
+        updateExpenseControls();
+        request.resolve(ok);
+        if (pendingExpenseRead) {
+          const next = pendingExpenseRead;
+          pendingExpenseRead = null;
+          startExpenseRead(next);
+        }
       }
     }
 
@@ -193,13 +240,8 @@
         || message.includes("missing");
     }
 
-    function removeExpenseLocally(expense) {
-      expenseList = expenseList.filter(item => String(item.id) !== String(expense.id));
-      selectedExpenseIds.delete(String(expense.id));
-      renderAll();
-    }
-
     function populateCategorySelect() {
+      const selectedValue = elements.expenseCategory.value || selectedCategoryId;
       elements.expenseCategory.innerHTML = "";
       EXPENSE_CATEGORIES.forEach(category => {
         const option = document.createElement("option");
@@ -207,6 +249,7 @@
         option.textContent = getCategoryLabel(category);
         elements.expenseCategory.appendChild(option);
       });
+      elements.expenseCategory.value = selectedValue;
     }
 
     function getSelectedCategory() {
@@ -215,8 +258,8 @@
 
     function isDateInFilter(dateValue) {
       const date = String(dateValue || "").slice(0, 10);
-      const fromDate = elements.filterFromDate.value;
-      const toDate = elements.filterToDate.value;
+      const fromDate = loadedExpenseRange?.fromDate || elements.filterFromDate.value;
+      const toDate = loadedExpenseRange?.toDate || elements.filterToDate.value;
 
       if (!date) return false;
       if (fromDate && date < fromDate) return false;
@@ -246,7 +289,7 @@
       const selectedCount = selectedExpenseIds.size;
       const visibleIds = visibleItems.map(item => String(item.id));
       const visibleSelectedCount = visibleIds.filter(id => selectedExpenseIds.has(id)).length;
-      elements.deleteSelectedBtn.disabled = selectedCount === 0;
+      updateExpenseControls();
       elements.selectedExpensesCount.textContent = currentLanguage() === "en"
         ? `${selectedCount} selected`
         : `${selectedCount} محدد`;
@@ -285,9 +328,11 @@
           </div>
         `;
         card.addEventListener("click", () => {
+          const startedAt = Date.now();
           selectedCategoryId = category.id;
           elements.expenseCategory.value = category.id;
           renderAll();
+          reportExpenseTiming("category", startedAt, "success");
         });
         elements.categoryList.appendChild(card);
       });
@@ -295,23 +340,6 @@
       if (!filtered.length) {
         elements.categoryList.innerHTML = `<div class="history-empty">${localizeText("لا يوجد تصنيف مطابق.", "No category found.")}</div>`;
       }
-    }
-
-    function renderHero() {
-      const category = getSelectedCategory();
-      if (!category) {
-        elements.categoryTitle.textContent = "No Category Selected";
-        elements.categorySubtitle.textContent = localizeText("اختر تصنيف من القائمة لتسجيل المصروفات.", "Choose a category from the list to record expenses.");
-        elements.categoryCode.textContent = "--";
-        return;
-      }
-
-      elements.categoryTitle.textContent = category.name;
-      elements.categorySubtitle.textContent = localizeText(
-        `كل المصروفات الخاصة بتصنيف ${category.name} ستظهر هنا مع ملخص تلقائي وسجل كامل.`,
-        `All expenses for ${category.name} will appear here with an automatic summary and full history.`
-      );
-      elements.categoryCode.textContent = category.code;
     }
 
     function renderSummary() {
@@ -327,75 +355,6 @@
       elements.allExpenses.textContent = formatMoney(allTotal);
       elements.averageExpense.textContent = formatMoney(average);
       updateSelectedExpensesState();
-    }
-
-    function renderHistory() {
-      const category = getSelectedCategory();
-      const sorted = getVisibleHistoryExpenses();
-      elements.historyList.innerHTML = "";
-
-      if (!category) {
-        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("لا يوجد تصنيف مختار الآن.", "No category is selected right now.")}</div>`;
-        return;
-      }
-
-      if (!sorted.length) {
-        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("لا توجد مصروفات مسجلة لهذا التصنيف حتى الآن.", "No expenses have been recorded for this category yet.")}</div>`;
-        return;
-      }
-
-      sorted.forEach(item => {
-        const row = document.createElement("article");
-        row.className = "history-item";
-        row.innerHTML = `
-          <div class="history-top">
-            <div class="history-amount">${formatMoney(item.amount)}</div>
-            <button type="button" class="action-btn soft" data-delete-id="${item.id}">Delete</button>
-          </div>
-          <div class="history-meta">
-            <span>${item.title || category.name}</span>
-            <span>${item.date}</span>
-            <span>${category.code}</span>
-          </div>
-          <div class="history-note">${item.note || "No note"}</div>
-        `;
-        elements.historyList.appendChild(row);
-      });
-      updateSelectedExpensesState();
-    }
-
-    function renderLocalizedHero() {
-      const category = getSelectedCategory();
-      if (!category) {
-        elements.categoryTitle.textContent = localizeText("لم يتم اختيار تصنيف", "No Category Selected");
-        elements.categorySubtitle.textContent = localizeText(
-          "اختر تصنيف من القائمة لتسجيل المصروفات.",
-          "Choose a category from the list to record expenses."
-        );
-        elements.categoryCode.textContent = "--";
-        return;
-      }
-
-      elements.categoryTitle.textContent = category.name;
-      elements.categorySubtitle.textContent = localizeText(
-        `كل المصروفات الخاصة بتصنيف ${category.name} ستظهر هنا مع ملخص تلقائي وسجل كامل.`,
-        `All expenses for ${category.name} will appear here with an automatic summary and full history.`
-      );
-      elements.categoryCode.textContent = category.code;
-    }
-
-    function localizeHistoryEmptyState() {
-      const category = getSelectedCategory();
-      const items = category ? getCategoryExpenses(category.id) : [];
-
-      if (!category) {
-        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("لا يوجد تصنيف مختار الآن.", "No category is selected right now.")}</div>`;
-        return;
-      }
-
-      if (!items.length) {
-        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("لا توجد مصروفات مسجلة لهذا التصنيف حتى الآن.", "No expenses have been recorded for this category yet.")}</div>`;
-      }
     }
 
     function renderHistory() {
@@ -458,20 +417,6 @@
       elements.categoryCode.textContent = category.code;
     }
 
-    function localizeHistoryEmptyState() {
-      const category = getSelectedCategory();
-      const items = category ? getCategoryExpenses(category.id) : [];
-
-      if (!category) {
-        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("لا يوجد تصنيف مختار الآن.", "No category is selected right now.")}</div>`;
-        return;
-      }
-
-      if (!items.length) {
-        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("لا توجد مصروفات مسجلة لهذا التصنيف حتى الآن.", "No expenses have been recorded for this category yet.")}</div>`;
-      }
-    }
-
     function renderAll() {
       applyPageLanguage();
       populateCategorySelect();
@@ -482,164 +427,78 @@
       renderLocalizedHero();
       renderSummary();
       renderHistory();
-      localizeHistoryEmptyState();
-      applyPageLanguage();
+      updateExpenseControls();
     }
 
     function clearForm() {
       elements.expenseAmount.value = "";
       elements.expenseTitle.value = "";
       elements.expenseNote.value = "";
-      elements.expenseDate.value = new Date().toISOString().slice(0, 10);
+      elements.expenseDate.value = RomeoDateRange.today();
       elements.expenseCategory.value = selectedCategoryId || EXPENSE_CATEGORIES[0]?.id || "";
     }
 
-    async function addExpense() {
-      const amount = normalizeAmount(elements.expenseAmount.value);
-      const categoryId = elements.expenseCategory.value;
-      const category = EXPENSE_CATEGORIES.find(item => item.id === categoryId);
-
-      if (!category) {
-        alert(localizeText("اختار تصنيف صحيح.", "Choose a valid category."));
-        return;
-      }
-
-      if (!Number.isFinite(amount) || amount <= 0) {
-        alert(localizeText("اكتب مبلغ مصروف صحيح.", "Enter a valid expense amount."));
-        return;
-      }
-
-      const expense = {
-        id: Date.now(),
-        categoryId,
-        amount,
-        date: elements.expenseDate.value || new Date().toISOString().slice(0, 10),
-        title: elements.expenseTitle.value.trim(),
-        note: elements.expenseNote.value.trim()
-      };
-
-      saveBtn.disabled = true;
-      saveBtn.textContent = "Saving...";
-
+    async function runExpenseWrite(action) {
+      if (expenseWriteActive || expenseRead || !expensesFresh) return false;
+      expenseWriteActive = true;
+      expensesFresh = false;
+      updateExpenseControls();
+      let completed = false;
       try {
-        await saveExpenseToSheet(expense);
-        selectedCategoryId = categoryId;
-        clearForm();
-        await loadExpensesFromSheet();
+        await action();
+        completed = true;
       } catch (error) {
-        console.error(error);
-        alert(error.message || localizeText("تعذر حفظ المصروف في الشيت.", "Could not save the expense to the sheet."));
+        alert(localizeText("تعذر تأكيد العملية. سنراجع السجل قبل السماح بعملية أخرى.", "Could not confirm the operation. The history will be refreshed before another operation."));
       } finally {
-        saveBtn.disabled = false;
-        saveBtn.textContent = "Add Expense";
+        // Refresh once even after an uncertain or partially completed write; never replay writes.
+        await loadExpensesFromSheet({ fresh: true });
+        expenseWriteActive = false;
+        updateExpenseControls();
+        applyPageLanguage();
+        elements.deleteSelectedBtn.textContent = localizeText("حذف المحدد", "Delete Selected");
       }
-    }
-
-    async function deleteExpense(id) {
-      const expense = expenseList.find(item => String(item.id) === String(id));
-      if (!expense) {
-        return;
-      }
-
-      try {
-        await deleteExpenseFromSheet(expense);
-        await loadExpensesFromSheet();
-      } catch (error) {
-        console.error(error);
-        alert(error.message || localizeText("تعذر حذف المصروف من الشيت.", "Could not delete the expense from the sheet."));
-      }
+      return completed;
     }
 
     async function addExpenseLocalized() {
+      if (expenseWriteActive || expenseRead || !expensesFresh) return;
       const amount = normalizeAmount(elements.expenseAmount.value);
       const categoryId = elements.expenseCategory.value;
-      const category = EXPENSE_CATEGORIES.find(item => item.id === categoryId);
-
-      if (!category) {
-        alert(localizeText("اختار تصنيف صحيح.", "Choose a valid category."));
+      if (!EXPENSE_CATEGORIES.some(item => item.id === categoryId) || amount <= 0) {
+        alert(localizeText("اختار تصنيف ومبلغ مصروف صحيحين.", "Choose a valid category and expense amount."));
         return;
       }
-
-      if (!Number.isFinite(amount) || amount <= 0) {
-        alert(localizeText("اكتب مبلغ مصروف صحيح.", "Enter a valid expense amount."));
-        return;
-      }
-
-      const expense = {
-        id: Date.now(),
-        categoryId,
-        amount,
-        date: elements.expenseDate.value || new Date().toISOString().slice(0, 10),
-        title: elements.expenseTitle.value.trim(),
-        note: elements.expenseNote.value.trim()
-      };
-
-      saveBtn.disabled = true;
-      saveBtn.textContent = localizeText("جاري الحفظ...", "Saving...");
-
-      try {
+      const expense = { id: Date.now(), categoryId, amount,
+        date: elements.expenseDate.value || RomeoDateRange.today(),
+        title: elements.expenseTitle.value.trim(), note: elements.expenseNote.value.trim() };
+      await runExpenseWrite(async () => {
+        saveBtn.textContent = localizeText("جاري الحفظ...", "Saving...");
         await saveExpenseToSheet(expense);
         selectedCategoryId = categoryId;
         clearForm();
-        await loadExpensesFromSheet();
-      } catch (error) {
-        console.error(error);
-        alert(error.message || localizeText("تعذر حفظ المصروف في الشيت.", "Could not save the expense to the sheet."));
-      } finally {
-        saveBtn.disabled = false;
-        saveBtn.textContent = localizeText("إضافة مصروف", "Add Expense");
-      }
+      });
     }
 
     async function deleteExpenseLocalized(id) {
       const expense = expenseList.find(item => String(item.id) === String(id));
       if (!expense) return;
-
-      try {
-        await deleteExpenseFromSheet(expense);
-        await loadExpensesFromSheet();
-      } catch (error) {
-        if (isNotFoundError(error)) {
-          removeExpenseLocally(expense);
-          return;
-        }
-        console.error(error);
-        alert(error.message || localizeText("تعذر حذف المصروف من الشيت.", "Could not delete the expense from the sheet."));
-      }
+      await runExpenseWrite(async () => {
+        try { await deleteExpenseFromSheet(expense); }
+        catch (error) { if (!isNotFoundError(error)) throw error; }
+      });
     }
 
     async function deleteSelectedExpenses() {
-      const selectedItems = expenseList.filter(item => selectedExpenseIds.has(String(item.id)));
-      if (!selectedItems.length) {
-        return;
-      }
-
-      if (!confirm(localizeText("تحذف المصروفات المحددة؟", "Delete selected expenses?"))) {
-        return;
-      }
-
-      elements.deleteSelectedBtn.disabled = true;
-      elements.deleteSelectedBtn.textContent = localizeText("جاري الحذف...", "Deleting...");
-
-      try {
+      if (expenseWriteActive || expenseRead || !expensesFresh) return;
+      const selectedItems = getVisibleHistoryExpenses().filter(item => selectedExpenseIds.has(String(item.id)));
+      if (!selectedItems.length || !confirm(localizeText("تحذف المصروفات المحددة؟", "Delete selected expenses?"))) return;
+      await runExpenseWrite(async () => {
+        elements.deleteSelectedBtn.textContent = localizeText("جاري الحذف...", "Deleting...");
         for (const expense of selectedItems) {
-          try {
-            await deleteExpenseFromSheet(expense);
-          } catch (error) {
-            if (!isNotFoundError(error)) {
-              throw error;
-            }
-          }
+          try { await deleteExpenseFromSheet(expense); }
+          catch (error) { if (!isNotFoundError(error)) throw error; }
         }
-        selectedExpenseIds.clear();
-        await loadExpensesFromSheet();
-      } catch (error) {
-        console.error(error);
-        alert(error.message || localizeText("تعذر حذف المصروفات المحددة.", "Could not delete selected expenses."));
-      } finally {
-        elements.deleteSelectedBtn.textContent = localizeText("حذف المحدد", "Delete Selected");
-        updateSelectedExpensesState();
-      }
+      });
     }
 
     function openSidebar() {
@@ -664,7 +523,11 @@
       });
     });
 
-    elements.searchInput.addEventListener("input", renderCategoryList);
+    elements.searchInput.addEventListener("input", () => {
+      const startedAt = Date.now();
+      renderCategoryList();
+      reportExpenseTiming("search", startedAt, "success");
+    });
     elements.expenseAmount.addEventListener("wheel", event => {
       event.preventDefault();
       elements.expenseAmount.blur();
@@ -688,7 +551,6 @@
     applyDateFilterBtn.addEventListener("click", loadExpensesFromSheet);
     clearDateFilterBtn.addEventListener("click", () => {
       RomeoDateRange.setCurrentMonth(elements.filterFromDate, elements.filterToDate);
-      selectedExpenseIds.clear();
       loadExpensesFromSheet();
     });
     elements.historyList.addEventListener("change", event => {
@@ -705,21 +567,13 @@
     });
     elements.historyList.addEventListener("click", async event => {
       const btn = event.target.closest("[data-delete-id]");
-      if (!btn) return;
+      if (!btn || expenseWriteActive || expenseRead || !expensesFresh) return;
       event.stopImmediatePropagation();
       if (!confirm(localizeText("تحذف المصروف ده؟", "Delete this expense?"))) return;
       btn.disabled = true;
       btn.textContent = localizeText("جاري الحذف...", "Deleting...");
       await deleteExpenseLocalized(btn.dataset.deleteId);
     }, true);
-    elements.historyList.addEventListener("click", async event => {
-      const btn = event.target.closest("[data-delete-id]");
-      if (!btn) return;
-      if (!confirm(localizeText("تحذف المصروف ده؟", "Delete this expense?"))) return;
-      btn.disabled = true;
-      btn.textContent = localizeText("جاري الحذف...", "Deleting...");
-      await deleteExpenseLocalized(btn.dataset.deleteId);
-    });
     menuToggle.addEventListener("click", openSidebar);
     sidebarOverlay.addEventListener("click", closeSidebar);
     document.getElementById("logoutBtn").addEventListener("click", () => RomeoAuth.logout());
