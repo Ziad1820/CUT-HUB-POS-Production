@@ -98,6 +98,7 @@ function doPost(e) {
 
   if (data.action === "withdrawal") return createWithdrawal(data);
   if (data.action === "getWithdrawals") return getWithdrawals(data);
+  if (data.action === "getWithdrawalsPage") return getWithdrawalsPage(data, authenticatedRequestContext);
   if (data.action === "deleteWithdrawal") return deleteWithdrawal(data);
   if (data.action === "expense") return createExpense(data);
   if (data.action === "getExpenses") return getExpenses(data);

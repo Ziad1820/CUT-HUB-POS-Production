@@ -104,7 +104,7 @@ test("Withdrawals and Expenses send explicit ranges and reset to current month",
   for (const file of ["withdrawals.js", "expenses.js"]) {
     const source = read(`public/assets/js/pages/${file}`);
     assert.match(source, /RomeoDateRange\.setCurrentMonth\(elements\.filterFromDate, elements\.filterToDate\)/);
-    assert.match(source, /fromDate:\s*range\.fromDate,\s*toDate:\s*range\.toDate/);
+    assert.match(source, /fromDate:\s*(?:request\.)?range\.fromDate,\s*toDate:\s*(?:request\.)?range\.toDate/);
     assert.doesNotMatch(source, /filterFromDate\.value\s*=\s*""/);
   }
 });

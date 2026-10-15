@@ -55,6 +55,7 @@ const explicitPaths = [
   "docs/activity-log-performance.md", "tests/activity-log-performance.test.js",
   "docs/staff-accounting-performance.md", "tests/staff-accounting-performance.test.js",
   "docs/system-access-performance.md", "tests/system-access-performance.test.js",
+  "docs/withdrawals-performance.md", "tests/withdrawals-performance.test.js",
   "docs/dashboard-api-relay-deployment.md",
   ".gitattributes", "backend/README.md", "config/backend-sources.json",
   "scripts/build-backend.js", "tests/backend-modularization.test.js",

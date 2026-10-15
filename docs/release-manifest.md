@@ -4,9 +4,9 @@ Generated locally by `scripts/generate-release-manifest.js`. Do not hand-edit. T
 
 ## Counts
 
-- Required tracked files: **393**
+- Required tracked files: **396**
 - Required untracked files: **0**
-- Total classified entries: **424**
+- Total classified entries: **427**
 
 ## Intended Apps Script application package
 
@@ -166,6 +166,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `apps-script/production/baseline/043_invoices_mutations.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/044_invoices_queries.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/045_invoices_deletion.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
+| `apps-script/production/baseline/046_accounting_withdrawals.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/048_invoices_pdf.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/049_reports_sales-customers.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | — | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/064_phase_staff-scheduling-phase2.js` | tracked | Phase 2 Scheduling | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | tests/staff-scheduling-phase2.test.js<br>tests/staff-scheduling-phase2-contract.test.js | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
@@ -315,6 +316,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `docs/staging-entry-checklist.md` | tracked | Pre-Staging operations | operational runbook | yes | no | — | Release evidence; not runtime-loaded | — | Required pre-Staging operational control document. |
 | `docs/standalone-data-analysis-removal.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/system-access-performance.md` | tracked | Authentication & navigation | documentation | yes | no | — | Release evidence; not runtime-loaded | tests/auth-navigation.test.js | Phase specification and operational reference; documentation-only and not runtime-loaded. |
+| `docs/withdrawals-performance.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `lib/apps-script-http.js` | tracked | Cross-phase/local | backend integration | yes | no | — | Vercel server function; exclude Apps Script upload | — | Same-origin relay to the fixed Production Apps Script deployment, without automatic request replay. |
 | `login.html` | tracked | Authentication & navigation | excluded intentionally | no | no | — | Do not deploy | tests/auth-navigation.test.js | Root compatibility wrapper duplicates public output; Vercel serves the public directory. |
 | `public/assets/css/pages/attendance.css` | tracked | Phase 3 Attendance | UI stylesheet | yes | no | — | Browser: linked by its UI page | tests/staff-attendance-phase3.test.js | Runtime RTL/accessibility styling for an in-scope page. |
@@ -481,3 +483,4 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `tests/staff-work-policy-management.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/staging-environment.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/system-access-performance.test.js` | tracked | Authentication & navigation | test | yes | no | — | Local validation only | tests/auth-navigation.test.js | Release-blocking local regression or safety evidence. |
+| `tests/withdrawals-performance.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |

@@ -51,8 +51,14 @@ function getStaff(data, authenticatedContext) {
   try {
     const sheet = getStaffSheet();
     const lastRow = sheet.getLastRow();
-    if (data && data.staffView === "cashier") {
-      const permissionError = cashierContextAllows(authenticatedContext) ? null : requirePermission(data, "access_cashier", "Cashier permission is required.");
+    if (data && (data.staffView === "cashier" || data.staffView === "withdrawals")) {
+      const withdrawalsView = data.staffView === "withdrawals";
+      const allowed = withdrawalsView ? !!authenticatedContext && !!authenticatedContext.user &&
+        (String(authenticatedContext.user.username || "").toLowerCase() === "owner" ||
+          Array.isArray(authenticatedContext.permissions) && authenticatedContext.permissions.indexOf("view_withdrawals") !== -1)
+        : cashierContextAllows(authenticatedContext);
+      const permissionError = allowed ? null : requirePermission(data, withdrawalsView ? "view_withdrawals" : "access_cashier",
+        withdrawalsView ? "Withdrawals permission is required." : "Cashier permission is required.");
       if (permissionError) return permissionError;
       if (lastRow < 2) return jsonOutput({ status: "success", staff: [] });
       const headers = staffResolveHeaders_(sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]);

@@ -2,14 +2,6 @@
     RomeoAuth.requireAuth("view_withdrawals");
 
     const API_URL = RomeoApi.API_URL;
-    const DEFAULT_STAFF = [
-      { id: 1, name: "Ramdan", code: "R07" },
-      { id: 2, name: "Khaled", code: "R08" },
-      { id: 3, name: "Mohamed Emmad", code: "R09" },
-      { id: 4, name: "Karem", code: "R01" },
-      { id: 5, name: "Eleby", code: "R03" },
-      { id: 6, name: "8atyh", code: "R02" }
-    ];
     const elements = {
       searchInput: document.getElementById("searchInput"),
       employeeList: document.getElementById("employeeList"),
@@ -28,7 +20,8 @@
       selectAllWithdrawals: document.getElementById("selectAllWithdrawals"),
       deleteSelectedBtn: document.getElementById("deleteSelectedBtn"),
       selectedWithdrawalsCount: document.getElementById("selectedWithdrawalsCount"),
-      historyList: document.getElementById("historyList")
+      historyList: document.getElementById("historyList"),
+      status: document.getElementById("withdrawalStatus")
     };
 
     const menuToggle = document.getElementById("menuToggle");
@@ -78,43 +71,16 @@
         const parsed = JSON.parse(localStorage.getItem(STAFF_SOURCE_KEY) || "[]");
         return Array.isArray(parsed) && parsed.length
           ? parsed.map(normalizeStaff).filter(staff => staff.name)
-          : DEFAULT_STAFF.map(staff => ({ ...staff }));
+          : [];
       } catch (error) {
-        return DEFAULT_STAFF.map(staff => ({ ...staff }));
+        return [];
       }
     }
 
-    async function loadStaffFromSheet() {
-      try {
-        const data = await RomeoApi.request({ action: "getStaff" });
-        if (data.status !== "success" || !Array.isArray(data.staff)) {
-          return;
-        }
-
-        const sheetStaff = data.staff
-          .map(normalizeStaff)
-          .filter(staff => staff.name);
-
-        if (!sheetStaff.length) {
-          return;
-        }
-
-        staffList = sheetStaff;
-        selectedId = staffList.some(staff => staff.id === selectedId)
-          ? selectedId
-          : staffList[0]?.id || null;
-        localStorage.setItem(STAFF_SOURCE_KEY, JSON.stringify(sheetStaff));
-        renderAll();
-        loadWithdrawalsFromSheet();
-      } catch (error) {
-        console.warn("Staff sheet sync is not available yet.", error);
-      }
-    }
-
-    function findStaffForWithdrawal(withdrawal) {
+    function findStaffForWithdrawal(withdrawal, availableStaff = staffList) {
       const staffCode = String(withdrawal.staffCode || "").trim().toUpperCase();
       const staffName = String(withdrawal.staffName || "").trim().toLowerCase();
-      return staffList.find(staff =>
+      return availableStaff.find(staff =>
         (staffCode && String(staff.code || "").trim().toUpperCase() === staffCode) ||
         (staffName && String(staff.name || "").trim().toLowerCase() === staffName)
       ) || null;
@@ -122,7 +88,12 @@
 
     let staffList = getStaff();
     let withdrawalList = [];
-    let withdrawalLoadRequestId = 0;
+    let withdrawalRead = null;
+    let pendingWithdrawalRead = null;
+    let withdrawalSequence = 0;
+    let withdrawalWriteActive = false;
+    let staffFresh = false;
+    let loadedWithdrawalRange = null;
     let selectedWithdrawalIds = new Set();
     let selectedId = staffList[0]?.id || null;
 
@@ -131,8 +102,8 @@
     }
     RomeoDateRange.setCurrentMonth(elements.filterFromDate, elements.filterToDate);
 
-    function normalizeWithdrawalFromSheet(withdrawal) {
-      const staff = findStaffForWithdrawal(withdrawal);
+    function normalizeWithdrawalFromSheet(withdrawal, availableStaff = staffList) {
+      const staff = findStaffForWithdrawal(withdrawal, availableStaff);
       return {
         id: String(withdrawal.withdrawalId || withdrawal.id || withdrawal.rowNumber || Date.now()),
         rowNumber: withdrawal.rowNumber || "",
@@ -145,35 +116,77 @@
       };
     }
 
-    async function loadWithdrawalsFromSheet() {
-      const requestId = ++withdrawalLoadRequestId;
+    function reportWithdrawalTiming(operation, startedAt, outcome) {
+      if (new URLSearchParams(window.location.search).get("performance") === "1") {
+        console.info("[WITHDRAWALS_PERF] " + JSON.stringify({ operation, totalMs: Date.now() - startedAt, outcome }));
+      }
+    }
+
+    function updateWithdrawalControls() {
+      const blocked = withdrawalWriteActive || Boolean(withdrawalRead) || !staffFresh;
+      saveBtn.disabled = blocked || !getSelectedStaff();
+      clearBtn.disabled = withdrawalWriteActive;
+      elements.deleteSelectedBtn.disabled = blocked || selectedWithdrawalIds.size === 0;
+      elements.historyList.querySelectorAll("[data-delete-id]").forEach(button => { button.disabled = blocked; });
+    }
+
+    function loadWithdrawalsFromSheet({ fresh = false } = {}) {
+      if (withdrawalWriteActive && !fresh) return Promise.resolve(false);
       const range = RomeoDateRange.validate(elements.filterFromDate.value, elements.filterToDate.value);
       if (!range.ok) {
-        withdrawalList = [];
-        selectedWithdrawalIds.clear();
-        renderAll();
-        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("اختر تاريخ بداية ونهاية صحيحين.", range.message)}</div>`;
-        return;
+        ++withdrawalSequence;
+        elements.status.textContent = localizeText("اختر تاريخ بداية ونهاية صحيحين؛ الأرقام الظاهرة من آخر تحميل ناجح.", "Choose a valid period; displayed figures are from the last successful load.");
+        return Promise.resolve(false);
       }
-      try {
-        const data = await RomeoApi.request({ action: "getWithdrawals", fromDate: range.fromDate, toDate: range.toDate });
-        if (requestId !== withdrawalLoadRequestId) return;
-        if (data.status !== "success") {
-          throw new Error(data.message || "Failed to load withdrawals");
-        }
+      const key = range.fromDate + ":" + range.toDate;
+      if (!fresh && withdrawalRead?.key === key && !pendingWithdrawalRead) return withdrawalRead.promise;
+      if (pendingWithdrawalRead?.key === key) return pendingWithdrawalRead.promise;
+      const request = { key, range, sequence: ++withdrawalSequence, startedAt: Date.now() };
+      request.promise = new Promise(resolve => { request.resolve = resolve; });
+      if (withdrawalRead) {
+        if (pendingWithdrawalRead) pendingWithdrawalRead.resolve(false);
+        pendingWithdrawalRead = request;
+      } else startWithdrawalRead(request);
+      return request.promise;
+    }
 
-        withdrawalList = Array.isArray(data.withdrawals)
-          ? data.withdrawals.map(normalizeWithdrawalFromSheet)
-          : [];
+    async function startWithdrawalRead(request) {
+      withdrawalRead = request;
+      updateWithdrawalControls();
+      elements.status.textContent = localizeText("جاري تحميل السحوبات...", "Loading withdrawals...");
+      const isCurrent = () => request.sequence === withdrawalSequence &&
+        request.range.fromDate === elements.filterFromDate.value && request.range.toDate === elements.filterToDate.value;
+      let outcome = "superseded", ok = false;
+      try {
+        const data = await RomeoApi.request({ action: "getWithdrawalsPage", fromDate: request.range.fromDate, toDate: request.range.toDate });
+        if (!isCurrent()) return;
+        if (data.status !== "success" || !Array.isArray(data.staff) || !Array.isArray(data.withdrawals) ||
+            data.fromDate !== request.range.fromDate || data.toDate !== request.range.toDate) throw new Error("WITHDRAWALS_READ_FAILED");
+        const nextStaff = data.staff.map(normalizeStaff).filter(staff => staff.name);
+        const nextWithdrawals = data.withdrawals.map(item => normalizeWithdrawalFromSheet(item, nextStaff));
+        staffList = nextStaff;
+        withdrawalList = nextWithdrawals;
+        loadedWithdrawalRange = request.range;
+        staffFresh = true;
         selectedWithdrawalIds.clear();
         renderAll();
+        elements.status.textContent = "";
+        outcome = "success"; ok = true;
       } catch (error) {
-        if (requestId !== withdrawalLoadRequestId) return;
-        console.error(error);
-        withdrawalList = [];
-        selectedWithdrawalIds.clear();
-        renderAll();
-        elements.historyList.innerHTML = `<div class="history-empty">${localizeText("تعذر تحميل السحوبات من الشيت.", "Could not load withdrawals from the sheet.")}</div>`;
+        if (!isCurrent()) return;
+        outcome = "error";
+        elements.status.textContent = localizeText("تعذر تحديث السحوبات. الأرقام الظاهرة من آخر تحميل ناجح؛ حاول مرة أخرى.",
+          "Could not refresh withdrawals. Displayed figures are from the last successful load; try again.");
+      } finally {
+        reportWithdrawalTiming("period", request.startedAt, outcome);
+        withdrawalRead = null;
+        updateWithdrawalControls();
+        request.resolve(ok);
+        if (pendingWithdrawalRead) {
+          const next = pendingWithdrawalRead;
+          pendingWithdrawalRead = null;
+          startWithdrawalRead(next);
+        }
       }
     }
 
@@ -214,8 +227,8 @@
 
     function isDateInFilter(dateValue) {
       const date = String(dateValue || "").slice(0, 10);
-      const fromDate = elements.filterFromDate.value;
-      const toDate = elements.filterToDate.value;
+      const fromDate = loadedWithdrawalRange?.fromDate || elements.filterFromDate.value;
+      const toDate = loadedWithdrawalRange?.toDate || elements.filterToDate.value;
 
       if (!date) return false;
       if (fromDate && date < fromDate) return false;
@@ -247,7 +260,7 @@
       const selectedCount = selectedWithdrawalIds.size;
       const visibleIds = getVisibleHistoryWithdrawals().map(item => String(item.id));
       const visibleSelectedCount = visibleIds.filter(id => selectedWithdrawalIds.has(id)).length;
-      elements.deleteSelectedBtn.disabled = selectedCount === 0;
+      updateWithdrawalControls();
       elements.selectedWithdrawalsCount.textContent = currentLanguage() === "en"
         ? `${selectedCount} selected`
         : `${selectedCount} محدد`;
@@ -402,92 +415,80 @@
       renderHistory();
       localizeHistoryEmptyState();
       applyPageLanguage();
+      updateWithdrawalControls();
     }
 
     function clearForm() {
       elements.withdrawAmount.value = "";
       elements.withdrawNote.value = "";
-      elements.withdrawDate.value = new Date().toISOString().slice(0, 10);
+      elements.withdrawDate.value = RomeoDateRange.today();
     }
 
     async function addWithdrawal() {
+      if (withdrawalWriteActive || withdrawalRead || !staffFresh) return;
       const staff = getSelectedStaff();
       const amount = Number(elements.withdrawAmount.value);
-
-      if (!staff) {
-        alert("Ø§Ø®ØªØ§Ø± Ù…ÙˆØ¸Ù Ø§Ù„Ø£ÙˆÙ„.");
+      if (!staff || !Number.isFinite(amount) || amount <= 0) {
+        alert(localizeText("اختر الموظف وأدخل مبلغ سحب صحيحًا.", "Choose a staff member and enter a valid amount."));
         return;
       }
-
-      if (!Number.isFinite(amount) || amount <= 0) {
-        alert("Ø§ÙƒØªØ¨ Ù…Ø¨Ù„Øº Ø³Ø­Ø¨ ØµØ­ÙŠØ­.");
-        return;
-      }
-
-      const withdrawal = {
-        id: Date.now(),
-        staffId: staff.id,
-        staffName: staff.name,
-        staffCode: staff.code,
-        amount,
-        date: elements.withdrawDate.value || new Date().toISOString().slice(0, 10),
-        note: elements.withdrawNote.value.trim()
-      };
-
-      saveBtn.disabled = true;
+      const withdrawal = { id: Date.now(), staffId: staff.id, staffName: staff.name, staffCode: staff.code,
+        amount, date: elements.withdrawDate.value || RomeoDateRange.today(), note: elements.withdrawNote.value.trim() };
+      withdrawalWriteActive = true;
+      updateWithdrawalControls();
       saveBtn.textContent = localizeText("جاري الحفظ...", "Saving...");
-
       try {
         await saveWithdrawalToSheet(withdrawal);
         clearForm();
-        await loadWithdrawalsFromSheet();
+        staffFresh = false;
+        await loadWithdrawalsFromSheet({ fresh: true });
       } catch (error) {
-        console.error(error);
-        alert(error.message || "ØªØ¹Ø°Ø± Ø­ÙØ¸ Ø§Ù„Ø³Ø­Ø¨ ÙÙŠ Ø§Ù„Ø´ÙŠØª.");
+        staffFresh = false;
+        alert(localizeText("لم يتأكد حفظ السحب. راجع السجل قبل أي محاولة أخرى.", "Withdrawal save was not confirmed. Review the history before trying again."));
+        await loadWithdrawalsFromSheet({ fresh: true });
       } finally {
-        saveBtn.disabled = false;
+        withdrawalWriteActive = false;
+        updateWithdrawalControls();
         saveBtn.textContent = localizeText("إضافة سحب", "Add Withdrawal");
       }
     }
 
     async function deleteWithdrawal(id) {
+      if (withdrawalWriteActive || withdrawalRead || !staffFresh) return;
       const withdrawal = withdrawalList.find(item => String(item.id) === String(id));
-      if (!withdrawal) {
-        return;
-      }
-
+      if (!withdrawal) return;
+      withdrawalWriteActive = true;
+      updateWithdrawalControls();
       try {
         await deleteWithdrawalFromSheet(withdrawal);
-        await loadWithdrawalsFromSheet();
+        staffFresh = false;
+        await loadWithdrawalsFromSheet({ fresh: true });
       } catch (error) {
-        console.error(error);
-        alert(error.message || "ØªØ¹Ø°Ø± Ø­Ø°Ù Ø§Ù„Ø³Ø­Ø¨ Ù…Ù† Ø§Ù„Ø´ÙŠØª.");
+        staffFresh = false;
+        alert(localizeText("لم يتأكد الحذف. راجع السجل قبل أي محاولة أخرى.", "Deletion was not confirmed. Review the history before trying again."));
+        await loadWithdrawalsFromSheet({ fresh: true });
+      } finally {
+        withdrawalWriteActive = false;
+        updateWithdrawalControls();
       }
     }
 
     async function deleteSelectedWithdrawals() {
+      if (withdrawalWriteActive || withdrawalRead || !staffFresh) return;
       const selectedItems = withdrawalList.filter(item => selectedWithdrawalIds.has(String(item.id)));
-      if (!selectedItems.length) {
-        return;
-      }
-
-      if (!confirm(localizeText("تحذف السحوبات المحددة؟", "Delete selected withdrawals?"))) {
-        return;
-      }
-
-      elements.deleteSelectedBtn.disabled = true;
+      if (!selectedItems.length || !confirm(localizeText("تحذف السحوبات المحددة؟", "Delete selected withdrawals?"))) return;
+      withdrawalWriteActive = true;
+      updateWithdrawalControls();
       elements.deleteSelectedBtn.textContent = localizeText("جاري الحذف...", "Deleting...");
-
       try {
-        for (const withdrawal of selectedItems) {
-          await deleteWithdrawalFromSheet(withdrawal);
-        }
+        for (const withdrawal of selectedItems) await deleteWithdrawalFromSheet(withdrawal);
         selectedWithdrawalIds.clear();
-        await loadWithdrawalsFromSheet();
       } catch (error) {
-        console.error(error);
-        alert(error.message || localizeText("تعذر حذف السحوبات المحددة.", "Could not delete selected withdrawals."));
+        alert(localizeText("لم يكتمل الحذف. راجع السجل لمعرفة المتبقي قبل المحاولة مرة أخرى.", "Deletion did not complete. Review the remaining history before trying again."));
       } finally {
+        staffFresh = false;
+        await loadWithdrawalsFromSheet({ fresh: true });
+        withdrawalWriteActive = false;
         elements.deleteSelectedBtn.textContent = localizeText("حذف المحدد", "Delete Selected");
         updateSelectedWithdrawalsState();
       }
@@ -515,9 +516,9 @@
       });
     });
 
-    elements.searchInput.addEventListener("input", renderEmployeeList);
+    elements.searchInput.addEventListener("input", () => { const startedAt = Date.now(); renderEmployeeList(); reportWithdrawalTiming("search", startedAt, "success"); });
     saveBtn.addEventListener("click", addWithdrawal);
-    clearBtn.addEventListener("click", clearForm);
+    clearBtn.addEventListener("click", () => { if (!withdrawalWriteActive) clearForm(); });
     elements.deleteSelectedBtn.addEventListener("click", deleteSelectedWithdrawals);
     elements.selectAllWithdrawals.addEventListener("change", event => {
       const visibleIds = getVisibleHistoryWithdrawals().map(item => String(item.id));
@@ -557,19 +558,18 @@
     sidebarOverlay.addEventListener("click", closeSidebar);
     document.getElementById("logoutBtn").addEventListener("click", () => RomeoAuth.logout());
     window.addEventListener("storage", event => {
-      if (event.key === STAFF_SOURCE_KEY) {
-        staffList = getStaff();
-        renderAll();
-      }
+      if (event.key === STAFF_SOURCE_KEY) loadWithdrawalsFromSheet();
     });
     window.addEventListener("romeo-language-change", renderAll);
-    window.addEventListener("pageshow", () => {
-      staffList = getStaff();
-      renderAll();
-      loadStaffFromSheet();
+    window.addEventListener("pageshow", event => {
+      if (event.persisted) loadWithdrawalsFromSheet();
     });
+    [elements.filterFromDate, elements.filterToDate].forEach(input => input.addEventListener("change", () => {
+      ++withdrawalSequence;
+      if (pendingWithdrawalRead) { pendingWithdrawalRead.resolve(false); pendingWithdrawalRead = null; }
+      elements.status.textContent = localizeText("اضغط تطبيق الفترة؛ الأرقام الظاهرة من آخر تحميل ناجح.", "Apply this period; displayed figures are from the last successful load.");
+    }));
 
     applyPageLanguage();
     renderAll();
-    loadStaffFromSheet();
     loadWithdrawalsFromSheet();

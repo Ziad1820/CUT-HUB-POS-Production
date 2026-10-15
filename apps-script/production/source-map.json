@@ -16,7 +16,7 @@
           "path": "002_core_http-router.gs",
           "sha256": "2e44415efd4e9b8fb43037197feb0461662a11236523bc247487941be64c2614",
           "baselineSourcePath": "baseline/002_core_http-router.js",
-          "currentSha256": "94043fc30e995e1a4d0b97ccc8e443b6c3a70d825a4f0257da38e1704faa5ff4",
+          "currentSha256": "5b4783310b0e32be63ee7d8021c95a227c3f3b2d9e33a914a447cd7213815298",
           "changedGlobals": [
             "doPost"
           ],
@@ -140,7 +140,7 @@
           "path": "030_staff_branch-repository.gs",
           "sha256": "8d94d2aa6cd8834b29a0003442edf83a71d33d8cdc4b56f960cf13971248e43b",
           "baselineSourcePath": "baseline/030_staff_branch-repository.js",
-          "currentSha256": "c43bdf8065ccc2923b7b92e6cff8c1addbbcc3f3131694eeabacf6abf2bae04d",
+          "currentSha256": "05a8d6375b34d86b099e0c384d06b27736bf8312d0c2c3bfd3f24223d923b0ac",
           "changedGlobals": [
             "getStaff"
           ],
@@ -261,7 +261,14 @@
         },
         {
           "path": "046_accounting_withdrawals.gs",
-          "sha256": "2d1e0d931f3d1307e7f63bed2e3f5e337c99a175621b7f275ab6a864ae2ef54c"
+          "sha256": "2d1e0d931f3d1307e7f63bed2e3f5e337c99a175621b7f275ab6a864ae2ef54c",
+          "baselineSourcePath": "baseline/046_accounting_withdrawals.js",
+          "currentSha256": "d9521287dfb01dfe58845be13a6264ab40db872cf44c532999ff7bf0220b4a50",
+          "changedGlobals": [],
+          "addedGlobals": [
+            "getWithdrawalsPage"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "047_accounting_expenses.gs",

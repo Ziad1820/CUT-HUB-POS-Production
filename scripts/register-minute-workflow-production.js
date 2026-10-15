@@ -18,6 +18,7 @@ const files = {
   "043_invoices_mutations.gs": ["createInvoice", "updateInvoice"],
   "044_invoices_queries.gs": ["getInvoices", "readInvoiceDataSnapshot"],
   "045_invoices_deletion.gs": ["deleteInvoice"],
+  "046_accounting_withdrawals.gs": [],
   "048_invoices_pdf.gs": ["createInvoicePdf"],
   "049_reports_sales-customers.gs": [],
   "064_phase_staff-scheduling-phase2.gs": [],
@@ -44,6 +45,7 @@ for (const [name, changedGlobals] of Object.entries(files)) {
   if (name === "048_invoices_pdf.gs") record.addedGlobals = ["getInvoicePdf"];
   if (name === "030_staff_branch-repository.gs") record.addedGlobals = ["cashierContextAllows", "getCashierCatalog", "getStaffAccountingPeriod"];
   if (name === "049_reports_sales-customers.gs") record.addedGlobals = ["buildStaffAccountingActivity"];
+  if (name === "046_accounting_withdrawals.gs") record.addedGlobals = ["getWithdrawalsPage"];
   if (name === "040_accounting_daily-closing.gs") record.addedGlobals = ["buildCashierSummaryFromSheets"];
   record.changeReason = "Owner-configured minute attendance accounting and shared live booking availability";
 }

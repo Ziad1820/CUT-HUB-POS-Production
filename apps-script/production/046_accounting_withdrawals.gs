@@ -64,6 +64,28 @@ function getWithdrawals(data) {
   return jsonOutput({ status: "success", withdrawals });
 }
 
+function getWithdrawalsPage(data, authenticatedContext) {
+  if (!authenticatedContext || !authenticatedContext.user ||
+      !(String(authenticatedContext.user.username || "").toLowerCase() === "owner" ||
+        Array.isArray(authenticatedContext.permissions) && authenticatedContext.permissions.indexOf("view_withdrawals") !== -1)) {
+    return jsonOutput({ status: "error", code: "PERMISSION_DENIED", message: "Withdrawals permission is required." });
+  }
+  try {
+    const range = getOptionalDateRange(data || {}, null, true);
+    if (!range || !range.fromDate || !range.toDate) throw new Error("Both dates are required.");
+    const read = output => typeof output.getContent === "function" ? JSON.parse(output.getContent()) : output;
+    const input = { action: "getWithdrawalsPage", fromDate: range.fromDate, toDate: range.toDate, staffView: "withdrawals" };
+    const staff = read(getStaff(input, authenticatedContext));
+    if (staff.status !== "success") return jsonOutput(staff);
+    const withdrawals = read(getWithdrawals(input));
+    if (withdrawals.status !== "success") return jsonOutput(withdrawals);
+    return jsonOutput({ status: "success", fromDate: range.fromDate, toDate: range.toDate,
+      staff: staff.staff, withdrawals: withdrawals.withdrawals });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
+}
+
 function deleteWithdrawal(data) {
   const permissionError = requirePermission(data, "view_withdrawals", "You do not have permission to delete withdrawals.");
   if (permissionError) return permissionError;
