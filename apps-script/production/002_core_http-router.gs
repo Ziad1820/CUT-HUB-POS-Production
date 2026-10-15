@@ -118,6 +118,7 @@ function doPost(e) {
   if (data.action === "saveServices") return saveServices(data);
 
   if (data.action === "getInventoryData") return getInventoryData(data);
+  if (data.action === "getInventoryPage") return getInventoryPage(data, authenticatedRequestContext);
   if (data.action === "getSellableProducts") return getSellableProducts(data);
   if (data.action === "saveInventoryItem") return saveInventoryItem(data);
   if (data.action === "deleteInventoryItem") return deleteInventoryItem(data);

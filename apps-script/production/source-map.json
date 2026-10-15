@@ -16,7 +16,7 @@
           "path": "002_core_http-router.gs",
           "sha256": "2e44415efd4e9b8fb43037197feb0461662a11236523bc247487941be64c2614",
           "baselineSourcePath": "baseline/002_core_http-router.js",
-          "currentSha256": "5b4783310b0e32be63ee7d8021c95a227c3f3b2d9e33a914a447cd7213815298",
+          "currentSha256": "93b1e8321d5207c0436ca7464c79f31878001ad200110f51a320414717bb4eb4",
           "changedGlobals": [
             "doPost"
           ],
@@ -102,11 +102,25 @@
         },
         {
           "path": "021_inventory_repository.gs",
-          "sha256": "247589254cf1c3ea41ef5c26e90785159df3945ad1019ae16401bce603c71c15"
+          "sha256": "247589254cf1c3ea41ef5c26e90785159df3945ad1019ae16401bce603c71c15",
+          "baselineSourcePath": "baseline/021_inventory_repository.js",
+          "currentSha256": "487ebef40510993de8f1970fa7edad3486c81650fb7c600a59c38bcee0b517f8",
+          "changedGlobals": [
+            "readInventoryBatches",
+            "readInventoryLog"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "022_inventory_stock.gs",
-          "sha256": "ed01d3796152f3303b1ac44bbd6896c8462b6f32e9e858a1c78c14cd0c7abe59"
+          "sha256": "ed01d3796152f3303b1ac44bbd6896c8462b6f32e9e858a1c78c14cd0c7abe59",
+          "baselineSourcePath": "baseline/022_inventory_stock.js",
+          "currentSha256": "b1f0fe6e9a60fb52b4f4723ffa38a559c3e96fe07df244a413a26f3b4184791e",
+          "changedGlobals": [],
+          "addedGlobals": [
+            "getInventoryPage"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "023_inventory_item-actions.gs",
@@ -130,7 +144,13 @@
         },
         {
           "path": "028_inventory_barber-consumption.gs",
-          "sha256": "604b92dcdda8da9a67223355243ef080c4f37f91c27d97800c0eb305383539fa"
+          "sha256": "604b92dcdda8da9a67223355243ef080c4f37f91c27d97800c0eb305383539fa",
+          "baselineSourcePath": "baseline/028_inventory_barber-consumption.js",
+          "currentSha256": "b588bd94767dca1dab5f404dade72f2bfa055e29d681e1a2bfaab26dae1e1f94",
+          "changedGlobals": [
+            "getBarberConsumptionReport"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "029_staff_legacy-staff.gs",

@@ -43,12 +43,19 @@ function readInventoryItems() {
 }
 
 function readInventoryBatches() {
+  const dateKeys = new Map();
+  function batchDate(value) {
+    if (!(value instanceof Date)) return getDateKey(value, TIME_ZONE) || inventoryText(value);
+    const key = value.getTime();
+    if (!dateKeys.has(key)) dateKeys.set(key, getDateKey(value, TIME_ZONE) || inventoryText(value));
+    return dateKeys.get(key);
+  }
   return inventoryRows(inventorySheet(INVENTORY_SHEETS.batches), 15)
     .map((row, index) => ({
       rowNumber: index + 2,
       batchId: inventoryText(row[0]),
       itemId: inventoryText(row[1]),
-      purchaseDate: getDateKey(row[2], TIME_ZONE) || inventoryText(row[2]),
+      purchaseDate: batchDate(row[2]),
       supplier: inventoryText(row[3]),
       purchasedPacks: inventoryNumber(row[4]),
       packageSize: inventoryNumber(row[5]),
@@ -57,7 +64,7 @@ function readInventoryBatches() {
       openedPacks: inventoryNumber(row[8]),
       openedQuantity: inventoryNumber(row[9]),
       purchasePrice: inventoryNumber(row[10]),
-      expiryDate: getDateKey(row[11], TIME_ZONE) || inventoryText(row[11]),
+      expiryDate: batchDate(row[11]),
       status: inventoryText(row[12]) || "active",
       createdAt: inventoryText(row[13]),
       updatedAt: inventoryText(row[14])
@@ -86,7 +93,19 @@ function ensureInventoryLogBarberColumns() {
 
 function readInventoryLog(limit) {
   const logColumns = ensureInventoryLogBarberColumns();
-  const rows = inventoryRows(logColumns.sheet, logColumns.width)
+  const maximum = Math.max(1, Number(limit) || 200);
+  const lastRow = logColumns.sheet.getLastRow();
+  const chunkSize = Math.max(200, Math.ceil(maximum));
+  let rawRows = [], validCount = 0, endRow = lastRow;
+  // Scan from the tail until enough actual transactions are found. Blank IDs do not count.
+  while (endRow >= 2 && validCount < maximum) {
+    const startRow = Math.max(2, endRow - chunkSize + 1);
+    const chunk = logColumns.sheet.getRange(startRow, 1, endRow - startRow + 1, logColumns.width).getValues();
+    validCount += chunk.filter(row => inventoryText(row[0])).length;
+    rawRows = chunk.concat(rawRows);
+    endRow = startRow - 1;
+  }
+  const rows = rawRows
     .map((row) => ({
       transactionId: inventoryText(row[0]),
       dateTime: inventoryText(row[1]),
@@ -112,6 +131,6 @@ function readInventoryLog(limit) {
     .filter((entry) => entry.transactionId)
     .reverse();
 
-  return rows.slice(0, Math.max(1, Number(limit) || 200));
+  return rows.slice(0, maximum);
 }
 

@@ -47,6 +47,26 @@ function getInventoryData(data) {
   }
 }
 
+function getInventoryPage(data, authenticatedContext) {
+  if (!authenticatedContext || !authenticatedContext.user ||
+      !(String(authenticatedContext.user.username || "").toLowerCase() === "owner" ||
+        Array.isArray(authenticatedContext.permissions) && authenticatedContext.permissions.indexOf("view_inventory") !== -1)) {
+    return jsonOutput({ status: "error", code: "PERMISSION_DENIED", message: "Inventory permission is required." });
+  }
+  try {
+    const read = output => typeof output.getContent === "function" ? JSON.parse(output.getContent()) : output;
+    const inventory = read(getInventoryData(data));
+    if (inventory.status !== "success") return jsonOutput(inventory);
+    const services = read(getServices());
+    if (services.status !== "success") return jsonOutput(services);
+    const recipes = read(getServiceRecipes(data));
+    if (recipes.status !== "success") return jsonOutput(recipes);
+    return jsonOutput({ ...inventory, services: services.services, recipes: recipes.recipes });
+  } catch (error) {
+    return jsonOutput({ status: "error", message: error.message });
+  }
+}
+
 function getSellableProducts(data) {
   try {
     const permissionError = requirePermission(data, "access_cashier", "You do not have permission to view sellable products.");

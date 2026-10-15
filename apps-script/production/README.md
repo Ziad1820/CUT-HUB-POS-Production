@@ -1,6 +1,8 @@
 # Production Apps Script package
 
-نسخة الإنتاج الحالية **62** تسرّع فلترة المصروفات وتحتفظ بنفس السجلات والمبالغ وترتيبها، مع معالجة حدود يوم القاهرة. عمليات الإضافة والحذف الأصلية محفوظة. التفاصيل في [expenses-performance.md](../../docs/expenses-performance.md).
+نسخة الإنتاج الحالية **66** تجمع بيانات بدء المخزون في طلب واحد، وتقلل قراءة الحركات الحديثة وتجهيز بيانات تكلفة استهلاك الحلاقين، مع الاحتفاظ بحساب الأرصدة والتكلفة الأصلي. التفاصيل في [inventory-performance.md](../../docs/inventory-performance.md).
+
+نسخة **62** تسرّع فلترة المصروفات وتحتفظ بنفس السجلات والمبالغ وترتيبها، مع معالجة حدود يوم القاهرة. عمليات الإضافة والحذف الأصلية محفوظة. التفاصيل في [expenses-performance.md](../../docs/expenses-performance.md).
 
 نسخة **61** تضيف قراءة موحدة لصفحة السحوبات مع بيانات الموظفين الأساسية فقط، وتحتفظ بعمليات الإضافة والحذف وقواعد الفترات المقفلة الأصلية. التفاصيل في [withdrawals-performance.md](../../docs/withdrawals-performance.md). تحسينات حسابات الموظفين من النسخة **60** وتقفيلة اليوم من النسخة **57** ما زالت محفوظة؛ التفاصيل في [staff-accounting-performance.md](../../docs/staff-accounting-performance.md) و[daily-closing-performance.md](../../docs/daily-closing-performance.md).
 

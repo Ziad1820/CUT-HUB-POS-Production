@@ -30,10 +30,38 @@ function getBarberConsumptionReport(data) {
     const fromDate = getDateKey(data.fromDate || "", TIME_ZONE);
     const toDate = getDateKey(data.toDate || "", TIME_ZONE);
     const selectedBarberId = inventoryText(data.barberId);
+    let dateBounds = null;
+    if ((fromDate || toDate) && typeof Utilities !== "undefined" && Utilities.parseDate) {
+      try {
+        function midnight(key, nextDay) {
+          if (nextDay) {
+            const parts = key.split("-").map(Number);
+            key = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + 1)).toISOString().slice(0, 10);
+          }
+          const date = Utilities.parseDate(key, TIME_ZONE, "yyyy-MM-dd");
+          if (getDateKey(date, TIME_ZONE) !== key) throw new Error("DATE_BOUNDARY_NORMALIZED");
+          return date.getTime();
+        }
+        dateBounds = { from: fromDate ? midnight(fromDate) : -Infinity, to: toDate ? midnight(toDate, true) : Infinity };
+        if (isNaN(dateBounds.from) || isNaN(dateBounds.to)) dateBounds = null;
+      } catch (_) { dateBounds = null; }
+    }
+    const dateKeys = new Map();
     const batchesById = {};
-    readInventoryBatches().forEach((batch) => { batchesById[batch.batchId] = batch; });
+    // Cost lookup needs only size and price, not date conversion or display metadata.
+    inventoryRows(inventorySheet(INVENTORY_SHEETS.batches), 15).forEach((row) => {
+      const batchId = inventoryText(row[0]);
+      if (batchId && inventoryText(row[1])) batchesById[batchId] = {
+        packageSize: inventoryNumber(row[5]), purchasePrice: inventoryNumber(row[10])
+      };
+    });
     const itemsById = {};
-    readInventoryItems().forEach((item) => { itemsById[item.itemId] = item; });
+    inventoryRows(inventorySheet(INVENTORY_SHEETS.items), 15).forEach((row) => {
+      const itemId = inventoryText(row[0]);
+      if (itemId && inventoryText(row[1])) itemsById[itemId] = {
+        packageSize: inventoryNumber(row[5]), purchasePrice: inventoryNumber(row[6])
+      };
+    });
     const barberMap = {};
     readActiveInventoryBarbers().forEach((barber) => { barberMap[barber.barberId] = barber; });
 
@@ -44,7 +72,15 @@ function getBarberConsumptionReport(data) {
 
     readInventoryLog(100000).forEach((entry) => {
       if (entry.movementType !== "service_consumption" || !entry.barberId) return;
-      const dateKey = getDateKey(entry.dateTime, TIME_ZONE);
+      const text = normalizeDigits(String(entry.dateTime || "").trim());
+      // Canonical/textual calendar dates retain the original parser. Other parseable
+      // timestamps use the same Date conversion as getDateKey, before costly formatting.
+      if (dateBounds && !/\d{4}[\/-]\d{1,2}[\/-]\d{1,2}|\d{1,2}[\/-]\d{1,2}[\/-]\d{4}/.test(text)) {
+        const time = new Date(text).getTime();
+        if (!isNaN(time) && (time < dateBounds.from || time >= dateBounds.to)) return;
+      }
+      if (!dateKeys.has(text)) dateKeys.set(text, getDateKey(entry.dateTime, TIME_ZONE));
+      const dateKey = dateKeys.get(text);
       if (fromDate && dateKey < fromDate) return;
       if (toDate && dateKey > toDate) return;
       if (selectedBarberId && entry.barberId !== selectedBarberId) return;

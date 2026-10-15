@@ -669,6 +669,7 @@
           </div>
         </section>
 
+        <p id="inventoryStatus" role="status" aria-live="polite"></p>
         <section class="item-list" id="itemList"></section>
       </aside>
 
@@ -836,6 +837,7 @@
               <label for="barberConsumptionTo">إلى تاريخ</label>
               <input id="barberConsumptionTo" type="date">
             </div>
+            <p id="inventoryReportStatus" role="status" aria-live="polite"></p>
             <button type="button" class="action-btn primary" id="loadBarberConsumptionBtn">عرض التقرير</button>
           </div>
           <div class="report-summary">
@@ -888,7 +890,7 @@
     ];
   </script>
   <script src="../assets/js/core/runtime-config.js?v=20261008-relay-1"></script>
-  <script src="../assets/js/core/api.js?v=20261008-relay-1"></script>
+  <script src="../assets/js/core/api.js?v=20261015-inventory-1"></script>
   <script src="../assets/js/core/auth.js?v=20261009-single-analysis-1"></script>
   <script src="../assets/js/utils/layout.js?v=20261009-single-analysis-1"></script>
   <script type="text/plain" id="legacyInventoryScript">
@@ -1334,7 +1336,8 @@
     renderAll();
   </script>
   <script src="../assets/js/utils/inventory-filters.js"></script>
-  <script src="../assets/js/pages/inventory.js"></script>
+  <script src="../assets/js/utils/date-range.js?v=20260813-1"></script>
+  <script src="../assets/js/pages/inventory.js?v=20261015-inventory-2"></script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>
 </body>

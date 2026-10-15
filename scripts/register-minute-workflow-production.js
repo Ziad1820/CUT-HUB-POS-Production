@@ -11,6 +11,9 @@ const map = JSON.parse(fs.readFileSync(mapPath, "utf8"));
 const files = {
   "002_core_http-router.gs": ["doPost"],
   "004_auth_protected-reads.gs": ["PROTECTED_READ_CAPABILITIES"],
+  "021_inventory_repository.gs": ["readInventoryBatches", "readInventoryLog"],
+  "022_inventory_stock.gs": [],
+  "028_inventory_barber-consumption.gs": ["getBarberConsumptionReport"],
   "030_staff_branch-repository.gs": ["getStaff"],
   "040_accounting_daily-closing.gs": ["readDailyClosings", "findDailyClosingByDate", "buildDailyClosingPreview", "getDailyClosingPreview"],
   "041_accounting_monthly-closing.gs": ["calculateIncomeStatementRange"],
@@ -47,6 +50,7 @@ for (const [name, changedGlobals] of Object.entries(files)) {
   if (name === "030_staff_branch-repository.gs") record.addedGlobals = ["cashierContextAllows", "getCashierCatalog", "getStaffAccountingPeriod"];
   if (name === "049_reports_sales-customers.gs") record.addedGlobals = ["buildStaffAccountingActivity"];
   if (name === "046_accounting_withdrawals.gs") record.addedGlobals = ["getWithdrawalsPage"];
+  if (name === "022_inventory_stock.gs") record.addedGlobals = ["getInventoryPage"];
   if (name === "040_accounting_daily-closing.gs") record.addedGlobals = ["buildCashierSummaryFromSheets"];
   record.changeReason = "Owner-configured minute attendance accounting and shared live booking availability";
 }

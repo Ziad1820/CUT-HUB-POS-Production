@@ -62,8 +62,17 @@
     selectedId: "",
     editingBatchId: "",
     negativeOnly: false,
-    loading: false
+    loading: false,
+    fresh: false
   };
+
+  let inventoryRead = null, reportRead = null, pendingReport = null, reportSequence = 0;
+  const inventoryStatus = document.getElementById("inventoryStatus");
+  const reportStatus = document.getElementById("inventoryReportStatus");
+  function timing(operation, startedAt, outcome) {
+    if (new URLSearchParams(window.location.search).get("performance") === "1")
+      console.info("[INVENTORY_PERF] " + JSON.stringify({ operation, totalMs: Date.now() - startedAt, outcome }));
+  }
 
   function number(value) {
     const parsed = Number(value);
@@ -95,15 +104,8 @@
     return { consumable: "مستهلك للخدمات", retail: "منتج للبيع", both: "استخدام وبيع" }[type] || type;
   }
 
-  function today() {
-    const date = new Date();
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  }
-
-  function currentMonthStart() {
-    const date = new Date();
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-01`;
-  }
+  function today() { return RomeoDateRange.today(); }
+  function currentMonthStart() { return today().slice(0, 8) + "01"; }
 
   function selectedItem() {
     return state.items.find(item => item.itemId === state.selectedId) || null;
@@ -121,11 +123,25 @@
     return number(stockOf(item).totalQuantity) < 0;
   }
 
+  function updateControls() {
+    const blocked = state.loading || Boolean(inventoryRead) || !state.fresh;
+    [elements.addItem, elements.saveItem, elements.deleteItem, elements.addPurchase, elements.saveRecipe]
+      .filter(Boolean).forEach(button => { button.disabled = blocked; });
+    [elements.name, elements.barcode, elements.category, elements.type, elements.unit, elements.packageSize,
+      elements.minimum, elements.purchasePrice, elements.salePrice, elements.serviceEnabled, elements.saleEnabled,
+      elements.purchasePacks, elements.purchasePriceInput, elements.purchaseDate, elements.purchaseSupplier,
+      elements.purchaseExpiry, elements.purchaseNote].forEach(input => { input.disabled = state.loading; });
+    elements.recipeItems.querySelectorAll("[data-recipe-item-id]").forEach(input => { input.disabled = state.loading; });
+    elements.refresh.disabled = state.loading;
+    elements.loadBarberConsumption.disabled = false;
+    [elements.clearPurchase, elements.recipeService].forEach(input => { input.disabled = state.loading; });
+    elements.history.querySelectorAll("[data-edit-purchase]").forEach(button => { button.disabled = blocked; });
+  }
+
   function setBusy(busy) {
     state.loading = busy;
-    [elements.addItem, elements.refresh, elements.saveItem, elements.deleteItem, elements.addPurchase, elements.loadBarberConsumption]
-      .filter(Boolean)
-      .forEach(button => { button.disabled = busy; });
+    if (busy) state.fresh = false;
+    updateControls();
   }
 
   function notify(message, type = "info") {
@@ -319,25 +335,49 @@
       : '<tr><td colspan="5">لا توجد بيانات استهلاك مطابقة للفترة المختارة.</td></tr>';
   }
 
-  async function loadBarberConsumptionReport() {
-    setBusy(true);
+  function loadBarberConsumptionReport() {
+    const range = RomeoDateRange.validate(elements.barberConsumptionFrom.value, elements.barberConsumptionTo.value);
+    if (!range.ok) {
+      ++reportSequence;
+      reportStatus.textContent = "اختر فترة صحيحة؛ التقرير الظاهر من آخر تحميل ناجح.";
+      return Promise.resolve(false);
+    }
+    const input = { action: "getBarberConsumptionReport", barberId: elements.barberConsumptionSelect.value,
+      fromDate: range.fromDate, toDate: range.toDate };
+    const key = JSON.stringify(input);
+    if (reportRead?.key === key && !pendingReport) return reportRead.promise;
+    if (pendingReport?.key === key) return pendingReport.promise;
+    const job = { key, input, sequence: ++reportSequence, startedAt: Date.now() };
+    job.promise = new Promise(resolve => { job.resolve = resolve; });
+    if (reportRead) {
+      if (pendingReport) pendingReport.resolve(false);
+      pendingReport = job;
+    } else startReportRead(job);
+    return job.promise;
+  }
+
+  async function startReportRead(job) {
+    reportRead = job;
+    reportStatus.textContent = "جاري تحميل تقرير الاستهلاك...";
+    const current = () => job.sequence === reportSequence && job.input.barberId === elements.barberConsumptionSelect.value &&
+      job.input.fromDate === elements.barberConsumptionFrom.value && job.input.toDate === elements.barberConsumptionTo.value;
+    let ok = false, outcome = "superseded";
     try {
-      const result = await request({
-        action: "getBarberConsumptionReport",
-        barberId: elements.barberConsumptionSelect.value,
-        fromDate: elements.barberConsumptionFrom.value,
-        toDate: elements.barberConsumptionTo.value
-      });
-      state.barberReport = {
-        barbers: Array.isArray(result.barbers) ? result.barbers : [],
-        rows: Array.isArray(result.rows) ? result.rows : [],
-        summary: result.summary || {}
-      };
+      const result = await request(job.input);
+      if (!current()) return;
+      if (!Array.isArray(result.barbers) || !Array.isArray(result.rows) || !result.summary) throw Error("INVALID_REPORT");
+      state.barberReport = { barbers: result.barbers, rows: result.rows, summary: result.summary };
       renderBarberConsumptionReport();
-    } catch (error) {
-      notify(error.message, "error");
+      reportStatus.textContent = "";
+      ok = true; outcome = "success";
+    } catch (_) {
+      if (current()) { outcome = "error"; reportStatus.textContent = "تعذر تحديث التقرير؛ البيانات الظاهرة من آخر تحميل ناجح."; }
     } finally {
-      setBusy(false);
+      reportRead = null;
+      if (outcome === "superseded" && !pendingReport) reportStatus.textContent = "الفلاتر اتغيّرت؛ اضغط عرض التقرير لتحديث الأرقام.";
+      timing("report", job.startedAt, outcome);
+      job.resolve(ok);
+      if (pendingReport) { const next = pendingReport; pendingReport = null; startReportRead(next); }
     }
   }
 
@@ -389,158 +429,139 @@
     elements.purchasePacks.focus();
   }
 
-  async function loadData({ preserveSelection = true } = {}) {
-    const oldSelection = preserveSelection ? state.selectedId : "";
+  function loadData({ preserveSelection = true, fresh = false } = {}) {
+    if (state.loading && !fresh) return Promise.resolve(false);
+    if (inventoryRead) return inventoryRead;
+    if (!preserveSelection) state.selectedId = "";
+    const startedAt = Date.now();
+    inventoryStatus.textContent = "جاري تحميل المخزون...";
+    // Start in a microtask so even immediate mock failures release the registered request.
+    inventoryRead = Promise.resolve().then(async () => {
+      let outcome = "error";
+      try {
+        const result = await request({ action: "getInventoryPage", limit: 500 });
+        for (const key of ["items", "batches", "log", "services", "recipes"])
+          if (!Array.isArray(result[key])) throw Error("INVALID_INVENTORY");
+        state.items = result.items; state.batches = result.batches; state.log = result.log;
+        state.services = result.services; state.recipes = result.recipes;
+        state.fresh = true;
+        render();
+        inventoryStatus.textContent = "";
+        outcome = "success";
+        return true;
+      } catch (_) {
+        inventoryStatus.textContent = "تعذر تحديث المخزون؛ الأرصدة الظاهرة من آخر تحميل ناجح. حاول مرة أخرى.";
+        return false;
+      } finally {
+        inventoryRead = null;
+        updateControls();
+        timing("inventory", startedAt, outcome);
+      }
+    });
+    updateControls();
+    return inventoryRead;
+  }
+
+  function canWrite() { return state.fresh && !state.loading && !inventoryRead; }
+
+  async function writeInventory(action, onSuccess, message, afterRefresh) {
+    if (!canWrite()) return false;
+    const draftInputs = [elements.name, elements.barcode, elements.category, elements.type, elements.unit, elements.packageSize,
+      elements.minimum, elements.purchasePrice, elements.salePrice, elements.serviceEnabled, elements.saleEnabled,
+      elements.purchasePacks, elements.purchasePriceInput, elements.purchaseDate, elements.purchaseSupplier,
+      elements.purchaseExpiry, elements.purchaseNote];
+    const draft = draftInputs.map(input => ({ input, value: input.value, checked: input.checked }));
+    const recipeDraft = [...elements.recipeItems.querySelectorAll("[data-recipe-item-id]")].map(input => ({ id: input.dataset.recipeItemId, value: input.value }));
     setBusy(true);
-    try {
-      const [result, servicesResult, recipesResult] = await Promise.all([
-        request({ action: "getInventoryData", limit: 500 }),
-        request({ action: "getServices" }),
-        request({ action: "getServiceRecipes" })
-      ]);
-      state.items = Array.isArray(result.items) ? result.items : [];
-      state.batches = Array.isArray(result.batches) ? result.batches : [];
-      state.log = Array.isArray(result.log) ? result.log : [];
-      state.services = Array.isArray(servicesResult.services) ? servicesResult.services : [];
-      state.recipes = Array.isArray(recipesResult.recipes) ? recipesResult.recipes : [];
-      state.selectedId = oldSelection;
-      render();
-    } catch (error) {
-      notify(error.message, "error");
-    } finally {
+    let completed = false;
+    try { const result = await action(); onSuccess?.(result); completed = true; }
+    catch (_) { notify("تعذر تأكيد العملية؛ سنراجع البيانات قبل السماح بعملية أخرى.", "error"); }
+    finally {
+      const refreshed = await loadData({ fresh: true });
+      if (!completed) {
+        draft.forEach(({ input, value, checked }) => { input.value = value; input.checked = checked; });
+        elements.recipeItems.querySelectorAll("[data-recipe-item-id]").forEach(input => {
+          const saved = recipeDraft.find(row => row.id === input.dataset.recipeItemId); if (saved) input.value = saved.value;
+        });
+      }
       setBusy(false);
+      if (completed && refreshed) { afterRefresh?.(); notify(message, "success"); }
+      reportStatus.textContent = "حدّث تقرير الاستهلاك لمراجعة آخر البيانات.";
     }
+    return completed;
   }
 
   async function saveItem() {
-    const name = elements.name.value.trim();
-    const packageSize = number(elements.packageSize.value);
+    if (!canWrite()) return;
+    const name = elements.name.value.trim(), packageSize = number(elements.packageSize.value);
     if (!name) return notify("اكتب اسم الصنف.", "error");
     if (packageSize <= 0) return notify("اكتب حجم عبوة أكبر من صفر.", "error");
-    setBusy(true);
-    try {
-      const result = await request({
-        action: "saveInventoryItem",
-        item: {
-          itemId: state.selectedId,
-          name,
-          barcode: elements.barcode.value.trim(),
-          category: elements.category.value.trim(),
-          itemType: elements.type.value,
-          usageUnit: elements.unit.value,
-          packageSize,
-          minimumStock: number(elements.minimum.value),
-          purchasePrice: number(elements.purchasePrice.value),
-          salePrice: number(elements.salePrice.value),
-          serviceEnabled: elements.serviceEnabled.checked,
-          saleEnabled: elements.saleEnabled.checked,
-          active: true
-        }
-      });
+    const item = { itemId: state.selectedId, name, barcode: elements.barcode.value.trim(), category: elements.category.value.trim(),
+      itemType: elements.type.value, usageUnit: elements.unit.value, packageSize, minimumStock: number(elements.minimum.value),
+      purchasePrice: number(elements.purchasePrice.value), salePrice: number(elements.salePrice.value),
+      serviceEnabled: elements.serviceEnabled.checked, saleEnabled: elements.saleEnabled.checked, active: true };
+    return writeInventory(() => request({ action: "saveInventoryItem", item }), result => {
       state.selectedId = result.itemId;
-      await loadData();
-      clearPurchaseForm();
-      notify("تم حفظ الصنف بنجاح.", "success");
-    } catch (error) {
-      notify(error.message, "error");
-    } finally {
-      setBusy(false);
-    }
+    }, "تم حفظ الصنف بنجاح.", clearPurchaseForm);
   }
 
   async function deleteItem() {
+    if (!canWrite()) return;
     const item = selectedItem();
-    if (!item || !window.confirm(`هل تريد إيقاف الصنف ${item.name}؟`)) return;
-    setBusy(true);
-    try {
-      await request({ action: "deleteInventoryItem", itemId: item.itemId });
+    if (!item || !window.confirm("هل تريد إيقاف الصنف " + item.name + "؟")) return;
+    return writeInventory(() => request({ action: "deleteInventoryItem", itemId: item.itemId }), () => {
       state.selectedId = "";
-      await loadData({ preserveSelection: false });
-      notify("تم إيقاف الصنف مع الاحتفاظ بسجله.", "success");
-    } catch (error) {
-      notify(error.message, "error");
-    } finally {
-      setBusy(false);
-    }
+    }, "تم إيقاف الصنف مع الاحتفاظ بسجله.");
   }
 
   async function addPurchase() {
-    const item = selectedItem();
+    if (!canWrite()) return;
+    const item = selectedItem(), packs = number(elements.purchasePacks.value);
     if (!item) return notify("احفظ أو اختر صنفًا أولًا.", "error");
-    const packs = number(elements.purchasePacks.value);
     if (packs <= 0) return notify("اكتب عدد العبوات المشتراة.", "error");
-    setBusy(true);
-    try {
-      const editing = Boolean(state.editingBatchId);
-      await request({
-        action: editing ? "updateInventoryPurchase" : "addInventoryPurchase",
-        purchase: {
-          batchId: state.editingBatchId,
-          itemId: item.itemId,
-          purchasedPacks: packs,
-          packageSize: item.packageSize,
-          purchasePrice: number(elements.purchasePriceInput.value),
-          purchaseDate: elements.purchaseDate.value || today(),
-          supplier: elements.purchaseSupplier.value.trim(),
-          expiryDate: elements.purchaseExpiry.value,
-          note: elements.purchaseNote.value.trim()
-        }
-      });
-      await loadData();
-      clearPurchaseForm();
-      notify(editing ? "تم تعديل عملية الشراء بنجاح." : "تمت إضافة عملية الشراء للمخزون.", "success");
-    } catch (error) {
-      notify(error.message, "error");
-    } finally {
-      setBusy(false);
-    }
+    const editing = Boolean(state.editingBatchId);
+    const purchase = { batchId: state.editingBatchId, itemId: item.itemId, purchasedPacks: packs, packageSize: item.packageSize,
+      purchasePrice: number(elements.purchasePriceInput.value), purchaseDate: elements.purchaseDate.value || today(),
+      supplier: elements.purchaseSupplier.value.trim(), expiryDate: elements.purchaseExpiry.value, note: elements.purchaseNote.value.trim() };
+    return writeInventory(() => request({ action: editing ? "updateInventoryPurchase" : "addInventoryPurchase", purchase }),
+      null, editing ? "تم تعديل عملية الشراء بنجاح." : "تمت إضافة عملية الشراء للمخزون.", clearPurchaseForm);
   }
 
   async function saveRecipe() {
+    if (!canWrite()) return;
     const service = selectedRecipeService();
     if (!service) return notify("اختر خدمة أولًا.", "error");
     const ingredients = [...elements.recipeItems.querySelectorAll("[data-recipe-item-id]")]
-      .map(input => ({ itemId: input.dataset.recipeItemId, quantity: number(input.value) }))
-      .filter(ingredient => ingredient.quantity > 0);
-    setBusy(true);
-    try {
-      await request({
-        action: "saveServiceRecipe",
-        serviceId: service.serviceId,
-        serviceName: service.name,
-        ingredients
-      });
-      const result = await request({ action: "getServiceRecipes" });
-      state.recipes = Array.isArray(result.recipes) ? result.recipes : [];
-      renderRecipeItems();
-      notify("تم حفظ استهلاك الخدمة.", "success");
-    } catch (error) {
-      notify(error.message, "error");
-    } finally {
-      setBusy(false);
-    }
+      .map(input => ({ itemId: input.dataset.recipeItemId, quantity: number(input.value) })).filter(ingredient => ingredient.quantity > 0);
+    return writeInventory(() => request({ action: "saveServiceRecipe", serviceId: service.serviceId, serviceName: service.name, ingredients }),
+      null, "تم حفظ استهلاك الخدمة.");
   }
 
   elements.list.addEventListener("click", event => {
     const card = event.target.closest("[data-item-id]");
-    if (!card) return;
+    if (!card || state.loading) return;
+    const startedAt = Date.now();
     state.selectedId = card.dataset.itemId;
-    render();
+    renderList(); renderSelected(); renderSummary();
     clearPurchaseForm();
+    timing("selection", startedAt, "success");
   });
   elements.history.addEventListener("click", event => {
     const button = event.target.closest("[data-edit-purchase]");
-    if (!button) return;
+    if (!button || !canWrite()) return;
     startPurchaseEdit(button.dataset.editPurchase);
   });
-  elements.search.addEventListener("input", renderList);
+  elements.search.addEventListener("input", () => { const start = Date.now(); renderList(); timing("search", start, "success"); });
   elements.negativeFilter?.addEventListener("click", () => {
+    const startedAt = Date.now();
     state.negativeOnly = !state.negativeOnly;
     renderList();
     renderSummary();
+    timing("negative-filter", startedAt, "success");
   });
   window.addEventListener("romeo-language-change", renderSummary);
   elements.addItem.addEventListener("click", () => {
+    if (!canWrite()) return;
     state.selectedId = "";
     clearItemForm();
     elements.title.textContent = "صنف جديد";
@@ -559,5 +580,6 @@
   clearPurchaseForm();
   elements.barberConsumptionFrom.value = currentMonthStart();
   elements.barberConsumptionTo.value = today();
-  loadData({ preserveSelection: false }).then(loadBarberConsumptionReport);
+  loadData({ preserveSelection: false });
+  loadBarberConsumptionReport();
 })();
