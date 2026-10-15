@@ -346,7 +346,7 @@
 
   <script src="../assets/js/utils/text-fix.js"></script>
   <script src="../assets/js/core/runtime-config.js?v=20261008-relay-1"></script>
-  <script src="../assets/js/core/api.js?v=20261008-relay-1"></script>
+  <script src="../assets/js/core/api.js?v=20261015-system-access-1"></script>
   <script src="../assets/js/core/auth.js?v=20261009-single-analysis-1"></script>
   <script src="../assets/js/utils/layout.js?v=20261009-single-analysis-1"></script>
   <script>
@@ -403,6 +403,25 @@
     const statusBox = document.getElementById("statusBox");
     let usersCache = [];
     let editingUsername = "";
+    let usersRead = null;
+    let userMutationPending = false;
+
+    function reportAccessTiming(operation, startedAt, outcome) {
+      if (new URLSearchParams(window.location.search).get("performance") === "1") {
+        console.info("[SYSTEM_ACCESS_PERF] " + JSON.stringify({ operation, totalMs: Date.now() - startedAt, outcome }));
+      }
+    }
+
+    function updateUserControls() {
+      document.getElementById("saveUserBtn").disabled = userMutationPending || Boolean(usersRead);
+      document.getElementById("resetFormBtn").disabled = userMutationPending;
+      usersList.querySelectorAll("button").forEach(button => { button.disabled = userMutationPending; });
+    }
+
+    function escapeUserText(value) {
+      return String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
 
     const systemPermissions = [
       "access_dashboard",
@@ -518,9 +537,11 @@
       const permissionsBox = document.querySelector(".permissions");
       if (!permissionsBox) return;
 
+      const previous = new Map(Array.from(permissionsBox.querySelectorAll("input"))
+        .map(input => [input.value, { checked: input.checked, disabled: input.disabled }]));
       permissionsBox.innerHTML = systemPermissions.map((value, index) => `
         <label class="permission-item">
-          <input type="checkbox" value="${value}" ${index === 0 ? "checked" : ""}> ${permissionLabel(value, true)}
+          <input type="checkbox" value="${value}" ${(previous.has(value) ? previous.get(value).checked : index === 0) ? "checked" : ""} ${previous.get(value)?.disabled ? "disabled" : ""}> ${permissionLabel(value, true)}
         </label>
       `).join("");
     }
@@ -554,7 +575,12 @@
     }
 
     function renderUsers() {
-      usersList.innerHTML = usersCache.map(user => {
+      if (usersRead && !usersRead.published && !usersCache.length) {
+        usersList.innerHTML = `<p>${localizeText("جاري تحميل المستخدمين...", "Loading users...")}</p>`;
+        updateUserControls();
+        return;
+      }
+      usersList.innerHTML = usersCache.map((user, index) => {
         const owner = isOwner(user);
         const permissionsText = owner
           ? localizeText("مالك النظام الأساسي - كل الصلاحيات", "Main system owner - all permissions")
@@ -562,30 +588,66 @@
 
         return `
         <div class="user-card">
-          <strong>${localizeDisplayName(user)}</strong>
-          <small>@${user.username}</small>
-          <p>${permissionsText}</p>
+          <strong>${escapeUserText(localizeDisplayName(user))}</strong>
+          <small>@${escapeUserText(user.username)}</small>
+          <p>${escapeUserText(permissionsText)}</p>
           <div class="user-actions">
-            <button class="secondary-btn" type="button" onclick="editUser('${user.username}')">${localizeText("تعديل", "Edit")}</button>
-            ${owner ? "" : `<button class="danger-btn" type="button" onclick="removeUser('${user.username}')">${localizeText("حذف", "Delete")}</button>`}
+            <button class="secondary-btn" type="button" data-user-index="${index}" data-user-action="edit">${localizeText("تعديل", "Edit")}</button>
+            ${owner ? "" : `<button class="danger-btn" type="button" data-user-index="${index}" data-user-action="delete">${localizeText("حذف", "Delete")}</button>`}
           </div>
         </div>
       `;
       }).join("");
+      updateUserControls();
     }
 
-    async function loadUsers() {
-      try {
-        usersList.innerHTML = `<p>${localizeText("جاري تحميل المستخدمين...", "Loading users...")}</p>`;
-        usersCache = await RomeoAuth.getUsers({ forceRefresh: true });
-        renderUsers();
-      } catch (error) {
-        usersList.innerHTML = "";
-        showStatus(error.message || localizeText("تعذر تحميل المستخدمين.", "Could not load users."), "error");
-      }
+    function loadUsers() {
+      if (usersRead) return usersRead;
+      const startedAt = Date.now();
+      let finish;
+      usersRead = new Promise(resolve => { finish = resolve; });
+      const promise = usersRead;
+      updateUserControls();
+      if (!usersCache.length) usersList.innerHTML = `<p>${localizeText("جاري تحميل المستخدمين...", "Loading users...")}</p>`;
+      (async () => {
+        let outcome = "error";
+        try {
+          const users = await RomeoAuth.getUsers({ forceRefresh: true });
+          if (!Array.isArray(users)) throw new Error("USERS_READ_FAILED");
+          usersCache = users;
+          usersRead.published = true;
+          renderUsers();
+          outcome = "success";
+        } catch (error) {
+          if (!usersCache.length) usersList.innerHTML = "";
+          showStatus(localizeText("تعذر تحديث المستخدمين. القائمة السابقة ما زالت ظاهرة إن كانت محملة؛ أعد المحاولة.",
+            "Could not refresh users. Previously loaded users are still displayed; try again."), "error");
+        } finally {
+          usersRead = null;
+          updateUserControls();
+          reportAccessTiming("load", startedAt, outcome);
+          finish(outcome === "success");
+        }
+      })();
+      return promise;
     }
 
     async function saveUser() {
+      if (userMutationPending || usersRead) return;
+      userMutationPending = true;
+      updateUserControls();
+      try {
+        await saveUserOnce();
+      } catch (error) {
+        showStatus(localizeText("لم يتأكد حفظ المستخدم. راجع القائمة قبل إعادة المحاولة.",
+          "User save was not confirmed. Review the list before retrying."), "error");
+      } finally {
+        userMutationPending = false;
+        updateUserControls();
+      }
+    }
+
+    async function saveUserOnce() {
       const displayName = document.getElementById("displayName").value.trim();
       const username = document.getElementById("username").value.trim();
       const password = document.getElementById("password").value;
@@ -636,6 +698,8 @@
     }
 
     window.editUser = username => {
+      if (userMutationPending) return;
+      const startedAt = Date.now();
       const user = usersCache.find(item => item.username === username);
       if (!user) {
         return;
@@ -658,22 +722,35 @@
         ),
         "success"
       );
+      reportAccessTiming("select", startedAt, "success");
     };
 
     window.removeUser = async username => {
+      if (userMutationPending || usersRead) return;
+      const target = usersCache.find(user => user.username === username);
+      if (!target || isOwner(target)) return;
       if (!window.confirm(localizeText(`هل تريد حذف المستخدم ${username}؟`, `Delete user ${username}?`))) {
         return;
       }
 
-      showStatus(localizeText("جاري حذف المستخدم...", "Deleting user..."), "success");
-      const result = await RomeoAuth.deleteUser(username);
-      if (!result.success) {
-        showStatus(result.message, "error");
-        return;
+      userMutationPending = true;
+      updateUserControls();
+      try {
+        showStatus(localizeText("جاري حذف المستخدم...", "Deleting user..."), "success");
+        const result = await RomeoAuth.deleteUser(username);
+        if (!result.success) {
+          showStatus(result.message, "error");
+          return;
+        }
+        showStatus(localizeText("تم حذف المستخدم بنجاح.", "User deleted successfully."), "success");
+        await loadUsers();
+      } catch (error) {
+        showStatus(localizeText("لم يتأكد حذف المستخدم. راجع القائمة قبل إعادة المحاولة.",
+          "User deletion was not confirmed. Review the list before retrying."), "error");
+      } finally {
+        userMutationPending = false;
+        updateUserControls();
       }
-
-      showStatus(localizeText("تم حذف المستخدم بنجاح.", "User deleted successfully."), "success");
-      await loadUsers();
     };
 
     const menuToggle = document.getElementById("menuToggle");
@@ -703,7 +780,15 @@
     });
 
     document.getElementById("saveUserBtn").addEventListener("click", saveUser);
-    document.getElementById("resetFormBtn").addEventListener("click", resetForm);
+    document.getElementById("resetFormBtn").addEventListener("click", () => { if (!userMutationPending) resetForm(); });
+    usersList.addEventListener("click", event => {
+      const button = event.target.closest("[data-user-action]");
+      if (!button || userMutationPending) return;
+      const user = usersCache[Number(button.dataset.userIndex)];
+      if (!user) return;
+      if (button.dataset.userAction === "edit") window.editUser(user.username);
+      if (button.dataset.userAction === "delete") window.removeUser(user.username);
+    });
     document.getElementById("logoutBtn").addEventListener("click", () => RomeoAuth.logout());
     menuToggle.addEventListener("click", openSidebar);
     sidebarOverlay.addEventListener("click", closeSidebar);

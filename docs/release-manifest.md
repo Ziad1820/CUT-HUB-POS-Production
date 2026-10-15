@@ -4,9 +4,9 @@ Generated locally by `scripts/generate-release-manifest.js`. Do not hand-edit. T
 
 ## Counts
 
-- Required tracked files: **391**
+- Required tracked files: **393**
 - Required untracked files: **0**
-- Total classified entries: **422**
+- Total classified entries: **424**
 
 ## Intended Apps Script application package
 
@@ -314,6 +314,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `docs/staff-scheduling-phase-2.md` | tracked | Phase 2 Scheduling | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/staging-entry-checklist.md` | tracked | Pre-Staging operations | operational runbook | yes | no | — | Release evidence; not runtime-loaded | — | Required pre-Staging operational control document. |
 | `docs/standalone-data-analysis-removal.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
+| `docs/system-access-performance.md` | tracked | Authentication & navigation | documentation | yes | no | — | Release evidence; not runtime-loaded | tests/auth-navigation.test.js | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `lib/apps-script-http.js` | tracked | Cross-phase/local | backend integration | yes | no | — | Vercel server function; exclude Apps Script upload | — | Same-origin relay to the fixed Production Apps Script deployment, without automatic request replay. |
 | `login.html` | tracked | Authentication & navigation | excluded intentionally | no | no | — | Do not deploy | tests/auth-navigation.test.js | Root compatibility wrapper duplicates public output; Vercel serves the public directory. |
 | `public/assets/css/pages/attendance.css` | tracked | Phase 3 Attendance | UI stylesheet | yes | no | — | Browser: linked by its UI page | tests/staff-attendance-phase3.test.js | Runtime RTL/accessibility styling for an in-scope page. |
@@ -479,3 +480,4 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `tests/staff-schema-migration-staging-executor.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | tests/staff-schema-migration-staging-executor.test.js | Release-blocking local regression or safety evidence. |
 | `tests/staff-work-policy-management.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/staging-environment.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
+| `tests/system-access-performance.test.js` | tracked | Authentication & navigation | test | yes | no | — | Local validation only | tests/auth-navigation.test.js | Release-blocking local regression or safety evidence. |
