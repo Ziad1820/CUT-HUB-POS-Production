@@ -4,9 +4,9 @@ Generated locally by `scripts/generate-release-manifest.js`. Do not hand-edit. T
 
 ## Counts
 
-- Required tracked files: **407**
+- Required tracked files: **409**
 - Required untracked files: **0**
-- Total classified entries: **438**
+- Total classified entries: **440**
 
 ## Intended Apps Script application package
 
@@ -310,6 +310,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `docs/release/staging-script-property-plan.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/release/staging-test-account-matrix.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/schedule-copy-performance-fix.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
+| `docs/schedule-page-performance.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/schedule-performance-fix.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/staff-accounting-performance.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/staff-attendance-phase-1-engineering-review.md` | untracked | Phase 1 Attendance | documentation | no | no | — | Release evidence; not runtime-loaded | tests/staff-attendance-core.test.js | Historical engineering review; documentation-only and not deployed. |
@@ -474,6 +475,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `tests/release-manifest.test.js` | tracked | Pre-Staging operations | test | yes | no | — | Local validation only | tests/release-manifest.test.js | Release-blocking local regression or safety evidence. |
 | `tests/schedule-copy-performance.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/schedule-management-functional.test.js` | tracked | Phase 2 Scheduling | test | yes | no | — | Local validation only | tests/staff-scheduling-phase2.test.js<br>tests/staff-scheduling-phase2-contract.test.js | Release-blocking local regression or safety evidence. |
+| `tests/schedule-page-performance.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/schedule-performance-production.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/schedule-work-policy-ui.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/shared-system-layout.test.js` | tracked | Authentication & navigation | test | yes | no | — | Local validation only | tests/auth-navigation.test.js | Release-blocking local regression or safety evidence. |

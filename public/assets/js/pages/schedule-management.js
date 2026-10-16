@@ -1,3 +1,40 @@
+// Share concurrent reads only; settled responses are never cached.
+function createScheduleReadDispatcher(request, observe) {
+  const reads = new Set(["getScheduleSelection", "getSchedulePageData", "listScheduleUserScopes", "listWorkPolicies",
+    "getStaffWeeklySchedule", "listScheduleOverrides", "resolveStaffSchedulesRange", "getScheduleAuditHistory"]);
+  const pending = new Map();
+  return function dispatch(action, payload) {
+    const reading = reads.has(action);
+    const key = JSON.stringify([action, payload || {}]);
+    if (reading && pending.has(key)) return pending.get(key);
+    if (!reading) pending.clear();
+    const started = Date.now();
+    const promise = Promise.resolve().then(() => request(action, payload)).finally(() => {
+      if (pending.get(key) === promise) pending.delete(key);
+      if (reading && observe) observe(action, Date.now() - started);
+    });
+    if (reading) pending.set(key, promise);
+    return promise;
+  };
+}
+
+function createScheduleSelectionReader(api, staffId, dateFrom, dateTo) {
+  const pending = api("getScheduleSelection", { staffId, dateFrom, dateTo });
+  const keys = { getStaffWeeklySchedule: "weekly", listScheduleOverrides: "overrides",
+    resolveStaffSchedulesRange: "resolved", getScheduleAuditHistory: "audit" };
+  return function read(action) {
+    return pending.then(result => {
+      const section = result[keys[action]];
+      if (!section || section.status !== "success") {
+        const error = new Error(section?.message || "تعذر تحميل هذا الجزء من الجدول.");
+        error.code = section?.code || "SCHEDULE_READ_FAILED";
+        throw error;
+      }
+      return section;
+    });
+  };
+}
+
 function classifyScheduleManagementLoadError(error) {
   const code = String(error?.code || "").trim();
   const message = String(error?.message || "");
@@ -113,7 +150,7 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     staff: [], schedules: [], overrides: [], resolved: [], scopes: [], policies: [],
     permissions: {}, dirty: false, busy: false, policyBusy: false, decisionResolve: null,
     selectedRequestSequence: 0, policyRequestSequence: 0,
-    weeklyLoading: false, weeklyLoadFailed: false
+    weeklyLoading: false, weeklyLoadFailed: false, scopeRequestSequence: 0
   };
   const byId = id => document.getElementById(id);
 
@@ -181,7 +218,13 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     if (resolve) resolve(result);
   }
 
-  async function api(action, payload) {
+  const api = createScheduleReadDispatcher(requestScheduleApi, (action, durationMs) => {
+    if (new URLSearchParams(window.location?.search || "").get("performance") === "1") {
+      console.info("[SCHEDULE_PERF] " + JSON.stringify({ action, durationMs }));
+    }
+  });
+
+  async function requestScheduleApi(action, payload) {
     let result;
     try {
       result = await RomeoApi.request({ action, ...(payload || {}) });
@@ -299,7 +342,7 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
       });
       const actions = document.createElement("td");
       actions.className = "row-actions";
-      if (state.permissions.manage && !state.weeklyLoading && !state.weeklyLoadFailed) {
+      if (staffId && state.permissions.manage && !state.weeklyLoading && !state.weeklyLoadFailed) {
         if (dayOff && !dayOff.readOnly) {
           actions.appendChild(actionButton("إلغاء الراحة", "deactivate-segment", dayOff.scheduleId, true));
         } else if (!dayRecords.some(item => item.readOnly)) {
@@ -639,16 +682,32 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     populateSelectors();
     applyPermissions();
     byId("scopePanel").hidden = !state.permissions.owner;
-    if (state.permissions.owner) {
-      const scopeResult = await api("listScheduleUserScopes");
-      state.scopes = scopeResult.scopes || [];
-      renderScopes();
-      await loadWorkPolicies();
-    } else {
-      state.scopes = [];
-      state.policies = [];
-    }
+    // Administrative reads must not delay the employee's schedule.
+    void loadScheduleScopes();
+    state.policies = [];
+    renderWorkPolicies();
     setStatus("");
+  }
+
+  async function loadScheduleScopes() {
+    const sequence = ++state.scopeRequestSequence;
+    state.scopes = [];
+    renderScopes();
+    const status = byId("scopeStatus");
+    status.textContent = "";
+    if (!state.permissions.owner) return;
+    status.textContent = "جارٍ تحميل ربط المستخدمين…";
+    byId("scopeEmpty").hidden = true;
+    try {
+      const result = await api("listScheduleUserScopes");
+      if (sequence !== state.scopeRequestSequence || !state.permissions.owner) return;
+      state.scopes = result.scopes || [];
+      renderScopes();
+      status.textContent = "";
+    } catch (error) {
+      if (sequence !== state.scopeRequestSequence || !state.permissions.owner) return;
+      status.textContent = "تعذر تحميل ربط المستخدمين. اضغط تحديث للمحاولة مرة أخرى.";
+    }
   }
 
   async function loadSelected() {
@@ -668,10 +727,11 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     renderWeekly(); renderOverrides(); renderRange(); renderAudit([]);
     const from = byId("rangeStart").value;
     const to = byId("rangeEnd").value;
+    const selection = createScheduleSelectionReader(api, staff.staffId, from, to);
     const policyLoad = loadWorkPolicies(staff.staffId);
     try {
       const [weekly, overrides, resolved, audit] = await Promise.all([
-        api("getStaffWeeklySchedule", { staffId: staff.staffId }).then(result => {
+        selection("getStaffWeeklySchedule").then(result => {
           if (sequence === state.selectedRequestSequence && selectedStaff()?.staffId === staff.staffId) {
             state.schedules = result.schedules || [];
             state.weeklyLoading = false;
@@ -685,9 +745,22 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
           }
           throw error;
         }),
-        api("listScheduleOverrides", { staffId: staff.staffId, dateFrom: from, dateTo: to, limit: 200 }),
-        api("resolveStaffSchedulesRange", { staffIds: [staff.staffId], dateFrom: from, dateTo: to }),
-        api("getScheduleAuditHistory", { staffId: staff.staffId })
+        selection("listScheduleOverrides").then(result => {
+          if (sequence === state.selectedRequestSequence) {
+            state.overrides = result.overrides || []; renderOverrides();
+          }
+          return result;
+        }),
+        selection("resolveStaffSchedulesRange").then(result => {
+          if (sequence === state.selectedRequestSequence) {
+            state.resolved = result.resolvedSchedules || []; renderRange();
+          }
+          return result;
+        }),
+        selection("getScheduleAuditHistory").then(result => {
+          if (sequence === state.selectedRequestSequence) renderAudit(result.audit || []);
+          return result;
+        })
       ]);
       if (sequence !== state.selectedRequestSequence ||
           selectedStaff()?.staffId !== staff.staffId) return;
@@ -846,7 +919,7 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
         setStatus(`${error.code}: ${error.message}`, "error");
       }
     });
-    byId("refreshPoliciesBtn").addEventListener("click", loadWorkPolicies);
+    byId("refreshPoliciesBtn").addEventListener("click", () => loadWorkPolicies());
     byId("recoverPolicyAvailabilityBtn").addEventListener("click", async () => {
       const button = byId("recoverPolicyAvailabilityBtn");
       if (button.disabled) return;
@@ -1169,6 +1242,8 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     byId("rangeEnd").value = plusDays(today, 13);
     populateStaticOptions();
     bindEvents();
+    applyPermissions();
+    renderWeekly(); renderRange(); renderOverrides(); renderAudit([]);
     try {
       await loadPageData();
       if (state.staff.length === 1) {

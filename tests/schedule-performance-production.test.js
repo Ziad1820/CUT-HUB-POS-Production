@@ -45,6 +45,7 @@ test("weekly results remain visible when the separate range request fails", asyn
     byId: () => ({ value: "2026-10-13" }),
     document: { querySelector: () => ({ setAttribute() {} }) },
     setStatus: (...args) => statuses.push(args),
+    createScheduleSelectionReader: api => api,
     loadWorkPolicies: async () => {},
     renderWeekly: () => rendered.push(c.state.weeklyLoading ? "loading" : c.state.schedules.length),
     renderOverrides() {}, renderRange() {}, renderAudit() {},

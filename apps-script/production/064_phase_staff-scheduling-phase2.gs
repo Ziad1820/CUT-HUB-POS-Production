@@ -43,7 +43,7 @@
     "setWeeklyDayOff", "copyEmployeeSchedule", "applyScheduleDateRange", "listScheduleOverrides",
     "createScheduleOverride", "transitionScheduleOverride", "cancelScheduleOverride",
     "reviewScheduleOverride", "resolveStaffSchedule", "resolveStaffSchedulesRange",
-    "getScheduleAuditHistory", "getSchedulePageData", "listScheduleUserScopes",
+    "getScheduleAuditHistory", "getSchedulePageData", "getScheduleSelection", "listScheduleUserScopes",
     "saveScheduleUserScope", "previewStaffScheduleMigration"
   ]);
   const WRITE_ACTIONS = new Set([
@@ -1250,6 +1250,26 @@
           return staff && canAccessStaff(actor, staff, false);
         });
         return { status: "success", code: "SCHEDULE_AUDIT_OK", audit: filterSensitiveFields(filtered.slice(-200)) };
+      },
+      getScheduleSelection(data) {
+        const actor = actorFor(data);
+        requirePermission(actor, "schedule.view");
+        const staff = staffFor(actor, data.staffId, false);
+        // Reuse the original read handlers with this request's authenticated actor and repository.
+        // Neither caller-supplied identities nor arbitrary child actions are accepted.
+        const reader = createService({ repository, actorResolver: () => actor });
+        const payload = { staffId: staff.staffId, staffIds: [staff.staffId],
+          dateFrom: data.dateFrom, dateTo: data.dateTo, limit: 200 };
+        const result = { status: "success", code: "SCHEDULE_SELECTION_OK" };
+        for (const [key, action] of [["weekly", "getStaffWeeklySchedule"], ["overrides", "listScheduleOverrides"],
+          ["resolved", "resolveStaffSchedulesRange"], ["audit", "getScheduleAuditHistory"]]) {
+          try { result[key] = reader.execute(action, payload); }
+          catch (error) {
+            result[key] = { status: "error", code: error.code || "SCHEDULE_READ_FAILED",
+              message: error.message || "Schedule section could not be loaded." };
+          }
+        }
+        return result;
       },
       getSchedulePageData(data) {
         const actor = actorFor(data);

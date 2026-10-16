@@ -5,27 +5,35 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Staff Scheduling - SALONIX</title>
   <link rel="stylesheet" href="../assets/css/shared.css">
-  <link rel="stylesheet" href="../assets/css/pages/schedule-management.css?v=20260811-1">
   <link rel="stylesheet" href="../assets/css/system-layout.css">
+  <link rel="stylesheet" href="../assets/css/pages/schedule-management.css?v=20261016-theme-performance-3">
 </head>
 <body>
-  <div class="schedule-app system-app">
+  <div class="schedule-app system-app app">
     <header class="schedule-header system-header">
       <div class="system-header-menu">
-        <button class="menu-toggle" id="menuToggle" type="button" aria-label="فتح القائمة">☰</button>
+        <button class="menu-toggle" id="menuToggle" type="button" aria-label="فتح القائمة">...</button>
       </div>
       <div class="header-copy">
-        <p class="eyebrow">SALONIX · PHASE 2</p>
-        <h1>جداول الموظفين</h1>
-        <p>إدارة الجداول الأسبوعية والاستثناءات بدون تعديل Google Sheets مباشرة.</p>
-      </div>
-      <div class="actions header-actions">
-        <button class="secondary-btn owner-only" id="migrationPreviewBtn" type="button" hidden>معاينة الترحيل</button>
-        <button class="secondary-btn" id="refreshBtn" type="button">تحديث</button>
+        <div class="brand-lockup">
+          <img class="brand-logo" src="../assets/images/salonix-logo.svg" alt="SALONIX logo">
+          <h1 class="brand-name">SALONIX</h1>
+          <p class="brand-slogan">THE SMART WAY TO RUN YOUR SALON</p>
+        </div>
       </div>
     </header>
 
     <main class="system-content">
+      <section class="panel schedule-intro" aria-labelledby="scheduleTitle">
+        <div>
+          <h2 id="scheduleTitle">جداول الموظفين</h2>
+          <p>تنظيم الشفتات وأيام الراحة والإجازات وسياسات العمل لكل موظف.</p>
+        </div>
+        <div class="actions header-actions">
+          <button class="secondary-btn owner-only" id="migrationPreviewBtn" type="button" hidden>معاينة الترحيل</button>
+          <button class="secondary-btn" id="refreshBtn" type="button">تحديث</button>
+        </div>
+      </section>
       <section class="panel filters" aria-label="مرشحات الجدول">
         <label>الموظف<select id="staffFilter" aria-describedby="staffEmptyState"><option value="">جاري تحميل الموظفين…</option></select></label>
         <label>الفرع<select id="branchFilter"><option value="">كل الفروع</option></select></label>
@@ -72,6 +80,7 @@
             <tbody id="scopeBody"></tbody>
           </table>
         </div>
+        <div class="inline-status" id="scopeStatus" role="status" aria-live="polite"></div>
         <div id="scopeEmpty" class="empty" hidden>لا توجد روابط مستخدمين بعد.</div>
       </section>
 
@@ -256,6 +265,6 @@
   <script src="../assets/js/utils/layout.js?v=20261009-single-analysis-1"></script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>
-  <script src="../assets/js/pages/schedule-management.js?v=20261013-schedule-copy-3"></script>
+  <script src="../assets/js/pages/schedule-management.js?v=20261016-theme-performance-3"></script>
 </body>
 </html>

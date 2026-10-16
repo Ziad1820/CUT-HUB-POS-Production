@@ -289,24 +289,45 @@ function schedulePhase2WithTransaction(details, callback) {
   }
 }
 
-function schedulePhase2CreateRepository() {
+function schedulePhase2CreateRepository(action) {
+  // The server selects snapshot reads. Mutations retain fresh reads under their lock.
+  var readOnly = ["getScheduleSelection", "getSchedulePageData", "listScheduleUserScopes", "listStaffSchedules",
+    "getStaffWeeklySchedule", "listScheduleOverrides", "resolveStaffSchedule",
+    "resolveStaffSchedulesRange", "getScheduleAuditHistory"].indexOf(action) !== -1;
+  var cache = Object.create(null);
+  function copy(value) {
+    if (value instanceof Date) return new Date(value.getTime());
+    if (Array.isArray(value)) return value.map(copy);
+    if (value && typeof value === "object") {
+      var result = {}; Object.keys(value).forEach(function (key) { result[key] = copy(value[key]); }); return result;
+    }
+    return value;
+  }
+  function readOnce(key, read) {
+    if (!readOnly) return read();
+    if (!Object.prototype.hasOwnProperty.call(cache, key)) cache[key] = read();
+    return copy(cache[key]);
+  }
+  function readStaff() { return readOnce("staff", schedulePhase2ReadStaff); }
+  function readSchedules() { return readOnce("schedules", schedulePhase2ReadSchedules); }
+  function readRows(name) { return readOnce("rows:" + name, function () { return schedulePhase2ReadRows(name); }); }
   return {
-    listStaff: schedulePhase2ReadStaff,
+    listStaff: readStaff,
     getStaff: function (staffId) {
-      return schedulePhase2ReadStaff().filter(function (item) {
+      return readStaff().filter(function (item) {
         return item.staffId === schedulePhase2Text(staffId);
       })[0] || null;
     },
     listSchedules: function (filters) {
       filters = filters || {};
-      return schedulePhase2ReadSchedules().filter(function (item) {
+      return readSchedules().filter(function (item) {
         return (!filters.staffId || item.staffId === filters.staffId) &&
           (!filters.weekday || item.weekday === filters.weekday) &&
           (filters.active === undefined || item.active === filters.active);
       });
     },
     getSchedule: function (id) {
-      var matches = schedulePhase2ReadSchedules().filter(function (item) {
+      var matches = readSchedules().filter(function (item) {
         return item.scheduleId === schedulePhase2Text(id);
       });
       if (matches.length > 1) {
@@ -329,7 +350,7 @@ function schedulePhase2CreateRepository() {
         "SCHEDULE_TRANSACTION_REQUIRED", "Copy requires an active schedule transaction.");
       var schema = StaffSchedulingPhase2.PHASE2_SHEET_SCHEMAS.BARBER_SCHEDULE;
       var ready = schedulePhase2AssertHeaders("BARBER_SCHEDULE", schema);
-      var ids = new Set(schedulePhase2ReadRows("BARBER_SCHEDULE").map(function (item) { return item.scheduleId; }));
+      var ids = new Set(readRows("BARBER_SCHEDULE").map(function (item) { return item.scheduleId; }));
       var schemaHeaders = schema.map(schedulePhase2Canonical);
       var start = ready.sheet.getLastRow() + 1;
       var values = records.map(function (record) {
@@ -353,7 +374,7 @@ function schedulePhase2CreateRepository() {
     },
     listOverrides: function (filters) {
       filters = filters || {};
-      return schedulePhase2ReadRows("STAFF_SCHEDULE_OVERRIDES").filter(function (item) {
+      return readRows("STAFF_SCHEDULE_OVERRIDES").filter(function (item) {
         return (!filters.staffId || item.staffId === filters.staffId || item.scopeType !== "STAFF") &&
           (!filters.dateFrom || item.date >= filters.dateFrom) &&
           (!filters.dateTo || item.date <= filters.dateTo) &&
@@ -361,7 +382,7 @@ function schedulePhase2CreateRepository() {
       });
     },
     getOverride: function (id) {
-      var matches = schedulePhase2ReadRows("STAFF_SCHEDULE_OVERRIDES").filter(function (item) {
+      var matches = readRows("STAFF_SCHEDULE_OVERRIDES").filter(function (item) {
         return item.overrideId === schedulePhase2Text(id);
       });
       if (matches.length > 1) {
@@ -378,9 +399,9 @@ function schedulePhase2CreateRepository() {
         "OVERRIDE_ID", record
       );
     },
-    listPolicies: function () { return schedulePhase2ReadRows("STAFF_WORK_POLICIES"); },
+    listPolicies: function () { return readRows("STAFF_WORK_POLICIES"); },
     appendAudit: function (record) {
-      if (schedulePhase2ReadRows("STAFF_ATTENDANCE_AUDIT").some(function (item) {
+      if (readRows("STAFF_ATTENDANCE_AUDIT").some(function (item) {
         return item.actionId === record.actionId;
       })) {
         var error = new Error("Audit action ID collision.");
@@ -395,13 +416,13 @@ function schedulePhase2CreateRepository() {
     },
     listAudit: function (filters) {
       filters = filters || {};
-      return schedulePhase2ReadRows("STAFF_ATTENDANCE_AUDIT").filter(function (item) {
+      return readRows("STAFF_ATTENDANCE_AUDIT").filter(function (item) {
         return (!filters.entityId || item.entityId === filters.entityId) &&
           (!filters.staffId || item.staffId === filters.staffId);
       });
     },
     getIdempotency: function (requestId) {
-      var matches = schedulePhase2ReadRows("STAFF_ATTENDANCE_IDEMPOTENCY").filter(function (item) {
+      var matches = readRows("STAFF_ATTENDANCE_IDEMPOTENCY").filter(function (item) {
         return item.requestId === schedulePhase2Text(requestId);
       });
       if (matches.length > 1) {
@@ -418,7 +439,7 @@ function schedulePhase2CreateRepository() {
         "REQUEST_ID", record
       );
     },
-    listScopes: function () { return schedulePhase2ReadRows("SCHEDULE_USER_SCOPES"); },
+    listScopes: function () { return readRows("SCHEDULE_USER_SCOPES"); },
     saveScope: function (record) {
       return schedulePhase2Save(
         "SCHEDULE_USER_SCOPES",
@@ -576,7 +597,7 @@ function handleStaffSchedulingPhase2Action(data) {
     }
     if (StaffSchedulingPhase2.WRITE_ACTIONS.has(data.action)) schedulePhase2AssertWriteReady();
     var service = StaffSchedulingPhase2.createService({
-      repository: schedulePhase2CreateRepository(),
+      repository: schedulePhase2CreateRepository(data.action),
       actorResolver: schedulePhase2Actor,
       userResolver: function (username) {
         return readUsersFromSheet().filter(function (user) {
