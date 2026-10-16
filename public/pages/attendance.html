@@ -5,26 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>إدارة الحضور - SALONIX</title>
   <link rel="stylesheet" href="../assets/css/shared.css">
-  <link rel="stylesheet" href="../assets/css/pages/attendance.css">
   <link rel="stylesheet" href="../assets/css/system-layout.css">
+  <link rel="stylesheet" href="../assets/css/pages/attendance.css?v=20261016-theme-1">
 </head>
 <body>
-  <div class="attendance-app system-app">
-    <header class="attendance-header system-header">
+  <div class="attendance-app system-app app">
+    <header class="attendance-header system-header header">
       <div class="system-header-menu">
-        <button type="button" class="menu-toggle" id="menuToggle" aria-label="فتح القائمة">☰</button>
+        <button type="button" class="menu-toggle" id="menuToggle" aria-label="فتح القائمة">...</button>
       </div>
-      <div class="system-header-copy">
-        <p class="eyebrow">SALONIX · ATTENDANCE</p>
-        <h1>الحضور اليومي</h1>
-        <p>الأوقات من الخادم، والجدول المعتمد هو مصدر خطة اليوم.</p>
-      </div>
-      <div class="system-header-actions">
-        <div class="sync-state" id="syncState" role="status" aria-live="polite">جارٍ المزامنة…</div>
+      <div class="system-header-copy brand-lockup">
+        <img class="brand-logo" src="../assets/images/salonix-logo.svg" alt="SALONIX logo">
+        <h1 class="brand-name">SALONIX</h1>
+        <p class="brand-slogan">THE SMART WAY TO RUN YOUR SALON</p>
       </div>
     </header>
 
     <main class="system-content">
+      <section class="panel attendance-intro" aria-labelledby="attendanceTitle">
+        <div>
+          <h2 id="attendanceTitle">الحضور اليومي</h2>
+          <p>الأوقات من الخادم، والجدول المعتمد هو مصدر خطة اليوم.</p>
+        </div>
+        <div class="sync-state" id="syncState" role="status" aria-live="polite">جارٍ المزامنة…</div>
+      </section>
       <section class="toolbar panel" aria-label="مرشحات الحضور">
         <label>التاريخ <input id="attendanceDate" type="date"></label>
         <label>الفرع <select id="branchFilter"><option value="">كل الفروع</option></select></label>

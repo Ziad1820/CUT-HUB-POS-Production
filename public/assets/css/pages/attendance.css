@@ -1,3 +1,143 @@
-:root{--ink:#241b12;--muted:#77695c;--paper:#fffaf2;--line:#ead9bd;--gold:#b7863f;--dark:#342313;--green:#126d4b;--red:#a9362b;--shadow:0 16px 38px rgba(64,43,22,.12)}
-*{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#f8f1e5,#efe0c9);color:var(--ink);font-family:"Segoe UI",Tahoma,sans-serif}.attendance-app{min-height:100vh;padding:22px}.attendance-header{position:relative;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:26px 30px;margin-bottom:20px;border-radius:24px;background:linear-gradient(135deg,#21160c,#644722);color:#fff;box-shadow:var(--shadow)}.attendance-header h1{margin:2px 0;font-size:clamp(28px,4vw,46px)}.attendance-header p{margin:0;color:#eadbc5}.eyebrow{font-size:12px;font-weight:900;letter-spacing:2px}.menu-toggle{border:1px solid #ffffff33;background:#ffffff14;color:#fff;width:48px;height:48px;border-radius:14px;font-size:25px;cursor:pointer}.sync-state{border-radius:999px;background:#ffffff17;padding:10px 14px;font-weight:800}.panel,.summary-grid article,.attendance-card{background:#fffdf9;border:1px solid var(--line);box-shadow:var(--shadow)}.toolbar{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr)) auto auto auto;gap:12px;align-items:end;border-radius:20px;padding:16px}.toolbar label,dialog label{display:flex;flex-direction:column;gap:7px;font-weight:800}.toolbar input,.toolbar select,dialog input,dialog select,dialog textarea{min-height:48px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff;font:inherit}.check-filter{flex-direction:row!important;align-items:center;padding-bottom:12px;white-space:nowrap}.check-filter input{min-height:auto}.primary,.soft,.danger{border:0;border-radius:12px;padding:12px 16px;min-height:48px;font:inherit;font-weight:900;cursor:pointer}.primary{background:var(--dark);color:#fff}.soft{background:#eddfc7;color:var(--ink)}.danger{background:var(--red);color:#fff}button:disabled{opacity:.48;cursor:not-allowed}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #2988d8;outline-offset:2px}.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:18px 0}.summary-grid article{border-radius:18px;padding:16px}.summary-grid span{display:block;color:var(--muted);font-weight:800}.summary-grid strong{font-size:30px}.attendance-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}.attendance-card{border-radius:22px;padding:18px;min-width:0}.card-head{display:flex;justify-content:space-between;gap:10px}.card-head h2{margin:0;font-size:22px}.card-head p{margin:4px 0;color:var(--muted)}.state-pill{height:max-content;border-radius:999px;padding:7px 11px;background:#ede2d0;font-size:12px;font-weight:900}.state-pill.working{background:#d8f1e5;color:var(--green)}.state-pill.warning{background:#f7ddda;color:var(--red)}.schedule-line{margin:14px 0;padding:12px;border-radius:14px;background:#f7efe3}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.metric{border-inline-start:3px solid var(--gold);padding-inline-start:9px}.metric span{display:block;color:var(--muted);font-size:12px;font-weight:700}.metric strong{font-size:18px}.warnings{margin:12px 0;padding:10px 12px;border-radius:12px;background:#fff0d8;color:#7c4b00;font-weight:800}.card-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.card-actions button{flex:1 1 110px}.page-message{margin:14px 0;border-radius:14px;background:#f7ddda;color:#791c15;padding:14px;font-weight:900}.empty{grid-column:1/-1;text-align:center;padding:42px;border:1px dashed var(--line);border-radius:20px;color:var(--muted);font-weight:900}.sidebar-overlay{position:fixed;inset:0;background:#21160c66;display:none;z-index:90}.sidebar-overlay.active{display:block}.sidebar{position:fixed;z-index:100;top:0;right:-330px;width:min(330px,88vw);height:100vh;padding:22px;background:var(--paper);display:flex;flex-direction:column;gap:10px;transition:right .2s;box-shadow:var(--shadow)}.sidebar.active{right:0}.sidebar button{border:0;border-radius:12px;padding:13px;text-align:right;font:inherit;font-weight:900;background:#ead9bd}.sidebar .active{background:var(--dark);color:#fff}dialog{width:min(650px,calc(100vw - 28px));max-height:88vh;overflow:auto;border:1px solid var(--line);border-radius:22px;padding:20px;background:var(--paper);box-shadow:0 24px 80px #0005}dialog::backdrop{background:#21160c88}.dialog-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.dialog-head h2{margin:0}.dialog-head button{border:0;background:transparent;font-size:32px;cursor:pointer}.dialog-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}.event-row{padding:10px;border-bottom:1px solid var(--line)}.event-row:last-child{border:0}.event-row time{direction:ltr;display:inline-block}.stale{opacity:.65}
-@media(max-width:950px){.toolbar{grid-template-columns:repeat(2,1fr)}.summary-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:620px){.attendance-app{padding:12px}.attendance-header{padding:20px 16px;align-items:flex-start}.sync-state{display:none}.toolbar,.summary-grid{grid-template-columns:1fr}.attendance-cards{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}.card-actions button{min-height:54px}.check-filter{padding:0}}
+/* Attendance uses the same brand, surfaces and controls as Expenses/Withdrawals. */
+.attendance-app { max-width: none; padding: 24px; }
+.attendance-header {
+  display: block;
+  min-height: auto;
+  padding: 24px;
+  margin-bottom: 24px;
+  text-align: center;
+}
+.attendance-header .brand-lockup { display: inline-grid; justify-items: center; gap: 8px; }
+.attendance-header .brand-name {
+  margin: 0;
+  font-size: clamp(42px, 6vw, 78px);
+  font-weight: 700;
+  line-height: .95;
+  letter-spacing: 6px;
+  color: #fffaf2;
+}
+.attendance-header .brand-slogan {
+  font-size: clamp(11px, 1.2vw, 15px);
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,.82);
+}
+.attendance-app .system-content { max-width: none; gap: 18px; }
+.attendance-app .panel,
+.attendance-app .summary-grid > article,
+.attendance-app .attendance-card {
+  border: 1px solid rgba(229,213,190,.8);
+  border-radius: 24px;
+  background: rgba(255,255,255,.96);
+  box-shadow: var(--shadow);
+}
+.attendance-app .panel { padding: 20px; }
+.attendance-intro { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.attendance-intro h2 { margin: 0 0 8px; font-size: 28px; }
+.attendance-intro p { margin: 0; color: var(--muted); line-height: 1.7; }
+.attendance-intro .sync-state {
+  flex: 0 0 auto;
+  max-width: 100%;
+  padding: 16px 20px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #24180d, #5f4524);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 900;
+  text-align: center;
+}
+.toolbar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: end; }
+.toolbar label,
+#actionDialog label { display: grid; gap: 8px; min-width: 0; color: var(--muted); font-size: 13px; font-weight: 800; }
+.toolbar input:not([type='checkbox']),
+.toolbar select,
+#actionDialog input:not([type='hidden']),
+#actionDialog select,
+#actionDialog textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  border: 1px solid rgba(229,213,190,.8);
+  border-radius: 16px;
+  padding: 13px 15px;
+  background: #fffaf2;
+  color: var(--ink);
+  font: 15px 'Segoe UI', Tahoma, sans-serif;
+}
+#actionDialog textarea { min-height: 110px; resize: vertical; }
+.toolbar .check-filter { display: flex; align-items: center; gap: 10px; min-height: 48px; color: var(--ink); font-size: 14px; }
+.check-filter input { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--accent-dark); }
+.attendance-app .primary,
+.attendance-app .soft,
+.attendance-app .danger,
+#actionDialog .primary,
+#actionDialog .soft,
+#detailsDialog .secondary,
+#detailsDialog .danger {
+  min-height: 48px;
+  padding: 12px 18px;
+  border: 0;
+  border-radius: 16px;
+  color: var(--ink);
+  background: #ead9bd;
+  font: 800 15px 'Segoe UI', Tahoma, sans-serif;
+  cursor: pointer;
+  transition: background .18s ease;
+}
+.attendance-app .primary,
+#actionDialog .primary { background: linear-gradient(135deg, #24180d, #5f4524); color: #fff; }
+.attendance-app .danger,
+#detailsDialog .danger { background: rgba(186,58,44,.1); color: var(--danger); }
+.attendance-app button:disabled,
+#actionDialog button:disabled { opacity: .48; cursor: not-allowed; }
+.attendance-app :is(button,input,select,textarea):focus-visible,
+:is(#actionDialog,#detailsDialog) :is(button,input,select,textarea):focus-visible {
+  outline: 3px solid rgba(183,134,63,.55);
+  outline-offset: 3px;
+}
+.summary-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 14px; margin: 0; }
+.summary-grid article { min-width: 0; padding: 18px; }
+.summary-grid span { display: block; margin-bottom: 10px; color: var(--muted); font-size: 13px; font-weight: 800; }
+.summary-grid strong { font-size: 30px; }
+.attendance-cards { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,360px),1fr)); gap: 18px; }
+.attendance-card { min-width: 0; padding: 20px; }
+.card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.card-head h2 { margin: 0; font-size: 24px; overflow-wrap: anywhere; }
+.card-head p { margin: 6px 0 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.state-pill { flex-shrink: 0; padding: 8px 12px; border-radius: 999px; background: #ead9bd; color: var(--ink); font-size: 12px; font-weight: 900; }
+.state-pill.working { background: rgba(24,121,78,.1); color: var(--success); }
+.state-pill.warning { background: rgba(186,58,44,.1); color: var(--danger); }
+.schedule-line { margin: 16px 0; padding: 14px 16px; border: 1px solid var(--border); border-radius: 16px; background: #fffaf2; color: var(--muted); line-height: 1.7; }
+.metrics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; }
+.metric { min-width: 0; padding: 12px; border: 1px solid rgba(229,213,190,.65); border-radius: 16px; background: #fffaf2; }
+.metric span { display: block; margin-bottom: 8px; color: var(--muted); font-size: 12px; font-weight: 800; }
+.metric strong { font-size: 18px; overflow-wrap: anywhere; }
+.warnings { margin: 14px 0; padding: 12px 14px; border-radius: 16px; background: rgba(183,134,63,.12); color: var(--accent-dark); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.card-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.card-actions button { flex: 1 1 125px; }
+.page-message { padding: 16px 20px; border-radius: 16px; background: rgba(186,58,44,.1); color: var(--danger); font-weight: 800; line-height: 1.7; }
+.empty { grid-column: 1/-1; padding: 36px 20px; border: 1px dashed var(--border); border-radius: 24px; color: var(--muted); text-align: center; background: #fffaf2; }
+:is(#actionDialog,#detailsDialog) { width: min(650px,calc(100vw - 28px)); max-height: 88vh; overflow: auto; padding: 24px; border: 1px solid var(--border); border-radius: 24px; background: #fffaf2; color: var(--ink); box-shadow: var(--shadow); }
+:is(#actionDialog,#detailsDialog)::backdrop { background: rgba(34,23,12,.45); }
+#actionForm { display: grid; gap: 16px; }
+.dialog-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.dialog-head h2 { margin: 0; font-size: 24px; }
+.dialog-head button { min-width: 40px; min-height: 40px; border: 0; border-radius: 12px; background: #ead9bd; color: var(--ink); font: inherit; font-size: 28px; cursor: pointer; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+.event-row { padding: 14px 0; border-bottom: 1px solid var(--border); line-height: 1.8; overflow-wrap: anywhere; }
+.event-row:last-child { border: 0; }
+.attendance-json-preview { max-width: 100%; overflow: auto; }
+[hidden] { display: none !important; }
+@media(max-width:1000px) { .toolbar { grid-template-columns: repeat(2,minmax(0,1fr)); } .summary-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media(max-width:720px) {
+  .attendance-app { padding: 12px; }
+  .attendance-header { padding: 28px 18px; }
+  .attendance-header .brand-logo { width: 64px; height: 64px; }
+  .attendance-header .brand-name { font-size: clamp(38px,10vw,54px); letter-spacing: 4px; }
+  .attendance-header .brand-slogan { font-size: 10px; letter-spacing: 2px; }
+  .attendance-intro { align-items: stretch; flex-direction: column; }
+  .attendance-intro .sync-state { align-self: flex-start; }
+  .attendance-app .panel,.attendance-card { padding: 18px; }
+}
+@media(max-width:480px) { .toolbar { grid-template-columns: minmax(0,1fr); } .metrics { grid-template-columns: repeat(2,minmax(0,1fr)); } .summary-grid article { padding: 16px; } .summary-grid strong { font-size: 28px; } }
+@media(prefers-reduced-motion:reduce) { .attendance-app button { transition: none; } }
