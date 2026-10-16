@@ -28,6 +28,7 @@ const files = {
   "064_phase_staff-scheduling-phase2.gs": [],
   "065_phase_staff-scheduling-phase2-gas.gs": ["schedulePhase2CreateRepository"],
   "067_phase_staff-attendance-phase3.gs": [],
+  "068_phase_staff-attendance-phase3-gas.gs": ["attendancePhase3CreateRepository", "attendancePhase3ResolveSchedule", "handleStaffAttendancePhase3Action"],
   "069_phase_staff-payroll-attendance-phase4.gs": [],
   "073_phase_booking-availability-phase5.gs": [],
   "078_availability_authorization-cache.gs": ["bookingAvailabilityPhase5CacheKey"],
@@ -50,6 +51,7 @@ for (const [name, changedGlobals] of Object.entries(files)) {
   if (name === "030_staff_branch-repository.gs") record.addedGlobals = ["cashierContextAllows", "getCashierCatalog", "getStaffAccountingPeriod"];
   if (name === "049_reports_sales-customers.gs") record.addedGlobals = ["buildStaffAccountingActivity"];
   if (name === "046_accounting_withdrawals.gs") record.addedGlobals = ["getWithdrawalsPage"];
+  if (name === "068_phase_staff-attendance-phase3-gas.gs") record.addedGlobals = ["attendancePhase3ReadSnapshot"];
   if (name === "022_inventory_stock.gs") record.addedGlobals = ["getInventoryPage"];
   if (name === "040_accounting_daily-closing.gs") record.addedGlobals = ["buildCashierSummaryFromSheets"];
   record.changeReason = "Owner-configured minute attendance accounting and shared live booking availability";

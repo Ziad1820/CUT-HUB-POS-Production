@@ -419,7 +419,18 @@
         },
         {
           "path": "068_phase_staff-attendance-phase3-gas.gs",
-          "sha256": "53017253ee041d5e7fecef654b1c726bc91d232921b3c378c065473c520e19a4"
+          "sha256": "53017253ee041d5e7fecef654b1c726bc91d232921b3c378c065473c520e19a4",
+          "baselineSourcePath": "baseline/068_phase_staff-attendance-phase3-gas.js",
+          "currentSha256": "29846fd523dbe818fe039f41fbe86f89c2d59f4d807b5bd1d97b0f8970ddff61",
+          "changedGlobals": [
+            "attendancePhase3CreateRepository",
+            "attendancePhase3ResolveSchedule",
+            "handleStaffAttendancePhase3Action"
+          ],
+          "addedGlobals": [
+            "attendancePhase3ReadSnapshot"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "069_phase_staff-payroll-attendance-phase4.gs",

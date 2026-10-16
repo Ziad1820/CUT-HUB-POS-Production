@@ -6,13 +6,27 @@
 
   const state = {
     days: [], permissions: {}, serverNow: "", loading: false, requestSequence: 0,
-    selected: null, selectedAction: "", dirtyDialog: false, resyncTimer: null
+    fresh: false, loadedDate: "", mutationActive: false, actionUncertain: false, selected: null, selectedAction: "", dirtyDialog: false, resyncTimer: null
   };
   const byId = id => document.getElementById(id);
   const cards = byId("attendanceCards");
   const message = byId("pageMessage");
   const actionDialog = byId("actionDialog");
   const detailsDialog = byId("detailsDialog");
+
+  let attendanceRead = null, pendingRead = null, detailsSequence = 0;
+  function timing(operation, startedAt, outcome) {
+    if (new URLSearchParams(window.location.search).get("performance") === "1")
+      console.info("[ATTENDANCE_PERF] " + JSON.stringify({ operation, totalMs: Date.now() - startedAt, outcome }));
+  }
+  function updateControls() {
+    const blocked = state.loading || state.mutationActive || !state.fresh || state.loadedDate !== byId("attendanceDate").value;
+    cards.querySelectorAll("button[data-action]").forEach(button => { button.disabled = blocked; });
+    byId("confirmActionBtn").disabled = blocked || state.actionUncertain;
+    byId("refreshBtn").disabled = state.mutationActive;
+    ["attendanceDate", "branchFilter", "staffFilter", "unresolvedFilter", "openBreakFilter"].forEach(id => { byId(id).disabled = state.mutationActive; });
+    cards.setAttribute("aria-busy", String(state.loading));
+  }
 
   function create(tag, className, value) {
     const node = document.createElement(tag);
@@ -214,6 +228,8 @@
   }
   function filteredDays() {
     return state.days.filter(day =>
+      (!byId("branchFilter").value || day.branchId === byId("branchFilter").value) &&
+      (!byId("staffFilter").value || day.staffId === byId("staffFilter").value) &&
       (!byId("unresolvedFilter").checked ||
         day.openSession || day.openBreak || (day.calculationWarnings || []).length || day.status === "UNRESOLVED") &&
       (!byId("openBreakFilter").checked || day.openBreak));
@@ -223,74 +239,76 @@
     const visible = filteredDays();
     if (!visible.length) cards.append(create("div", "empty", "لا توجد حالات مطابقة."));
     else visible.forEach(day => cards.append(renderCard(day)));
-    byId("totalCount").textContent = String(state.days.length);
-    byId("workingCount").textContent = String(state.days.filter(day =>
+    byId("totalCount").textContent = String(visible.length);
+    byId("workingCount").textContent = String(visible.filter(day =>
       ["CHECKED_IN", "ON_BREAK"].includes(day.state)).length);
     byId("breakCount").textContent = String(state.days.filter(day => day.openBreak).length);
     byId("warningCount").textContent = String(state.days.filter(day =>
       day.openSession || day.openBreak || (day.calculationWarnings || []).length).length);
-    cards.setAttribute("aria-busy", "false");
+    updateControls();
   }
   function populateFilters(days) {
-    const staffSelect = byId("staffFilter");
-    const branchSelect = byId("branchFilter");
-    const currentStaff = staffSelect.value;
-    const currentBranch = branchSelect.value;
-    const branches = new Set();
-    days.forEach(day => { if (day.branchId) branches.add(day.branchId); });
-    if (!currentStaff) {
-      staffSelect.replaceChildren(new Option("كل الموظفين", ""));
-      days.forEach(day => staffSelect.append(new Option(day.staffName, day.staffId)));
-    }
-    if (!currentBranch) {
-      branchSelect.replaceChildren(new Option("كل الفروع", ""));
-      [...branches].sort().forEach(branch => branchSelect.append(new Option(branch, branch)));
-    }
-    staffSelect.value = currentStaff && [...staffSelect.options].some(option => option.value === currentStaff)
-      ? currentStaff : "";
-    branchSelect.value = currentBranch && [...branchSelect.options].some(option => option.value === currentBranch)
-      ? currentBranch : "";
+    const staffSelect = byId("staffFilter"), branchSelect = byId("branchFilter");
+    const staffId = staffSelect.value, branchId = branchSelect.value;
+    const staff = new Map(), branches = new Set();
+    days.forEach(day => { staff.set(day.staffId, day.staffName); if (day.branchId) branches.add(day.branchId); });
+    staffSelect.replaceChildren(new Option("كل الموظفين", ""));
+    staff.forEach((name, id) => staffSelect.append(new Option(name, id)));
+    branchSelect.replaceChildren(new Option("كل الفروع", ""));
+    [...branches].sort().forEach(id => branchSelect.append(new Option(id, id)));
+    staffSelect.value = staff.has(staffId) ? staffId : "";
+    branchSelect.value = branches.has(branchId) ? branchId : "";
   }
-  async function loadDashboard() {
-    const sequence = ++state.requestSequence;
-    state.loading = true;
-    cards.setAttribute("aria-busy", "true");
-    cards.replaceChildren(create("div", "empty", "جارٍ تحميل بيانات الحضور…"));
-    byId("refreshBtn").disabled = true;
-    byId("syncState").textContent = navigator.onLine === false ? "غير متصل" : "جارٍ المزامنة…";
+  function applyLocalFilters() {
+    const startedAt = Date.now(); render(); timing("filter", startedAt, "success");
+  }
+  function loadDashboard({ fresh = false } = {}) {
+    if (state.mutationActive && !fresh) return Promise.resolve(false);
+    const date = byId("attendanceDate").value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      ++state.requestSequence; state.fresh = false; updateControls();
+      showMessage("اختر تاريخًا صحيحًا؛ البيانات الظاهرة من آخر تحميل ناجح.");
+      return Promise.resolve(false);
+    }
+    if (!fresh && attendanceRead?.date === date && !pendingRead) return attendanceRead.promise;
+    if (pendingRead?.date === date) return pendingRead.promise;
+    const job = { date, sequence: ++state.requestSequence, startedAt: Date.now() };
+    job.promise = new Promise(resolve => { job.resolve = resolve; });
+    if (attendanceRead) { if (pendingRead) pendingRead.resolve(false); pendingRead = job; }
+    else startDashboardRead(job);
+    return job.promise;
+  }
+  async function startDashboardRead(job) {
+    attendanceRead = job; state.loading = true; state.fresh = false; updateControls();
+    byId("syncState").textContent = "جارٍ المزامنة…";
     showMessage("");
+    const current = () => job.sequence === state.requestSequence && job.date === byId("attendanceDate").value;
+    let ok = false, outcome = "superseded";
     try {
-      const specialAction = byId("openBreakFilter").checked
-        ? "listOpenAttendanceBreaks"
-        : byId("unresolvedFilter").checked ? "listUnresolvedAttendanceDays" : "";
-      const result = await api(specialAction ? {
-        action: specialAction, date: byId("attendanceDate").value
-      } : {
-        action: "getAttendanceDashboard", date: byId("attendanceDate").value,
-        branchId: byId("branchFilter").value, staffId: byId("staffFilter").value
-      });
-      if (sequence !== state.requestSequence) return;
-      state.days = result.attendanceDays || [];
-      state.permissions = result.permissions || state.permissions || {};
-      state.serverNow = result.serverNow || "";
+      // This is the same server-authorized day; all view filters narrow it locally.
+      const result = await api({ action: "getAttendanceDashboard", date: job.date });
+      if (!current()) return;
+      if (!Array.isArray(result.attendanceDays) || result.date !== job.date || !result.permissions || !result.serverNow) throw Error("INVALID_ATTENDANCE");
+      state.days = result.attendanceDays; state.permissions = result.permissions; state.serverNow = result.serverNow;
+      state.loadedDate = job.date; state.fresh = true;
       populateFilters(state.days);
       byId("migrationPreviewBtn").hidden = !state.permissions.previewMigration;
-      render();
-      byId("syncState").textContent = `متزامن ${clock(state.serverNow)}`;
+      render(); byId("syncState").textContent = "متزامن " + clock(state.serverNow);
+      ok = true; outcome = "success";
     } catch (error) {
-      if (sequence !== state.requestSequence) return;
-      state.days = [];
-      render();
-      showMessage(errorMessage(error));
+      if (!current()) return;
+      outcome = "error";
+      showMessage("تعذر تحديث الحضور؛ البيانات الظاهرة من آخر تحميل ناجح. حدّث البيانات قبل تسجيل إجراء.");
       byId("syncState").textContent = "تعذر التحديث";
     } finally {
-      if (sequence === state.requestSequence) {
-        state.loading = false;
-        byId("refreshBtn").disabled = false;
-      }
+      attendanceRead = null; state.loading = false; updateControls();
+      if (outcome === "superseded" && !pendingRead) showMessage("التاريخ اتغيّر؛ حدّث البيانات قبل تسجيل إجراء.");
+      timing("dashboard", job.startedAt, outcome); job.resolve(ok);
+      if (pendingRead) { const next = pendingRead; pendingRead = null; startDashboardRead(next); }
     }
   }
   function configureActionDialog(action, day, entityId) {
+    state.actionUncertain = false;
     state.selectedAction = action;
     state.selected = day;
     state.dirtyDialog = false;
@@ -333,9 +351,12 @@
       byId("actionReason").value = labels[action];
     }
     actionDialog.showModal();
+    updateControls();
     byId("actionReason").focus();
   }
   async function showDetails(day) {
+    const sequence = ++detailsSequence, startedAt = Date.now();
+    let outcome = "error";
     byId("detailsContent").replaceChildren(create("p", "", "جارٍ تحميل سجل الأحداث والتدقيق…"));
     detailsDialog.showModal();
     try {
@@ -348,6 +369,8 @@
         }),
         api({ action: "getAttendanceAuditHistory", entityId: day.attendanceDayId, staffId: day.staffId })
       ]);
+      if (sequence !== detailsSequence || !detailsDialog.open) return;
+      outcome = "success";
       const content = byId("detailsContent");
       content.replaceChildren();
       content.append(create("h3", "", "الأحداث الأصلية والتعويضية"));
@@ -382,12 +405,12 @@
           `${entry.action} · ${clock(entry.timestamp)} · ${entry.actorName || entry.actorId} · ${entry.reason || "—"}`));
       });
     } catch (error) {
-      byId("detailsContent").replaceChildren(create("p", "warnings", errorMessage(error)));
-    }
+      if (sequence === detailsSequence && detailsDialog.open) byId("detailsContent").replaceChildren(create("p", "warnings", errorMessage(error)));
+    } finally { timing("details", startedAt, outcome); }
   }
   async function submitAction(event) {
     event.preventDefault();
-    if (!state.selected) return;
+    if (!state.selected || state.mutationActive || state.loading || !state.fresh || state.actionUncertain) return;
     const button = byId("confirmActionBtn");
     button.disabled = true;
     const action = state.selectedAction;
@@ -430,20 +453,38 @@
     if (action === "cancelAttendanceEvent") {
       payload.eventId = byId("actionDayId").dataset.entityId;
     }
+    state.mutationActive = true; state.fresh = false; updateControls();
+    let failure = null;
     try {
       await api(payload);
-      state.dirtyDialog = false;
-      actionDialog.close();
-      await loadDashboard();
-    } catch (error) {
-      showMessage(errorMessage(error));
-    } finally {
-      button.disabled = false;
+      state.dirtyDialog = false; actionDialog.close();
+    } catch (error) { failure = error; state.actionUncertain = true; }
+    finally {
+      await loadDashboard({ fresh: true });
+      state.mutationActive = false; updateControls();
+      if (failure) showMessage(errorMessage(failure) + " · راجع حالة اليوم قبل إرسال إجراء جديد؛ الطلب لم تتم إعادته تلقائيًا.");
     }
+  }
+  async function reviewOvertime(day) {
+    if (state.mutationActive || state.loading || !state.fresh) return;
+    state.mutationActive = true; state.fresh = false; updateControls();
+    let result, failure;
+    try { result = await api({ action: "requestAttendanceOvertime", attendanceDayId: day.attendanceDayId,
+      requestId: requestId("OVT"), reason: "مراجعة المالك للوقت الإضافي" }); }
+    catch (error) { failure = error; }
+    finally {
+      await loadDashboard({ fresh: true }); state.mutationActive = false; updateControls();
+    }
+    const refreshed = state.days.find(item => item.attendanceDayId === day.attendanceDayId);
+    if (failure) showMessage(errorMessage(failure));
+    else if (state.fresh && refreshed && result?.overtimeApproval?.overtimeApprovalId)
+      configureActionDialog("approveAttendanceOvertime", refreshed, result.overtimeApproval.overtimeApprovalId);
   }
   function closeDialog(dialog) {
     if (dialog === actionDialog && state.dirtyDialog &&
         !window.confirm("يوجد سبب أو بيانات لم تُرسل. هل تريد الإغلاق؟")) return;
+    if (state.mutationActive && dialog === actionDialog) return;
+    if (dialog === detailsDialog) ++detailsSequence;
     state.dirtyDialog = false;
     dialog.close();
   }
@@ -460,19 +501,12 @@
 
   cards.addEventListener("click", event => {
     const button = event.target.closest("button[data-action]");
-    if (!button || state.loading) return;
+    if (!button || state.loading || state.mutationActive || !state.fresh) return;
     const day = state.days.find(item => item.attendanceDayId === button.dataset.dayId);
     if (!day) return;
     if (button.dataset.action === "details") showDetails(day);
     else if (button.dataset.action === "reviewOvertime") {
-      button.disabled = true;
-      api({ action: "requestAttendanceOvertime", attendanceDayId: day.attendanceDayId,
-        requestId: requestId("OVT"), reason: "مراجعة المالك للوقت الإضافي" })
-        .then(async result => {
-          await loadDashboard();
-          configureActionDialog("approveAttendanceOvertime", day, result.overtimeApproval.overtimeApprovalId);
-        }).catch(error => showMessage(errorMessage(error)))
-        .finally(() => { button.disabled = false; });
+      reviewOvertime(day);
     } else configureActionDialog(button.dataset.action, day, button.dataset.entityId);
   });
   byId("actionForm").addEventListener("submit", submitAction);
@@ -491,11 +525,11 @@
   byId("attendanceDate").addEventListener("change", loadDashboard);
   byId("branchFilter").addEventListener("change", () => {
     byId("staffFilter").value = "";
-    loadDashboard();
+    applyLocalFilters();
   });
-  byId("staffFilter").addEventListener("change", loadDashboard);
-  byId("unresolvedFilter").addEventListener("change", loadDashboard);
-  byId("openBreakFilter").addEventListener("change", loadDashboard);
+  byId("staffFilter").addEventListener("change", applyLocalFilters);
+  byId("unresolvedFilter").addEventListener("change", applyLocalFilters);
+  byId("openBreakFilter").addEventListener("change", applyLocalFilters);
   byId("migrationPreviewBtn").addEventListener("click", async () => {
     const button = byId("migrationPreviewBtn");
     button.disabled = true;
@@ -517,5 +551,7 @@
 
   byId("attendanceDate").value = todayKey();
   loadDashboard();
-  state.resyncTimer = window.setInterval(loadDashboard, 60000);
+  state.resyncTimer = window.setInterval(() => {
+    if (!document.hidden && !actionDialog.open && !detailsDialog.open && !state.mutationActive && !attendanceRead) loadDashboard();
+  }, 60000);
 })();

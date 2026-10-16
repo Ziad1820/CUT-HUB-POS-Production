@@ -189,16 +189,20 @@ function attendancePhase3Unique(rows, key, value, code) {
   return matches[0] || null;
 }
 
-function attendancePhase3CreateRepository() {
+function attendancePhase3CreateRepository(readers) {
+  readers = readers || {};
+  var readRows = readers.readRows || schedulePhase2ReadRows;
+  var readStaff = readers.readStaff || schedulePhase2ReadStaff;
+  var readDays = readers.readDays || attendancePhase3ReadDays;
   return {
-    listStaff: schedulePhase2ReadStaff,
+    listStaff: readStaff,
     getStaff: function (staffId) {
-      return attendancePhase3Unique(schedulePhase2ReadStaff(), "staffId", staffId,
+      return attendancePhase3Unique(readStaff(), "staffId", staffId,
         "ATTENDANCE_STAFF_ID_AMBIGUOUS");
     },
     listDays: function (filters) {
       filters = filters || {};
-      return attendancePhase3ReadDays().filter(function (item) {
+      return readDays().filter(function (item) {
         return (!filters.staffId || item.staffId === filters.staffId) &&
           (!filters.date || item.attendanceDate === filters.date) &&
           (!filters.dateFrom || item.attendanceDate >= filters.dateFrom) &&
@@ -206,11 +210,11 @@ function attendancePhase3CreateRepository() {
       });
     },
     getDay: function (dayId) {
-      return attendancePhase3Unique(attendancePhase3ReadDays(), "attendanceDayId", dayId,
+      return attendancePhase3Unique(readDays(), "attendanceDayId", dayId,
         "ATTENDANCE_DAY_ID_AMBIGUOUS");
     },
     saveDay: function (record) {
-      var existing = attendancePhase3ReadDays().filter(function (item) {
+      var existing = readDays().filter(function (item) {
         return item.attendanceDayId === record.attendanceDayId;
       });
       if (existing.length > 1) {
@@ -228,13 +232,13 @@ function attendancePhase3CreateRepository() {
     },
     listEvents: function (filters) {
       filters = filters || {};
-      return schedulePhase2ReadRows("ATTENDANCE_EVENTS").filter(function (item) {
+      return readRows("ATTENDANCE_EVENTS").filter(function (item) {
         return (!filters.attendanceDayId || item.attendanceDayId === filters.attendanceDayId) &&
           (!filters.staffId || item.staffId === filters.staffId);
       });
     },
     getEvent: function (eventId) {
-      return attendancePhase3Unique(schedulePhase2ReadRows("ATTENDANCE_EVENTS"),
+      return attendancePhase3Unique(readRows("ATTENDANCE_EVENTS"),
         "eventId", eventId, "ATTENDANCE_EVENT_ID_AMBIGUOUS");
     },
     appendEvent: function (record) {
@@ -243,13 +247,13 @@ function attendancePhase3CreateRepository() {
     },
     listAdjustments: function (filters) {
       filters = filters || {};
-      return schedulePhase2ReadRows("ATTENDANCE_ADJUSTMENTS").filter(function (item) {
+      return readRows("ATTENDANCE_ADJUSTMENTS").filter(function (item) {
         return (!filters.attendanceDayId || item.attendanceDayId === filters.attendanceDayId) &&
           (!filters.status || String(item.status).toUpperCase() === String(filters.status).toUpperCase());
       });
     },
     getAdjustment: function (adjustmentId) {
-      return attendancePhase3Unique(schedulePhase2ReadRows("ATTENDANCE_ADJUSTMENTS"),
+      return attendancePhase3Unique(readRows("ATTENDANCE_ADJUSTMENTS"),
         "adjustmentId", adjustmentId, "ATTENDANCE_ADJUSTMENT_ID_AMBIGUOUS");
     },
     saveAdjustment: function (record) {
@@ -259,12 +263,12 @@ function attendancePhase3CreateRepository() {
     },
     listOvertime: function (filters) {
       filters = filters || {};
-      return schedulePhase2ReadRows("ATTENDANCE_OVERTIME_APPROVALS").filter(function (item) {
+      return readRows("ATTENDANCE_OVERTIME_APPROVALS").filter(function (item) {
         return !filters.attendanceDayId || item.attendanceDayId === filters.attendanceDayId;
       });
     },
     getOvertime: function (approvalId) {
-      return attendancePhase3Unique(schedulePhase2ReadRows("ATTENDANCE_OVERTIME_APPROVALS"),
+      return attendancePhase3Unique(readRows("ATTENDANCE_OVERTIME_APPROVALS"),
         "overtimeApprovalId", approvalId, "ATTENDANCE_OVERTIME_ID_AMBIGUOUS");
     },
     appendOvertime: function (record) {
@@ -272,9 +276,9 @@ function attendancePhase3CreateRepository() {
         StaffAttendancePhase3.SHEET_SCHEMAS.ATTENDANCE_OVERTIME_APPROVALS,
         "OVERTIME_APPROVAL_ID", record, true);
     },
-    listPolicies: function () { return schedulePhase2ReadRows("STAFF_WORK_POLICIES"); },
+    listPolicies: function () { return readRows("STAFF_WORK_POLICIES"); },
     getPolicy: function (policyId) {
-      return attendancePhase3Unique(schedulePhase2ReadRows("STAFF_WORK_POLICIES"),
+      return attendancePhase3Unique(readRows("STAFF_WORK_POLICIES"),
         "policyId", policyId, "WORK_POLICY_ID_AMBIGUOUS");
     },
     savePolicy: function (record) {
@@ -290,13 +294,13 @@ function attendancePhase3CreateRepository() {
     },
     listAudit: function (filters) {
       filters = filters || {};
-      return schedulePhase2ReadRows("STAFF_ATTENDANCE_AUDIT").filter(function (item) {
+      return readRows("STAFF_ATTENDANCE_AUDIT").filter(function (item) {
         return (!filters.entityId || item.entityId === filters.entityId) &&
           (!filters.staffId || item.staffId === filters.staffId);
       });
     },
     getIdempotency: function (requestId) {
-      var row = attendancePhase3Unique(schedulePhase2ReadRows("STAFF_ATTENDANCE_IDEMPOTENCY"),
+      var row = attendancePhase3Unique(readRows("STAFF_ATTENDANCE_IDEMPOTENCY"),
         "requestId", requestId, "ATTENDANCE_IDEMPOTENCY_AMBIGUOUS");
       if (row) {
         row.requestFingerprint = row.requestFingerprint || row.fingerprint;
@@ -314,8 +318,10 @@ function attendancePhase3CreateRepository() {
   };
 }
 
-function attendancePhase3ResolveSchedule(staff, date) {
-  var policies = schedulePhase2ReadRows("STAFF_WORK_POLICIES");
+function attendancePhase3ResolveSchedule(staff, date, readers) {
+  var readRows = readers && readers.readRows || schedulePhase2ReadRows;
+  var readSchedules = readers && readers.readSchedules || schedulePhase2ReadSchedules;
+  var policies = readRows("STAFF_WORK_POLICIES");
   var policyResolution;
   try {
     policyResolution = StaffAttendanceCore.resolveEffectivePolicy(policies, staff.staffId, date);
@@ -325,8 +331,8 @@ function attendancePhase3ResolveSchedule(staff, date) {
       snapshot: { requiredDailyMinutes: 0, allowedBreakMinutes: 0 } };
   }
   return StaffSchedulingPhase2.resolveSchedule({
-    staff: staff, date: date, schedules: schedulePhase2ReadSchedules(),
-    overrides: schedulePhase2ReadRows("STAFF_SCHEDULE_OVERRIDES"),
+    staff: staff, date: date, schedules: readSchedules(),
+    overrides: readRows("STAFF_SCHEDULE_OVERRIDES"),
     policyResolution: policyResolution
   });
 }
@@ -483,6 +489,31 @@ function diagnosticPreviewAttendanceMigrationSafety(data) {
   return result;
 }
 
+function attendancePhase3ReadSnapshot(action) {
+  // The server chooses these read-only paths; writes always use live repositories under their lock.
+  if (["getAttendanceDashboard", "getEmployeeAttendanceDay", "listAttendanceEvents",
+      "getAttendanceAuditHistory", "listOpenAttendanceBreaks", "listUnresolvedAttendanceDays"].indexOf(action) === -1) return null;
+  var cache = Object.create(null);
+  function copy(value) {
+    if (value instanceof Date) return new Date(value.getTime());
+    if (Array.isArray(value)) return value.map(copy);
+    if (value && typeof value === "object") {
+      var result = {}; Object.keys(value).forEach(function (key) { result[key] = copy(value[key]); }); return result;
+    }
+    return value;
+  }
+  function snapshot(key, read) {
+    if (!Object.prototype.hasOwnProperty.call(cache, key)) cache[key] = read();
+    return copy(cache[key]);
+  }
+  return {
+    readRows: function (name) { return snapshot("rows:" + name, function () { return schedulePhase2ReadRows(name); }); },
+    readStaff: function () { return snapshot("staff", schedulePhase2ReadStaff); },
+    readDays: function () { return snapshot("days", attendancePhase3ReadDays); },
+    readSchedules: function () { return snapshot("schedules", schedulePhase2ReadSchedules); }
+  };
+}
+
 function handleStaffAttendancePhase3Action(data) {
   try {
     if (!StaffAttendancePhase3 ||
@@ -504,10 +535,11 @@ function handleStaffAttendancePhase3Action(data) {
     }
     attendancePhase3AssertEnvironmentIdentity();
     if (StaffAttendancePhase3.WRITE_ACTIONS.has(data.action)) attendancePhase3AssertWriteReady();
+    var readers = attendancePhase3ReadSnapshot(data.action);
     var service = StaffAttendancePhase3.createService({
-      repository: attendancePhase3CreateRepository(),
+      repository: attendancePhase3CreateRepository(readers),
       actorResolver: schedulePhase2Actor,
-      scheduleResolver: attendancePhase3ResolveSchedule,
+      scheduleResolver: function (staff, date) { return attendancePhase3ResolveSchedule(staff, date, readers); },
       withLock: function (details, callback) {
         return attendancePhase3WithLock(details, function () {
           if (typeof publishOperationalMutationTransactionUnderCurrentLock === "function") {

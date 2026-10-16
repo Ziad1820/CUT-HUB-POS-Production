@@ -4,9 +4,9 @@ Generated locally by `scripts/generate-release-manifest.js`. Do not hand-edit. T
 
 ## Counts
 
-- Required tracked files: **404**
+- Required tracked files: **407**
 - Required untracked files: **0**
-- Total classified entries: **435**
+- Total classified entries: **438**
 
 ## Intended Apps Script application package
 
@@ -176,6 +176,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `apps-script/production/baseline/064_phase_staff-scheduling-phase2.js` | tracked | Phase 2 Scheduling | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | tests/staff-scheduling-phase2.test.js<br>tests/staff-scheduling-phase2-contract.test.js | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/065_phase_staff-scheduling-phase2-gas.js` | tracked | Phase 2 Scheduling | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | tests/staff-scheduling-phase2.test.js<br>tests/staff-scheduling-phase2-contract.test.js | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/067_phase_staff-attendance-phase3.js` | tracked | Phase 3 Attendance | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | tests/staff-attendance-phase3.test.js | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
+| `apps-script/production/baseline/068_phase_staff-attendance-phase3-gas.js` | tracked | Phase 3 Attendance | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | tests/staff-attendance-phase3.test.js | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/069_phase_staff-payroll-attendance-phase4.js` | tracked | Phase 4 Payroll Attendance | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | tests/staff-payroll-attendance-phase4.test.js | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/073_phase_booking-availability-phase5.js` | tracked | Phase 5 Booking Availability | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | tests/booking-availability-phase5.test.js<br>tests/booking-availability-phase5-gas.test.js<br>tests/booking-availability-phase5-contract.test.js<br>tests/booking-no-check-in-detector.test.js | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
 | `apps-script/production/baseline/078_availability_authorization-cache.js` | tracked | Authentication & navigation | authoritative source | yes | no | — | Separate Production modular package; not part of the legacy two-file allowlist | tests/auth-navigation.test.js | Production v38 source split without behavior changes, deployed as v39; validated by build-production-apps-script.js. |
@@ -273,6 +274,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `config/frontend-runtime-config.staging.example.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | Release evidence; not runtime-loaded | — | Required source or verification evidence for the complete implementation. |
 | `docs/activity-log-performance.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/apps-script-content-redirect-fix.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
+| `docs/attendance-performance.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/backend-refactor-baseline.json` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/backend-refactor-production-deployment.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/booking-no-check-in-trigger-runbook.md` | tracked | Phase 5 Booking Availability | operational runbook | yes | no | — | Release evidence; not runtime-loaded | tests/booking-availability-phase5.test.js<br>tests/booking-availability-phase5-gas.test.js<br>tests/booking-availability-phase5-contract.test.js<br>tests/booking-no-check-in-detector.test.js | Required pre-Staging operational control document. |
@@ -424,6 +426,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `tests/apps-script-http.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/apps-script-proxy.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/attendance-page-functional.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
+| `tests/attendance-performance.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/auth-navigation.test.js` | tracked | Authentication & navigation | test | yes | no | — | Local validation only | tests/auth-navigation.test.js | Release-blocking local regression or safety evidence. |
 | `tests/auth01-combined-runtime-package.test.js` | tracked | Authentication & navigation | test | yes | no | — | Local validation only | tests/auth-navigation.test.js<br>tests/auth01-local-implementation.test.js | Release-blocking local regression or safety evidence. |
 | `tests/auth01-crypto-vectors.test.js` | tracked | Authentication & navigation | test | yes | no | — | Local validation only | tests/auth-navigation.test.js<br>tests/auth01-local-implementation.test.js | Release-blocking local regression or safety evidence. |

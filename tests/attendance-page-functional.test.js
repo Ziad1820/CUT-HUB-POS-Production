@@ -11,16 +11,17 @@ const html = fs.readFileSync(path.join(
   __dirname, "../public/pages/attendance.html"), "utf8");
 
 test("employee filtering preserves the complete selector for direct switching", () => {
-  assert.match(js, /if \(!currentStaff\) \{[\s\S]*?staffSelect\.replaceChildren/);
-  assert.match(js, /staffSelect\.value = currentStaff && \[\.\.\.staffSelect\.options\]\.some/);
+  assert.match(js, /const staff = new Map\(\)/);
+  assert.match(js, /staff\.forEach\(\(name, id\) => staffSelect\.append/);
+  assert.match(js, /staffSelect\.value = staff\.has\(staffId\) \? staffId : ""/);
 });
 
-test("changing branch clears stale employee identity before reloading", () => {
-  assert.match(js, /byId\("branchFilter"\)\.addEventListener\("change", \(\) => \{[\s\S]*?byId\("staffFilter"\)\.value = "";[\s\S]*?loadDashboard\(\);/);
+test("changing branch clears stale employee identity before applying local filters", () => {
+  assert.match(js, /byId\("branchFilter"\)\.addEventListener\("change", \(\) => \{[\s\S]*?byId\("staffFilter"\)\.value = "";[\s\S]*?applyLocalFilters\(\);/);
 });
 
 test("Attendance page cache-busts the corrected selector behavior", () => {
-  assert.match(html, /attendance\.js\?v=20261013-minute-workflow-1/);
+  assert.match(html, /attendance\.js\?v=20261016-attendance-1/);
 });
 
 test("Attendance renders server-derived fractional durations as whole minutes", () => {

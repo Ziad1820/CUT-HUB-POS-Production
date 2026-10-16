@@ -627,7 +627,7 @@ test("Attendance UI is Arabic RTL, text-safe, keyboard-aware, stale-response-saf
   assert.match(js, /replaceChildren/);
   assert.match(js, /requestSequence/);
   assert.match(js, /trapFocus/);
-  assert.match(js, /setInterval\(loadDashboard, 60000\)/);
+  assert.match(js, /setInterval\(\(\) => \{[\s\S]*?!document\.hidden[\s\S]*?!actionDialog\.open[\s\S]*?loadDashboard\(\);[\s\S]*?\}, 60000\)/);
   assert.doesNotMatch(html + js, /salary|monetary deduction|payable overtime/i);
 });
 
@@ -711,10 +711,11 @@ test("strict review: DTO sanitizer removes nested secrets including serialized e
   assert.equal(filtered.policySnapshot.requiredDailyMinutes, 480);
 });
 
-test("strict review: UI invokes server filters, migration preview, event correction, and unpersisted-day evidence lookup", () => {
+test("strict review: UI narrows the authorized day locally and retains preview, correction and evidence lookup", () => {
   const js = fs.readFileSync(path.join(ROOT, "public/assets/js/pages/attendance.js"), "utf8");
-  assert.match(js, /listUnresolvedAttendanceDays/);
-  assert.match(js, /listOpenAttendanceBreaks/);
+  assert.match(js, /action: "getAttendanceDashboard", date: job\.date/);
+  assert.match(js, /byId\("unresolvedFilter"\)\.addEventListener\("change", applyLocalFilters\)/);
+  assert.match(js, /byId\("openBreakFilter"\)\.addEventListener\("change", applyLocalFilters\)/);
   assert.match(js, /previewAttendanceMigration/);
   assert.match(js, /replacesEventId/);
   assert.match(js, /attendanceDate:\s*day\.attendanceDate/);
