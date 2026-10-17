@@ -4,7 +4,7 @@ Generated locally by `scripts/generate-release-manifest.js`. Do not hand-edit. T
 
 ## Counts
 
-- Required tracked files: **411**
+- Required tracked files: **412**
 - Required untracked files: **0**
 - Total classified entries: **442**
 
@@ -27,7 +27,6 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 - `.sync-backups/` — Local editor, backup, or scratch artifact; excluded from release.
 - `.vscode/settings.json` — Local editor, backup, or scratch artifact; excluded from release.
 - `attendance.html` — Root compatibility wrapper duplicates public output; Vercel serves the public directory.
-- `booking-availability-admin.html` — Root compatibility wrapper duplicates public output; Vercel serves the public directory.
 - `bookings.html` — Root compatibility wrapper duplicates public output; Vercel serves the public directory.
 - `cashier.html` — Root compatibility wrapper duplicates public output; Vercel serves the public directory.
 - `docs/staff-attendance-phase-1-engineering-review.md` — Historical engineering review; documentation-only and not deployed.
@@ -267,7 +266,6 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `backend/staging/legacy-auth-preview.js` | tracked | Authentication & navigation | authoritative source | yes | no | — | config/backend-sources.json source order; exclude direct upload | tests/auth-navigation.test.js | Authoritative modular backend source; assembled into the existing deployment allowlist. |
 | `backend/staging/staff-import-preview.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | config/backend-sources.json source order; exclude direct upload | — | Authoritative modular backend source; assembled into the existing deployment allowlist. |
 | `backend/staging/staff-schema-migration.js` | tracked | Cross-phase/local | authoritative source | yes | no | — | config/backend-sources.json source order; exclude direct upload | — | Authoritative modular backend source; assembled into the existing deployment allowlist. |
-| `booking-availability-admin.html` | untracked | Phase 5 Booking Availability | excluded intentionally | no | no | — | Do not deploy | tests/booking-availability-phase5.test.js<br>tests/booking-availability-phase5-gas.test.js<br>tests/booking-availability-phase5-contract.test.js<br>tests/booking-no-check-in-detector.test.js | Root compatibility wrapper duplicates public output; Vercel serves the public directory. |
 | `bookings.html` | tracked | Booking integration | excluded intentionally | no | no | — | Do not deploy | — | Root compatibility wrapper duplicates public output; Vercel serves the public directory. |
 | `cashier.html` | tracked | Booking integration | excluded intentionally | no | no | — | Do not deploy | tests/booking-upgrade.test.js | Root compatibility wrapper duplicates public output; Vercel serves the public directory. |
 | `config/apps-script-deployment-package.json` | tracked | Deployment package | operational runbook | yes | no | — | Read by local package validator | tests/apps-script-deployment-package.test.js | Machine-readable allowlist and exclusion list for the future Apps Script package. |
@@ -280,6 +278,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `docs/backend-refactor-baseline.json` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/backend-refactor-production-deployment.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/booking-no-check-in-trigger-runbook.md` | tracked | Phase 5 Booking Availability | operational runbook | yes | no | — | Release evidence; not runtime-loaded | tests/booking-availability-phase5.test.js<br>tests/booking-availability-phase5-gas.test.js<br>tests/booking-availability-phase5-contract.test.js<br>tests/booking-no-check-in-detector.test.js | Required pre-Staging operational control document. |
+| `docs/booking-settings-consolidation.md` | tracked | Booking integration | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/bookings-performance.md` | tracked | Booking integration | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/cashier-performance-audit.md` | tracked | Booking integration | documentation | yes | no | — | Release evidence; not runtime-loaded | tests/booking-upgrade.test.js | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/cashier-responsive-layout-fix.md` | tracked | Authentication & navigation | documentation | yes | no | — | Release evidence; not runtime-loaded | tests/auth-navigation.test.js<br>tests/booking-upgrade.test.js | Phase specification and operational reference; documentation-only and not runtime-loaded. |
@@ -333,7 +332,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `lib/apps-script-http.js` | tracked | Cross-phase/local | backend integration | yes | no | — | Vercel server function; exclude Apps Script upload | — | Same-origin relay to the fixed Production Apps Script deployment, without automatic request replay. |
 | `login.html` | tracked | Authentication & navigation | excluded intentionally | no | no | — | Do not deploy | tests/auth-navigation.test.js | Root compatibility wrapper duplicates public output; Vercel serves the public directory. |
 | `public/assets/css/pages/attendance.css` | tracked | Phase 3 Attendance | UI stylesheet | yes | no | — | Browser: linked by its UI page | tests/staff-attendance-phase3.test.js | Runtime RTL/accessibility styling for an in-scope page. |
-| `public/assets/css/pages/booking-availability-admin.css` | tracked | Phase 5 Booking Availability | UI stylesheet | yes | no | — | Browser: linked by its UI page | tests/booking-availability-phase5.test.js<br>tests/booking-availability-phase5-gas.test.js<br>tests/booking-availability-phase5-contract.test.js<br>tests/booking-no-check-in-detector.test.js | Runtime RTL/accessibility styling for an in-scope page. |
+| `public/assets/css/pages/booking-settings.css` | tracked | Booking integration | UI stylesheet | yes | no | — | Browser: linked by its UI page | — | Runtime RTL/accessibility styling for an in-scope page. |
 | `public/assets/css/pages/bookings.css` | tracked | Booking integration | UI stylesheet | yes | no | — | Browser: linked by its UI page | tests/booking-upgrade.test.js | Runtime RTL/accessibility styling for an in-scope page. |
 | `public/assets/css/pages/customer-booking.css` | tracked | Booking integration | UI stylesheet | yes | no | — | Browser: linked by its UI page | tests/booking-upgrade.test.js | Runtime RTL/accessibility styling for an in-scope page. |
 | `public/assets/css/pages/schedule-management.css` | tracked | Phase 2 Scheduling | UI stylesheet | yes | no | — | Browser: linked by its UI page | tests/staff-scheduling-phase2.test.js<br>tests/staff-scheduling-phase2-contract.test.js | Runtime RTL/accessibility styling for an in-scope page. |
@@ -350,7 +349,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `public/assets/js/core/runtime-config.js` | tracked | Cross-phase/local | UI JavaScript | yes | no | — | Browser: after shared core and page markup | — | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/core/staff-import-preview.js` | tracked | Cross-phase/local | UI JavaScript | yes | no | — | Browser: after shared core and page markup | — | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/pages/attendance.js` | tracked | Phase 3 Attendance | UI JavaScript | yes | no | — | Browser: after shared core and page markup | tests/staff-attendance-phase3.test.js | Runtime client logic for an in-scope workflow. |
-| `public/assets/js/pages/booking-availability-admin.js` | tracked | Phase 5 Booking Availability | UI JavaScript | yes | no | — | Browser: after shared core and page markup | tests/booking-availability-phase5.test.js<br>tests/booking-availability-phase5-gas.test.js<br>tests/booking-availability-phase5-contract.test.js<br>tests/booking-no-check-in-detector.test.js | Runtime client logic for an in-scope workflow. |
+| `public/assets/js/pages/booking-settings.js` | tracked | Booking integration | UI JavaScript | yes | no | — | Browser: after shared core and page markup | — | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/pages/bookings.js` | tracked | Booking integration | UI JavaScript | yes | no | — | Browser: after shared core and page markup | tests/booking-upgrade.test.js | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/pages/cashier.js` | tracked | Booking integration | UI JavaScript | yes | no | — | Browser: after shared core and page markup | tests/booking-upgrade.test.js | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/pages/customer-booking.js` | tracked | Booking integration | UI JavaScript | yes | no | — | Browser: after shared core and page markup | tests/booking-upgrade.test.js | Runtime client logic for an in-scope workflow. |
@@ -363,7 +362,6 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `public/assets/js/utils/text-fix.js` | tracked | Cross-phase/local | UI JavaScript | yes | no | — | Browser: after shared core and page markup | — | Runtime client logic for an in-scope workflow. |
 | `public/pages/activity-log.html` | tracked | Cross-phase/local | UI page | yes | no | — | Static public package | — | Runtime page for an in-scope workflow. |
 | `public/pages/attendance.html` | tracked | Phase 3 Attendance | UI page | yes | no | — | Static public package | tests/staff-attendance-phase3.test.js | Runtime page for an in-scope workflow. |
-| `public/pages/booking-availability-admin.html` | tracked | Phase 5 Booking Availability | UI page | yes | no | — | Static public package | tests/booking-availability-phase5.test.js<br>tests/booking-availability-phase5-gas.test.js<br>tests/booking-availability-phase5-contract.test.js<br>tests/booking-no-check-in-detector.test.js | Runtime page for an in-scope workflow. |
 | `public/pages/bookings.html` | tracked | Booking integration | UI page | yes | no | — | Static public package | tests/booking-upgrade.test.js | Runtime page for an in-scope workflow. |
 | `public/pages/cashier.html` | tracked | Booking integration | UI page | yes | no | — | Static public package | tests/booking-upgrade.test.js | Runtime page for an in-scope workflow. |
 | `public/pages/customer-booking.html` | tracked | Booking integration | UI page | yes | no | — | Static public package | tests/booking-upgrade.test.js | Runtime page for an in-scope workflow. |
@@ -442,6 +440,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `tests/booking-no-check-in-detector.test.js` | tracked | Phase 5 Booking Availability | test | yes | no | — | Local validation only | tests/booking-availability-phase5.test.js<br>tests/booking-availability-phase5-gas.test.js<br>tests/booking-availability-phase5-contract.test.js<br>tests/booking-no-check-in-detector.test.js | Release-blocking local regression or safety evidence. |
 | `tests/booking-rating-production-migration.test.js` | tracked | Booking rating migration | test | yes | no | — | Local validation only | tests/booking-rating-production-migration.test.js<br>tests/booking-rating-standalone-migration-runner.test.js | Release-blocking local regression or safety evidence. |
 | `tests/booking-rating-standalone-migration-runner.test.js` | tracked | Booking rating migration | test | yes | no | — | Local validation only | tests/booking-rating-production-migration.test.js<br>tests/booking-rating-standalone-migration-runner.test.js | Release-blocking local regression or safety evidence. |
+| `tests/booking-settings.test.js` | tracked | Booking integration | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/booking-upgrade.test.js` | tracked | Booking integration | test | yes | no | — | Local validation only | tests/booking-upgrade.test.js | Release-blocking local regression or safety evidence. |
 | `tests/bookings-performance.test.js` | tracked | Booking integration | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/branch-foundation-staging.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |

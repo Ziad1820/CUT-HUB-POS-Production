@@ -420,7 +420,6 @@ const RomeoAuth = (() => {
       ["view_attendance", "attendance.html"],
       ["schedule.view", "schedule-management.html"],
       ["view_bookings", "bookings.html"],
-      ["booking_availability.view", "booking-availability-admin.html"]
     ];
 
     const match = permissionPages.find(([permission]) => user.permissions.includes(permission));

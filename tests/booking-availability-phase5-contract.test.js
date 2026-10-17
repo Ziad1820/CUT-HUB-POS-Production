@@ -193,13 +193,13 @@ test("transaction, hybrid generation, branch registry, snapshots and error propa
 
 test("Arabic RTL administration uses safe record DOM APIs and exposes all reviewed controls", () => {
   const html = fs.readFileSync(path.join(ROOT,
-    "public/pages/booking-availability-admin.html"), "utf8");
+    "public/pages/bookings.html"), "utf8");
   const script = fs.readFileSync(path.join(ROOT,
-    "public/assets/js/pages/booking-availability-admin.js"), "utf8");
+    "public/assets/js/pages/booking-settings.js"), "utf8");
   assert.match(html, /<html lang="ar" dir="rtl">/);
   for (const id of [
     "conflicts", "overrideForm", "hoursForm", "branchForm", "audit",
-    "migrationPreviewBtn", "triggerPreviewBtn", "engineSummary", "featureFlags",
+    "engineSummary", "featureFlags",
     "engineBadge", "hoursRows", "newBranchBtn"
   ]) assert.match(html, new RegExp(`id="${id}"`));
   assert.match(script, /replaceChildren/);
@@ -208,12 +208,12 @@ test("Arabic RTL administration uses safe record DOM APIs and exposes all review
   assert.match(script, /if \(busy\) return/);
   assert.match(script, /AVAILABILITY|FOUR_EYES|STALE/);
   assert.match(script, /getBookingAvailabilityFlags/);
-  assert.match(script, /const user = RomeoAuth\.requireAuth\("booking_availability\.view"\);\s*if \(!user\) return;/);
+  assert.match(script, /RomeoAuth\.hasPermission\("booking_availability\.view"\)/);
   assert.match(script, /populateBranchForm/);
   assert.match(script, /populateHoursForm/);
   assert.match(script, /branch\.active !== false/);
   assert.match(script, /validateHoursRange/);
-  assert.match(script, /غير متاح من الاستجابة/);
+  assert.match(script, /ربط الحضور/);
   assert.match(gas, /function bookingAvailabilityPhase5ListBranchHours/);
   assert.match(gas, /cacheStatus/);
   assert.match(gas, /AVAILABILITY_BRANCH_HOURS_EFFECTIVE_RANGE_INVALID/);

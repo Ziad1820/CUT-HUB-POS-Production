@@ -1,9 +1,14 @@
 (() => {
   "use strict";
-  const byId = id => document.getElementById(id);
-  const user = RomeoAuth.requireAuth("booking_availability.view");
-  if (!user) return;
-  document.body.classList.remove("auth-pending");
+  const user = RomeoAuth.getCurrentUser();
+  const root = document.getElementById("bookingSettings");
+  if (!root || !user || (!RomeoAuth.isOwnerUser(user) && !RomeoAuth.hasPermission("booking_availability.view"))) return;
+  root.hidden = false;
+  let initialized = false;
+  function initialize() {
+  if (initialized) return;
+  initialized = true;
+  const byId = id => root.querySelector(`[id="${id}"]`);
   const owner = RomeoAuth.isOwnerUser(user);
   const can = permission => owner || RomeoAuth.hasPermission(permission);
   let busy = false;
@@ -59,17 +64,13 @@
     const flags = state.flags || {};
     const engine = flags.engine || "غير معروف";
     const badge = byId("engineBadge");
-    badge.textContent = engine;
+    badge.textContent = flags.engine === "PHASE5" && flags.attendanceLiveEnabled ? "الربط مفعّل" : "الربط غير مفعّل";
     badge.dataset.engine = engine;
     const summary = byId("engineSummary");
     summary.replaceChildren();
     [
-      ["المحرك النشط", engine],
-      ["حل التعارضات", boolLabel(flags.conflictResolutionEnabled)],
-      ["خدمة الكاش", state.cacheStatus?.available === true ? "متاحة" :
-        state.cacheStatus?.available === false ? "غير متاحة" : "غير متاح من الاستجابة"],
-      ["إبطال الكاش بالإصدارات", boolLabel(state.cacheStatus?.tokenVersioningEnabled)],
-      ["قراءات Sheets المتوقعة/طلب", String(state.quotaEstimate?.authoritativeSheetReadsPerRequest ?? "غير متاح")]
+      ["ربط الحضور", boolLabel(flags.attendanceLiveEnabled)],
+      ["حل التعارضات", boolLabel(flags.conflictResolutionEnabled)]
     ].forEach(([label, value]) => {
       const wrapper = document.createElement("div");
       const term = document.createElement("dt"); term.textContent = label;
@@ -210,13 +211,14 @@
   async function guarded(work) {
     if (busy) return;
     busy = true;
-    document.querySelectorAll("button").forEach(node => { node.disabled = true; });
+    const controls = [...root.querySelectorAll("button,input,select")].map(node => [node, node.disabled]);
+    controls.forEach(([node]) => { node.disabled = true; });
     status("جارٍ التحميل…", "loading");
     try { await work(); status("تم تحديث البيانات.", ""); }
     catch (error) { const mapped = mappedError(error); status(mapped[0], mapped[1]); }
     finally {
       busy = false;
-      document.querySelectorAll("button").forEach(node => { node.disabled = false; });
+      controls.forEach(([node, disabled]) => { node.disabled = disabled; });
       applyFeatureState();
     }
   }
@@ -302,10 +304,10 @@
       await refreshData();
     });
   }
-  document.querySelectorAll("[data-permission]").forEach(node => {
+  root.querySelectorAll("[data-permission]").forEach(node => {
     node.hidden = !can(node.dataset.permission);
   });
-  document.querySelectorAll(".owner-only").forEach(node => { node.hidden = !owner; });
+  root.querySelectorAll(".owner-only").forEach(node => { node.hidden = !owner; });
   byId("branchSelect").addEventListener("change", event => {
     state.branchId = event.target.value;
     state.conflicts = [];
@@ -366,13 +368,9 @@
     populateBranchForm();
     byId("branchForm").branchId.focus();
   });
-  byId("migrationPreviewBtn").addEventListener("click", () => guarded(async () => {
-    const result = await api("previewBookingAvailabilityMigration");
-    byId("preview").textContent = JSON.stringify(result.migration, null, 2);
-  }));
-  byId("triggerPreviewBtn").addEventListener("click", () => guarded(async () => {
-    const result = await api("previewBookingNoCheckInTriggerInstallation");
-    byId("preview").textContent = JSON.stringify(result.preview, null, 2);
-  }));
   load();
+  }
+  root.addEventListener("toggle", () => { if (root.open) initialize(); });
+  if (new URLSearchParams(window.location.search).get("settings") === "1") root.open = true;
+  if (root.open) initialize();
 })();

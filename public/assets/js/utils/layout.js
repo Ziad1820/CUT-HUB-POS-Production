@@ -20,7 +20,6 @@
     "attendance.html": "attendance.view",
     "schedule-management.html": "schedule.view",
     "bookings.html": "view_bookings",
-    "booking-availability-admin.html": "booking_availability.view"
   });
 
   const NAVIGATION_ITEMS = Object.freeze([
@@ -38,7 +37,6 @@
     { href: "attendance.html", permission: "attendance.view", ar: "الحضور", en: "Attendance" },
     { href: "schedule-management.html", permission: "schedule.view", ar: "جداول الموظفين", en: "Staff Scheduling" },
     { href: "bookings.html", permission: "view_bookings", ar: "الحجوزات", en: "Bookings" },
-    { href: "booking-availability-admin.html", permission: "booking_availability.view", ar: "إتاحة الحجوزات", en: "Booking Availability" }
   ]);
 
   function normalizeLanguage(value) {

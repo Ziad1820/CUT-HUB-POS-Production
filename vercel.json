@@ -11,6 +11,11 @@
       "source": "/pages/payroll-attendance.html",
       "destination": "/pages/staff-accounting.html",
       "permanent": true
+    },
+    {
+      "source": "/pages/booking-availability-admin.html",
+      "destination": "/pages/bookings.html?settings=1",
+      "permanent": true
     }
   ],
   "rewrites": [

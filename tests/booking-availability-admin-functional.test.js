@@ -4,9 +4,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
-const html = fs.readFileSync(path.join(root, "public/pages/booking-availability-admin.html"), "utf8");
-const page = fs.readFileSync(path.join(root, "public/assets/js/pages/booking-availability-admin.js"), "utf8");
-const styles = fs.readFileSync(path.join(root, "public/assets/css/pages/booking-availability-admin.css"), "utf8");
+const html = fs.readFileSync(path.join(root, "public/pages/bookings.html"), "utf8");
+const page = fs.readFileSync(path.join(root, "public/assets/js/pages/booking-settings.js"), "utf8");
+const styles = fs.readFileSync(path.join(root, "public/assets/css/pages/booking-settings.css"), "utf8");
 const gas = fs.readFileSync(path.join(root, "scripts/booking-availability-phase5-gas.js"), "utf8");
 const engine = fs.readFileSync(path.join(root, "scripts/booking-availability-phase5.js"), "utf8");
 const createOverrideSource = gas.slice(
@@ -15,7 +15,7 @@ const createOverrideSource = gas.slice(
 );
 
 test("admin UI gates every protected surface and backend remains the security boundary", () => {
-  assert.match(page, /requireAuth\("booking_availability\.view"\)/);
+  assert.match(page, /hasPermission\("booking_availability\.view"\)/);
   for (const permission of [
     "booking_availability.view_restrictions",
     "booking_availability.manage_override",
@@ -69,7 +69,7 @@ test("Staging previews are explicit zero-write dry runs and Production stays blo
 
 test("admin page is Arabic RTL, responsive, and uses safe DOM rendering", () => {
   assert.match(html, /<html lang="ar" dir="rtl">/);
-  assert.match(html, /name="viewport" content="width=device-width, initial-scale=1"/);
+  assert.match(html, /name="viewport" content="width=device-width, initial-scale=1(?:\.0)?"/);
   assert.match(html, /role="status" aria-live="polite"/);
   assert.match(page, /replaceChildren\(/);
   assert.match(page, /textContent =/);
