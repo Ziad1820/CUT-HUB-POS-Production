@@ -19,7 +19,6 @@
     "enventory.html": "view_inventory",
     "attendance.html": "attendance.view",
     "schedule-management.html": "schedule.view",
-    "payroll-attendance.html": "payroll_attendance.view",
     "bookings.html": "view_bookings",
     "booking-availability-admin.html": "booking_availability.view"
   });
@@ -38,7 +37,6 @@
     { href: "enventory.html", permission: "view_inventory", ar: "المخزون", en: "Inventory" },
     { href: "attendance.html", permission: "attendance.view", ar: "الحضور", en: "Attendance" },
     { href: "schedule-management.html", permission: "schedule.view", ar: "جداول الموظفين", en: "Staff Scheduling" },
-    { href: "payroll-attendance.html", permission: "payroll_attendance.view", ar: "تسويات الحضور", en: "Attendance Settlements" },
     { href: "bookings.html", permission: "view_bookings", ar: "الحجوزات", en: "Bookings" },
     { href: "booking-availability-admin.html", permission: "booking_availability.view", ar: "إتاحة الحجوزات", en: "Booking Availability" }
   ]);

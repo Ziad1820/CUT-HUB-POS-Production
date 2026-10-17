@@ -91,16 +91,16 @@ const explicitPaths = [
   "public/assets/js/pages/bookings.js", "public/assets/js/pages/cashier.js",
   "public/assets/js/pages/customer-booking.js",
   "public/assets/js/pages/schedule-management.js",
-  "public/assets/js/pages/payroll-attendance.js",
+
   "public/assets/js/pages/booking-availability-admin.js",
   "public/assets/css/pages/attendance.css", "public/assets/css/pages/bookings.css",
   "public/assets/css/pages/customer-booking.css",
   "public/assets/css/pages/schedule-management.css",
-  "public/assets/css/pages/payroll-attendance.css",
+
   "public/assets/css/pages/booking-availability-admin.css",
   "public/pages/login.html", "public/pages/attendance.html", "public/pages/bookings.html",
   "public/pages/cashier.html", "public/pages/customer-booking.html",
-  "public/pages/schedule-management.html", "public/pages/payroll-attendance.html",
+  "public/pages/schedule-management.html",
   "public/pages/booking-availability-admin.html", "public/pages/system-access.html",
   "public/pages/activity-log.html", "public/pages/customer-data.html",
   "public/pages/daily-closing.html", "public/pages/dashboard.html",
@@ -178,7 +178,7 @@ const explicitPaths = [
   "tests/legacy-staff-snapshot-local.test.js",
   "tests/migration-preview-diagnostics.test.js",
   "tests/owner-password-reset-staging.test.js",
-  "tests/payroll-attendance-page-functional.test.js",
+
   "tests/schedule-management-functional.test.js",
   "tests/schedule-work-policy-ui.test.js",
   "tests/staff-bootstrap-executor-staging.test.js",

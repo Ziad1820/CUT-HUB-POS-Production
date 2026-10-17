@@ -1508,27 +1508,10 @@ test("active router exposes Phase 4 before Phase 3 and legacy deductions remain 
   assert.match(source, /ATTENDANCE_LEGACY_PATH_DISABLED/);
 });
 
-test("Phase 4 UI is Arabic RTL, permission wired, text-safe, and includes lifecycle/export controls", () => {
-  const html = fs.readFileSync(path.join(ROOT, "public/pages/payroll-attendance.html"), "utf8");
-  const js = fs.readFileSync(path.join(ROOT, "public/assets/js/pages/payroll-attendance.js"), "utf8");
-  const layout = fs.readFileSync(path.join(ROOT, "public/assets/js/utils/layout.js"), "utf8");
-  assert.match(html, /lang="ar" dir="rtl"/);
-  assert.match(html, /calculateBtn/);
-  assert.match(html, /exportPreviewBtn/);
-  assert.match(js, /payroll_attendance\.view/);
-  assert.match(js, /sourceAttendanceSnapshot/);
-  assert.match(js, /getPayrollAttendancePage/);
-  assert.match(js, /recalculatePayrollPeriod/);
-  assert.doesNotMatch(js, /\.innerHTML\s*=/);
-  assert.doesNotMatch(html, /\son[a-z]+=/i);
-  assert.match(layout, /payroll-attendance\.html/);
-});
-
 test("Phase 4 source has no Booking Availability, payment execution, or external provider integration", () => {
   const source = [
     "scripts/staff-payroll-attendance-phase4.js",
-    "scripts/staff-payroll-attendance-phase4-gas.js",
-    "public/assets/js/pages/payroll-attendance.js"
+    "scripts/staff-payroll-attendance-phase4-gas.js"
   ].map(file => fs.readFileSync(path.join(ROOT, file), "utf8")).join("\n");
   assert.doesNotMatch(source, /createBooking|booking availability|cancelBooking|slot generation/i);
   assert.doesNotMatch(source, /bank transfer|payment provider|executePayment|payroll provider/i);

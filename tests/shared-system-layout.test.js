@@ -5,7 +5,7 @@ const path = require("node:path");
 
 const layout = require("../public/assets/js/utils/layout.js");
 const root = path.join(__dirname, "..");
-const phasePages = ["attendance.html", "schedule-management.html", "payroll-attendance.html"];
+const phasePages = ["attendance.html", "schedule-management.html"];
 
 test("canonical navigation is complete, permission filtered, ordered, and singly active", () => {
   const all = layout.buildNavigation({
@@ -24,7 +24,7 @@ test("canonical navigation is complete, permission filtered, ordered, and singly
     hasPermission: permission => allowed.has(permission)
   });
   assert.deepEqual(filtered.map(item => item.href), [
-    "dashboard.html", "attendance.html", "payroll-attendance.html"
+    "dashboard.html", "attendance.html"
   ]);
   assert.equal(filtered.filter(item => item.active).length, 1);
 });
@@ -40,7 +40,7 @@ test("cashier and Phase 2-4 pages contain only the shared sidebar shell", () => 
   }
 });
 
-test("all three phase pages use the canonical cashier-compatible shell", () => {
+test("remaining phase pages use the canonical cashier-compatible shell", () => {
   for (const page of phasePages) {
     const html = fs.readFileSync(path.join(root, "public/pages", page), "utf8");
     assert.match(html, /assets\/css\/shared\.css/, page);
@@ -63,11 +63,10 @@ test("shared shell owns menu placement, overlay animation, scrolling, and respon
   assert.match(css, /@media\s*\(max-width:\s*720px\)/);
 });
 
-test("existing Attendance, Scheduling, and Settlement feature modules remain wired", () => {
+test("existing Attendance and Scheduling feature modules remain wired", () => {
   const expected = {
     "attendance.html": "assets/js/pages/attendance.js",
-    "schedule-management.html": "assets/js/pages/schedule-management.js",
-    "payroll-attendance.html": "assets/js/pages/payroll-attendance.js"
+    "schedule-management.html": "assets/js/pages/schedule-management.js"
   };
   for (const [page, script] of Object.entries(expected)) {
     const html = fs.readFileSync(path.join(root, "public/pages", page), "utf8");

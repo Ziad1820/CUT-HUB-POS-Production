@@ -233,7 +233,7 @@ test("missing, empty, and unknown permissions fail closed", () => {
 });
 
 [
-  ["payroll_attendance.view", "payroll-attendance.html"],
+  ["payroll_attendance.view", "login.html"],
   ["booking_availability.view", "booking-availability-admin.html"],
   ["view_data_analysis", "login.html"],
   ["view_staff_discount", "staff-discount.html"]
@@ -245,12 +245,12 @@ test("missing, empty, and unknown permissions fail closed", () => {
   });
 });
 
-test("routing order prefers payroll before booking availability when both are granted", () => {
+test("retired payroll permission does not override booking availability routing", () => {
   const { auth, location } = authForPermissions([
     "booking_availability.view", "payroll_attendance.view"
   ]);
   assert.equal(auth.requireAuth("access_dashboard"), null);
-  assert.equal(location.href, "payroll-attendance.html");
+  assert.equal(location.href, "booking-availability-admin.html");
 });
 
 test("a user authorized for the requested page is not redirected", () => {

@@ -87,7 +87,6 @@ test("later functional regressions ship while local Staging tools remain exclude
     "tests/customer-booking-branch.test.js",
     "tests/customer-tracking-ratings.test.js",
     "tests/internal-booking-branch.test.js",
-    "tests/payroll-attendance-page-functional.test.js",
     "tests/schedule-management-functional.test.js",
     "tests/schedule-work-policy-ui.test.js",
     "tests/staff-work-policy-management.test.js"

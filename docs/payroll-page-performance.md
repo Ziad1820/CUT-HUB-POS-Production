@@ -1,3 +1,11 @@
+# Retired payroll page
+
+The standalone payroll attendance page and its page-only assets were removed on 2026-10-17 at the owner’s request. Navigation and login fallback no longer route to it. Old URLs redirect to staff accounting.
+
+Attendance, scheduling, staff accounting minute deductions and explicitly approved overtime remain unchanged. Backend period records and payroll handlers are retained for compatibility and data preservation; no financial records or stored permissions were deleted. Backend bundle and access-control tests remain active.
+
+## Historical performance measurements before removal
+
 # Payroll attendance page performance and theme
 
 The page now loads periods, the selected period's settlements and unresolved blockers through one read-only `getPayrollAttendancePage` request, replacing the previous sequential period read followed by two settlement/blocker requests. An omitted period ID selects the first authorized period, while an explicit empty ID clears the selection. A supplied ID must pass the original period/branch/organization checks. Details and audit use one `getPayrollAttendanceDetails` request; the audit staff/entity IDs come from the authorized settlement, never from caller-provided identities.

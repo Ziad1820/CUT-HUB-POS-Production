@@ -419,7 +419,6 @@ const RomeoAuth = (() => {
       ["attendance.view", "attendance.html"],
       ["view_attendance", "attendance.html"],
       ["schedule.view", "schedule-management.html"],
-      ["payroll_attendance.view", "payroll-attendance.html"],
       ["view_bookings", "bookings.html"],
       ["booking_availability.view", "booking-availability-admin.html"]
     ];

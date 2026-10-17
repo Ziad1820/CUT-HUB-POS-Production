@@ -4,9 +4,9 @@ Generated locally by `scripts/generate-release-manifest.js`. Do not hand-edit. T
 
 ## Counts
 
-- Required tracked files: **412**
+- Required tracked files: **408**
 - Required untracked files: **0**
-- Total classified entries: **443**
+- Total classified entries: **439**
 
 ## Intended Apps Script application package
 
@@ -334,7 +334,6 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `public/assets/css/pages/booking-availability-admin.css` | tracked | Phase 5 Booking Availability | UI stylesheet | yes | no | — | Browser: linked by its UI page | tests/booking-availability-phase5.test.js<br>tests/booking-availability-phase5-gas.test.js<br>tests/booking-availability-phase5-contract.test.js<br>tests/booking-no-check-in-detector.test.js | Runtime RTL/accessibility styling for an in-scope page. |
 | `public/assets/css/pages/bookings.css` | tracked | Booking integration | UI stylesheet | yes | no | — | Browser: linked by its UI page | tests/booking-upgrade.test.js | Runtime RTL/accessibility styling for an in-scope page. |
 | `public/assets/css/pages/customer-booking.css` | tracked | Booking integration | UI stylesheet | yes | no | — | Browser: linked by its UI page | tests/booking-upgrade.test.js | Runtime RTL/accessibility styling for an in-scope page. |
-| `public/assets/css/pages/payroll-attendance.css` | tracked | Phase 4 Payroll Attendance | UI stylesheet | yes | no | — | Browser: linked by its UI page | tests/staff-attendance-phase3.test.js<br>tests/staff-payroll-attendance-phase4.test.js | Runtime RTL/accessibility styling for an in-scope page. |
 | `public/assets/css/pages/schedule-management.css` | tracked | Phase 2 Scheduling | UI stylesheet | yes | no | — | Browser: linked by its UI page | tests/staff-scheduling-phase2.test.js<br>tests/staff-scheduling-phase2-contract.test.js | Runtime RTL/accessibility styling for an in-scope page. |
 | `public/assets/css/pages/staff-import-preview.css` | tracked | Cross-phase/local | UI stylesheet | yes | no | — | Browser: linked by its UI page | — | Runtime RTL/accessibility styling for an in-scope page. |
 | `public/assets/css/shared.css` | tracked | Cross-phase/local | UI stylesheet | yes | no | — | Browser: linked by its UI page | — | Runtime RTL/accessibility styling for an in-scope page. |
@@ -354,7 +353,6 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `public/assets/js/pages/cashier.js` | tracked | Booking integration | UI JavaScript | yes | no | — | Browser: after shared core and page markup | tests/booking-upgrade.test.js | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/pages/customer-booking.js` | tracked | Booking integration | UI JavaScript | yes | no | — | Browser: after shared core and page markup | tests/booking-upgrade.test.js | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/pages/dashboard-analysis.js` | tracked | Cross-phase/local | UI JavaScript | yes | no | — | Browser: after shared core and page markup | — | Runtime client logic for an in-scope workflow. |
-| `public/assets/js/pages/payroll-attendance.js` | tracked | Phase 4 Payroll Attendance | UI JavaScript | yes | no | — | Browser: after shared core and page markup | tests/staff-payroll-attendance-phase4.test.js | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/pages/schedule-management.js` | tracked | Phase 2 Scheduling | UI JavaScript | yes | no | — | Browser: after shared core and page markup | tests/staff-scheduling-phase2.test.js<br>tests/staff-scheduling-phase2-contract.test.js | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/utils/invoice-pdf.js` | tracked | Cross-phase/local | UI JavaScript | yes | no | — | Browser: after shared core and page markup | — | Runtime client logic for an in-scope workflow. |
 | `public/assets/js/utils/keyboard-navigation.js` | tracked | Cross-phase/local | UI JavaScript | yes | no | — | Browser: after shared core and page markup | — | Runtime client logic for an in-scope workflow. |
@@ -376,7 +374,6 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `public/pages/invoices.html` | tracked | Cross-phase/local | UI page | yes | no | — | Static public package | — | Runtime page for an in-scope workflow. |
 | `public/pages/legacy-staff-snapshot-local.html` | untracked | Cross-phase/local | excluded intentionally | no | no | — | Never package | — | Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit. |
 | `public/pages/login.html` | tracked | Authentication & navigation | UI page | yes | no | — | Static public package | tests/auth-navigation.test.js | Runtime page for an in-scope workflow. |
-| `public/pages/payroll-attendance.html` | tracked | Phase 4 Payroll Attendance | UI page | yes | no | — | Static public package | tests/staff-payroll-attendance-phase4.test.js | Runtime page for an in-scope workflow. |
 | `public/pages/schedule-management.html` | tracked | Phase 2 Scheduling | UI page | yes | no | — | Static public package | tests/staff-scheduling-phase2.test.js<br>tests/staff-scheduling-phase2-contract.test.js | Runtime page for an in-scope workflow. |
 | `public/pages/staff-accounting.html` | tracked | Cross-phase/local | UI page | yes | no | — | Static public package | — | Runtime page for an in-scope workflow. |
 | `public/pages/staff-discount.html` | tracked | Cross-phase/local | UI page | yes | no | — | Static public package | — | Runtime page for an in-scope workflow. |
@@ -472,7 +469,6 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `tests/local-release-candidate.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/migration-preview-diagnostics.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/owner-password-reset-staging.test.js` | tracked | Cross-phase/local | test | no | no | — | Never package | tests/auth01-local-implementation.test.js | Local Staging bootstrap, credential-reset, deployment, or browser-extraction artifact; excluded from the Production release commit. |
-| `tests/payroll-attendance-page-functional.test.js` | tracked | Phase 4 Payroll Attendance | test | yes | no | — | Local validation only | tests/staff-payroll-attendance-phase4.test.js | Release-blocking local regression or safety evidence. |
 | `tests/payroll-page-performance.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/production-backend-modularization.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/release-manifest.test.js` | tracked | Pre-Staging operations | test | yes | no | — | Local validation only | tests/release-manifest.test.js | Release-blocking local regression or safety evidence. |
