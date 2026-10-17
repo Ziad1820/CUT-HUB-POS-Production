@@ -398,6 +398,7 @@
       <div class="status" id="statementStatus"></div>
     </section>
 
+    <p data-i18n-ar="صافي كل طريقة هو حركة الفترة بعد مصروفاتها وسحوباتها، وليس رصيد الحساب البنكي الكلي. القيود القديمة محسوبة نقدي. علامة — في التقفيلات الشهرية القديمة تعني أن توزيع الأرصدة لم يكن محفوظًا وقتها." data-i18n-en="Net per method is period movement after expenses and withdrawals, not the full bank balance. Legacy entries are cash. A dash in old monthly closings means balances were not recorded.">صافي كل طريقة هو حركة الفترة بعد مصروفاتها وسحوباتها، وليس رصيد الحساب البنكي الكلي. القيود القديمة محسوبة نقدي. علامة — في التقفيلات الشهرية القديمة تعني أن توزيع الأرصدة لم يكن محفوظًا وقتها.</p>
     <section class="grid">
       <div class="card">
         <h2 data-i18n-ar="إجمالي المبيعات" data-i18n-en="Total Sales">إجمالي المبيعات</h2>
@@ -439,6 +440,10 @@
         <div class="metric-value" id="visaTotal">0 EGP</div>
       </div>
 
+      <div class="card"><h2 data-i18n-ar="صافي نقدي" data-i18n-en="Net Cash">صافي نقدي</h2><div class="metric-value" id="cashNetBalance">0 EGP</div></div>
+      <div class="card"><h2 data-i18n-ar="صافي فيزا" data-i18n-en="Net Visa">صافي فيزا</h2><div class="metric-value" id="visaNetBalance">0 EGP</div></div>
+      <div class="card"><h2 data-i18n-ar="صافي انستا باي" data-i18n-en="Net Instapay">صافي انستا باي</h2><div class="metric-value" id="instapayNetBalance">0 EGP</div></div>
+      <div class="card"><h2 data-i18n-ar="صافي فودافون كاش" data-i18n-en="Net Vodafone Cash">صافي فودافون كاش</h2><div class="metric-value" id="vodafone_cashNetBalance">0 EGP</div></div>
       <div class="card">
         <h2 data-i18n-ar="إجمالي العملاء" data-i18n-en="Total Clients">إجمالي العملاء</h2>
         <div class="metric-value" id="totalClients">0</div>
@@ -484,6 +489,10 @@
               <th data-i18n-ar="المصروفات" data-i18n-en="Expenses">المصروفات</th>
               <th data-i18n-ar="السحوبات" data-i18n-en="Withdrawals">السحوبات</th>
               <th data-i18n-ar="صافي الربح" data-i18n-en="Net Profit">صافي الربح</th>
+              <th data-i18n-ar="صافي نقدي" data-i18n-en="Net Cash">صافي نقدي</th>
+              <th data-i18n-ar="صافي فيزا" data-i18n-en="Net Visa">صافي فيزا</th>
+              <th data-i18n-ar="صافي انستا باي" data-i18n-en="Net Instapay">صافي انستا باي</th>
+              <th data-i18n-ar="صافي فودافون كاش" data-i18n-en="Net Vodafone Cash">صافي فودافون كاش</th>
               <th data-i18n-ar="تم الإغلاق بواسطة" data-i18n-en="Closed By">تم الإغلاق بواسطة</th>
               <th data-i18n-ar="وقت الإغلاق" data-i18n-en="Closed At">وقت الإغلاق</th>
               <th data-i18n-ar="الإجراء" data-i18n-en="Action">الإجراء</th>
@@ -491,7 +500,7 @@
           </thead>
           <tbody id="monthlyClosingsBody">
             <tr>
-              <td colspan="11">لم يتم تحميل أي تقفيلات شهرية حتى الآن.</td>
+              <td colspan="15">لم يتم تحميل أي تقفيلات شهرية حتى الآن.</td>
             </tr>
           </tbody>
         </table>
@@ -674,6 +683,7 @@
       const visaTotal = toAmount(source.visaTotal ?? source.visa ?? source.visaAmount);
 
       return {
+        paymentBalances: source.paymentBalances || { cash: cashTotal - totalExpenses - totalWithdrawals, visa: visaTotal, instapay: instapayTotal, vodafone_cash: vodafoneCashTotal },
         totalIncome,
         totalSales,
         totalTips,
@@ -693,6 +703,10 @@
 
     function renderSummary(summary) {
       currentSummary = normalizeSummary(summary);
+      document.getElementById("cashNetBalance").textContent = formatCurrency(currentSummary.paymentBalances.cash);
+      document.getElementById("visaNetBalance").textContent = formatCurrency(currentSummary.paymentBalances.visa);
+      document.getElementById("instapayNetBalance").textContent = formatCurrency(currentSummary.paymentBalances.instapay);
+      document.getElementById("vodafone_cashNetBalance").textContent = formatCurrency(currentSummary.paymentBalances.vodafone_cash);
       totalIncomeEl.textContent = formatCurrency(currentSummary.totalIncome);
       totalTipsEl.textContent = formatCurrency(currentSummary.totalTips);
       cashTotalEl.textContent = formatCurrency(currentSummary.cashTotal);
@@ -809,7 +823,7 @@
       selectAllClosings.checked = false;
 
       if (!Array.isArray(closings) || closings.length === 0) {
-        monthlyClosingsBody.innerHTML = `<tr><td colspan="11">${localize("لا توجد تقفيلات شهرية حتى الآن.", "No monthly closings yet.")}</td></tr>`;
+        monthlyClosingsBody.innerHTML = `<tr><td colspan="15">${localize("لا توجد تقفيلات شهرية حتى الآن.", "No monthly closings yet.")}</td></tr>`;
         return;
       }
 
@@ -825,6 +839,10 @@
           <td>${formatCurrency(closing.totalExpenses)}</td>
           <td>${formatCurrency(closing.totalWithdrawals)}</td>
           <td>${formatCurrency(closing.netProfit)}</td>
+          <td class="amount">${closing.paymentBalances ? formatCurrency(closing.paymentBalances.cash) : "—"}</td>
+          <td class="amount">${closing.paymentBalances ? formatCurrency(closing.paymentBalances.visa) : "—"}</td>
+          <td class="amount">${closing.paymentBalances ? formatCurrency(closing.paymentBalances.instapay) : "—"}</td>
+          <td class="amount">${closing.paymentBalances ? formatCurrency(closing.paymentBalances.vodafone_cash) : "—"}</td>
           <td>${closing.closedBy || closing.actorDisplayName || "-"}</td>
           <td>${closing.closedAt || "-"}</td>
           <td><button type="button" class="mini-btn danger" data-delete-monthly-closing="${closingKey}">${localize("حذف", "Delete")}</button></td>
@@ -855,7 +873,7 @@
       } catch (error) {
         console.error(error);
         if (!monthlyClosings.length) monthlyClosingsBody.innerHTML = "";
-        monthlyClosingsBody.innerHTML += `<tr data-closing-read-error><td colspan="11">${localize("تعذر تحديث التقفيلات الشهرية. حاول مرة أخرى.", "Could not refresh monthly closings. Please try again.")}</td></tr>`;
+        monthlyClosingsBody.innerHTML += `<tr data-closing-read-error><td colspan="15">${localize("تعذر تحديث التقفيلات الشهرية. حاول مرة أخرى.", "Could not refresh monthly closings. Please try again.")}</td></tr>`;
       } finally {
         reportIncomeTiming("closings", startedAt, outcome);
       }

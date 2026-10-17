@@ -23,6 +23,7 @@
       averageExpense: document.getElementById("averageExpense"),
       expenseAmount: document.getElementById("expenseAmount"),
       expenseDate: document.getElementById("expenseDate"),
+      paymentMethod: document.getElementById("expensePaymentMethod"),
       expenseCategory: document.getElementById("expenseCategory"),
       expenseTitle: document.getElementById("expenseTitle"),
       expenseNote: document.getElementById("expenseNote"),
@@ -57,6 +58,7 @@
 
     if (!elements.expenseDate.value) {
       elements.expenseDate.value = RomeoDateRange.today();
+      elements.paymentMethod.value = "cash";
     }
     RomeoDateRange.setCurrentMonth(elements.filterFromDate, elements.filterToDate);
 
@@ -113,12 +115,19 @@
       return category ? category.id : (EXPENSE_CATEGORIES[0]?.id || "other");
     }
 
+    function paymentMethodLabel(method) {
+      const labels = { cash: ["نقدي", "Cash"], instapay: ["انستا باي", "Instapay"], vodafone_cash: ["فودافون كاش", "Vodafone Cash"], visa: ["فيزا", "Visa"] };
+      const label = labels[method || "cash"] || ["غير محددة", "Unspecified"];
+      return localizeText(label[0], label[1]);
+    }
+
     function normalizeExpenseFromSheet(expense) {
       return {
         id: String(expense.expenseId || expense.id || expense.rowNumber || Date.now()),
         rowNumber: expense.rowNumber || "",
         categoryId: expense.categoryId || getExpenseCategoryId(expense.category),
         amount: normalizeAmount(expense.amount),
+        paymentMethod: expense.paymentMethod || "cash",
         date: expense.date || RomeoDateRange.today(),
         title: String(expense.title || "").trim(),
         note: String(expense.note || "").trim()
@@ -135,7 +144,7 @@
       const blocked = expenseWriteActive || Boolean(expenseRead) || !expensesFresh;
       saveBtn.disabled = blocked || !getSelectedCategory();
       clearBtn.disabled = expenseWriteActive;
-      [elements.expenseAmount, elements.expenseDate, elements.expenseCategory, elements.expenseTitle, elements.expenseNote].forEach(input => { input.disabled = expenseWriteActive; });
+      [elements.paymentMethod, elements.expenseAmount, elements.expenseDate, elements.expenseCategory, elements.expenseTitle, elements.expenseNote].forEach(input => { input.disabled = expenseWriteActive; });
       elements.deleteSelectedBtn.disabled = blocked || selectedExpenseIds.size === 0;
       elements.historyList.querySelectorAll("[data-delete-id]").forEach(button => { button.disabled = blocked; });
     }
@@ -205,6 +214,7 @@
         expenseId: expense.id,
         category: category ? category.name : expense.categoryId,
         amount: expense.amount,
+        paymentMethod: expense.paymentMethod || "cash",
         title: expense.title,
         note: expense.note,
         date: expense.date
@@ -222,6 +232,7 @@
         expenseId: expense.id,
         category: category ? category.name : expense.categoryId,
         amount: expense.amount,
+        paymentMethod: expense.paymentMethod || "cash",
         title: expense.title,
         note: expense.note,
         date: expense.date
@@ -386,6 +397,7 @@
             <button type="button" class="action-btn soft" data-delete-id="${item.id}">${localizeText("حذف", "Delete")}</button>
           </div>
           <div class="history-meta">
+            <span>${paymentMethodLabel(item.paymentMethod)}</span>
             <span>${item.title || categoryLabel}</span>
             <span>${item.date}</span>
             <span>${category.code}</span>
@@ -469,7 +481,7 @@
         alert(localizeText("اختار تصنيف ومبلغ مصروف صحيحين.", "Choose a valid category and expense amount."));
         return;
       }
-      const expense = { id: "", categoryId, amount,
+      const expense = { id: "", paymentMethod: elements.paymentMethod.value || "cash", categoryId, amount,
         date: elements.expenseDate.value || RomeoDateRange.today(),
         title: elements.expenseTitle.value.trim(), note: elements.expenseNote.value.trim() };
       const draftFingerprint = JSON.stringify(expense);

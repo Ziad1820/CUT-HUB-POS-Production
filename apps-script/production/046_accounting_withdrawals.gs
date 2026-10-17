@@ -17,7 +17,7 @@ function getWithdrawals(data) {
   }
 
   const lastRow = sheet.getLastRow();
-  const rows = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+  const rows = readFinanceRows(sheet, 6);
   const withdrawals = rows.map((row, index) => {
     const rowNumber = index + 2;
     const withdrawalId = row[4] || `WITHDRAWLS-${rowNumber}`;
@@ -27,6 +27,7 @@ function getWithdrawals(data) {
       rowNumber,
       staffName: row[0] || "",
       staffCode: "",
+      paymentMethod: financePaymentMethod(row[5]),
       amount: parseSheetAmount(row[1]),
       note: row[2] || "",
       date: getDateKey(row[3], TIME_ZONE)
@@ -72,7 +73,7 @@ function deleteWithdrawal(data) {
     return jsonOutput({ status: "error", message: "Withdrawal not found" });
   }
 
-  const rows = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+  const rows = readFinanceRows(sheet, 6);
   const targetId = String(data.withdrawalId || "").trim();
   const targetName = String(data.staffName || "").trim();
   const targetAmount = parseSheetAmount(data.amount);
@@ -84,7 +85,7 @@ function deleteWithdrawal(data) {
     const rowId = String(row[4] || "").trim();
 
     const idMatches = targetId && rowId && rowId === targetId;
-    const fallbackMatches =
+    const fallbackMatches = (!targetId || !rowId && targetId === `WITHDRAWLS-${i + 2}`) && financePaymentMethod(row[5]) === financePaymentMethod(data.paymentMethod ?? data.payment) &&
       String(row[0] || "").trim() === targetName &&
       parseSheetAmount(row[1]) === targetAmount &&
       String(row[2] || "").trim() === targetNote &&

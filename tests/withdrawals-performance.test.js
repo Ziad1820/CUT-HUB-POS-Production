@@ -40,7 +40,7 @@ function backend(){
  const s={getLastRow:()=>staffRows.length+1,getLastColumn:()=>headers.length,getRange:(r)=>({getValues:()=>r===1?[headers]:staffRows})};
  const withdrawals={getLastRow:()=>3,getRange:()=>({getValues:()=>[['Alice',100,'Fixture','2026-10-15','W1'],['Bob',50,'Fixture','2026-09-15','W2']]})};let attendanceReads=0;
  const c=vm.createContext({SpreadsheetApp:{getActive:()=>({getSheetByName:name=>name==='STAFF'?s:name==='WITHDRAWLS'?withdrawals:null})},getStaffSheet:()=>s,requirePermission:()=>({status:'error',code:'PERMISSION_DENIED'}),getApprovedAttendanceTotalsForCurrentMonth:()=>{attendanceReads++;throw Error('Must not read payroll');},jsonOutput:x=>x,TIME_ZONE:'Africa/Cairo',getDateKey:x=>String(x).slice(0,10),parseSheetBoolean:(x,d)=>x===undefined?d:x,parseSheetAmount:Number});
- vm.runInContext(read('apps-script/production/044_invoices_queries.gs')+read('apps-script/production/030_staff_branch-repository.gs')+read('apps-script/production/046_accounting_withdrawals.gs'),c);return {c,attendanceReads:()=>attendanceReads};
+ vm.runInContext(read('apps-script/production/042_invoices_schema.gs'),c);vm.runInContext(read('apps-script/production/044_invoices_queries.gs')+read('apps-script/production/030_staff_branch-repository.gs')+read('apps-script/production/046_accounting_withdrawals.gs'),c);return {c,attendanceReads:()=>attendanceReads};
 }
 test('page read uses minimal active staff, unchanged withdrawal rows and no payroll reads',()=>{
  const h=backend(),range={fromDate:'2026-10-01',toDate:'2026-10-31'},expected=plain(h.c.getWithdrawals(range));const result=h.c.getWithdrawalsPage({...range,staffView:'cashier',staff:[{name:'Forged'}]}, {user:{username:'reader'},permissions:['view_withdrawals']});assert.equal(result.status,'success');assert.deepEqual(plain(result.withdrawals),expected.withdrawals);assert.deepEqual(Array.from(result.staff,x=>x.name),['Alice','Bob']);assert.ok(result.staff.every(x=>!('salary'in x)&&!('attendanceDeduction'in x)));assert.equal(h.attendanceReads(),0);
@@ -54,4 +54,10 @@ test('withdrawal manual retry keeps the operation ID until a confirmed success',
  await c.loadWithdrawalsFromSheet();c.elements.withdrawAmount.value='75';await c.addWithdrawal();await c.addWithdrawal();
  assert.equal(writes.length,2);assert.equal(writes[0].withdrawalId,writes[1].withdrawalId);
  c.elements.withdrawAmount.value='75';await c.addWithdrawal();assert.notEqual(writes[1].withdrawalId,writes[2].withdrawalId);
+});
+
+test('withdrawal saves the selected payment method and preserves it on manual retry',async()=>{
+ const writes=[];const c=ui(async p=>{if(p.action==='withdrawal'){writes.push(p);if(writes.length===1)throw Error('lost response');return {status:'success'};}return page();});
+ await c.loadWithdrawalsFromSheet();c.elements.withdrawPaymentMethod.value='vodafone_cash';c.elements.withdrawAmount.value='75';
+ await c.addWithdrawal();await c.addWithdrawal();assert.equal(writes.length,2);assert.equal(writes[0].paymentMethod,'vodafone_cash');assert.equal(writes[1].paymentMethod,'vodafone_cash');assert.equal(writes[0].withdrawalId,writes[1].withdrawalId);
 });

@@ -138,6 +138,9 @@ function validateInvoiceFinance(data) {
 
 // The existing business ID column is the durable receipt. Hold the script lock across lookup and append.
 function appendFinanceOnce(data, sheetName, row, label) {
+  let paymentMethod;
+  try { paymentMethod = financePaymentMethod(data.paymentMethod ?? data.payment); }
+  catch (_) { return jsonOutput({ status: "error", code: "INVALID_PAYMENT_METHOD", message: "اختار طريقة دفع صحيحة." }); }
   const id = row[row.length - 1];
   if (!id || String(id).length > 200) return jsonOutput({ status: "error", code: "INVALID_OPERATION_ID", message: "رقم العملية مطلوب." });
   if (!Number.isFinite(financialNumber(row[1])) || financialNumber(row[1]) <= 0) {
@@ -150,12 +153,11 @@ function appendFinanceOnce(data, sheetName, row, label) {
     lock.waitLock(30000); held = true;
     const sheet = SpreadsheetApp.getActive().getSheetByName(sheetName);
     if (!sheet) return jsonOutput({ status: "error", message: "Sheet " + sheetName + " not found" });
-    const lastRow = sheet.getLastRow();
-    const rows = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, row.length).getValues() : [];
+    const rows = readFinanceRows(sheet, row.length + 1);
     for (let index = rows.length - 1; index >= 0; index -= 1) {
       const previous = rows[index];
       if (String(previous[row.length - 1]) !== String(id)) continue;
-      const equal = row.every((value, column) => {
+      const equal = financePaymentMethod(previous[row.length]) === paymentMethod && row.every((value, column) => {
         if (column === 1) return Number(previous[column]) === value;
         if (column === row.length - 2 && previous[column] instanceof Date) {
           return getDateKey(previous[column], TIME_ZONE) === String(value).slice(0, 10);
@@ -167,10 +169,11 @@ function appendFinanceOnce(data, sheetName, row, label) {
     }
     const lockedError = getLockedDateError(row[row.length - 2], label);
     if (lockedError) return jsonOutput({ status: "error", message: lockedError, locked: true });
-    sheet.appendRow(row);
+    ensureFinanceColumns(sheet, row.length + 1, ["PAYMENT_METHOD"]);
+    sheet.appendRow(row.concat([paymentMethod]));
     // Do not turn a committed financial write into a retryable failure if secondary logging fails.
     let auditPending = false;
-    try { logActivity(data, "create", label.toLowerCase(), String(id), "Created " + label + " | Amount: " + row[1]); }
+    try { logActivity(data, "create", label.toLowerCase(), String(id), "Created " + label + " | Amount: " + row[1] + " | Payment: " + paymentMethod); }
     catch (_) { auditPending = true; }
     return jsonOutput({ status: "success", operationId: String(id), auditPending });
   } catch (_) {
@@ -178,6 +181,43 @@ function appendFinanceOnce(data, sheetName, row, label) {
   } finally {
     if (held) { try { lock.releaseLock(); } catch (_) {} }
   }
+}
+
+function financePaymentMethod(value) {
+  const text = String(value ?? "").trim().toLowerCase().replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/\s+/g, " ");
+  const methods = { "": "cash", cash: "cash", "نقدي": "cash", "كاش": "cash", visa: "visa", "فيزا": "visa",
+    instapay: "instapay", "insta pay": "instapay", "انستا باي": "instapay", "انستاباي": "instapay",
+    vodafone_cash: "vodafone_cash", "vodafone cash": "vodafone_cash", "فودافون كاش": "vodafone_cash" };
+  if (!Object.prototype.hasOwnProperty.call(methods, text)) throw new Error("INVALID_PAYMENT_METHOD");
+  return methods[text];
+}
+
+function readFinanceRows(sheet, width) {
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  const available = typeof sheet.getMaxColumns === "function" ? Math.min(width, sheet.getMaxColumns()) : width;
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, available).getValues();
+}
+
+function ensureFinanceColumns(sheet, startColumn, headers) {
+  if (typeof sheet.getMaxColumns !== "function") return;
+  const end = startColumn + headers.length - 1, capacity = sheet.getMaxColumns();
+  if (capacity < end) sheet.insertColumnsAfter(capacity, end - capacity);
+  headers.forEach((header, index) => {
+    const cell = sheet.getRange(1, startColumn + index);
+    const current = String(cell.getValue() || "").trim();
+    if (current && current !== header) throw new Error("FINANCE_COLUMN_CONFLICT");
+    if (!current) cell.setValue(header);
+  });
+}
+
+function financePaymentBreakdown(receipts, expenseRows, withdrawalRows, matchesDate) {
+  const expenses = { cash: 0, visa: 0, instapay: 0, vodafone_cash: 0 };
+  const withdrawals = { cash: 0, visa: 0, instapay: 0, vodafone_cash: 0 };
+  expenseRows.forEach(row => { if (matchesDate(row[4])) expenses[financePaymentMethod(row[6])] += parseSheetAmount(row[1]); });
+  withdrawalRows.forEach(row => { if (matchesDate(row[3])) withdrawals[financePaymentMethod(row[5])] += parseSheetAmount(row[1]); });
+  const balances = {};
+  Object.keys(expenses).forEach(method => { balances[method] = (receipts[method] || 0) - expenses[method] - withdrawals[method]; });
+  return { paymentReceipts: receipts, expensePayments: expenses, withdrawalPayments: withdrawals, paymentBalances: balances };
 }
 
 function invoiceRowAuditSnapshot(row) {

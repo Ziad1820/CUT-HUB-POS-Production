@@ -12,7 +12,7 @@ function readDailyClosings(dateFilter) {
 
   if (lastRow < 2) return [];
 
-  const rows = sheet.getRange(2, 1, lastRow - 1, 13).getValues();
+  const rows = readFinanceRows(sheet, 17);
 
   return rows
     .map((row, index) => {
@@ -31,6 +31,9 @@ function readDailyClosings(dateFilter) {
       netTotal: parseSheetAmount(row[9]),
       closedByUserName: String(row[10] || "").trim(),
       closedByDisplayName: String(row[11] || "").trim(),
+      paymentBalances: row.length >= 17 && row[13] !== "" && row[13] != null
+        ? { cash: parseSheetAmount(row[13]), visa: parseSheetAmount(row[14]), instapay: parseSheetAmount(row[15]), vodafone_cash: parseSheetAmount(row[16]) }
+        : { cash: parseSheetAmount(row[3]) - parseSheetAmount(row[7]) - parseSheetAmount(row[8]), visa: parseSheetAmount(row[4]), instapay: parseSheetAmount(row[5]), vodafone_cash: parseSheetAmount(row[6]) },
       closedAt: getDisplayDateTime(row[12])
       };
     })
@@ -50,6 +53,7 @@ function normalizePaymentMethod(value) {
     .replace(/\u0649/g, "\u064A")
     .replace(/\u0629/g, "\u0647");
 
+  if (text.includes("vodafone") || text.includes("\u0641\u0648\u062F\u0627\u0641\u0648\u0646")) return "vodafone_cash";
   if (text.includes("cash") || text.includes("\u0646\u0642\u062F")) return "cash";
   if (text.includes("visa") || text.includes("\u0641\u064A\u0632\u0627")) return "visa";
   if (text.includes("insta") || text.includes("\u0627\u0646\u0633\u062A\u0627")) return "instapay";
@@ -132,6 +136,8 @@ function buildDailyClosingPreview(dateKey, summaryOnly) {
   const expensesTotal = fastSummary ? fastSummary.expensesTotal : calculateExpensesTotal(dateKey);
   const withdrawalsTotal = fastSummary ? fastSummary.withdrawalsTotal : calculateWithdrawalsTotal(dateKey);
   const netTotal = paymentTotals.salesTotal + paymentTotals.tipTotal - expensesTotal - withdrawalsTotal;
+  const paymentBreakdown = fastSummary || financePaymentBreakdown({ cash: paymentTotals.cashTotal, visa: paymentTotals.visaTotal, instapay: paymentTotals.instapayTotal, vodafone_cash: paymentTotals.vodafoneCashTotal },
+    readFinanceRows(SpreadsheetApp.getActive().getSheetByName("EXPENSES"), 7), readFinanceRows(SpreadsheetApp.getActive().getSheetByName("WITHDRAWLS"), 6), value => getDateKey(value, TIME_ZONE) === dateKey);
   const existingClosing = summaryOnly ? null : findDailyClosingByDate(dateKey);
 
   return {
@@ -146,6 +152,9 @@ function buildDailyClosingPreview(dateKey, summaryOnly) {
     expensesTotal,
     withdrawalsTotal,
     netTotal,
+    paymentBalances: paymentBreakdown.paymentBalances,
+    expensePayments: paymentBreakdown.expensePayments,
+    withdrawalPayments: paymentBreakdown.withdrawalPayments,
     alreadyClosed: Boolean(existingClosing),
     closingId: existingClosing ? existingClosing.closingId : "",
     closedBy: existingClosing ? (existingClosing.closedByDisplayName || existingClosing.closedByUserName) : "",
@@ -174,13 +183,14 @@ function buildCashierSummaryFromSheets(dateKey) {
       cashTotal: 0, visaTotal: 0, instapayTotal: 0, vodafoneCashTotal: 0, expensesTotal: 0, withdrawalsTotal: 0 };
     const fields = { cash: "cashTotal", visa: "visaTotal", instapay: "instapayTotal", vodafone_cash: "vodafoneCashTotal" };
     const specs = [{ name: "DATA", dateColumn: 0, width: 9 },
-      { name: "EXPENSES", dateColumn: 4, width: 5 }, { name: "WITHDRAWLS", dateColumn: 3, width: 4 }];
+      { name: "EXPENSES", dateColumn: 4, width: 7 }, { name: "WITHDRAWLS", dateColumn: 3, width: 6 }];
+    const expensesByPayment = { cash: 0, visa: 0, instapay: 0, vodafone_cash: 0 }, withdrawalsByPayment = { ...expensesByPayment };
     specs.forEach(spec => {
       const sheet = spreadsheet.getSheetByName(spec.name);
       if (!sheet) return;
       const lastRow = sheet.getLastRow();
       if (lastRow < 2) return;
-      const rows = sheet.getRange(2, 1, lastRow - 1, spec.width).getValues();
+      const rows = readFinanceRows(sheet, spec.width);
       rows.forEach(row => {
         const rawDate = row[spec.dateColumn];
         // Compare timestamps with two Cairo midnights, including 23/25-hour DST days.
@@ -194,9 +204,16 @@ function buildCashierSummaryFromSheets(dateKey) {
           totals.salesTotal += amount; totals.tipTotal += tip;
           const payment = normalizePaymentMethod(row[8]);
           if (fields[payment]) totals[fields[payment]] += amount + tip;
-        } else totals[spec.name === "EXPENSES" ? "expensesTotal" : "withdrawalsTotal"] += parseSheetAmount(row[1]);
+        } else {
+          const isExpense = spec.name === "EXPENSES", amount = parseSheetAmount(row[1]);
+          totals[isExpense ? "expensesTotal" : "withdrawalsTotal"] += amount;
+          (isExpense ? expensesByPayment : withdrawalsByPayment)[financePaymentMethod(row[isExpense ? 6 : 5])] += amount;
+        }
       });
     });
+    totals.expensePayments = expensesByPayment; totals.withdrawalPayments = withdrawalsByPayment;
+    totals.paymentBalances = {};
+    Object.keys(fields).forEach(method => { totals.paymentBalances[method] = totals[fields[method]] - expensesByPayment[method] - withdrawalsByPayment[method]; });
     totals.netTotal = totals.salesTotal + totals.tipTotal - totals.expensesTotal - totals.withdrawalsTotal;
     buildCashierSummaryFromSheets.diagnostics = { mode: "ROWS", readMs: Date.now() - started };
     return totals;
@@ -277,6 +294,7 @@ function getDailyClosings(data) {
         closingId: item.closingId,
         date: item.date,
         salesTotal: item.salesTotal,
+        paymentBalances: item.paymentBalances,
         cashTotal: item.cashTotal,
         visaTotal: item.visaTotal,
         instapayTotal: item.instapayTotal,
@@ -336,8 +354,10 @@ function closeDay(data) {
       preview.netTotal,
       actor.userName,
       actor.displayName,
-      closedAt
+      closedAt,
+      preview.paymentBalances.cash, preview.paymentBalances.visa, preview.paymentBalances.instapay, preview.paymentBalances.vodafone_cash
     ];
+    ensureFinanceColumns(sheet, 14, ["CASH_BALANCE", "VISA_BALANCE", "INSTAPAY_BALANCE", "VODAFONE_BALANCE"]);
 
     if (existingClosing && isManager) {
       sheet.getRange(existingClosing.rowNumber, 1, 1, rowValues.length).setValues([rowValues]);
@@ -360,6 +380,7 @@ function closeDay(data) {
         date: dateKey,
         salesTotal: preview.salesTotal,
         tipTotal: preview.tipTotal,
+        paymentBalances: preview.paymentBalances,
         cashTotal: preview.cashTotal,
         visaTotal: preview.visaTotal,
         instapayTotal: preview.instapayTotal,

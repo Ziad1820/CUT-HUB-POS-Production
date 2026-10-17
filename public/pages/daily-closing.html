@@ -360,9 +360,13 @@
         <div class="metric"><span data-i18n-ar="المصروفات" data-i18n-en="Expenses">المصروفات</span><strong id="expensesTotal">0 EGP</strong></div>
         <div class="metric"><span data-i18n-ar="السحوبات" data-i18n-en="Withdrawals">السحوبات</span><strong id="withdrawalsTotal">0 EGP</strong></div>
         <div class="metric net" id="cashNetMetric"><span data-i18n-ar="صافي النقدي" data-i18n-en="Net Cash">صافي النقدي</span><strong id="cashNetTotal">0 EGP</strong></div>
+        <div class="metric"><span data-i18n-ar="صافي فيزا" data-i18n-en="Net Visa">صافي فيزا</span><strong id="visaNetBalance">0 EGP</strong></div>
+        <div class="metric"><span data-i18n-ar="صافي انستا باي" data-i18n-en="Net Instapay">صافي انستا باي</span><strong id="instapayNetBalance">0 EGP</strong></div>
+        <div class="metric"><span data-i18n-ar="صافي فودافون كاش" data-i18n-en="Net Vodafone Cash">صافي فودافون كاش</span><strong id="vodafone_cashNetBalance">0 EGP</strong></div>
         <div class="metric net" id="netMetric"><span data-i18n-ar="صافي الإجمالي" data-i18n-en="Net Total">صافي الإجمالي</span><strong id="netTotal">0 EGP</strong></div>
       </div>
 
+      <p data-i18n-ar="الصافي لكل طريقة = إيرادات اليوم بها شاملة التيب − مصروفاتها − سحوباتها. القيود القديمة محسوبة نقدي. هذه حركة اليوم وليست رصيد الحساب الكلي." data-i18n-en="Net per method = day receipts including tips minus expenses and withdrawals. Legacy entries are cash. These are day movements, not total bank balances.">الصافي لكل طريقة = إيرادات اليوم بها شاملة التيب − مصروفاتها − سحوباتها. القيود القديمة محسوبة نقدي. هذه حركة اليوم وليست رصيد الحساب الكلي.</p>
       <div class="status" id="statusLine">Choose a date, then preview the day numbers.</div>
     </section>
 
@@ -386,13 +390,17 @@
               <th data-i18n-ar="المصروفات" data-i18n-en="Expenses">المصروفات</th>
               <th data-i18n-ar="السحوبات" data-i18n-en="Withdrawals">السحوبات</th>
               <th data-i18n-ar="الصافي" data-i18n-en="Net">الصافي</th>
+              <th data-i18n-ar="صافي نقدي" data-i18n-en="Net Cash">صافي نقدي</th>
+              <th data-i18n-ar="صافي فيزا" data-i18n-en="Net Visa">صافي فيزا</th>
+              <th data-i18n-ar="صافي انستا باي" data-i18n-en="Net Instapay">صافي انستا باي</th>
+              <th data-i18n-ar="صافي فودافون كاش" data-i18n-en="Net Vodafone Cash">صافي فودافون كاش</th>
               <th data-i18n-ar="تم الإغلاق بواسطة" data-i18n-en="Closed By">تم الإغلاق بواسطة</th>
               <th data-i18n-ar="وقت الإغلاق" data-i18n-en="Closed At">وقت الإغلاق</th>
               <th data-i18n-ar="الإجراءات" data-i18n-en="Actions">الإجراءات</th>
             </tr>
           </thead>
           <tbody id="closingsBody">
-            <tr><td class="empty" colspan="13">Loading previous closings...</td></tr>
+            <tr><td class="empty" colspan="17">Loading previous closings...</td></tr>
           </tbody>
         </table>
       </div>
@@ -416,6 +424,9 @@
       closeDayBtn: document.getElementById("closeDayBtn"),
       statusLine: document.getElementById("statusLine"),
       salesTotal: document.getElementById("salesTotal"),
+      visaNetBalance: document.getElementById("visaNetBalance"),
+      instapayNetBalance: document.getElementById("instapayNetBalance"),
+      vodafone_cashNetBalance: document.getElementById("vodafone_cashNetBalance"),
       cashTotal: document.getElementById("cashTotal"),
       visaTotal: document.getElementById("visaTotal"),
       instapayTotal: document.getElementById("instapayTotal"),
@@ -519,7 +530,8 @@
       const expenses = numberValue(data.expensesTotal);
       const withdrawals = numberValue(data.withdrawalsTotal);
       const sales = rawSales;
-      const cashNet = cash - withdrawals - expenses;
+      const balances = data.paymentBalances || { cash: cash - withdrawals - expenses, visa, instapay, vodafone_cash: vodafone };
+      const cashNet = numberValue(balances.cash);
       const net = sales + tips - expenses - withdrawals;
 
       return {
@@ -532,6 +544,7 @@
         vodafoneCashTotal: vodafone,
         expensesTotal: expenses,
         withdrawalsTotal: withdrawals,
+        paymentBalances: balances,
         cashNetTotal: cashNet,
         netTotal: net,
         alreadyClosed: Boolean(data.alreadyClosed),
@@ -550,6 +563,9 @@
       elements.tipTotal.textContent = formatMoney(preview.tipTotal);
       elements.expensesTotal.textContent = formatMoney(preview.expensesTotal);
       elements.withdrawalsTotal.textContent = formatMoney(preview.withdrawalsTotal);
+      elements.visaNetBalance.textContent = formatMoney(preview.paymentBalances.visa);
+      elements.instapayNetBalance.textContent = formatMoney(preview.paymentBalances.instapay);
+      elements.vodafone_cashNetBalance.textContent = formatMoney(preview.paymentBalances.vodafone_cash);
       elements.cashNetTotal.textContent = formatMoney(preview.cashNetTotal);
       elements.cashNetMetric.classList.toggle("negative", preview.cashNetTotal < 0);
       elements.netTotal.textContent = formatMoney(preview.netTotal);
@@ -654,7 +670,7 @@
     function renderClosings() {
       if (!closings.length) {
         selectedClosingKeys.clear();
-        elements.closingsBody.innerHTML = `<tr><td class="empty" colspan="13">${localize("لا توجد تقفيلات يومية محفوظة حتى الآن.", "No saved daily closings yet.")}</td></tr>`;
+        elements.closingsBody.innerHTML = `<tr><td class="empty" colspan="17">${localize("لا توجد تقفيلات يومية محفوظة حتى الآن.", "No saved daily closings yet.")}</td></tr>`;
         updateBulkDeleteControls();
         return;
       }
@@ -673,6 +689,10 @@
           <td class="amount">${formatMoney(item.expensesTotal)}</td>
           <td class="amount">${formatMoney(item.withdrawalsTotal)}</td>
           <td class="amount">${formatMoney(item.netTotal)}</td>
+          <td class="amount">${item.paymentBalances ? formatMoney(item.paymentBalances.cash) : "—"}</td>
+          <td class="amount">${item.paymentBalances ? formatMoney(item.paymentBalances.visa) : "—"}</td>
+          <td class="amount">${item.paymentBalances ? formatMoney(item.paymentBalances.instapay) : "—"}</td>
+          <td class="amount">${item.paymentBalances ? formatMoney(item.paymentBalances.vodafone_cash) : "—"}</td>
           <td>${escapeHtml(item.closedBy || item.closedByDisplayName || "-")}</td>
           <td>${escapeHtml(item.closedAt || item.createdAt || "-")}</td>
           <td>
@@ -706,7 +726,7 @@
         outcome = "success";
       } catch (error) {
         renderClosings();
-        elements.closingsBody.innerHTML += `<tr><td class="empty" colspan="13" role="status">${escapeHtml(error.message || localize("تعذر تحديث التقفيلات السابقة. حاول مرة أخرى.", "Could not refresh previous closings. Please try again."))}</td></tr>`;
+        elements.closingsBody.innerHTML += `<tr><td class="empty" colspan="17" role="status">${escapeHtml(error.message || localize("تعذر تحديث التقفيلات السابقة. حاول مرة أخرى.", "Could not refresh previous closings. Please try again."))}</td></tr>`;
         updateBulkDeleteControls();
       } finally {
         reportDailyTiming("closings", startedAt, outcome);

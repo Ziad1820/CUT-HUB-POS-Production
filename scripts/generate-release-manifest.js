@@ -34,6 +34,7 @@ const localStagingOnlyPaths = new Set([
 ]);
 
 const explicitPaths = [
+  "tests/finance-payment-methods.test.js", "docs/finance-payment-methods.md",
   "tests/financial-audit-remediation.test.js", "docs/reports/system-audit-remediation-2026-10-17.md",
   "api/apps-script.js", "lib/apps-script-http.js", "config/apps-script-proxy.json",
   "tests/apps-script-proxy.test.js", "tests/apps-script-http.test.js", "tests/frontend-relay-queue.test.js",

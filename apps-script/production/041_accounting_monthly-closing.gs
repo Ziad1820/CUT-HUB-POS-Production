@@ -12,7 +12,7 @@ function isDateKeyBetween(dateKey, fromDate, toDate) {
 
 function readMonthlyClosings() {
   const sheet = getMonthlyClosingSheet();
-  const rows = getSheetRangeFromRow2(sheet, 1, 9);
+  const rows = readFinanceRows(sheet, 13);
 
   return rows
     .map((row, index) => ({
@@ -26,6 +26,8 @@ function readMonthlyClosings() {
       totalWithdrawals: parseSheetAmount(row[5]),
       netProfit: parseSheetAmount(row[6]),
       closedBy: String(row[7] || "").trim(),
+      paymentBalances: row.length >= 13 && row[9] !== "" && row[9] != null
+        ? { cash: parseSheetAmount(row[9]), visa: parseSheetAmount(row[10]), instapay: parseSheetAmount(row[11]), vodafone_cash: parseSheetAmount(row[12]) } : null,
       closedAt: getDisplayDateTime(row[8])
     }))
     .filter(closing => closing.month || closing.fromDate || closing.toDate);
@@ -53,8 +55,8 @@ function calculateIncomeStatementRange(fromDateValue, toDateValue) {
   const withdrawalsSheet = spreadsheet.getSheetByName("WITHDRAWLS");
 
   const invoiceRows = getSheetRangeFromRow2(dataSheet, 1, 12);
-  const expenseRows = expensesSheet ? getSheetRangeFromRow2(expensesSheet, 1, 6) : [];
-  const withdrawalRows = withdrawalsSheet ? getSheetRangeFromRow2(withdrawalsSheet, 1, 5) : [];
+  const expenseRows = readFinanceRows(expensesSheet, 7);
+  const withdrawalRows = readFinanceRows(withdrawalsSheet, 6);
 
   let dateBounds = null;
   if (typeof Utilities !== "undefined" && Utilities.parseDate && Number(fromDate.slice(0, 4)) >= 100 && Number(toDate.slice(0, 4)) >= 100) {
@@ -123,12 +125,14 @@ function calculateIncomeStatementRange(fromDateValue, toDateValue) {
       : sum;
   }, 0);
 
+  const paymentBreakdown = financePaymentBreakdown({ cash: cashTotal, visa: visaTotal, instapay: instapayTotal, vodafone_cash: vodafoneCashTotal }, expenseRows, withdrawalRows, matchesRangeDate);
   const totalIncome = totalSales + totalTips;
   const netProfit = totalIncome - totalExpenses - totalWithdrawals;
 
   return {
     fromDate,
     toDate,
+    ...paymentBreakdown,
     totalSales,
     totalIncome,
     totalTips,
@@ -262,6 +266,7 @@ function monthLock(data) {
     const statement = calculateIncomeStatementRange(fromDate, toDate);
     const closedAt = getCairoDateTime();
 
+    ensureFinanceColumns(sheet, 10, ["CASH_BALANCE", "VISA_BALANCE", "INSTAPAY_BALANCE", "VODAFONE_BALANCE"]);
     sheet.appendRow([
       monthKey,
       fromDate,
@@ -271,7 +276,8 @@ function monthLock(data) {
       statement.totalWithdrawals,
       statement.netProfit,
       actor.displayName || actor.userName,
-      closedAt
+      closedAt,
+      statement.paymentBalances.cash, statement.paymentBalances.visa, statement.paymentBalances.instapay, statement.paymentBalances.vodafone_cash
     ]);
 
     logActivity(

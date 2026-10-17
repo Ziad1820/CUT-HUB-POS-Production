@@ -29,7 +29,8 @@ test('catalog never accepts permission data supplied in the request body',()=>{
 });
 test('cashier totals skip closing history and retain all financial numbers',()=>{
  const c=vm.createContext({jsonOutput:x=>x,getRequestedDateKey:()=> '2026-10-13',cashierContextAllows:x=>!!x?.user,TIME_ZONE:'Africa/Cairo'});
- vm.runInContext(fs.readFileSync('apps-script/production/040_accounting_daily-closing.gs','utf8'),c);
+ vm.runInContext(fs.readFileSync('apps-script/production/042_invoices_schema.gs','utf8'),c);vm.runInContext(fs.readFileSync('apps-script/production/040_accounting_daily-closing.gs','utf8'),c);
+ c.parseSheetAmount=x=>Number(x)||0;c.getDateKey=x=>String(x).slice(0,10);c.SpreadsheetApp={getActive:()=>({getSheetByName:name=>({getLastRow:()=>2,getRange:()=>({getValues:()=>name==='EXPENSES'?[['',10,'','','2026-10-13']]:[['',15,'','2026-10-13']]})})})};
  c.calculateSalesAndPaymentTotals=()=>({salesTotal:100,tipTotal:20,cashTotal:120});c.calculateExpensesTotal=()=>10;c.calculateWithdrawalsTotal=()=>15;let closings=0;c.findDailyClosingByDate=()=>{closings++;return {closingId:'C1'};};
  const summary=c.getDailyClosingPreview({cashierSummary:true},{user:{username:'owner'}});assert.equal(summary.preview.netTotal,95);assert.equal(closings,0);assert.equal(summary.preview.alreadyClosed,undefined);
  const full=c.getDailyClosingPreview({});assert.equal(full.preview.netTotal,95);assert.equal(closings,1);assert.equal(full.preview.alreadyClosed,true);
@@ -41,14 +42,14 @@ test('cashier summary uses bounded native reads and two Cairo midnights includin
  const c=vm.createContext({Date,TIME_ZONE:'Africa/Cairo',getDateKey:x=>{if(x instanceof Date){const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(x).map(p=>[p.type,p.value]));return p.year+'-'+p.month+'-'+p.day;}stringDates++;return String(x).slice(0,10);},parseSheetAmount:x=>Number(x)||0,
  Utilities:{parseDate:key=>{parses++;return new Date(key==='2026-04-24'?start:end);}},
  Sheets:{Spreadsheets:{get:()=>{throw Error('Advanced grid reads must not run');}}},
- SpreadsheetApp:{getActive:()=>({getSheetByName:name=>({getLastRow:()=>data[name].length+1,getRange:(r,col,count,width)=>{assert.equal(r,2);assert.equal(col,1);assert.equal(count,data[name].length);assert.equal(width,name==='DATA'?9:name==='EXPENSES'?5:4);reads++;return {getValues:()=>data[name]};}})})}});
- vm.runInContext(fs.readFileSync('apps-script/production/040_accounting_daily-closing.gs','utf8'),c);c.normalizePaymentMethod=x=>x;
+ SpreadsheetApp:{getActive:()=>({getSheetByName:name=>({getLastRow:()=>data[name].length+1,getRange:(r,col,count,width)=>{assert.equal(r,2);assert.equal(col,1);assert.equal(count,data[name].length);assert.equal(width,name==='DATA'?9:name==='EXPENSES'?7:6);reads++;return {getValues:()=>data[name]};}})})}});
+ vm.runInContext(fs.readFileSync('apps-script/production/042_invoices_schema.gs','utf8'),c);vm.runInContext(fs.readFileSync('apps-script/production/040_accounting_daily-closing.gs','utf8'),c);c.normalizePaymentMethod=x=>x;
  const summary=c.buildCashierSummaryFromSheets('2026-04-24');assert.equal(reads,3);assert.equal(parses,2);assert.equal(stringDates,1);
  assert.equal(summary.salesTotal,180);assert.equal(summary.cashTotal,120);assert.equal(summary.visaTotal,55);assert.equal(summary.instapayTotal,30);assert.equal(summary.expensesTotal,10);assert.equal(summary.withdrawalsTotal,15);assert.equal(summary.netTotal,180);assert.equal(c.buildCashierSummaryFromSheets.diagnostics.mode,'ROWS');
 });
 test('native read failures fall back to the existing calculation rather than returning partial totals',()=>{
  const c=vm.createContext({Date,TIME_ZONE:'Africa/Cairo',getDateKey:x=>x.toISOString().slice(0,10),Utilities:{parseDate:key=>new Date(key)},SpreadsheetApp:{getActive:()=>{throw Error('Unavailable');}}});
- vm.runInContext(fs.readFileSync('apps-script/production/040_accounting_daily-closing.gs','utf8'),c);assert.equal(c.buildCashierSummaryFromSheets('2026-10-13'),null);assert.equal(c.buildCashierSummaryFromSheets.diagnostics.mode,'ROWS_FALLBACK');
+ vm.runInContext(fs.readFileSync('apps-script/production/042_invoices_schema.gs','utf8'),c);vm.runInContext(fs.readFileSync('apps-script/production/040_accounting_daily-closing.gs','utf8'),c);assert.equal(c.buildCashierSummaryFromSheets('2026-10-13'),null);assert.equal(c.buildCashierSummaryFromSheets.diagnostics.mode,'ROWS_FALLBACK');
 });
 test('catalog recent invoice projection fixes the limit and cannot be expanded by client filters',()=>{
  const c=vm.createContext({jsonOutput:x=>x});vm.runInContext(fs.readFileSync('apps-script/production/030_staff_branch-repository.gs','utf8'),c);

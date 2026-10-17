@@ -17,7 +17,7 @@ function getExpenses(data) {
   }
 
   const lastRow = sheet.getLastRow();
-  const rows = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+  const rows = readFinanceRows(sheet, 7);
   let dateBounds = null;
   if (range && typeof Utilities !== "undefined" && Utilities.parseDate) {
     try {
@@ -54,6 +54,7 @@ function getExpenses(data) {
       expenseId,
       rowNumber,
       category: row[0] || "",
+      paymentMethod: financePaymentMethod(row[6]),
       amount: parseSheetAmount(row[1]),
       title: row[2] || "",
       note: row[3] || "",
@@ -78,7 +79,7 @@ function deleteExpense(data) {
     return jsonOutput({ status: "error", message: "Expense not found" });
   }
 
-  const rows = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+  const rows = readFinanceRows(sheet, 7);
   const targetId = String(data.expenseId || "").trim();
   const targetCategory = String(data.category || "").trim();
   const targetAmount = parseSheetAmount(data.amount);
@@ -91,7 +92,7 @@ function deleteExpense(data) {
     const rowId = String(row[5] || "").trim();
 
     const idMatches = targetId && rowId && rowId === targetId;
-    const fallbackMatches =
+    const fallbackMatches = (!targetId || !rowId && targetId === `EXPENSES-${i + 2}`) && financePaymentMethod(row[6]) === financePaymentMethod(data.paymentMethod ?? data.payment) &&
       String(row[0] || "").trim() === targetCategory &&
       parseSheetAmount(row[1]) === targetAmount &&
       String(row[2] || "").trim() === targetTitle &&

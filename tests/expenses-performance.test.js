@@ -46,14 +46,14 @@ function backend(source,rows){
  const dateKey=value=>{if(value instanceof Date){formats++;if(isNaN(value))return '';const p=Object.fromEntries(formatter.formatToParts(value).map(p=>[p.type,p.value]));return p.year+'-'+p.month+'-'+p.day;}return String(value||'').slice(0,10);};
  const sheet={getLastRow:()=>rows.length+1,getRange:()=>({getValues:()=>rows})};
  const c=vm.createContext({Date,SpreadsheetApp:{getActive:()=>({getSheetByName:()=>sheet})},jsonOutput:x=>x,TIME_ZONE:'Africa/Cairo',getDateKey:dateKey,parseSheetAmount:x=>Number(x)||0,Utilities:{parseDate:key=>new Date(key+'T00:00:00'+(key<'2026-04-24'||key>'2026-10-29'?'+02:00':'+03:00'))}});
- vm.runInContext(fs.readFileSync('apps-script/production/044_invoices_queries.gs','utf8')+source,c);return {c,formats:()=>formats};
+ vm.runInContext(fs.readFileSync('apps-script/production/042_invoices_schema.gs','utf8'),c);vm.runInContext(fs.readFileSync('apps-script/production/044_invoices_queries.gs','utf8')+source,c);return {c,formats:()=>formats};
 }
 test('optimized backend preserves original expense rows, identity, dates, ordering and amounts',()=>{
  const original=fs.readFileSync('apps-script/production/baseline/047_accounting_expenses.js','utf8'),current=fs.readFileSync('apps-script/production/047_accounting_expenses.gs','utf8');
  const data=Array.from({length:2000},(_,i)=>['Supplies',i+0.1,'Fixture','',new Date(i%2?'2026-09-13T21:30:00Z':'2026-10-13T22:30:00Z'),'E'+i]);
  data.push(['Rent',15,'Text','', '2026-10-15',''],['Other',20,'Missing date','','','EMPTY']);
  for(const range of [{fromDate:'2026-10-01',toDate:'2026-10-31'},{fromDate:'2026-10-15',toDate:'2026-10-15'},{},{fromDate:'2026-11-01',toDate:'2026-10-01'}]){
-  const old=backend(original,data),next=backend(current,data);assert.deepEqual(JSON.parse(JSON.stringify(next.c.getExpenses(range))),JSON.parse(JSON.stringify(old.c.getExpenses(range))));
+  const old=backend(original,data),next=backend(current,data);assert.deepEqual(legacy(next.c.getExpenses(range)),legacy(old.c.getExpenses(range)));
   if(range.fromDate==='2026-10-01'){assert.ok(next.formats()<10);assert.ok(old.formats()>=2000);}
  }
 });
@@ -61,8 +61,8 @@ test('repeated Cairo hour and normalized midnight preserve legacy date membershi
  const original=fs.readFileSync('apps-script/production/baseline/047_accounting_expenses.js','utf8'),current=fs.readFileSync('apps-script/production/047_accounting_expenses.gs','utf8');
  const data=['2026-10-29T20:59:59Z','2026-10-29T21:30:00Z','2026-10-29T22:00:00Z'].map((t,i)=>['Supplies',10,'Fixture','',new Date(t),'E'+i]);
  const old=backend(original,data),next=backend(current,data),range={fromDate:'2026-10-29',toDate:'2026-10-29'};
- assert.deepEqual(JSON.parse(JSON.stringify(next.c.getExpenses(range))),JSON.parse(JSON.stringify(old.c.getExpenses(range))));assert.equal(next.c.getExpenses(range).expenses.length,2);
- next.c.Utilities.parseDate=()=>new Date('2026-04-23T21:00:00Z');assert.deepEqual(JSON.parse(JSON.stringify(next.c.getExpenses(range))),JSON.parse(JSON.stringify(old.c.getExpenses(range))));
+ assert.deepEqual(legacy(next.c.getExpenses(range)),legacy(old.c.getExpenses(range)));assert.equal(next.c.getExpenses(range).expenses.length,2);
+ next.c.Utilities.parseDate=()=>new Date('2026-04-23T21:00:00Z');assert.deepEqual(legacy(next.c.getExpenses(range)),legacy(old.c.getExpenses(range)));
 });
 
 test('expense manual retry keeps the operation ID until a confirmed success',async()=>{
@@ -70,4 +70,13 @@ test('expense manual retry keeps the operation ID until a confirmed success',asy
  await c.loadExpensesFromSheet();c.elements.expenseAmount.value='75';await c.addExpenseLocalized();await c.addExpenseLocalized();
  assert.equal(writes.length,2);assert.equal(writes[0].expenseId,writes[1].expenseId);
  c.elements.expenseAmount.value='75';await c.addExpenseLocalized();assert.notEqual(writes[1].expenseId,writes[2].expenseId);
+});
+
+// Preserve comparisons of all pre-existing fields; payment breakdowns have separate feature tests.
+function legacy(value){return JSON.parse(JSON.stringify(value,(key,item)=>["paymentMethod","paymentBalances","paymentReceipts","expensePayments","withdrawalPayments"].includes(key)?undefined:item));}
+
+test('expense saves the selected payment method and preserves it on manual retry',async()=>{
+ const writes=[];const c=ui(async p=>{if(p.action==='expense'){writes.push(p);if(writes.length===1)throw Error('lost response');return {status:'success'};}return page();});
+ await c.loadExpensesFromSheet();c.elements.expensePaymentMethod.value='vodafone_cash';c.elements.expenseAmount.value='75';
+ await c.addExpenseLocalized();await c.addExpenseLocalized();assert.equal(writes.length,2);assert.equal(writes[0].paymentMethod,'vodafone_cash');assert.equal(writes[1].paymentMethod,'vodafone_cash');assert.equal(writes[0].expenseId,writes[1].expenseId);
 });

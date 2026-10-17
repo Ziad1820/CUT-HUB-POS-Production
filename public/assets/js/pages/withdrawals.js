@@ -15,6 +15,7 @@
       allRecords: document.getElementById("allRecords"),
       withdrawAmount: document.getElementById("withdrawAmount"),
       withdrawDate: document.getElementById("withdrawDate"),
+      paymentMethod: document.getElementById("withdrawPaymentMethod"),
       withdrawNote: document.getElementById("withdrawNote"),
       filterFromDate: document.getElementById("filterFromDate"),
       filterToDate: document.getElementById("filterToDate"),
@@ -100,8 +101,15 @@
 
     if (!elements.withdrawDate.value) {
       elements.withdrawDate.value = RomeoDateRange.today();
+      elements.paymentMethod.value = "cash";
     }
     RomeoDateRange.setCurrentMonth(elements.filterFromDate, elements.filterToDate);
+
+    function paymentMethodLabel(method) {
+      const labels = { cash: ["نقدي", "Cash"], instapay: ["انستا باي", "Instapay"], vodafone_cash: ["فودافون كاش", "Vodafone Cash"], visa: ["فيزا", "Visa"] };
+      const label = labels[method || "cash"] || ["غير محددة", "Unspecified"];
+      return localizeText(label[0], label[1]);
+    }
 
     function normalizeWithdrawalFromSheet(withdrawal, availableStaff = staffList) {
       const staff = findStaffForWithdrawal(withdrawal, availableStaff);
@@ -112,6 +120,7 @@
         staffName: withdrawal.staffName || staff?.name || "",
         staffCode: withdrawal.staffCode || staff?.code || "",
         amount: Number(withdrawal.amount || 0),
+        paymentMethod: withdrawal.paymentMethod || "cash",
         date: withdrawal.date || new Date().toISOString().slice(0, 10),
         note: String(withdrawal.note || "").trim()
       };
@@ -127,6 +136,7 @@
       const blocked = withdrawalWriteActive || Boolean(withdrawalRead) || !staffFresh;
       saveBtn.disabled = blocked || !getSelectedStaff();
       clearBtn.disabled = withdrawalWriteActive;
+      elements.paymentMethod.disabled = withdrawalWriteActive;
       elements.deleteSelectedBtn.disabled = blocked || selectedWithdrawalIds.size === 0;
       elements.historyList.querySelectorAll("[data-delete-id]").forEach(button => { button.disabled = blocked; });
     }
@@ -198,6 +208,7 @@
         staffName: withdrawal.staffName,
         staffCode: withdrawal.staffCode,
         amount: withdrawal.amount,
+        paymentMethod: withdrawal.paymentMethod || "cash",
         note: withdrawal.note,
         date: withdrawal.date
       });
@@ -213,6 +224,7 @@
         withdrawalId: withdrawal.id,
         staffName: withdrawal.staffName,
         amount: withdrawal.amount,
+        paymentMethod: withdrawal.paymentMethod || "cash",
         note: withdrawal.note,
         date: withdrawal.date
       });
@@ -381,6 +393,7 @@
             <button type="button" class="action-btn soft" data-delete-id="${item.id}">${localizeText("حذف", "Delete")}</button>
           </div>
           <div class="history-meta">
+            <span>${paymentMethodLabel(item.paymentMethod)}</span>
             <span>${staff.name}</span>
             <span>${item.date}</span>
           </div>
@@ -433,7 +446,7 @@
         alert(localizeText("اختر الموظف وأدخل مبلغ سحب صحيحًا.", "Choose a staff member and enter a valid amount."));
         return;
       }
-      const withdrawal = { id: "", staffId: staff.id, staffName: staff.name, staffCode: staff.code,
+      const withdrawal = { id: "", paymentMethod: elements.paymentMethod.value || "cash", staffId: staff.id, staffName: staff.name, staffCode: staff.code,
         amount, date: elements.withdrawDate.value || RomeoDateRange.today(), note: elements.withdrawNote.value.trim() };
       const draftFingerprint = JSON.stringify(withdrawal);
       if (!pendingFinanceDraft || pendingFinanceDraft.fingerprint !== draftFingerprint) {

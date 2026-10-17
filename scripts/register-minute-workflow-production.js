@@ -15,14 +15,14 @@ const files = {
   "022_inventory_stock.gs": [],
   "028_inventory_barber-consumption.gs": ["getBarberConsumptionReport"],
   "030_staff_branch-repository.gs": ["getStaff"],
-  "040_accounting_daily-closing.gs": ["readDailyClosings", "findDailyClosingByDate", "buildDailyClosingPreview", "getDailyClosingPreview"],
-  "041_accounting_monthly-closing.gs": ["calculateIncomeStatementRange"],
+  "040_accounting_daily-closing.gs": ["readDailyClosings", "findDailyClosingByDate", "buildDailyClosingPreview", "getDailyClosingPreview", "normalizePaymentMethod", "getDailyClosings", "closeDay"],
+  "041_accounting_monthly-closing.gs": ["calculateIncomeStatementRange", "readMonthlyClosings", "monthLock"],
   "042_invoices_schema.gs": ["findInvoiceByRequestId", "getInvoicePaymentDetails"],
   "043_invoices_mutations.gs": ["createInvoice", "updateInvoice"],
   "044_invoices_queries.gs": ["getInvoices", "readInvoiceDataSnapshot"],
   "045_invoices_deletion.gs": ["deleteInvoice"],
-  "046_accounting_withdrawals.gs": ["createWithdrawal"],
-  "047_accounting_expenses.gs": ["getExpenses", "createExpense"],
+  "046_accounting_withdrawals.gs": ["createWithdrawal", "getWithdrawals", "deleteWithdrawal"],
+  "047_accounting_expenses.gs": ["getExpenses", "createExpense", "deleteExpense"],
   "048_invoices_pdf.gs": ["createInvoicePdf"],
   "049_reports_sales-customers.gs": [],
   "056_booking_options.gs": ["getBookingOptionsForAudience"],
@@ -49,7 +49,7 @@ for (const [name, changedGlobals] of Object.entries(files)) {
   }
   record.currentSha256 = hash(fs.readFileSync(path.join(base, name)));
   record.changedGlobals = changedGlobals;
-  if (name === "042_invoices_schema.gs") record.addedGlobals = ["financialNumber", "validateInvoiceFinance", "appendFinanceOnce"];
+  if (name === "042_invoices_schema.gs") record.addedGlobals = ["financialNumber", "validateInvoiceFinance", "appendFinanceOnce", "financePaymentMethod", "readFinanceRows", "ensureFinanceColumns", "financePaymentBreakdown"];
   if (name === "048_invoices_pdf.gs") record.addedGlobals = ["getInvoicePdf"];
   if (name === "030_staff_branch-repository.gs") record.addedGlobals = ["cashierContextAllows", "getCashierCatalog", "getStaffAccountingPeriod"];
   if (name === "049_reports_sales-customers.gs") record.addedGlobals = ["buildStaffAccountingActivity"];
@@ -57,7 +57,7 @@ for (const [name, changedGlobals] of Object.entries(files)) {
   if (name === "068_phase_staff-attendance-phase3-gas.gs") record.addedGlobals = ["attendancePhase3ReadSnapshot"];
   if (name === "022_inventory_stock.gs") record.addedGlobals = ["getInventoryPage"];
   if (name === "040_accounting_daily-closing.gs") record.addedGlobals = ["buildCashierSummaryFromSheets"];
-  record.changeReason = /^(042|043|046|047)_/.test(name)
+  record.changeReason = /^(040|041|042|043|046|047)_/.test(name)
     ? "Financial input validation and durable expense-withdrawal idempotency"
     : "Owner-configured minute attendance accounting and shared live booking availability";
 }

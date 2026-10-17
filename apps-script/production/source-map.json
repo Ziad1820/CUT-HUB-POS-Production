@@ -211,14 +211,17 @@
           "path": "040_accounting_daily-closing.gs",
           "sha256": "a0ea2bcf73a23fc75c8c7d0dc86224fde917d27abf428b98de6758105a226085",
           "baselineSourcePath": "baseline/040_accounting_daily-closing.js",
-          "currentSha256": "174927a1bc2675d777844b399417a04f1b6b1671f11fc2b4f0788cbff9a49186",
+          "currentSha256": "cecadbb0258bd22a34c77867b8f92bc4f8f52bc2ae22505f4ba99932e1779108",
           "changedGlobals": [
             "readDailyClosings",
             "findDailyClosingByDate",
             "buildDailyClosingPreview",
-            "getDailyClosingPreview"
+            "getDailyClosingPreview",
+            "normalizePaymentMethod",
+            "getDailyClosings",
+            "closeDay"
           ],
-          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability",
+          "changeReason": "Financial input validation and durable expense-withdrawal idempotency",
           "addedGlobals": [
             "buildCashierSummaryFromSheets"
           ]
@@ -227,17 +230,19 @@
           "path": "041_accounting_monthly-closing.gs",
           "sha256": "4847c188d15f532414ce883437c11742290182e34bb7af914d15d4774335e7c5",
           "baselineSourcePath": "baseline/041_accounting_monthly-closing.js",
-          "currentSha256": "2620b82a33f59621df8ac433ce0afad29f49ff2d2a34ab8f8546264a7f56e236",
+          "currentSha256": "e519ef4cec06a336e798e7866d9546beaf1706fe875916a65c9b8f170d33292b",
           "changedGlobals": [
-            "calculateIncomeStatementRange"
+            "calculateIncomeStatementRange",
+            "readMonthlyClosings",
+            "monthLock"
           ],
-          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
+          "changeReason": "Financial input validation and durable expense-withdrawal idempotency"
         },
         {
           "path": "042_invoices_schema.gs",
           "sha256": "51b0382abc7deed1076a725f2916b670201f353c87bee47163d9a1e8224a5365",
           "baselineSourcePath": "baseline/042_invoices_schema.js",
-          "currentSha256": "5798046c1bbfecda47c2ab4b041958df9c7ab4c6286193b4359281e1ccd34677",
+          "currentSha256": "418ea4dacf0ff408e226beccd3a63ec0ed956d841af1f7dcb05d5c275e202ef0",
           "changedGlobals": [
             "findInvoiceByRequestId",
             "getInvoicePaymentDetails"
@@ -246,7 +251,11 @@
           "addedGlobals": [
             "financialNumber",
             "validateInvoiceFinance",
-            "appendFinanceOnce"
+            "appendFinanceOnce",
+            "financePaymentMethod",
+            "readFinanceRows",
+            "ensureFinanceColumns",
+            "financePaymentBreakdown"
           ]
         },
         {
@@ -289,9 +298,11 @@
           "path": "046_accounting_withdrawals.gs",
           "sha256": "2d1e0d931f3d1307e7f63bed2e3f5e337c99a175621b7f275ab6a864ae2ef54c",
           "baselineSourcePath": "baseline/046_accounting_withdrawals.js",
-          "currentSha256": "bd438f49618a0f50e6ef1b8ee5fb8c1b261e18cafd99429d3dec31f49223b97d",
+          "currentSha256": "60cfa1b96c87721fcf1957cec1f57022a2f16eaee650a8d4dae654437acd3d68",
           "changedGlobals": [
-            "createWithdrawal"
+            "createWithdrawal",
+            "getWithdrawals",
+            "deleteWithdrawal"
           ],
           "addedGlobals": [
             "getWithdrawalsPage"
@@ -302,10 +313,11 @@
           "path": "047_accounting_expenses.gs",
           "sha256": "79713c0a2324e5d687f28cd2aa7d11061ef63087af889943fe710229359ebc9d",
           "baselineSourcePath": "baseline/047_accounting_expenses.js",
-          "currentSha256": "4372e1418a4e357e95ba2b33af3215ac14d0d0a1bc5cf0dd5a89d12a1ad75693",
+          "currentSha256": "45cf4e00bb0eff61adde869e7fbf416efb178147fbb7f68bef9410fadac762f0",
           "changedGlobals": [
             "getExpenses",
-            "createExpense"
+            "createExpense",
+            "deleteExpense"
           ],
           "changeReason": "Financial input validation and durable expense-withdrawal idempotency"
         },
