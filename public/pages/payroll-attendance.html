@@ -5,26 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>تسويات الحضور والرواتب - SALONIX</title>
   <link rel="stylesheet" href="../assets/css/shared.css">
-  <link rel="stylesheet" href="../assets/css/pages/payroll-attendance.css">
   <link rel="stylesheet" href="../assets/css/system-layout.css">
+  <link rel="stylesheet" href="../assets/css/pages/payroll-attendance.css?v=20261017-theme-performance-2">
 </head>
 <body>
-  <div class="payroll-app system-app">
-    <header class="payroll-header system-header">
+  <div class="payroll-app system-app app">
+    <header class="payroll-header system-header header">
       <div class="system-header-menu">
-        <button type="button" class="menu-toggle" id="menuToggle" aria-label="فتح القائمة">☰</button>
+        <button type="button" class="menu-toggle" id="menuToggle" aria-label="فتح القائمة">...</button>
       </div>
-      <div class="system-header-copy">
-        <p class="eyebrow">SALONIX · PAYROLL ATTENDANCE</p>
-        <h1>تسويات الحضور والرواتب</h1>
-        <p>تسوية دورية مبنية فقط على نتائج الحضور اليومية المعتمدة.</p>
-      </div>
-      <div class="system-header-actions">
-        <div id="syncState" class="sync-state" role="status" aria-live="polite">جارٍ التحميل…</div>
+      <div class="system-header-copy brand-lockup">
+        <img class="brand-logo" src="../assets/images/salonix-logo.svg" alt="SALONIX logo">
+        <h1 class="brand-name">SALONIX</h1>
+        <p class="brand-slogan">THE SMART WAY TO RUN YOUR SALON</p>
       </div>
     </header>
 
     <main class="system-content">
+      <section class="panel payroll-intro" aria-labelledby="payrollTitle">
+        <div>
+          <h2 id="payrollTitle">تسويات الحضور والرواتب</h2>
+          <p>مراجعة خصومات الحضور والإضافي المعتمد وتسوية حسابات الفترة.</p>
+        </div>
+        <div id="syncState" class="sync-state" role="status" aria-live="polite">جارٍ التحميل…</div>
+      </section>
       <section class="panel period-toolbar" aria-label="اختيار فترة الرواتب">
         <label>الفترة
           <select id="periodSelect"><option value="">اختر فترة</option></select>
@@ -45,7 +49,7 @@
         </label>
         <button id="refreshBtn" type="button" class="secondary">تحديث</button>
         <button id="createPeriodBtn" type="button" class="primary" hidden>فترة جديدة</button>
-        <button id="migrationPreviewBtn" type="button" class="secondary" hidden>معاينة تهيئة Phase 4</button>
+        <button id="migrationPreviewBtn" type="button" class="secondary" hidden>معاينة تهيئة التسويات</button>
       </section>
 
       <section class="summary-grid" aria-label="ملخص التسوية">
@@ -163,6 +167,6 @@
   <script src="../assets/js/core/auth.js?v=20261009-single-analysis-1"></script>
   <script src="../assets/js/utils/layout.js?v=20261009-single-analysis-1"></script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
-  <script src="../assets/js/pages/payroll-attendance.js?v=20260809-1"></script>
+  <script src="../assets/js/pages/payroll-attendance.js?v=20261017-theme-performance-2"></script>
 </body>
 </html>

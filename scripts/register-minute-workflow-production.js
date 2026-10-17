@@ -30,6 +30,7 @@ const files = {
   "067_phase_staff-attendance-phase3.gs": [],
   "068_phase_staff-attendance-phase3-gas.gs": ["attendancePhase3CreateRepository", "attendancePhase3ResolveSchedule", "handleStaffAttendancePhase3Action"],
   "069_phase_staff-payroll-attendance-phase4.gs": [],
+  "070_phase_staff-payroll-attendance-phase4-gas.gs": ["payrollAttendancePhase4CreateRepository", "handleStaffPayrollAttendancePhase4Action"],
   "073_phase_booking-availability-phase5.gs": [],
   "078_availability_authorization-cache.gs": ["bookingAvailabilityPhase5CacheKey"],
   "089_availability_action-router.gs": ["handleBookingAvailabilityPhase5Action"]

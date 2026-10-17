@@ -159,12 +159,35 @@ function payrollAttendancePhase4WithTransaction(details, callback) {
   }
 }
 
-function payrollAttendancePhase4CreateRepository() {
+function payrollAttendancePhase4CreateRepository(action) {
+  // Cache only within a server-selected read request; all writes keep live reads.
+  var readOnly = ["getPayrollAttendancePage", "getPayrollAttendanceDetails", "listPayrollPeriods",
+    "getEmployeePayrollSettlement", "listEmployeePayrollSettlements", "getPayrollSettlementAudit",
+    "getUnresolvedPayrollBlockers", "previewPayrollAttendanceExport"].indexOf(action) !== -1;
+  var cache = Object.create(null);
+  function copy(value) {
+    if (value instanceof Date) return new Date(value.getTime());
+    if (Array.isArray(value)) return value.map(copy);
+    if (value && typeof value === "object") {
+      var result = {}; Object.keys(value).forEach(function (key) { result[key] = copy(value[key]); }); return result;
+    }
+    return value;
+  }
+  function readOnce(key, read) {
+    if (!readOnly) return read();
+    if (!Object.prototype.hasOwnProperty.call(cache, key)) cache[key] = read();
+    return copy(cache[key]);
+  }
+  function readPeriods() { return readOnce("periods", payrollAttendancePhase4ReadPeriods); }
+  function readSettlements() { return readOnce("settlements", payrollAttendancePhase4ReadSettlements); }
+  function readStaff() { return readOnce("staff", payrollAttendancePhase4ReadStaff); }
+  function readDays() { return readOnce("days", attendancePhase3ReadDays); }
+  function readRows(name) { return readOnce("rows:" + name, function () { return schedulePhase2ReadRows(name); }); }
   return {
-    listPeriods: payrollAttendancePhase4ReadPeriods,
+    listPeriods: readPeriods,
     getPeriod: function (id) {
       return payrollAttendancePhase4Unique(
-        payrollAttendancePhase4ReadPeriods(),
+        readPeriods(),
         "payrollPeriodId", id, "PAYROLL_PERIOD_ID_AMBIGUOUS");
     },
     savePeriod: function (record) {
@@ -174,7 +197,7 @@ function payrollAttendancePhase4CreateRepository() {
     },
     listSettlements: function (filters) {
       filters = filters || {};
-      return payrollAttendancePhase4ReadSettlements().filter(function (item) {
+      return readSettlements().filter(function (item) {
         return (!filters.payrollPeriodId || item.payrollPeriodId === filters.payrollPeriodId) &&
           (!filters.staffId || item.staffId === filters.staffId) &&
           (!filters.status || String(item.status).toUpperCase() ===
@@ -182,7 +205,7 @@ function payrollAttendancePhase4CreateRepository() {
       });
     },
     getSettlement: function (id) {
-      return payrollAttendancePhase4Unique(payrollAttendancePhase4ReadSettlements(),
+      return payrollAttendancePhase4Unique(readSettlements(),
         "settlementId", id, "PAYROLL_SETTLEMENT_ID_AMBIGUOUS");
     },
     saveSettlement: function (record) {
@@ -192,7 +215,7 @@ function payrollAttendancePhase4CreateRepository() {
     },
     listAdjustments: function (filters) {
       filters = filters || {};
-      return schedulePhase2ReadRows("PAYROLL_ATTENDANCE_ADJUSTMENTS").filter(function (item) {
+      return readRows("PAYROLL_ATTENDANCE_ADJUSTMENTS").filter(function (item) {
         return (!filters.settlementId || item.settlementId === filters.settlementId) &&
           (!filters.payrollPeriodId || item.payrollPeriodId === filters.payrollPeriodId) &&
           (!filters.status || String(item.status).toUpperCase() ===
@@ -201,7 +224,7 @@ function payrollAttendancePhase4CreateRepository() {
     },
     getAdjustment: function (id) {
       return payrollAttendancePhase4Unique(
-        schedulePhase2ReadRows("PAYROLL_ATTENDANCE_ADJUSTMENTS"),
+        readRows("PAYROLL_ATTENDANCE_ADJUSTMENTS"),
         "adjustmentId", id, "PAYROLL_ADJUSTMENT_ID_AMBIGUOUS");
     },
     appendAdjustment: function (record) {
@@ -211,18 +234,18 @@ function payrollAttendancePhase4CreateRepository() {
     },
     listAttendanceDays: function (filters) {
       filters = filters || {};
-      return attendancePhase3ReadDays().filter(function (item) {
+      return readDays().filter(function (item) {
         return (!filters.staffId || item.staffId === filters.staffId) &&
           (!filters.dateFrom || item.attendanceDate >= filters.dateFrom) &&
           (!filters.dateTo || item.attendanceDate <= filters.dateTo);
       });
     },
-    listStaff: payrollAttendancePhase4ReadStaff,
+    listStaff: readStaff,
     getStaff: function (id) {
-      return payrollAttendancePhase4Unique(payrollAttendancePhase4ReadStaff(),
+      return payrollAttendancePhase4Unique(readStaff(),
         "staffId", id, "PAYROLL_STAFF_ID_AMBIGUOUS");
     },
-    listPolicies: function () { return schedulePhase2ReadRows("STAFF_WORK_POLICIES"); },
+    listPolicies: function () { return readRows("STAFF_WORK_POLICIES"); },
     appendAudit: function (record) {
       return attendancePhase3Save("PAYROLL_ATTENDANCE_AUDIT",
         StaffPayrollAttendancePhase4.SHEET_SCHEMAS.PAYROLL_ATTENDANCE_AUDIT,
@@ -230,14 +253,14 @@ function payrollAttendancePhase4CreateRepository() {
     },
     listAudit: function (filters) {
       filters = filters || {};
-      return schedulePhase2ReadRows("PAYROLL_ATTENDANCE_AUDIT").filter(function (item) {
+      return readRows("PAYROLL_ATTENDANCE_AUDIT").filter(function (item) {
         return (!filters.entityId || item.entityId === filters.entityId) &&
           (!filters.staffId || item.staffId === filters.staffId);
       });
     },
     getIdempotency: function (id) {
       var item = payrollAttendancePhase4Unique(
-        schedulePhase2ReadRows("PAYROLL_ATTENDANCE_IDEMPOTENCY"),
+        readRows("PAYROLL_ATTENDANCE_IDEMPOTENCY"),
         "requestId", id, "PAYROLL_IDEMPOTENCY_AMBIGUOUS");
       if (item) {
         item.requestFingerprint = item.requestFingerprint || item.fingerprint;
@@ -434,7 +457,7 @@ function handleStaffPayrollAttendancePhase4Action(data) {
       payrollAttendancePhase4AssertSchema();
     }
     var service = StaffPayrollAttendancePhase4.createService({
-      repository: payrollAttendancePhase4CreateRepository(),
+      repository: payrollAttendancePhase4CreateRepository(data.action),
       actorResolver: schedulePhase2Actor,
       withLock: payrollAttendancePhase4WithLock,
       now: payrollAttendancePhase4Now,

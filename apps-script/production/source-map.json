@@ -437,13 +437,20 @@
           "path": "069_phase_staff-payroll-attendance-phase4.gs",
           "sha256": "15b0e8f9c9e7e62df0891bdbc9058f3c090df8fc3b38ab91dc8d17b3df6e60ca",
           "baselineSourcePath": "baseline/069_phase_staff-payroll-attendance-phase4.js",
-          "currentSha256": "b7d72b470ae2c69f18d062357ca03d7029e9d8f2c938e49fce90a323a9309bc0",
+          "currentSha256": "894a01884a92466ec9e06c177abc50ea0c8498e9bcf3ae6442445f6fe2ce3bff",
           "changedGlobals": [],
           "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "070_phase_staff-payroll-attendance-phase4-gas.gs",
-          "sha256": "0d32fb1a76274af6129c1e7d9ce1a3fb9a7775ac27104e4bb2207a05c6d12a06"
+          "sha256": "0d32fb1a76274af6129c1e7d9ce1a3fb9a7775ac27104e4bb2207a05c6d12a06",
+          "baselineSourcePath": "baseline/070_phase_staff-payroll-attendance-phase4-gas.js",
+          "currentSha256": "717b3891da961694d33f1779e8b64f81e0ef2a7e1760587b3c42a9e775a5c00f",
+          "changedGlobals": [
+            "payrollAttendancePhase4CreateRepository",
+            "handleStaffPayrollAttendancePhase4Action"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "071_phase_staff-schema-migration-staging-executor.gs",

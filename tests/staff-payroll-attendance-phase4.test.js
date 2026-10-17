@@ -1517,7 +1517,7 @@ test("Phase 4 UI is Arabic RTL, permission wired, text-safe, and includes lifecy
   assert.match(html, /exportPreviewBtn/);
   assert.match(js, /payroll_attendance\.view/);
   assert.match(js, /sourceAttendanceSnapshot/);
-  assert.match(js, /getUnresolvedPayrollBlockers/);
+  assert.match(js, /getPayrollAttendancePage/);
   assert.match(js, /recalculatePayrollPeriod/);
   assert.doesNotMatch(js, /\.innerHTML\s*=/);
   assert.doesNotMatch(html, /\son[a-z]+=/i);

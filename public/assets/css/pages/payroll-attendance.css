@@ -1,77 +1,62 @@
-:root {
-  --payroll-bg: #f4f7f6;
-  --payroll-panel: #fff;
-  --payroll-ink: #18312b;
-  --payroll-muted: #65756f;
-  --payroll-line: #dce7e3;
-  --payroll-primary: #14785d;
-  --payroll-danger: #b44343;
-  --payroll-warn: #9a681b;
-}
-
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--payroll-bg); color: var(--payroll-ink); font-family: Arial, sans-serif; }
-button, input, select, textarea { font: inherit; }
-button { cursor: pointer; border: 1px solid var(--payroll-line); border-radius: 9px; padding: .65rem .9rem; background: #fff; color: var(--payroll-ink); }
-button:disabled { cursor: wait; opacity: .55; }
-button.primary { background: var(--payroll-primary); color: #fff; border-color: var(--payroll-primary); }
-.payroll-app { min-height: 100vh; padding: 1rem; }
-.payroll-header { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 1rem; max-width: 1500px; margin: 0 auto 1rem; }
-.payroll-header h1 { margin: .2rem 0; }
-.payroll-header p { margin: 0; color: var(--payroll-muted); }
-.eyebrow { letter-spacing: .12em; font-size: .75rem; }
-.menu-toggle { font-size: 1.3rem; }
-.sync-state { padding: .6rem .8rem; border-radius: 10px; background: #e4f1ed; color: #155a48; }
-main { max-width: 1500px; margin: 0 auto; display: grid; gap: 1rem; }
-.panel { background: var(--payroll-panel); border: 1px solid var(--payroll-line); border-radius: 14px; padding: 1rem; box-shadow: 0 8px 28px rgba(28, 66, 55, .05); }
-.period-toolbar { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; }
-label { display: grid; gap: .35rem; color: var(--payroll-muted); }
-input, select, textarea { min-width: 10rem; padding: .65rem; border: 1px solid var(--payroll-line); border-radius: 8px; background: #fff; color: var(--payroll-ink); }
-.summary-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .75rem; }
-.summary-grid article { background: var(--payroll-panel); border: 1px solid var(--payroll-line); border-radius: 12px; padding: .9rem; }
-.summary-grid span { display: block; color: var(--payroll-muted); font-size: .86rem; margin-bottom: .35rem; }
-.summary-grid strong { font-size: 1.1rem; }
-.lifecycle-panel { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
-.lifecycle-panel span { display: block; color: var(--payroll-muted); margin-top: .25rem; }
-.action-row { display: flex; flex-wrap: wrap; gap: .5rem; }
-.page-message { padding: .85rem; border-radius: 10px; background: #ffeded; color: #7a2525; border: 1px solid #efc1c1; }
+/* Shared SALONIX theme used by attendance and the financial pages. */
+.payroll-app { max-width: none; padding: 24px; }
+.payroll-header { display: block; min-height: auto; padding: 24px; margin-bottom: 24px; text-align: center; }
+.payroll-header .brand-lockup { display: inline-grid; justify-items: center; gap: 8px; }
+.payroll-header .brand-name { margin: 0; font-size: clamp(42px,6vw,78px); font-weight: 700; line-height: .95; letter-spacing: 6px; color: #fffaf2; }
+.payroll-header .brand-slogan { margin: 0; font-size: clamp(11px,1.2vw,15px); font-weight: 800; letter-spacing: 3px; color: rgba(255,255,255,.82); }
+.payroll-app .system-content { max-width: none; gap: 18px; }
+.payroll-app .panel,.payroll-app .summary-grid article { border: 1px solid rgba(229,213,190,.8); border-radius: 24px; background: rgba(255,255,255,.96); box-shadow: var(--shadow); min-width: 0; }
+.payroll-app .panel { padding: 20px; }
+.payroll-intro { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.payroll-intro h2 { margin: 0 0 8px; font-size: 28px; }
+.payroll-intro p { margin: 0; color: var(--muted); line-height: 1.7; }
+.sync-state { flex: 0 0 auto; max-width: 100%; padding: 16px 20px; border-radius: 20px; background: linear-gradient(135deg,#24180d,#5f4524); color: #fff; font-size: 15px; font-weight: 900; text-align: center; }
+.period-toolbar { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 14px; align-items: end; }
+.period-toolbar label,dialog label { display: grid; gap: 8px; min-width: 0; color: var(--muted); font-size: 13px; font-weight: 800; }
+.period-toolbar :is(input,select),dialog :is(input,select,textarea) { width: 100%; min-width: 0; min-height: 48px; padding: 13px 15px; border: 1px solid rgba(229,213,190,.8); border-radius: 16px; background: #fffaf2; color: var(--ink); font: 15px 'Segoe UI',Tahoma,sans-serif; }
+dialog textarea { min-height: 100px; resize: vertical; }
+.payroll-app button,dialog button { min-height: 48px; padding: 12px 18px; border: 0; border-radius: 16px; background: #ead9bd; color: var(--ink); font: 800 15px 'Segoe UI',Tahoma,sans-serif; cursor: pointer; }
+.payroll-app button.primary,dialog button.primary { background: linear-gradient(135deg,#24180d,#5f4524); color: #fff; }
+.payroll-app button:disabled,dialog button:disabled { opacity: .48; cursor: not-allowed; }
+.payroll-app :is(button,input,select,textarea):focus-visible,dialog :is(button,input,select,textarea):focus-visible { outline: 3px solid rgba(183,134,63,.55); outline-offset: 3px; }
+/* The shared shell owns the menu button and sidebar positioning. */
+.payroll-header .system-header-menu .menu-toggle { width: 48px; height: 48px; padding: 0; border: 1px solid rgba(255,255,255,.18); border-radius: 14px; color: #fff; background: rgba(255,255,255,.08); font-size: 25px; }
+.system-sidebar { transform: none; }
+.summary-grid { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 14px; }
+.summary-grid article { padding: 18px; }
+.summary-grid span { display: block; margin-bottom: 10px; color: var(--muted); font-size: 13px; font-weight: 800; }
+.summary-grid strong { font-size: 24px; overflow-wrap: anywhere; }
+.lifecycle-panel { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.lifecycle-panel strong { display: inline-block; padding: 8px 12px; border-radius: 999px; background: #ead9bd; }
+.lifecycle-panel span { display: block; margin-top: 10px; color: var(--muted); line-height: 1.7; }
+.action-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.page-message { padding: 16px 20px; border-radius: 16px; background: rgba(186,58,44,.1); color: var(--danger); font-weight: 800; line-height: 1.7; overflow-wrap: anywhere; }
 .table-panel { min-width: 0; }
 .table-scroll { max-width: 100%; overflow: auto; }
 table { width: 100%; border-collapse: collapse; min-width: 1050px; }
-th, td { padding: .75rem; text-align: right; border-bottom: 1px solid var(--payroll-line); vertical-align: top; }
-th { color: var(--payroll-muted); background: #f8fbfa; position: sticky; top: 0; }
-.status-badge { display: inline-block; padding: .25rem .45rem; border-radius: 999px; background: #e5f2ee; }
-.status-badge.warning { background: #fff2d9; color: var(--payroll-warn); }
-.status-badge.stale { background: #fde3e3; color: var(--payroll-danger); }
-.row-actions { display: flex; flex-wrap: wrap; gap: .35rem; }
-.row-actions button { padding: .4rem .55rem; }
-.empty-state { padding: 2rem; text-align: center; color: var(--payroll-muted); }
-dialog { width: min(680px, calc(100% - 2rem)); border: 0; border-radius: 14px; padding: 1rem; color: var(--payroll-ink); }
-dialog::backdrop { background: rgba(5, 20, 16, .55); }
-dialog form { display: grid; gap: .8rem; }
-.dialog-head, .dialog-actions { display: flex; justify-content: space-between; align-items: center; gap: .6rem; }
-.dialog-head h2 { margin: 0; }
-.detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
-.detail-grid article { border: 1px solid var(--payroll-line); border-radius: 9px; padding: .7rem; }
-.detail-grid span { display: block; color: var(--payroll-muted); font-size: .82rem; }
-.source-day { border-inline-start: 4px solid var(--payroll-primary); padding: .55rem .75rem; margin: .5rem 0; background: #f7faf9; }
-pre { direction: ltr; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; background: #f5f7f7; padding: .75rem; border-radius: 8px; }
-.sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, .4); z-index: 20; }
-.sidebar { position: fixed; inset-block: 0; inset-inline-start: 0; width: 260px; background: #fff; padding: 1rem; z-index: 21; transform: translateX(110%); transition: transform .2s; display: grid; align-content: start; gap: .5rem; box-shadow: 0 0 25px rgba(0, 0, 0, .14); }
-.sidebar.active { transform: translateX(0); }
-.sidebar-overlay.active { display: block; }
-.system-sidebar { transform: none; }
-
-@media (max-width: 1100px) {
-  .summary-grid { grid-template-columns: repeat(3, 1fr); }
-  .lifecycle-panel { align-items: stretch; flex-direction: column; }
-}
-@media (max-width: 650px) {
-  .payroll-app { padding: .65rem; }
-  .payroll-header { grid-template-columns: auto 1fr; }
-  .sync-state { grid-column: 1 / -1; }
-  .summary-grid { grid-template-columns: repeat(2, 1fr); }
-  .period-toolbar { display: grid; grid-template-columns: 1fr 1fr; }
-  .period-toolbar label, .period-toolbar input, .period-toolbar select { width: 100%; min-width: 0; }
-  .detail-grid { grid-template-columns: 1fr; }
-}
+th,td { padding: 14px 12px; text-align: start; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { background: #f6eddd; color: var(--muted); }
+.status-badge { display: inline-block; padding: 8px 12px; border-radius: 999px; background: rgba(24,121,78,.1); color: var(--success); font-size: 12px; font-weight: 900; }
+.status-badge.warning { background: rgba(183,134,63,.12); color: var(--accent-dark); }
+.status-badge.stale { background: rgba(186,58,44,.1); color: var(--danger); }
+.row-actions { display: flex; flex-wrap: wrap; gap: 8px; min-width: 140px; }
+.row-actions button { min-height: 40px; padding: 9px 12px; font-size: 13px; }
+.empty-state { padding: 30px 18px; color: var(--muted); text-align: center; }
+dialog { width: min(680px,calc(100vw - 28px)); max-height: 88vh; overflow: auto; padding: 24px; border: 1px solid var(--border); border-radius: 24px; background: #fffaf2; color: var(--ink); box-shadow: var(--shadow); }
+dialog::backdrop { background: rgba(34,23,12,.45); }
+dialog form { display: grid; gap: 16px; }
+.dialog-head,.dialog-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.dialog-head { margin-bottom: 16px; }
+.dialog-head h2 { margin: 0; font-size: 24px; }
+.dialog-head button { min-width: 40px; min-height: 40px; padding: 0; border-radius: 12px; font-size: 28px; }
+.dialog-actions { justify-content: flex-end; margin-top: 8px; }
+.detail-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.detail-grid article { min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: 16px; background: #fffaf2; overflow-wrap: anywhere; }
+.detail-grid span { display: block; margin-bottom: 8px; color: var(--muted); font-size: 13px; }
+.source-day { margin: 10px 0; padding: 12px 16px; border-inline-start: 4px solid var(--accent); border-radius: 16px; background: #fffaf2; line-height: 1.8; overflow-wrap: anywhere; }
+pre { direction: ltr; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; background: #f6eddd; padding: 14px; border-radius: 16px; }
+[hidden] { display: none !important; }
+@media(max-width:1200px) { .summary-grid { grid-template-columns: repeat(3,minmax(0,1fr)); } .lifecycle-panel { flex-direction: column; align-items: stretch; } }
+@media(max-width:1000px) { .period-toolbar { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media(max-width:720px) { .payroll-app { padding: 12px; } .payroll-header { padding: 28px 18px; } .payroll-header .brand-logo { width: 64px; height: 64px; } .payroll-header .brand-name { font-size: clamp(38px,10vw,54px); letter-spacing: 4px; } .payroll-header .brand-slogan { font-size: 10px; letter-spacing: 2px; } .payroll-intro { align-items: stretch; flex-direction: column; } .payroll-intro .sync-state { align-self: flex-start; } .payroll-app .panel { padding: 18px; } .summary-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .summary-grid strong { font-size: 22px; } }
+@media(max-width:480px) { .period-toolbar,.detail-grid { grid-template-columns: minmax(0,1fr); } .summary-grid article { padding: 14px; } }

@@ -109,9 +109,10 @@ test("initial payroll-period read has a bounded timeout and stable error code", 
   assert.match(pageScript, /PAYROLL_INITIAL_READ_TIMEOUT_MS\s*=\s*45000/);
   assert.match(pageScript, /error\.code\s*=\s*["']PAYROLL_READ_TIMEOUT["']/);
   assert.match(pageScript,
-    /withInitialReadTimeout\(api\(\{\s*action:\s*["']listPayrollPeriods["']\s*\}\)\)/s);
+    /withInitialReadTimeout\(api\(payload\)\)/s);
+  assert.match(pageScript, /action:\s*"getPayrollAttendancePage"/);
   assert.match(pageScript, /Promise\.race\(\[promise, timeout\]\)\.finally/);
-  assert.match(pageHtml, /payroll-attendance\.js\?v=20260809-1/);
+  assert.match(pageHtml, /payroll-attendance\.js\?v=20261017-theme-performance-2/);
 });
 
 test("Payroll Attendance uses the lexical RomeoAuth binding and reaches its initial read", () => {

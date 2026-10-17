@@ -18,6 +18,7 @@
     "DRAFT", "CALCULATED", "UNDER_REVIEW", "APPROVED", "LOCKED", "REOPENED"
   ]);
   const ACTIONS = Object.freeze([
+    "getPayrollAttendancePage", "getPayrollAttendanceDetails",
     "listPayrollPeriods", "createPayrollPeriod", "calculatePayrollPeriod",
     "getEmployeePayrollSettlement", "listEmployeePayrollSettlements",
     "recalculateEmployeePayrollSettlement", "recalculatePayrollPeriod",
@@ -29,6 +30,7 @@
     "previewPayrollPhase4Migration"
   ]);
   const READ_ACTIONS = new Set([
+    "getPayrollAttendancePage", "getPayrollAttendanceDetails",
     "listPayrollPeriods", "getEmployeePayrollSettlement",
     "listEmployeePayrollSettlements", "getPayrollSettlementAudit",
     "getUnresolvedPayrollBlockers", "previewPayrollAttendanceExport",
@@ -1037,6 +1039,28 @@
       });
     }
     const handlers = {
+      getPayrollAttendancePage(data) {
+        const resolved = resolvedActor(data); requirePermission(resolved, "payroll_attendance.view");
+        const reader = createService({ repository, actorResolver: () => resolved });
+        const periods = reader.execute("listPayrollPeriods", {}).payrollPeriods;
+        const id = data.payrollPeriodId === undefined
+          ? (periods[0] && periods[0].payrollPeriodId || "") : text(data.payrollPeriodId);
+        if (!id) return { status: "success", code: "PAYROLL_PAGE_OK",
+          payrollPeriods: periods, payrollPeriod: null, settlements: [], blockers: [] };
+        const payload = { payrollPeriodId: id };
+        const result = reader.execute("listEmployeePayrollSettlements", payload);
+        const blockers = reader.execute("getUnresolvedPayrollBlockers", payload);
+        return { ...result, code: "PAYROLL_PAGE_OK", payrollPeriods: periods, blockers: blockers.blockers };
+      },
+      getPayrollAttendanceDetails(data) {
+        const resolved = resolvedActor(data); requirePermission(resolved, "payroll_attendance.view");
+        const reader = createService({ repository, actorResolver: () => resolved });
+        const result = reader.execute("getEmployeePayrollSettlement", { settlementId: data.settlementId });
+        const audit = reader.execute("getPayrollSettlementAudit", {
+          entityId: result.settlement.settlementId, staffId: result.settlement.staffId
+        });
+        return { ...result, code: "PAYROLL_DETAILS_OK", audit: audit.audit };
+      },
       listPayrollPeriods(data) {
         const resolved = resolvedActor(data); requirePermission(resolved, "payroll_attendance.view");
         const periods = repository.listPeriods().filter((period) => {

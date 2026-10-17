@@ -1,3 +1,21 @@
+// Share concurrent reads only. Writes never share transport or replay.
+function createPayrollReadDispatcher(request, observe) {
+  const reads = new Set(["getPayrollAttendancePage", "getPayrollAttendanceDetails", "previewPayrollAttendanceExport"]);
+  const pending = new Map();
+  return function (payload) {
+    const reading = reads.has(payload.action), key = JSON.stringify(payload);
+    if (reading && pending.has(key)) return pending.get(key);
+    if (!reading) pending.clear();
+    const started = Date.now();
+    const promise = Promise.resolve().then(() => request(payload)).finally(() => {
+      if (pending.get(key) === promise) pending.delete(key);
+      if (reading && observe) observe(payload.action, Date.now() - started);
+    });
+    if (reading) pending.set(key, promise);
+    return promise;
+  };
+}
+
 (function () {
   "use strict";
 
@@ -8,7 +26,7 @@
   const state = {
     periods: [], period: null, settlements: [], selected: null,
     blockers: [], selectedAction: "", selectedAdjustment: null,
-    requestSequence: 0, detailSequence: 0, loading: false
+    requestSequence: 0, detailSequence: 0, loading: false, mutating: false, loadedPeriodId: null, pendingPage: null
   };
   const PAYROLL_INITIAL_READ_TIMEOUT_MS = 45000;
   const periodDialog = byId("periodDialog");
@@ -61,9 +79,14 @@
   function errorMessage(error) {
     return error && (error.message || error.code) || "تعذر إكمال الطلب.";
   }
+  const requestRead = createPayrollReadDispatcher(payload => RomeoApi.request(payload), (action, durationMs) => {
+    if (new URLSearchParams(window.location?.search || "").get("performance") === "1") {
+      console.info("[PAYROLL_PERF] " + JSON.stringify({ action, durationMs }));
+    }
+  });
   async function api(payload) {
-    const result = await RomeoApi.request(payload);
-    if (!result || result.status === "error") {
+    const result = await requestRead(payload);
+    if (!result || result.status !== "success") {
       const caught = new Error(result && result.message || "تعذر إكمال الطلب.");
       caught.code = result && result.code;
       throw caught;
@@ -124,6 +147,7 @@
     button.type = "button";
     button.dataset.action = action;
     button.dataset.settlementId = settlement.settlementId;
+    button.disabled = !periodReady();
     return button;
   }
   function renderSummary(items) {
@@ -187,8 +211,11 @@
       row.append(actions);
       body.append(row);
     });
-    body.setAttribute("aria-busy", "false");
+    body.setAttribute("aria-busy", String(state.loading));
     byId("emptyState").hidden = items.length > 0;
+    byId("emptyState").textContent = state.loading ? "جارٍ تحميل التسويات…" : state.readFailed ? "تعذر تحميل التسويات. اضغط تحديث." :
+      state.period ? "لا توجد تسويات مطابقة." :
+      state.periods.length ? "اختر فترة لعرض التسويات." : "لا توجد فترات رواتب بعد.";
     renderSummary(items);
   }
   function renderPeriod() {
@@ -211,56 +238,76 @@
     byId("exportBtn").hidden = !period || !has("payroll_attendance.export") || status !== "LOCKED";
     byId("createPeriodBtn").hidden = !has("payroll_attendance.calculate");
     byId("migrationPreviewBtn").hidden = String(user.username || "").toLowerCase() !== "owner";
+    document.querySelectorAll(".lifecycle-panel button, .row-actions button").forEach(button => { button.disabled = !periodReady(); });
+    byId("createPeriodBtn").disabled = state.loading || state.mutating;
+    byId("refreshBtn").disabled = state.mutating;
+    byId("periodSelect").disabled = state.mutating || !state.periods.length;
+  }
+  function periodReady() {
+    return !state.loading && !state.mutating && !!state.period && state.loadedPeriodId === currentPeriodId();
   }
   async function loadPeriods(selectFirst) {
-    const result = await withInitialReadTimeout(api({ action: "listPayrollPeriods" }));
-    state.periods = result.payrollPeriods || [];
-    populatePeriods();
-    if (selectFirst && !byId("periodSelect").value && state.periods.length) {
-      byId("periodSelect").value = state.periods[0].payrollPeriodId;
-    }
+    return loadPage(selectFirst ? undefined : (currentPeriodId() || undefined));
   }
-  async function loadSettlements() {
+  async function loadSettlements() { return loadPage(currentPeriodId()); }
+  function loadPage(periodId) {
+    const key = periodId === undefined ? "INITIAL" : periodId;
+    if (state.pendingPage?.key === key) return state.pendingPage.promise;
     const sequence = ++state.requestSequence;
-    const periodId = currentPeriodId();
     state.loading = true;
-    byId("settlementRows").replaceChildren();
-    byId("settlementRows").setAttribute("aria-busy", "true");
-    showMessage("");
-    if (!periodId) {
-      state.period = null;
-      state.settlements = [];
-      state.blockers = [];
-      renderPeriod();
-      renderRows();
-      state.loading = false;
-      return;
+    state.readFailed = false;
+    state.loadedPeriodId = null;
+    if (periodId !== state.period?.payrollPeriodId) {
+      state.period = null; state.settlements = []; state.blockers = [];
     }
-    try {
-      const [result, blockerResult] = await Promise.all([
-        api({ action: "listEmployeePayrollSettlements", payrollPeriodId: periodId }),
-        api({ action: "getUnresolvedPayrollBlockers", payrollPeriodId: periodId })
-      ]);
-      if (sequence !== state.requestSequence) return;
-      state.period = result.payrollPeriod;
+    renderRows();
+    renderPeriod();
+    byId("settlementRows").setAttribute("aria-busy", "true");
+    byId("syncState").textContent = "جارٍ تحميل التسويات…";
+    showMessage("");
+    const payload = { action: "getPayrollAttendancePage" };
+    if (periodId !== undefined) payload.payrollPeriodId = periodId;
+    const promise = withInitialReadTimeout(api(payload)).then(result => {
+      if (sequence !== state.requestSequence) return false;
+      state.periods = result.payrollPeriods || [];
+      populatePeriods();
+      byId("periodSelect").value = result.payrollPeriod?.payrollPeriodId || "";
+      state.period = result.payrollPeriod || null;
       state.settlements = result.settlements || [];
-      state.blockers = blockerResult.blockers || [];
+      state.blockers = result.blockers || [];
+      state.loadedPeriodId = currentPeriodId();
       populateFilters();
-      renderPeriod();
-      renderRows();
-      byId("syncState").textContent = "البيانات محدثة";
-    } catch (caught) {
-      if (sequence !== state.requestSequence) return;
-      state.settlements = [];
-      state.blockers = [];
-      renderRows();
+      byId("syncState").textContent = state.periods.length ? "البيانات محدثة" : "لا توجد فترات رواتب بعد";
+      return true;
+    }).catch(caught => {
+      if (sequence !== state.requestSequence) return false;
+      state.readFailed = true;
       showMessage(errorMessage(caught));
       byId("syncState").textContent = "تعذر التحديث";
-    } finally {
-      if (sequence === state.requestSequence) state.loading = false;
-    }
+      return false;
+    }).finally(() => {
+      if (sequence === state.requestSequence) {
+        state.loading = false;
+        renderRows(); renderPeriod();
+      }
+      if (state.pendingPage?.promise === promise) state.pendingPage = null;
+    });
+    state.pendingPage = { key, promise };
+    return promise;
   }
+  function beginMutation() {
+    if (state.mutating || state.loading) return false;
+    state.mutating = true;
+    state.loadedPeriodId = null;
+    ++state.requestSequence; ++state.detailSequence;
+    state.pendingPage = null;
+    renderPeriod();
+    return true;
+  }
+  function endMutation() { state.mutating = false; renderPeriod(); }
   function openAction(action, settlement) {
+    if (!periodReady()) return;
+    state.actionPeriodId = currentPeriodId();
     state.selectedAction = action;
     state.selected = settlement || null;
     if (!["approvePayrollManualAdjustment", "rejectPayrollManualAdjustment"].includes(action)) {
@@ -284,10 +331,11 @@
   }
   async function submitAction(event) {
     event.preventDefault();
+    if (!periodReady() || !beginMutation()) return;
     const action = state.selectedAction;
     const payload = {
       action,
-      payrollPeriodId: currentPeriodId(),
+      payrollPeriodId: state.actionPeriodId,
       requestId: requestId("PAY"),
       reason: byId("actionReason").value.trim()
     };
@@ -303,12 +351,12 @@
       actionDialog.close();
       if (detailsDialog.open) detailsDialog.close();
       state.selectedAdjustment = null;
-      await loadPeriods(false);
-      await loadSettlements();
+      await loadPage(payload.payrollPeriodId);
     } catch (caught) {
       showMessage(errorMessage(caught));
     } finally {
       button.disabled = false;
+      endMutation();
     }
   }
   function detailMetric(label, value) {
@@ -317,16 +365,15 @@
     return article;
   }
   async function showDetails(settlement) {
+    if (!periodReady()) return;
     const sequence = ++state.detailSequence;
     const content = byId("detailsContent");
     content.replaceChildren(node("p", "", "جارٍ تحميل التفاصيل…"));
     detailsDialog.showModal();
     try {
-      const [result, auditResult] = await Promise.all([
-        api({ action: "getEmployeePayrollSettlement", settlementId: settlement.settlementId }),
-        api({ action: "getPayrollSettlementAudit", entityId: settlement.settlementId, staffId: settlement.staffId })
-      ]);
-      if (sequence !== state.detailSequence) return;
+      const result = await api({ action: "getPayrollAttendanceDetails", settlementId: settlement.settlementId });
+      if (sequence !== state.detailSequence || !detailsDialog.open) return;
+      const auditResult = result;
       const item = result.settlement;
       content.replaceChildren();
       const grid = node("section", "detail-grid");
@@ -367,7 +414,7 @@
           `${entry.action} · ${entry.timestamp} · ${entry.actorName || entry.actorId} · ${entry.reason || "—"}`));
       });
     } catch (caught) {
-      if (sequence !== state.detailSequence) return;
+      if (sequence !== state.detailSequence || !detailsDialog.open) return;
       content.replaceChildren(node("p", "page-message", errorMessage(caught)));
     }
   }
@@ -387,27 +434,32 @@
     URL.revokeObjectURL(url);
   }
   async function exportReport(execute) {
+    if (!periodReady() || (execute && !beginMutation())) return;
+    const exportPeriodId = currentPeriodId();
     try {
       const result = await api({
         action: execute ? "exportPayrollAttendanceReport" : "previewPayrollAttendanceExport",
-        payrollPeriodId: currentPeriodId(),
+        payrollPeriodId: exportPeriodId,
         requestId: execute ? requestId("PAYEXP") : undefined,
         reason: execute ? "Authorized payroll attendance CSV export" : undefined
       });
       if (execute) {
         downloadCsv(result);
+        await loadPage(exportPeriodId);
       } else {
+        if (exportPeriodId !== currentPeriodId()) return;
         byId("detailsContent").replaceChildren(node("pre", "", result.csv));
         detailsDialog.showModal();
       }
     } catch (caught) { showMessage(errorMessage(caught)); }
+    finally { if (execute) endMutation(); }
   }
 
-  byId("periodSelect").addEventListener("change", loadSettlements);
+  byId("periodSelect").addEventListener("change", () => { if (!state.mutating) loadSettlements(); });
   ["branchFilter", "staffFilter", "statusFilter"].forEach(id =>
     byId(id).addEventListener("change", renderRows));
   byId("refreshBtn").addEventListener("click", async () => {
-    await loadPeriods(false); await loadSettlements();
+    if (!state.mutating) await loadPeriods(false);
   });
   document.querySelectorAll("[data-action]").forEach(button =>
     button.addEventListener("click", () => openAction(button.dataset.action)));
@@ -415,7 +467,7 @@
     const button = event.target.closest("button[data-action]");
     if (!button) return;
     const settlement = state.settlements.find(item => item.settlementId === button.dataset.settlementId);
-    if (!settlement) return;
+    if (!settlement || !periodReady()) return;
     if (button.dataset.action === "details") showDetails(settlement);
     else if (button.dataset.action === "adjust") {
       state.selected = settlement;
@@ -425,11 +477,13 @@
   });
   byId("actionForm").addEventListener("submit", submitAction);
   byId("createPeriodBtn").addEventListener("click", () => {
+    if (state.loading || state.mutating) return;
     byId("periodForm").reset();
     periodDialog.showModal();
   });
   byId("periodForm").addEventListener("submit", async event => {
     event.preventDefault();
+    if (!beginMutation()) return;
     const submitter = event.submitter;
     if (submitter) submitter.disabled = true;
     try {
@@ -440,18 +494,20 @@
         requestId: requestId("PAYPER")
       });
       periodDialog.close();
-      await loadPeriods(false);
-      byId("periodSelect").value = result.payrollPeriod.payrollPeriodId;
-      await loadSettlements();
+      await loadPage(result.payrollPeriod.payrollPeriodId);
     } catch (caught) { showMessage(errorMessage(caught)); }
-    finally { if (submitter) submitter.disabled = false; }
+    finally { if (submitter) submitter.disabled = false; endMutation(); }
   });
   byId("adjustmentForm").addEventListener("submit", async event => {
     event.preventDefault();
+    if (!periodReady()) return;
     const submitter = event.submitter;
     if (submitter) submitter.disabled = true;
+    let mutationStarted = false;
     try {
       const amountMinor = majorInputToMinor(byId("adjustmentAmount").value);
+      if (!beginMutation()) return;
+      mutationStarted = true;
       await api({
         action: "requestPayrollManualAdjustment",
         settlementId: state.selected.settlementId,
@@ -463,7 +519,7 @@
       adjustmentDialog.close();
       await loadSettlements();
     } catch (caught) { showMessage(errorMessage(caught)); }
-    finally { if (submitter) submitter.disabled = false; }
+    finally { if (submitter) submitter.disabled = false; if (mutationStarted) endMutation(); }
   });
   byId("exportPreviewBtn").addEventListener("click", () => exportReport(false));
   byId("exportBtn").addEventListener("click", () => exportReport(true));
@@ -475,15 +531,24 @@
     } catch (caught) { showMessage(errorMessage(caught)); }
   });
   document.querySelectorAll("[data-close-dialog]").forEach(button =>
-    button.addEventListener("click", () => button.closest("dialog").close()));
+    button.addEventListener("click", () => {
+      if (state.mutating) return;
+      const dialog = button.closest("dialog");
+      if (dialog === detailsDialog) ++state.detailSequence;
+      dialog.close();
+    }));
+  document.querySelectorAll("dialog").forEach(dialog => dialog.addEventListener("cancel", event => { if (state.mutating) event.preventDefault(); }));
   window.addEventListener("romeo-connectivity-change", event => {
-    byId("syncState").textContent = event.detail.online ? "الاتصال متاح" : "غير متصل";
+    byId("syncState").textContent = !event.detail.online ? "غير متصل" :
+      state.loading ? "جارٍ تحميل التسويات…" :
+      state.readFailed ? "الاتصال عاد؛ حدّث البيانات" :
+      state.periods.length ? "البيانات محدثة" : "لا توجد فترات رواتب بعد";
   });
 
   (async () => {
     try {
+      renderPeriod();
       await loadPeriods(true);
-      await loadSettlements();
     } catch (caught) {
       showMessage(errorMessage(caught));
       byId("syncState").textContent = "تعذر التحميل";
