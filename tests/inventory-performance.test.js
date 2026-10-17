@@ -10,7 +10,7 @@ function ui(request){
  const window={location:{search:''},alert(){},confirm:()=>true,RomeoInventoryFilters:{filterItems:items=>items}};
  const c=vm.createContext({document,window,RomeoApi:{request},RomeoAuth:{requireAuth(){}},RomeoDateRange:{today:()=> '2026-10-15',validate:(a,b)=>({ok:!!a&&!!b&&a<=b,fromDate:a,toDate:b})},URLSearchParams,console:{info(){}}});
  const source=read(process.env.CUT_HUB_INVENTORY_SOURCE_OVERRIDE||'public/assets/js/pages/inventory.js');
- vm.runInContext(source.slice(0,source.indexOf('  elements.list.addEventListener'))+'window.test={state,loadData,loadBarberConsumptionReport,saveItem,deleteItem,addPurchase,saveRecipe,render,clearPurchaseForm,today,currentMonthStart};})();',c);
+ vm.runInContext(source.slice(0,source.indexOf('  elements.list.addEventListener'))+'window.test={filterRecipeServices,state,loadData,loadBarberConsumptionReport,saveItem,deleteItem,addPurchase,saveRecipe,render,clearPurchaseForm,today,currentMonthStart};})();',c);
  elements.barberConsumptionFrom.value='2026-10-01';elements.barberConsumptionTo.value='2026-10-15';return {a:window.test,e:elements};
 }
 test('startup is one atomic page read; duplicate refreshes share one request',async()=>{
@@ -82,4 +82,16 @@ test('batch date memoization preserves full original batch records and reduces r
  rows.push(['TEXT','I1','2026-10-16','',1,10,'piece',1,0,0,20,'','active']);
  function setup(source){let formats=0;const c=vm.createContext({Date,TIME_ZONE:'Africa/Cairo',INVENTORY_SHEETS:{batches:'batches'},inventoryText:x=>String(x??'').trim(),inventorySheet:x=>x,getDateKey:x=>{if(x instanceof Date){formats++;return x.toISOString().slice(0,10);}return String(x||'').slice(0,10);}});vm.runInContext(source,c);c.inventoryRows=()=>rows;return {c,formats:()=>formats};}
  const old=setup(read('apps-script/production/baseline/021_inventory_repository.js')),next=setup(read('apps-script/production/021_inventory_repository.gs'));assert.deepEqual(plain(next.c.readInventoryBatches()),plain(old.c.readInventoryBatches()));assert.equal(old.formats(),2000);assert.equal(next.formats(),2);
+});
+
+test('recipe search matches Arabic variants and packages without changing selected service or quantity draft',()=>{
+ const h=ui(()=>{throw Error('Search must not call the backend');});
+ const options=[{value:'S1',textContent:'قَصّ شعر'},{value:'S2',textContent:'باكيدج قص + دقن'},{value:'S3',textContent:'إصلاح شعر'}];
+ h.e.recipeServiceSelect.options=options;h.e.recipeServiceSelect.value='S1';h.e.recipeItemsList.innerHTML='unsaved quantity draft';
+ h.e.recipeServiceSearch.value='باكيدج';h.a.filterRecipeServices();assert.deepEqual(options.map(o=>o.hidden),[true,false,true]);
+ h.e.recipeServiceSearch.value='قص';h.a.filterRecipeServices();assert.deepEqual(options.map(o=>o.hidden),[false,false,true]);
+ h.e.recipeServiceSearch.value='اصلاح';h.a.filterRecipeServices();assert.deepEqual(options.map(o=>o.hidden),[true,true,false]);
+ h.e.recipeServiceSearch.value='no match';h.a.filterRecipeServices();assert.ok(options.every(o=>o.hidden));assert.match(h.e.recipeServiceSearchStatus.textContent,/لا توجد/);
+ assert.equal(h.e.recipeServiceSelect.value,'S1');assert.equal(h.e.recipeItemsList.innerHTML,'unsaved quantity draft');
+ h.e.recipeServiceSearch.value='';h.a.filterRecipeServices();assert.ok(options.every(o=>!o.hidden));assert.equal(h.e.recipeServiceSearchStatus.hidden,true);
 });

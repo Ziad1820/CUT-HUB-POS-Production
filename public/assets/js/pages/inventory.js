@@ -40,6 +40,8 @@
     addPurchase: document.getElementById("addPurchaseBtn"),
     clearPurchase: document.getElementById("clearPurchaseBtn"),
     recipeService: document.getElementById("recipeServiceSelect"),
+    recipeSearch: document.getElementById("recipeServiceSearch"),
+    recipeSearchStatus: document.getElementById("recipeServiceSearchStatus"),
     recipeItems: document.getElementById("recipeItemsList"),
     saveRecipe: document.getElementById("saveRecipeBtn"),
     barberConsumptionSelect: document.getElementById("barberConsumptionSelect"),
@@ -134,7 +136,7 @@
     elements.recipeItems.querySelectorAll("[data-recipe-item-id]").forEach(input => { input.disabled = state.loading; });
     elements.refresh.disabled = state.loading;
     elements.loadBarberConsumption.disabled = false;
-    [elements.clearPurchase, elements.recipeService].forEach(input => { input.disabled = state.loading; });
+    [elements.clearPurchase, elements.recipeService, elements.recipeSearch].forEach(input => { input.disabled = state.loading; });
     elements.history.querySelectorAll("[data-edit-purchase]").forEach(button => { button.disabled = blocked; });
   }
 
@@ -285,7 +287,26 @@
       elements.recipeService.value = previousServiceId;
     }
 
+    filterRecipeServices();
     renderRecipeItems();
+  }
+
+  function filterRecipeServices() {
+    const normalize = value => String(value || "").toLowerCase()
+      .replace(/[\u064B-\u065F\u0670\u0640]/g, "")
+      .replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").trim().replace(/\s+/g, " ");
+    const query = normalize(elements.recipeSearch.value);
+    let matches = 0;
+    // Hide options in place: searching must not switch the selected service or rebuild its quantity inputs.
+    Array.from(elements.recipeService.options || []).forEach(option => {
+      const visible = !query || normalize(option.textContent).includes(query);
+      option.hidden = !visible;
+      if (visible && option.value) matches += 1;
+    });
+    elements.recipeSearchStatus.hidden = !query;
+    elements.recipeSearchStatus.textContent = !query ? "" : matches
+      ? `${matches} نتيجة — افتح القائمة لاختيار الخدمة أو الباكيدج`
+      : "لا توجد خدمات أو باكيدجات مطابقة للبحث. الاختيار الحالي لم يتغير.";
   }
 
   function renderRecipeItems() {
@@ -574,6 +595,7 @@
   elements.addPurchase.addEventListener("click", addPurchase);
   elements.clearPurchase.addEventListener("click", clearPurchaseForm);
   elements.recipeService.addEventListener("change", renderRecipeItems);
+  elements.recipeSearch.addEventListener("input", filterRecipeServices);
   elements.saveRecipe.addEventListener("click", saveRecipe);
   elements.loadBarberConsumption.addEventListener("click", loadBarberConsumptionReport);
 
