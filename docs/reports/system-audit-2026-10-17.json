@@ -1,0 +1,934 @@
+{
+  "date": "2026-10-17",
+  "testedSourceCommit": "b688c347f4b5184833a25945fc36d4b099736842",
+  "productionDeploymentId": "dpl_Fv4i6Crn2GoWVRiCh1nDdkQeV94y",
+  "decision": "NEEDS_REMEDIATION",
+  "unitSuite": {
+    "tests": 1398,
+    "pass": 1398,
+    "fail": 0,
+    "skipped": 0
+  },
+  "deployedCashierPerformanceTests": {
+    "tests": 19,
+    "pass": 19,
+    "fail": 0,
+    "skipped": 0
+  },
+  "testFiles": 81,
+  "backend": {
+    "version": 72,
+    "moduleCount": 89,
+    "localMatchesDeployed": true,
+    "readOnly": true
+  },
+  "static": {
+    "jsFilesParsed": 24,
+    "syntaxErrors": [],
+    "localReferencesChecked": 341,
+    "missing": []
+  },
+  "inline": {
+    "inlineScriptsParsed": 14,
+    "errors": []
+  },
+  "duplicateHtmlIds": [],
+  "sourceDrift": [
+    "public/assets/js/core/api.js",
+    "public/assets/js/pages/cashier.js"
+  ],
+  "identity": {
+    "liveMatchesStaging": true,
+    "fixtureExpectedStaffId": "STAFF-FIXTURE-123",
+    "localAssignment": "STAFF-FIXTURE-123",
+    "liveAssignment": "C09",
+    "liveSendsSeparateCode": false,
+    "localSendsSeparateCode": true
+  },
+  "inventoryImpact": {
+    "inMemoryOnly": true,
+    "unfilteredFixtureCost": 10,
+    "filteredByCorrectStaffIdCost": 0,
+    "correctStaffFilterDropsMovement": true
+  },
+  "adversarial": {
+    "auditOnly": true,
+    "networkCalls": 0,
+    "realWrites": 0,
+    "fixtureAuthorization": "actual doPost JSON route with a mocked valid authenticated actor; permission enforcement audited separately",
+    "controls": [
+      {
+        "scenario": "valid invoice positive control",
+        "passed": true
+      },
+      {
+        "scenario": "locked-date negative control",
+        "passed": true
+      },
+      {
+        "scenario": "unauthenticated negative control",
+        "passed": true
+      }
+    ],
+    "cases": [
+      {
+        "id": "FIN-01",
+        "scenario": "negative invoice total",
+        "expectedRejected": true,
+        "accepted": true,
+        "simulatedRows": 1,
+        "storedCustomerName": "Fixture",
+        "storedTotal": -100,
+        "storedDiscountPercent": 0,
+        "storedPayment": "cash"
+      },
+      {
+        "id": "FIN-02",
+        "scenario": "discount over 100 percent and invalid payment",
+        "expectedRejected": true,
+        "accepted": true,
+        "simulatedRows": 1,
+        "storedCustomerName": "Fixture",
+        "storedTotal": 10,
+        "storedDiscountPercent": 150,
+        "storedPayment": "fixture-invalid-method"
+      },
+      {
+        "id": "FIN-03",
+        "scenario": "createWithdrawal negative amount",
+        "expectedRejected": true,
+        "accepted": true,
+        "simulatedRows": 1,
+        "storedAmount": -50
+      },
+      {
+        "id": "FIN-05",
+        "scenario": "createWithdrawal repeated business identifier",
+        "expectedRows": 1,
+        "simulatedRows": 2
+      },
+      {
+        "id": "FIN-04",
+        "scenario": "createExpense negative amount",
+        "expectedRejected": true,
+        "accepted": true,
+        "simulatedRows": 1,
+        "storedAmount": -50
+      },
+      {
+        "id": "FIN-06",
+        "scenario": "createExpense repeated business identifier",
+        "expectedRows": 1,
+        "simulatedRows": 2
+      },
+      {
+        "id": "TEXT-01",
+        "scenario": "formula prefix reaches appendRow as customer name",
+        "expectedLiteralText": true,
+        "rawFormulaPrefix": true,
+        "simulatedRows": 1
+      }
+    ],
+    "findingCount": 7
+  },
+  "runtimeErrorsInLastHour": 0,
+  "relayHeadStatus": 405,
+  "redirects": [
+    {
+      "page": "data-analysis",
+      "status": 308,
+      "destination": "/pages/dashboard.html"
+    },
+    {
+      "page": "payroll-attendance",
+      "status": 308,
+      "destination": "/pages/staff-accounting.html"
+    },
+    {
+      "page": "booking-availability-admin",
+      "status": 308,
+      "destination": "/pages/bookings.html?settings=1"
+    }
+  ],
+  "pages": [
+    {
+      "page": "cashier",
+      "brokenImages": 0,
+      "scrollWidth": 777,
+      "statuses": [
+        "لم يتم اختيار أي خدمة حتى الآن."
+      ],
+      "tableRows": 0,
+      "title": "SALONIX POS",
+      "url": "https://cut-hub-pos-production.vercel.app/pages/cashier.html?performance=1",
+      "width": 777,
+      "errorCount": 0,
+      "timings": [
+        {
+          "action": "getDailyClosingPreview",
+          "queueMs": 7,
+          "requestMs": 3584,
+          "totalMs": 3591,
+          "httpStatus": 200,
+          "google_execution": 3234.8,
+          "google_content": 160.6,
+          "relay": 3395.4
+        },
+        {
+          "action": "getCashierCatalog",
+          "queueMs": 15,
+          "requestMs": 5793,
+          "totalMs": 5808,
+          "httpStatus": 200,
+          "google_execution": 5459.3,
+          "google_content": 75.8,
+          "relay": 5535.2
+        }
+      ],
+      "file": "cashier.html",
+      "label": "الكاشير"
+    },
+    {
+      "page": "invoices-load-more",
+      "brokenImages": 0,
+      "scrollWidth": 777,
+      "statuses": [],
+      "tableRows": 50,
+      "title": "Invoices - SALONIX",
+      "url": "https://cut-hub-pos-production.vercel.app/pages/invoices.html?performance=1",
+      "width": 777,
+      "errorCount": 0,
+      "timings": [
+        {
+          "action": "getInvoices",
+          "queueMs": 0,
+          "requestMs": 4093,
+          "totalMs": 4093,
+          "httpStatus": 200,
+          "google_execution": 3720.4,
+          "google_content": 166.7,
+          "relay": 3887.1
+        },
+        {
+          "operation": "refresh",
+          "totalMs": 4102,
+          "outcome": "success"
+        },
+        {
+          "action": "getInvoices",
+          "queueMs": 0,
+          "requestMs": 4471,
+          "totalMs": 4471,
+          "httpStatus": 200,
+          "google_execution": 3567.7,
+          "google_content": 82.1,
+          "relay": 3649.9
+        },
+        {
+          "operation": "more",
+          "totalMs": 4491,
+          "outcome": "success"
+        }
+      ],
+      "file": "invoices.html",
+      "label": "الفواتير"
+    },
+    {
+      "page": "income-statement",
+      "brokenImages": 0,
+      "scrollWidth": 777,
+      "statuses": [
+        "عرض الأرقام من 2026-10-01 إلى 2026-10-31."
+      ],
+      "tableRows": 1,
+      "title": "Income Statement - SALONIX",
+      "url": "https://cut-hub-pos-production.vercel.app/pages/income-statement.html?performance=1",
+      "width": 777,
+      "errorCount": 0,
+      "timings": [
+        {
+          "action": "getMonthlyClosings",
+          "queueMs": 1,
+          "requestMs": 5299,
+          "totalMs": 5300,
+          "httpStatus": 200,
+          "google_execution": 4737.5,
+          "google_content": 73.6,
+          "relay": 4811.1
+        },
+        {
+          "operation": "closings",
+          "totalMs": 5303,
+          "outcome": "success"
+        },
+        {
+          "action": "getIncomeStatementRange",
+          "queueMs": 0,
+          "requestMs": 5305,
+          "totalMs": 5305,
+          "httpStatus": 200,
+          "google_execution": 4723.5,
+          "google_content": 189.7,
+          "relay": 4913.3
+        },
+        {
+          "operation": "statement",
+          "totalMs": 5308,
+          "outcome": "success"
+        }
+      ],
+      "file": "income-statement.html",
+      "label": "قائمة الدخل"
+    },
+    {
+      "page": "daily-closing-verified",
+      "brokenImages": 0,
+      "scrollWidth": 777,
+      "statuses": [
+        "المعاينة جاهزة. راجع الأرقام ثم اقفل اليوم."
+      ],
+      "tableRows": 44,
+      "title": "Daily Closing - SALONIX",
+      "url": "https://cut-hub-pos-production.vercel.app/pages/daily-closing.html?performance=1",
+      "width": 777,
+      "errorCount": 0,
+      "timings": [
+        {
+          "action": "getDailyClosings",
+          "queueMs": 0,
+          "requestMs": 3850,
+          "totalMs": 3850,
+          "httpStatus": 200,
+          "google_execution": 3570.8,
+          "google_content": 83.9,
+          "relay": 3654.7
+        },
+        {
+          "operation": "closings",
+          "totalMs": 3867,
+          "outcome": "success"
+        },
+        {
+          "action": "getDailyClosingPreview",
+          "queueMs": 1,
+          "requestMs": 3871,
+          "totalMs": 3872,
+          "httpStatus": 200,
+          "google_execution": 3604.5,
+          "google_content": 71,
+          "relay": 3675.5
+        },
+        {
+          "operation": "preview",
+          "totalMs": 3903,
+          "outcome": "success"
+        }
+      ],
+      "file": "daily-closing.html",
+      "label": "تقفيلة اليوم"
+    },
+    {
+      "page": "activity-log-load-more",
+      "brokenImages": 0,
+      "scrollWidth": 777,
+      "statuses": [],
+      "tableRows": 200,
+      "title": "Activity Log - SALONIX",
+      "url": "https://cut-hub-pos-production.vercel.app/pages/activity-log.html?performance=1",
+      "width": 777,
+      "errorCount": 0,
+      "timings": [
+        {
+          "action": "getActivityLogs",
+          "queueMs": 0,
+          "requestMs": 3592,
+          "totalMs": 3592,
+          "httpStatus": 200,
+          "google_execution": 3220.5,
+          "google_content": 171.6,
+          "relay": 3392.2
+        },
+        {
+          "operation": "filter",
+          "totalMs": 13,
+          "outcome": "success"
+        },
+        {
+          "operation": "refresh",
+          "totalMs": 3614,
+          "outcome": "success"
+        },
+        {
+          "action": "getActivityLogs",
+          "queueMs": 0,
+          "requestMs": 4671,
+          "totalMs": 4671,
+          "httpStatus": 200,
+          "google_execution": 3891.2,
+          "google_content": 89.5,
+          "relay": 3980.7
+        },
+        {
+          "operation": "filter",
+          "totalMs": 34,
+          "outcome": "success"
+        },
+        {
+          "operation": "more",
+          "totalMs": 4711,
+          "outcome": "success"
+        }
+      ],
+      "file": "activity-log.html",
+      "label": "سجل العمليات"
+    },
+    {
+      "page": "staff-accounting",
+      "brokenImages": 0,
+      "scrollWidth": 777,
+      "statuses": [
+        "الفترة: 2026-10-01 إلى 2026-10-31"
+      ],
+      "tableRows": 0,
+      "title": "Staff Accounting - SALONIX",
+      "url": "https://cut-hub-pos-production.vercel.app/pages/staff-accounting.html?performance=1",
+      "width": 777,
+      "errorCount": 0,
+      "timings": [
+        {
+          "action": "getStaffAccountingPeriod",
+          "queueMs": 0,
+          "requestMs": 5582,
+          "totalMs": 5582,
+          "httpStatus": 200,
+          "google_execution": 5219.1,
+          "google_content": 173.4,
+          "relay": 5392.6
+        },
+        {
+          "operation": "period",
+          "totalMs": 5607,
+          "outcome": "success"
+        },
+        {
+          "operation": "select",
+          "totalMs": 5,
+          "outcome": "success"
+        }
+      ],
+      "file": "staff-accounting.html",
+      "label": "حسابات الموظفين"
+    },
+    {
+      "page": "withdrawals",
+      "brokenImages": 0,
+      "scrollWidth": 777,
+      "statuses": [],
+      "tableRows": 0,
+      "title": "Withdrawals - SALONIX",
+      "url": "https://cut-hub-pos-production.vercel.app/pages/withdrawals.html?performance=1",
+      "width": 777,
+      "errorCount": 0,
+      "timings": [
+        {
+          "action": "getWithdrawalsPage",
+          "queueMs": 1,
+          "requestMs": 4171,
+          "totalMs": 4172,
+          "httpStatus": 200,
+          "google_execution": 3709.6,
+          "google_content": 180.5,
+          "relay": 3890.2
+        },
+        {
+          "operation": "period",
+          "totalMs": 4182,
+          "outcome": "success"
+        }
+      ],
+      "file": "withdrawals.html",
+      "label": "السحوبات"
+    },
+    {
+      "page": "expenses",
+      "brokenImages": 0,
+      "scrollWidth": 777,
+      "statuses": [],
+      "tableRows": 0,
+      "title": "Expenses - SALONIX",
+      "url": "https://cut-hub-pos-production.vercel.app/pages/expenses.html?performance=1",
+      "width": 777,
+      "errorCount": 0,
+      "timings": [
+        {
+          "action": "getExpenses",
+          "queueMs": 0,
+          "requestMs": 3916,
+          "totalMs": 3916,
+          "httpStatus": 200,
+          "google_execution": 3419.6,
+          "google_content": 79,
+          "relay": 3498.7
+        },
+        {
+          "operation": "period",
+          "totalMs": 3936,
+          "outcome": "success"
+        }
+      ],
+      "file": "expenses.html",
+      "label": "المصروفات"
+    },
+    {
+      "page": "inventory",
+      "brokenImages": 0,
+      "scrollWidth": 777,
+      "statuses": [],
+      "tableRows": 8,
+      "title": "Enventory - SALONIX",
+      "url": "https://cut-hub-pos-production.vercel.app/pages/enventory.html?performance=1",
+      "width": 777,
+      "errorCount": 0,
+      "timings": [
+        {
+          "action": "getBarberConsumptionReport",
+          "queueMs": 1,
+          "requestMs": 5034,
+          "totalMs": 5035,
+          "httpStatus": 200,
+          "google_execution": 4669.3,
+          "google_content": 76.2,
+          "relay": 4745.5
+        },
+        {
+          "operation": "report",
+          "totalMs": 5041,
+          "outcome": "success"
+        },
+        {
+          "action": "getInventoryPage",
+          "queueMs": 1,
+          "requestMs": 5654,
+          "totalMs": 5655,
+          "httpStatus": 200,
+          "google_execution": 5222.5,
+          "google_content": 113.3,
+          "relay": 5335.8
+        },
+        {
+          "operation": "inventory",
+          "totalMs": 5856,
+          "outcome": "success"
+        }
+      ],
+      "file": "enventory.html",
+      "label": "المخزون"
+    },
+    {
+      "page": "attendance",
+      "brokenImages": 0,
+      "scrollWidth": 777,
+      "statuses": [
+        "متزامن ٠٣:٤٥ ص"
+      ],
+      "tableRows": 0,
+      "title": "إدارة الحضور - SALONIX",
+      "url": "https://cut-hub-pos-production.vercel.app/pages/attendance.html?performance=1",
+      "width": 777,
+      "errorCount": 0,
+      "timings": [
+        {
+          "action": "getAttendanceDashboard",
+          "queueMs": 0,
+          "requestMs": 8628,
+          "totalMs": 8628,
+          "httpStatus": 200,
+          "google_execution": 8275.2,
+          "google_content": 80.4,
+          "relay": 8355.7
+        },
+        {
+          "operation": "dashboard",
+          "totalMs": 8643,
+          "outcome": "success"
+        }
+      ],
+      "file": "attendance.html",
+      "label": "الحضور"
+    },
+    {
+      "page": "schedule-management",
+      "brokenImages": 0,
+      "scrollWidth": 777,
+      "statuses": [],
+      "tableRows": 7,
+      "title": "Staff Scheduling - SALONIX",
+      "url": "https://cut-hub-pos-production.vercel.app/pages/schedule-management.html?performance=1",
+      "width": 777,
+      "errorCount": 0,
+      "timings": [
+        {
+          "action": "getSchedulePageData",
+          "durationMs": 3470
+        },
+        {
+          "action": "listScheduleUserScopes",
+          "durationMs": 3750
+        }
+      ],
+      "file": "schedule-management.html",
+      "label": "جداول الموظفين"
+    },
+    {
+      "page": "booking-settings",
+      "brokenImages": 0,
+      "scrollWidth": 777,
+      "statuses": [
+        "لا توجد حجوزات مطابقة.",
+        "تم تحديث البيانات."
+      ],
+      "tableRows": 7,
+      "title": "Bookings - SALONIX",
+      "url": "https://cut-hub-pos-production.vercel.app/pages/bookings.html?performance=1",
+      "width": 777,
+      "errorCount": 0,
+      "timings": [
+        {
+          "action": "getBookings",
+          "catalogOnly": false,
+          "durationMs": 5337
+        },
+        {
+          "action": "getInternalBookingOptions",
+          "catalogOnly": true,
+          "durationMs": 6912
+        },
+        {
+          "action": "getBookings",
+          "catalogOnly": false,
+          "durationMs": 5818
+        },
+        {
+          "action": "getBookings",
+          "catalogOnly": false,
+          "durationMs": 4837
+        },
+        {
+          "action": "getInternalBookingOptions",
+          "catalogOnly": false,
+          "durationMs": 8608
+        },
+        {
+          "action": "getBookings",
+          "catalogOnly": false,
+          "durationMs": 4027
+        },
+        {
+          "action": "getBookings",
+          "catalogOnly": false,
+          "durationMs": 4063
+        }
+      ],
+      "file": "bookings.html",
+      "label": "الحجوزات والإعدادات"
+    },
+    {
+      "page": "customer-data-legacy",
+      "brokenImages": 0,
+      "scrollWidth": 792,
+      "statuses": [],
+      "tableRows": 0,
+      "title": "Customer Data - SALONIX",
+      "url": "https://cut-hub-pos-production.vercel.app/pages/customer-data.html",
+      "width": 792,
+      "errorCount": 0,
+      "timings": [],
+      "file": "customer-data.html",
+      "label": "بيانات العملاء — قديمة"
+    },
+    {
+      "appointmentButtons": 24,
+      "brokenImages": 0,
+      "dir": "rtl",
+      "lang": "ar",
+      "page": "customer-booking",
+      "scrollWidth": 777,
+      "serviceChoices": 27,
+      "staffCards": 9,
+      "title": "حجز موعد - CUT HUB",
+      "url": "https://cut-hub-pos-production.vercel.app/pages/customer-booking.html",
+      "width": 777,
+      "errorCount": 0,
+      "flowVerified": [
+        "anonymous access",
+        "service selection",
+        "earliest available appointment",
+        "customer form displayed",
+        "Arabic/English direction",
+        "tracking code and last-four dialog"
+      ],
+      "bookingSubmitted": false,
+      "file": "customer-booking.html",
+      "label": "حجز العملاء الخارجي",
+      "timings": []
+    },
+    {
+      "page": "staff-discount-legacy",
+      "brokenImages": 0,
+      "scrollWidth": 792,
+      "statuses": [],
+      "tableRows": 0,
+      "title": "Staff Discount - SALONIX",
+      "url": "https://cut-hub-pos-production.vercel.app/pages/staff-discount.html",
+      "width": 792,
+      "errorCount": 0,
+      "timings": [],
+      "file": "staff-discount.html",
+      "label": "خصومات الموظفين — قديمة"
+    },
+    {
+      "page": "dashboard-verified",
+      "brokenImages": 0,
+      "scrollWidth": 777,
+      "statuses": [
+        "لا توجد بيانات للوحة التحكم اليوم. (2026-10-17)"
+      ],
+      "tableRows": 9,
+      "title": "Dashboard - SALONIX",
+      "url": "https://cut-hub-pos-production.vercel.app/pages/dashboard.html?performance=1",
+      "width": 777,
+      "errorCount": 0,
+      "timings": [
+        {
+          "action": "getInvoices",
+          "queueMs": 1,
+          "requestMs": 5667,
+          "totalMs": 5668,
+          "httpStatus": 200,
+          "google_execution": 5266.5,
+          "google_content": 65,
+          "relay": 5331.6
+        },
+        {
+          "action": "getDailyClosingPreview",
+          "queueMs": 5668,
+          "requestMs": 4244,
+          "totalMs": 9912,
+          "httpStatus": 200,
+          "google_execution": 3944.4,
+          "google_content": 93.6,
+          "relay": 4038
+        },
+        {
+          "action": "getDailyClosingPreview",
+          "queueMs": 4636,
+          "requestMs": 5281,
+          "totalMs": 9917,
+          "httpStatus": 200,
+          "google_execution": 5026.6,
+          "google_content": 70.8,
+          "relay": 5097.4
+        },
+        {
+          "action": "getExpenses",
+          "queueMs": 9913,
+          "requestMs": 4274,
+          "totalMs": 14187,
+          "httpStatus": 200,
+          "google_execution": 3934,
+          "google_content": 146.2,
+          "relay": 4080.4
+        },
+        {
+          "action": "getInvoices",
+          "queueMs": 9909,
+          "requestMs": 5493,
+          "totalMs": 15402,
+          "httpStatus": 200,
+          "google_execution": 5203.7,
+          "google_content": 94.3,
+          "relay": 5298
+        },
+        {
+          "action": "getInvoices",
+          "queueMs": 0,
+          "requestMs": 4154,
+          "totalMs": 4154,
+          "httpStatus": 200,
+          "google_execution": 3819.5,
+          "google_content": 72.3,
+          "relay": 3891.8
+        }
+      ],
+      "file": "dashboard.html",
+      "label": "لوحة التحكم والتحليل"
+    },
+    {
+      "page": "system-access-verified",
+      "brokenImages": 0,
+      "scrollWidth": 777,
+      "statuses": [],
+      "tableRows": 0,
+      "title": "System Access - SALONIX",
+      "url": "https://cut-hub-pos-production.vercel.app/pages/system-access.html?performance=1",
+      "width": 777,
+      "errorCount": 0,
+      "timings": [
+        {
+          "action": "getUsers",
+          "queueMs": 0,
+          "requestMs": 4214,
+          "totalMs": 4214,
+          "httpStatus": 200,
+          "google_execution": 3815.9,
+          "google_content": 167.7,
+          "relay": 3983.6
+        },
+        {
+          "operation": "load",
+          "totalMs": 4217,
+          "outcome": "success"
+        }
+      ],
+      "file": "system-access.html",
+      "label": "صلاحيات النظام"
+    },
+    {
+      "page": "login-access-control",
+      "url": "https://cut-hub-pos-production.vercel.app/pages/login.html?returnTo=system-access.html",
+      "unauthenticatedProtectedRouteRedirected": true,
+      "authenticatedOwnerLoginCompletedByUser": true,
+      "expectedInitialOwnerAccessDenialObserved": true,
+      "file": "login.html",
+      "label": "تسجيل الدخول",
+      "timings": []
+    }
+  ],
+  "liveCashierSha256": "f47f77416e93e9471b837f38117ebaaeadfd51ddb2c06f700840123708cc841c",
+  "performance": {
+    "headerSamples": 23,
+    "medianGoogleExecutionShare": 92,
+    "maxClientQueueMs": 9913
+  },
+  "findings": [
+    {
+      "id": "QA-01",
+      "priority": "P1",
+      "kind": "خلل تحقق مالي",
+      "title": "الباك إند يقبل مدخلات مالية غير صالحة",
+      "evidence": "الراوتر والـhandlers الفعلية قبلت في الذاكرة فاتورة بإجمالي -100، وخصم 150% وطريقة دفع غير معروفة؛ كما قُبل مصروف وسحب بقيمة -50. هذه مبالغ اختبار وليست بيانات حقيقية.",
+      "impact": "قد تصل أرقام غير صالحة إلى المبيعات والمصروفات والسحوبات حتى لو منعتها واجهة المتصفح.",
+      "fix": "تحقق موحّد في الخادم من النوع والقيمة وقواعد الخصم وطرق الدفع والحقول المطلوبة، ثم اختبارات رفض قبل أي كتابة.",
+      "cases": [
+        "FIN-01",
+        "FIN-02",
+        "FIN-03",
+        "FIN-04"
+      ],
+      "sources": [
+        "apps-script/production/043_invoices_mutations.gs",
+        "apps-script/production/046_accounting_withdrawals.gs",
+        "apps-script/production/047_accounting_expenses.gs"
+      ],
+      "confidence": "إعادة إنتاج معزولة على الراوتر والوحدات المنشورة نفسها؛ صلاحيات الممثل مصطنعة ومسموح بها، وفُحصت الصلاحيات منفصلًا."
+    },
+    {
+      "id": "QA-02",
+      "priority": "P1",
+      "kind": "خلل منع التكرار",
+      "title": "إعادة إرسال المصروف أو السحب بنفس المعرّف تنشئ صفًا ثانيًا",
+      "evidence": "طلبان بنفس expenseId أو withdrawalId وبنفس البيانات نتجا عنهما صفان بدل صف واحد في الشيت الوهمي.",
+      "impact": "إعادة المحاولة بعد انقطاع الرد قد تضاعف قيد المصروف أو السحب.",
+      "fix": "معرّف ثابت للعملية مع فحص دائم وبصمة للبيانات وقفل أثناء الكتابة؛ إعادة نفس العملية ترجع النتيجة السابقة، وتغيير بيانات نفس المعرّف يُرفض.",
+      "cases": [
+        "FIN-05",
+        "FIN-06"
+      ],
+      "sources": [
+        "apps-script/production/046_accounting_withdrawals.gs",
+        "apps-script/production/047_accounting_expenses.gs"
+      ],
+      "confidence": "مثبت في الذاكرة؛ لا توجد تجربة تكرار على بيانات الشغل."
+    },
+    {
+      "id": "QA-03",
+      "priority": "P1",
+      "kind": "فرق سلوكي في النشر",
+      "title": "الكاشير المنشور يرسل كود الموظف في حقل المعرّف الثابت",
+      "evidence": "باستخدام موظف وهمي STAFF-FIXTURE-123 وكود C09، المصدر يرسل المعرّف الصحيح، والملف المنشور يرسل C09 ولا يرسل barberCode منفصلًا. تقرير المخزون الفعلي أعطى تكلفة 10 بدون فلتر وصفر عند الفلترة بالمعرّف الصحيح في إعادة الإنتاج.",
+      "impact": "قد تختفي حركة استهلاك من تقرير الموظف الصحيح أو تتجمع تحت كود آخر. لم يُثبت وقوع خطأ في فواتير تاريخية فعلية.",
+      "fix": "مزامنة الكاشير المنشور مع المصدر الصحيح، وإضافة اختبار يربط اختيار الموظف بالفاتورة وحركة المخزون. مراجعة البيانات القديمة بالقراءة قبل أي تصحيح.",
+      "cases": [
+        "cashier-identity-regression",
+        "cashier-inventory-impact"
+      ],
+      "sources": [
+        "public/assets/js/pages/cashier.js",
+        "apps-script/production/027_inventory_checkout-transaction.gs",
+        "apps-script/production/028_inventory_barber-consumption.gs"
+      ],
+      "confidence": "مقارنة ملف JavaScript المسحوب من الموقع مع المصدر، وإثبات الأثر بدالة التقرير الحقيقية على بيانات وهمية."
+    },
+    {
+      "id": "QA-04",
+      "priority": "P1",
+      "kind": "إعداد تشغيلي",
+      "title": "ربط الحضور بالحجوزات غير مفعّل حاليًا",
+      "evidence": "داخل إعدادات الحجوزات ظهر «الربط غير مفعّل» و«ربط الحضور: معطّل»؛ واجهتا الحجز الداخلي والخارجي تعرضان مواعيد في الوضع الحالي.",
+      "impact": "وجود كود الربط واختباراته لا يضمن تطبيق سيناريو عدم الإتاحة قبل الحضور وأثناء البريك وبعد الانصراف على التشغيل الحالي.",
+      "fix": "مراجعة الشفتات والسياسات وبيانات الفروع أولًا، ثم تفعيل الربط بقرار المالك واختبار دورة حضور وبريك وانصراف كاملة على بيئة تجريبية. لا يتم تبديل الإعداد تلقائيًا في هذه المراجعة.",
+      "cases": [
+        "live-booking-settings"
+      ],
+      "sources": [
+        "public/assets/js/pages/booking-settings.js",
+        "apps-script/production/089_availability_action-router.gs"
+      ],
+      "confidence": "إعداد فعلي ظاهر في واجهة المالك؛ ليس ادعاءً بأن الحسابات المعزولة لمحرك الإتاحة فشلت."
+    },
+    {
+      "id": "QA-05",
+      "priority": "P2",
+      "kind": "أداء",
+      "title": "هدف ست ثوانٍ لم يتحقق لكل الأوامر",
+      "evidence": "الحضور 8.6 ثانية، قراءة مواعيد الموظف 8.6 ثانية، وتجهيز نموذج الحجز 6.9 ثانية. في الداشبورد وصلت عينة طلب إلى 15.4 ثانية منها نحو 9.9 ثانية انتظار في طابور المتصفح.",
+      "impact": "زمن انتظار ملحوظ، خصوصًا في الصفحات التي تبدأ عدة طلبات في نفس الوقت.",
+      "fix": "دمج الطلبات المتشابهة وتأجيل التحليلات غير المعروضة، وقياس مراحل Apps Script لتقليل القراءات المتكررة. لا تُستبدل المواعيد الحية بكاش قديم لمجرد تحسين الرقم.",
+      "cases": [
+        "live-performance-samples"
+      ],
+      "sources": [
+        "public/assets/js/core/api.js",
+        "public/assets/js/pages/dashboard.js",
+        "public/assets/js/pages/bookings.js",
+        "public/assets/js/pages/attendance.js"
+      ],
+      "confidence": "عينات فعلية لاختبار مستخدم واحد مع وجود تبويب عمل آخر؛ ليست اختبار ضغط أو ضمان حد أقصى."
+    },
+    {
+      "id": "QA-06",
+      "priority": "P2",
+      "kind": "سلامة النصوص في الشيت",
+      "title": "النص الذي يبدأ بعلامة = يصل إلى appendRow دون تحييد",
+      "evidence": "اسم العميل الوهمي =1+1 وصل كما هو إلى كاتب الصف. توثيق Google يوضح أن appendRow يفسّر الخلية التي يبدأ محتواها بـ= كصيغة.",
+      "impact": "قد يُفسّر إدخال نصي على أنه صيغة بدل اسم أو ملاحظة. لم تُنفّذ صيغة على الشيت الحقيقي ولم يُجرَ اختبار تسريب بيانات.",
+      "fix": "تحييد صيغ الشيت في الحقول النصية فقط أو استخدام كتابة نصية RAW مناسبة، مع ترك القيم المالية والتواريخ بقواعد تحقق منفصلة.",
+      "cases": [
+        "TEXT-01"
+      ],
+      "sources": [
+        "apps-script/production/043_invoices_mutations.gs"
+      ],
+      "confidence": "مرور النص مثبت محليًا؛ تفسير Sheets مستند إلى التوثيق الرسمي، وليس تنفيذًا حيًا.",
+      "reference": "https://developers.google.com/apps-script/reference/spreadsheet/sheet#appendRow(Object)"
+    }
+  ],
+  "limits": [
+    "المعاملات الحقيقية لم تُنشأ أو تُعدّل أو تُحذف: لا بيع أو صرف أو سحب أو تقفيل أو حركة مخزون أو تسجيل حضور أو اعتماد إضافي أو حجز أو تغيير صلاحيات.",
+    "عمليات الكتابة اختُبرت في ذاكرة معزولة مع شيتات وهمية. لم تُنفّذ دورة كتابة كاملة على شيت تجريبي مستقل، ولم يُجرَ تدقيق حسابي لكل السجلات التاريخية الحقيقية.",
+    "فحص الأدوار المختلفة والتزامن وإعادة المحاولة اعتمد على الاختبارات المعزولة؛ الجلسة الحية كانت للمالك، مع تجربة وصول غير مسجل. لم تُنشأ حسابات اختبار أو تُنسخ جلسات دخول.",
+    "المقاس الحي المتاح كان 777–792 بكسل بعرض المحتوى، وبدون تجاوز أفقي مرصود. مقاسات الهاتف الصغيرة والشاشات الكبيرة لم تُفحص بصريًا فعليًا في هذه الجولة؛ فُحصت قواعد الاستجابة الموجودة فقط.",
+    "لم يُجرَ اختبار ضغط على الإنتاج أو اختبار استعادة نسخة احتياطية أو طباعة فعلية أو إنشاء PDF/ملفات Drive أو إرسال رسائل حقيقية. هذه ليست شهادة اختراق شاملة أو ضمانًا خلو كل السيناريوهات من العيوب.",
+    "نجاح الاختبارات القديمة لا يعني تغطية كل سلوك منشور: توجد اختبارات على وحدات تاريخية وتجريبية أيضًا، وقد أثبتت الحالات السلبية الجديدة وجود فجوات."
+  ]
+}
