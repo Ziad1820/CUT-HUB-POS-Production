@@ -61,11 +61,11 @@ function invoiceFixture(failPdf=false){
  return {c,rows,pdfs:()=>pdfs,stock:()=>stock};
 }
 test("production invoice save is exactly once for a repeated request and preserves paid/tip amounts",()=>{
- const h=invoiceFixture(),payload={total:117,paidAmount:120,tipAmount:3,idempotencyKey:"FIXTURE-1"};
+ const h=invoiceFixture(),payload={payment:"cash",total:117,paidAmount:120,tipAmount:3,idempotencyKey:"FIXTURE-1"};
  const first=h.c.createInvoice(payload),second=h.c.createInvoice(payload);
  assert.equal(first.status,"success");assert.equal(second.invoiceId,first.invoiceId);assert.equal(second.duplicate,true);assert.equal(h.rows.length,2);assert.equal(h.pdfs(),0);assert.equal(h.stock(),1);assert.equal(h.rows[1][5],117);assert.equal(h.rows[1][6],120);assert.equal(h.rows[1][7],3);
 });
 test("production checkout saves without calling Drive even when PDF conversion is unavailable",()=>{
- const h=invoiceFixture(true),result=h.c.createInvoice({total:117,idempotencyKey:"FIXTURE-2"});
+ const h=invoiceFixture(true),result=h.c.createInvoice({payment:"cash",total:117,idempotencyKey:"FIXTURE-2"});
  assert.equal(result.status,"success");assert.equal(result.pdfPending,true);assert.equal(h.rows.length,2);assert.equal(h.stock(),1);assert.equal(h.pdfs(),0);
 });

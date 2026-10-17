@@ -1,3 +1,4 @@
+    let pendingFinanceDraft = null;
     const STAFF_SOURCE_KEY = "romeo-pos-staff-accounting-v2";
     RomeoAuth.requireAuth("view_withdrawals");
 
@@ -432,13 +433,19 @@
         alert(localizeText("اختر الموظف وأدخل مبلغ سحب صحيحًا.", "Choose a staff member and enter a valid amount."));
         return;
       }
-      const withdrawal = { id: Date.now(), staffId: staff.id, staffName: staff.name, staffCode: staff.code,
+      const withdrawal = { id: "", staffId: staff.id, staffName: staff.name, staffCode: staff.code,
         amount, date: elements.withdrawDate.value || RomeoDateRange.today(), note: elements.withdrawNote.value.trim() };
+      const draftFingerprint = JSON.stringify(withdrawal);
+      if (!pendingFinanceDraft || pendingFinanceDraft.fingerprint !== draftFingerprint) {
+        pendingFinanceDraft = { fingerprint: draftFingerprint, id: globalThis.crypto?.randomUUID?.() || `finance-${Date.now()}-${Math.random().toString(36).slice(2)}` };
+      }
+      withdrawal.id = pendingFinanceDraft.id;
       withdrawalWriteActive = true;
       updateWithdrawalControls();
       saveBtn.textContent = localizeText("جاري الحفظ...", "Saving...");
       try {
         await saveWithdrawalToSheet(withdrawal);
+        pendingFinanceDraft = null;
         clearForm();
         staffFresh = false;
         await loadWithdrawalsFromSheet({ fresh: true });

@@ -4,9 +4,9 @@ Generated locally by `scripts/generate-release-manifest.js`. Do not hand-edit. T
 
 ## Counts
 
-- Required tracked files: **412**
+- Required tracked files: **414**
 - Required untracked files: **0**
-- Total classified entries: **442**
+- Total classified entries: **444**
 
 ## Intended Apps Script application package
 
@@ -312,6 +312,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `docs/release/staging-schema-migration-execution-runbook.md` | tracked | Cross-phase/local | operational runbook | yes | no | — | Release evidence; not runtime-loaded | — | Required pre-Staging operational control document. |
 | `docs/release/staging-script-property-plan.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/release/staging-test-account-matrix.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
+| `docs/reports/system-audit-remediation-2026-10-17.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/schedule-copy-performance-fix.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/schedule-page-performance.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
 | `docs/schedule-performance-fix.md` | tracked | Cross-phase/local | documentation | yes | no | — | Release evidence; not runtime-loaded | — | Phase specification and operational reference; documentation-only and not runtime-loaded. |
@@ -456,6 +457,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `tests/daily-closing-performance.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/dashboard-analysis-loading.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/expenses-performance.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
+| `tests/financial-audit-remediation.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/fixtures/auth01-v25-browser-smoke-harness.js` | tracked | Authentication & navigation | test | yes | no | — | Local validation only | tests/auth-navigation.test.js<br>tests/auth01-local-implementation.test.js | Release-blocking local regression or safety evidence. |
 | `tests/frontend-api-configuration.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/frontend-relay-queue.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |

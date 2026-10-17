@@ -48,3 +48,10 @@ test('page read uses minimal active staff, unchanged withdrawal rows and no payr
 test('forged permissions or missing server context cannot authorize the page or cashier projection',()=>{
  const h=backend(),data={fromDate:'2026-10-01',toDate:'2026-10-31',permissions:['view_withdrawals']};assert.equal(h.c.getWithdrawalsPage(data,null).code,'PERMISSION_DENIED');assert.equal(h.c.getWithdrawalsPage(data,{user:{username:'reader'},permissions:[]}).code,'PERMISSION_DENIED');assert.equal(h.c.getStaff({staffView:'cashier'},{user:{username:'reader'},permissions:['view_withdrawals']}).code,'PERMISSION_DENIED');assert.match(read('apps-script/production/002_core_http-router.gs'),/getWithdrawalsPage\(data, authenticatedRequestContext\)/);
 });
+
+test('withdrawal manual retry keeps the operation ID until a confirmed success',async()=>{
+ const writes=[];const c=ui(async p=>{if(p.action==='withdrawal'){writes.push(p);if(writes.length===1)throw Error('lost response');return {status:'success'};}return page();});
+ await c.loadWithdrawalsFromSheet();c.elements.withdrawAmount.value='75';await c.addWithdrawal();await c.addWithdrawal();
+ assert.equal(writes.length,2);assert.equal(writes[0].withdrawalId,writes[1].withdrawalId);
+ c.elements.withdrawAmount.value='75';await c.addWithdrawal();assert.notEqual(writes[1].withdrawalId,writes[2].withdrawalId);
+});

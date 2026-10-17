@@ -1,6 +1,8 @@
 function createInvoice(data) {
   const permissionError = requirePermission(data, "access_cashier", "You do not have permission to create invoices.");
   if (permissionError) return permissionError;
+  const financeError = validateInvoiceFinance(data);
+  if (financeError) return jsonOutput(financeError);
   const lock = LockService.getScriptLock();
   let sheet = null;
   let invoiceRowNumber = 0;
@@ -49,7 +51,7 @@ function createInvoice(data) {
       data.customerPhone || "",
       data.services || "",
       pdfUrl,
-      data.total || 0,
+      financialNumber(data.total),
       paymentDetails.paidAmount,
       paymentDetails.tipAmount,
       data.payment || data.paymentMethod || "",
@@ -124,6 +126,8 @@ function updateInvoice(data) {
   try {
     const permissionError = requirePermission(data, "view_invoices", "You do not have permission to edit invoices.");
     if (permissionError) return permissionError;
+    const financeError = validateInvoiceFinance(data);
+    if (financeError) return jsonOutput(financeError);
 
     lock.waitLock(30000); held = true;
 
@@ -173,14 +177,14 @@ function updateInvoice(data) {
       data.customerPhone || "",
       data.services || "",
       invoiceRequestId ? "" : (data.pdfUrl || currentRow[4] || ""),
-      data.total || 0,
-      data.paidAmount || currentRow[6] || data.total || 0,
-      data.tipAmount || currentRow[7] || 0,
+      financialNumber(data.total),
+      financialNumber(data.paidAmount ?? data.paid ?? data.total),
+      financialNumber(data.tipAmount ?? data.tip ?? 0),
       data.payment || data.paymentMethod || "",
       data.barber || "",
       data.note || data.invoiceNote || "",
-      parseSheetAmount(data.discountPercent || currentRow[11] || 0),
-      parseSheetAmount(data.discountAmount || currentRow[12] || 0)
+      financialNumber(data.discountPercent ?? 0),
+      financialNumber(data.discountAmount ?? 0)
     ];
 
     sheet.getRange(targetRowNumber, 1, 1, 13).setValues([updatedRow]);

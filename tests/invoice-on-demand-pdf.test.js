@@ -52,7 +52,7 @@ test("editing a modern invoice clears its old PDF and holds the same publication
  c.getDateKey=value=>String(value).slice(0,10);c.TIME_ZONE="Africa/Cairo";c.getLockedDateError=()=>"";c.parseSheetAmount=value=>Number(value)||0;c.logActivity=()=>{};
  c.SpreadsheetApp={getActive:()=>({getSheetByName:()=>({getLastRow:()=>2,getRange:(r,col,n=1,width=1)=>({getValue:()=>h.row[col-1],getValues:()=>[h.row.slice(col-1,col-1+width)],setValues:values=>{assert.equal(h.held(),true);h.row.splice(0,13,...values[0]);}})})})};
  vm.runInContext(fs.readFileSync('apps-script/production/043_invoices_mutations.gs','utf8'),c);
- const result=c.updateInvoice({rowNumber:2,invoiceId:'DATA-2',date:'2026-10-13',total:200});assert.equal(result.status,'success');assert.equal(result.invoice.invoiceRequestId,'R1');assert.equal(h.row[4],'');assert.equal(h.row[13],'R1');assert.equal(h.held(),false);
+ const result=c.updateInvoice({payment:'cash',rowNumber:2,invoiceId:'DATA-2',date:'2026-10-13',total:200});assert.equal(result.status,'success');assert.equal(result.invoice.invoiceRequestId,'R1');assert.equal(h.row[4],'');assert.equal(h.row[13],'R1');assert.equal(h.held(),false);
 });
 function uiFixture(request){
  let click,link,error;const button={disabled:false,textContent:'تجهيز PDF',dataset:{invoicePdf:'R1'},nextElementSibling:null,replaceWith:value=>{link=value;},after:value=>{error=value;}};

@@ -1,36 +1,7 @@
 function createExpense(data) {
   const permissionError = requirePermission(data, "view_expenses", "You do not have permission to add expenses.");
   if (permissionError) return permissionError;
-
-  const sheet = SpreadsheetApp.getActive().getSheetByName("EXPENSES");
-  if (!sheet) {
-    return jsonOutput({ status: "error", message: "Sheet EXPENSES not found" });
-  }
-
-  const expenseDate = data.date || getCairoDateKey();
-  const lockedError = getLockedDateError(expenseDate, "Expense");
-  if (lockedError) {
-    return jsonOutput({ status: "error", message: lockedError, locked: true });
-  }
-
-  sheet.appendRow([
-    data.category || "",
-    data.amount || 0,
-    data.title || "",
-    data.note || "",
-    expenseDate,
-    data.expenseId || ""
-  ]);
-
-  logActivity(
-    data,
-    "create",
-    "expense",
-    data.expenseId || "",
-    `Created expense | Category: ${data.category || "-"} | Title: ${data.title || "-"} | Amount: ${data.amount || 0}`
-  );
-
-  return jsonOutput({ status: "success" });
+  return appendFinanceOnce(data, "EXPENSES", [data.category || "", data.amount, data.title || "", data.note || "", data.date || getCairoDateKey(), String(data.expenseId || "").trim()], "Expense");
 }
 
 function getExpenses(data) {

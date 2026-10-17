@@ -64,3 +64,10 @@ test('repeated Cairo hour and normalized midnight preserve legacy date membershi
  assert.deepEqual(JSON.parse(JSON.stringify(next.c.getExpenses(range))),JSON.parse(JSON.stringify(old.c.getExpenses(range))));assert.equal(next.c.getExpenses(range).expenses.length,2);
  next.c.Utilities.parseDate=()=>new Date('2026-04-23T21:00:00Z');assert.deepEqual(JSON.parse(JSON.stringify(next.c.getExpenses(range))),JSON.parse(JSON.stringify(old.c.getExpenses(range))));
 });
+
+test('expense manual retry keeps the operation ID until a confirmed success',async()=>{
+ const writes=[];const c=ui(async p=>{if(p.action==='expense'){writes.push(p);if(writes.length===1)throw Error('lost response');return {status:'success'};}return page();});
+ await c.loadExpensesFromSheet();c.elements.expenseAmount.value='75';await c.addExpenseLocalized();await c.addExpenseLocalized();
+ assert.equal(writes.length,2);assert.equal(writes[0].expenseId,writes[1].expenseId);
+ c.elements.expenseAmount.value='75';await c.addExpenseLocalized();assert.notEqual(writes[1].expenseId,writes[2].expenseId);
+});

@@ -1,35 +1,7 @@
 function createWithdrawal(data) {
   const permissionError = requirePermission(data, "view_withdrawals", "You do not have permission to add withdrawals.");
   if (permissionError) return permissionError;
-
-  const sheet = SpreadsheetApp.getActive().getSheetByName("WITHDRAWLS");
-  if (!sheet) {
-    return jsonOutput({ status: "error", message: "Sheet WITHDRAWLS not found" });
-  }
-
-  const withdrawalDate = data.date || getCairoDateKey();
-  const lockedError = getLockedDateError(withdrawalDate, "Withdrawal");
-  if (lockedError) {
-    return jsonOutput({ status: "error", message: lockedError, locked: true });
-  }
-
-  sheet.appendRow([
-    data.staffName || "",
-    data.amount || 0,
-    data.note || "",
-    withdrawalDate,
-    data.withdrawalId || ""
-  ]);
-
-  logActivity(
-    data,
-    "create",
-    "withdrawal",
-    data.withdrawalId || "",
-    `Created withdrawal | Staff: ${data.staffName || "-"} | Amount: ${data.amount || 0} | Note: ${data.note || "-"}`
-  );
-
-  return jsonOutput({ status: "success" });
+  return appendFinanceOnce(data, "WITHDRAWLS", [data.staffName || "", data.amount, data.note || "", data.date || getCairoDateKey(), String(data.withdrawalId || "").trim()], "Withdrawal");
 }
 
 function getWithdrawals(data) {

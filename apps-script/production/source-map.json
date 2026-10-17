@@ -237,22 +237,28 @@
           "path": "042_invoices_schema.gs",
           "sha256": "51b0382abc7deed1076a725f2916b670201f353c87bee47163d9a1e8224a5365",
           "baselineSourcePath": "baseline/042_invoices_schema.js",
-          "currentSha256": "8a8fef68d10ac0786578a0f97f30d5d98f02042d76492ad5e87e10808be8252b",
+          "currentSha256": "5798046c1bbfecda47c2ab4b041958df9c7ab4c6286193b4359281e1ccd34677",
           "changedGlobals": [
-            "findInvoiceByRequestId"
+            "findInvoiceByRequestId",
+            "getInvoicePaymentDetails"
           ],
-          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
+          "changeReason": "Financial input validation and durable expense-withdrawal idempotency",
+          "addedGlobals": [
+            "financialNumber",
+            "validateInvoiceFinance",
+            "appendFinanceOnce"
+          ]
         },
         {
           "path": "043_invoices_mutations.gs",
           "sha256": "c30d36eafd0c020bc09fd25ec9cf937443617f38ab7bd2fdcf4da7631812a851",
           "baselineSourcePath": "baseline/043_invoices_mutations.js",
-          "currentSha256": "910eca33dcdb2aa80ef6fab1697ad4e7aa2a72f2b35f36fc3845670220688ff0",
+          "currentSha256": "297b3a17f242dd084cc6f24075c9a400b4be92c9f6a9f8593d68d93c7f0ad690",
           "changedGlobals": [
             "createInvoice",
             "updateInvoice"
           ],
-          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
+          "changeReason": "Financial input validation and durable expense-withdrawal idempotency"
         },
         {
           "path": "044_invoices_queries.gs",
@@ -283,22 +289,25 @@
           "path": "046_accounting_withdrawals.gs",
           "sha256": "2d1e0d931f3d1307e7f63bed2e3f5e337c99a175621b7f275ab6a864ae2ef54c",
           "baselineSourcePath": "baseline/046_accounting_withdrawals.js",
-          "currentSha256": "d9521287dfb01dfe58845be13a6264ab40db872cf44c532999ff7bf0220b4a50",
-          "changedGlobals": [],
+          "currentSha256": "bd438f49618a0f50e6ef1b8ee5fb8c1b261e18cafd99429d3dec31f49223b97d",
+          "changedGlobals": [
+            "createWithdrawal"
+          ],
           "addedGlobals": [
             "getWithdrawalsPage"
           ],
-          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
+          "changeReason": "Financial input validation and durable expense-withdrawal idempotency"
         },
         {
           "path": "047_accounting_expenses.gs",
           "sha256": "79713c0a2324e5d687f28cd2aa7d11061ef63087af889943fe710229359ebc9d",
           "baselineSourcePath": "baseline/047_accounting_expenses.js",
-          "currentSha256": "7c7f768cd88e9a89920a52a0060423ef4b235303a51fc1c8a1dcf31235d0b317",
+          "currentSha256": "4372e1418a4e357e95ba2b33af3215ac14d0d0a1bc5cf0dd5a89d12a1ad75693",
           "changedGlobals": [
-            "getExpenses"
+            "getExpenses",
+            "createExpense"
           ],
-          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
+          "changeReason": "Financial input validation and durable expense-withdrawal idempotency"
         },
         {
           "path": "048_invoices_pdf.gs",

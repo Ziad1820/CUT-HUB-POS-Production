@@ -1,3 +1,4 @@
+    let pendingFinanceDraft = null;
     const EXPENSE_CATEGORIES = [
       { id: "supplies", name: "Supplies", arName: "مستلزمات", code: "SUP" },
       { id: "utilities", name: "Utilities", arName: "مرافق", code: "UTL" },
@@ -468,12 +469,18 @@
         alert(localizeText("اختار تصنيف ومبلغ مصروف صحيحين.", "Choose a valid category and expense amount."));
         return;
       }
-      const expense = { id: Date.now(), categoryId, amount,
+      const expense = { id: "", categoryId, amount,
         date: elements.expenseDate.value || RomeoDateRange.today(),
         title: elements.expenseTitle.value.trim(), note: elements.expenseNote.value.trim() };
+      const draftFingerprint = JSON.stringify(expense);
+      if (!pendingFinanceDraft || pendingFinanceDraft.fingerprint !== draftFingerprint) {
+        pendingFinanceDraft = { fingerprint: draftFingerprint, id: globalThis.crypto?.randomUUID?.() || `finance-${Date.now()}-${Math.random().toString(36).slice(2)}` };
+      }
+      expense.id = pendingFinanceDraft.id;
       await runExpenseWrite(async () => {
         saveBtn.textContent = localizeText("جاري الحفظ...", "Saving...");
         await saveExpenseToSheet(expense);
+        pendingFinanceDraft = null;
         selectedCategoryId = categoryId;
         clearForm();
       });

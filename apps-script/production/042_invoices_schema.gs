@@ -89,15 +89,95 @@ function findInvoiceByRequestId(sheet, requestId, requestIdColumn) {
 }
 
 function getInvoicePaymentDetails(data) {
-  const total = parseSheetAmount(data.total);
-  const paidAmount = parseSheetAmount(data.paidAmount || data.paid || total);
-  const tipAmount = parseSheetAmount(data.tipAmount || data.tip || 0);
-  const finalPaidAmount = paidAmount > 0 ? paidAmount : total;
-
   return {
-    paidAmount: finalPaidAmount,
-    tipAmount: Math.max(0, tipAmount)
+    paidAmount: financialNumber(data.paidAmount ?? data.paid ?? data.total),
+    tipAmount: financialNumber(data.tipAmount ?? data.tip ?? 0)
   };
+}
+
+// Validate wire values before tolerant spreadsheet parsers can coerce invalid input to zero.
+function financialNumber(value) {
+  if (typeof value !== "number" && typeof value !== "string") return NaN;
+  if (typeof value === "string" && !/^\d+(?:\.\d+)?$/.test(value.trim())) return NaN;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 && number <= Number.MAX_SAFE_INTEGER / 100 ? number : NaN;
+}
+
+function validateInvoiceFinance(data) {
+  for (const key of ["total", "paidAmount", "paid", "tipAmount", "tip", "discountPercent", "discountAmount"]) {
+    if (data[key] !== undefined && !Number.isFinite(financialNumber(data[key]))) {
+      return { status: "error", success: false, code: "INVALID_FINANCIAL_VALUE", message: "قيمة مالية غير صحيحة: " + key };
+    }
+  }
+  const fields = { total: data.total, paidAmount: data.paidAmount ?? data.paid ?? data.total,
+    tipAmount: data.tipAmount ?? data.tip ?? 0, discountPercent: data.discountPercent ?? 0,
+    discountAmount: data.discountAmount ?? 0 };
+  for (const key of Object.keys(fields)) {
+    if (!Number.isFinite(financialNumber(fields[key]))) return { status: "error", success: false,
+      code: "INVALID_FINANCIAL_VALUE", message: "قيمة مالية غير صحيحة: " + key };
+  }
+  const total = financialNumber(fields.total), paid = financialNumber(fields.paidAmount), tip = financialNumber(fields.tipAmount);
+  if (Number(fields.discountPercent) > 100 || paid + 0.01 < total + tip) {
+    return { status: "error", success: false, code: "INVALID_INVOICE_AMOUNTS", message: "راجع الخصم والمبلغ المدفوع والبقشيش." };
+  }
+  if (data.subtotalBeforePremium !== undefined || data.premiumExtra !== undefined) {
+    const subtotal = financialNumber(data.subtotalBeforePremium ?? 0), premium = financialNumber(data.premiumExtra ?? 0);
+    const gross = subtotal + premium, discount = Number(fields.discountAmount);
+    if (!Number.isFinite(gross) || discount > gross || Math.abs(total - (gross - discount)) > 0.01 ||
+        Math.abs(discount - Math.round(gross * Number(fields.discountPercent) / 100)) > 0.01) {
+      return { status: "error", success: false, code: "INVOICE_TOTAL_MISMATCH", message: "إجمالي الفاتورة والخصم غير متطابقين." };
+    }
+  }
+  const payment = String(data.payment || data.paymentMethod || "").trim().toLowerCase().replace(/\s+/g, " ");
+  const allowed = ["cash", "visa", "instapay", "insta pay", "vodafone_cash", "vodafone cash",
+    "نقدي", "نقدى", "كاش", "فيزا", "انستا باي", "انستاباي", "إنستا باي", "فودافون كاش"];
+  if (allowed.indexOf(payment) === -1) return { status: "error", success: false,
+    code: "INVALID_PAYMENT_METHOD", message: "اختار طريقة دفع صحيحة." };
+  return null;
+}
+
+// The existing business ID column is the durable receipt. Hold the script lock across lookup and append.
+function appendFinanceOnce(data, sheetName, row, label) {
+  const id = row[row.length - 1];
+  if (!id || String(id).length > 200) return jsonOutput({ status: "error", code: "INVALID_OPERATION_ID", message: "رقم العملية مطلوب." });
+  if (!Number.isFinite(financialNumber(row[1])) || financialNumber(row[1]) <= 0) {
+    return jsonOutput({ status: "error", code: "INVALID_FINANCIAL_VALUE", message: "المبلغ لازم يكون رقم أكبر من صفر." });
+  }
+  row[1] = financialNumber(row[1]);
+  const lock = LockService.getScriptLock();
+  let held = false;
+  try {
+    lock.waitLock(30000); held = true;
+    const sheet = SpreadsheetApp.getActive().getSheetByName(sheetName);
+    if (!sheet) return jsonOutput({ status: "error", message: "Sheet " + sheetName + " not found" });
+    const lastRow = sheet.getLastRow();
+    const rows = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, row.length).getValues() : [];
+    for (let index = rows.length - 1; index >= 0; index -= 1) {
+      const previous = rows[index];
+      if (String(previous[row.length - 1]) !== String(id)) continue;
+      const equal = row.every((value, column) => {
+        if (column === 1) return Number(previous[column]) === value;
+        if (column === row.length - 2 && previous[column] instanceof Date) {
+          return getDateKey(previous[column], TIME_ZONE) === String(value).slice(0, 10);
+        }
+        return String(previous[column] ?? "") === String(value ?? "");
+      });
+      return jsonOutput(equal ? { status: "success", duplicate: true, operationId: String(id) }
+        : { status: "error", code: "OPERATION_ID_CONFLICT", message: "رقم العملية مستخدم ببيانات مختلفة. راجع السجل." });
+    }
+    const lockedError = getLockedDateError(row[row.length - 2], label);
+    if (lockedError) return jsonOutput({ status: "error", message: lockedError, locked: true });
+    sheet.appendRow(row);
+    // Do not turn a committed financial write into a retryable failure if secondary logging fails.
+    let auditPending = false;
+    try { logActivity(data, "create", label.toLowerCase(), String(id), "Created " + label + " | Amount: " + row[1]); }
+    catch (_) { auditPending = true; }
+    return jsonOutput({ status: "success", operationId: String(id), auditPending });
+  } catch (_) {
+    return jsonOutput({ status: "error", code: "FINANCE_SAVE_UNCONFIRMED", message: "لم يتأكد الحفظ. أعد المحاولة بنفس رقم العملية." });
+  } finally {
+    if (held) { try { lock.releaseLock(); } catch (_) {} }
+  }
 }
 
 function invoiceRowAuditSnapshot(row) {
