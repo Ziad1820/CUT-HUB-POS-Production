@@ -19,6 +19,27 @@
     ratingFrom: $("ratingFromDate"), ratingTo: $("ratingToDate"),
     barberSummaries: $("barberRatingSummaries"), ratingsList: $("ratingsList")
   };
+  const pendingReads = new Map();
+  function readBooking(payload) {
+    const key = JSON.stringify(payload);
+    if (pendingReads.has(key)) return pendingReads.get(key);
+    const started = Date.now();
+    const pending = Promise.resolve().then(() => RomeoApi.request(payload));
+    pendingReads.set(key, pending);
+    const finish = () => {
+      if (pendingReads.get(key) === pending) pendingReads.delete(key);
+      if (new URLSearchParams(window.location.search).get("performance") === "1") {
+        console.info("[BOOKINGS_PERF] " + JSON.stringify({ action: payload.action, catalogOnly: payload.catalogOnly === true, durationMs: Date.now() - started }));
+      }
+    };
+    pending.then(finish, finish);
+    return pending;
+  }
+  function invalidateBookingReads() {
+    pendingReads.clear();
+    state.bookingRequestSequence += 1;
+    state.ratingsRequestSequence += 1;
+  }
   const user = RomeoAuth.getCurrentUser();
   const can = (permission) => RomeoAuth.isOwnerUser(user) || RomeoAuth.hasPermission(permission);
   const state = {
@@ -28,7 +49,8 @@
     pendingCreateRequest: null, availabilityToken: "", availabilityPollTimer: null,
     availabilityPollDelay: 10000, availabilityRequestSequence: 0,
     liveRefreshEnabled: false, pendingMutationRequests: new Map(),
-    bookingRequestSequence: 0, bookingReloadQueued: false
+    bookingRequestSequence: 0, bookingReloadQueued: false, bookingPendingKey: null,
+    ratingsRequestSequence: 0, optionsRequestSequence: 0
   };
   const text = (ar, en) => document.documentElement.lang === "en" ? en : ar;
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -128,29 +150,33 @@
 
   async function fetchBookings({ silent = false } = {}) {
     const requestedDate = elements.filterDate.value;
-    const requestedStatus = elements.status.value;
+    const pendingKey = JSON.stringify([requestedDate]);
+    if (state.busy && state.bookingPendingKey === pendingKey) return;
     const requestSequence = ++state.bookingRequestSequence;
     if (state.busy || state.modalOpen) {
       state.bookingReloadQueued = true;
       return;
     }
     state.busy = true;
+    state.bookingPendingKey = pendingKey;
     if (!silent) elements.list.innerHTML = `<div class="empty-state"><span class="spinner"></span> ${text("جاري تحميل الحجوزات...", "Loading bookings...")}</div>`;
     try {
-      const response = await RomeoApi.request({
+      const response = await readBooking({
         action: "getBookings",
-        filters: { date: requestedDate, status: requestedStatus }
+        filters: { date: requestedDate }
       });
       if (response?.status !== "success") throw new Error(response?.message || text("تعذر تحميل الحجوزات.", "Could not load bookings."));
       if (requestSequence !== state.bookingRequestSequence ||
-          elements.filterDate.value !== requestedDate || elements.status.value !== requestedStatus) return;
+          elements.filterDate.value !== requestedDate) return;
       state.bookings = (response.bookings || []).map(normalizeBooking);
       render();
     } catch (error) {
+      if (requestSequence !== state.bookingRequestSequence) return;
       if (!silent) elements.list.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
       notify(error.message, "error");
     } finally {
       state.busy = false;
+      state.bookingPendingKey = null;
       if (state.bookingReloadQueued || requestSequence !== state.bookingRequestSequence) {
         state.bookingReloadQueued = false;
         setTimeout(() => fetchBookings({ silent: true }), 0);
@@ -160,6 +186,7 @@
 
   function localSearchMatch(booking) {
     const query = elements.search.value.trim().toLowerCase();
+    if (elements.status.value && booking.status !== elements.status.value) return false;
     return !query || `${booking.customerName} ${booking.customerPhone} ${booking.employee} ${booking.service} ${booking.note || ""} ${booking.trackingToken || ""}`.toLowerCase().includes(query);
   }
 
@@ -233,7 +260,7 @@
     elements.list.classList.toggle("hidden", state.activeSource === "ratings");
     document.querySelector(".booking-filters").classList.toggle("hidden", state.activeSource === "ratings");
     if (state.activeSource === "ratings") {
-      if (can("view_ratings")) fetchRatings();
+      if (can("view_ratings")) renderRatings();
       else elements.ratingsDashboard.innerHTML = `<div class="empty-state">${text("لا تملك صلاحية عرض التقييمات.", "You do not have permission to view ratings.")}</div>`;
       return;
     }
@@ -271,7 +298,8 @@
     }).join("");
   }
 
-  async function loadServiceOptions() {
+  async function loadServiceOptions(preloaded) {
+    const optionsSequence = ++state.optionsRequestSequence;
     const branchId = elements.branch.value;
     if (!branchId) {
       elements.employee.innerHTML = `<option value="">${text("اختر الفرع أولاً", "Choose a branch first")}</option>`;
@@ -280,11 +308,12 @@
       elements.slotStatus.textContent = text("اختر الفرع أولاً.", "Choose a branch first.");
       return;
     }
-    const response = await RomeoApi.request({
-      action: "getInternalBookingOptions", branchId, date: elements.date.value
+    const response = preloaded?.catalogOnly === true ? preloaded : await readBooking({
+      action: "getInternalBookingOptions", branchId, catalogOnly: true, date: elements.date.value
     });
     if (response?.status !== "success") throw new Error(response?.message || "Could not load services.");
     if (elements.branch.value !== branchId) return;
+    if (optionsSequence !== state.optionsRequestSequence) return;
     state.services = response.services || [];
     state.barbers = response.barbers || [];
     elements.employee.disabled = false;
@@ -295,12 +324,13 @@
   }
 
   async function loadBranchOptions() {
-    const response = await RomeoApi.request({ action: "listBookingBranches" });
+    const response = await readBooking({ action: "getInternalBookingOptions", catalogOnly: true, includeBranches: true, date: elements.date.value });
     if (response?.status !== "success") throw new Error(response?.message || text("تعذر تحميل الفروع.", "Could not load branches."));
     const branches = (response.branches || []).filter((branch) => branch.active !== false);
     elements.branch.innerHTML = `<option value="">${text("اختر الفرع", "Choose branch")}</option>` +
       branches.map((branch) => `<option value="${escapeHtml(branch.branchId)}">${escapeHtml(branch.branchName || branch.branchId)}</option>`).join("");
     if (branches.length === 1) elements.branch.value = String(branches[0].branchId);
+    return response;
   }
 
   function clearInternalAvailability() {
@@ -343,6 +373,10 @@
   }
 
   async function loadInternalSlots({ silent = false } = {}) {
+    const requestSequence = ++state.availabilityRequestSequence;
+    clearTimeout(state.availabilityPollTimer);
+    if (!silent) { state.availabilityToken = ""; state.liveRefreshEnabled = false; }
+    const selectedTime = elements.time.value;
     const branchId = elements.branch.value;
     const employeeId = elements.employee.value;
     const serviceIds = [...state.selectedServiceIds];
@@ -357,14 +391,15 @@
       elements.slotStatus.textContent = text("اختر الفرع أولاً.", "Choose a branch first.");
       return;
     }
-    if (!elements.date.value || !employeeId || (!state.otherService && !serviceIds.length) || (state.otherService && duration < 15)) {
+    if (!elements.date.value || !employeeId || (!state.otherService && !serviceIds.length) || (state.otherService && (!Number.isFinite(duration) || duration < 15))) {
+      state.availabilityToken = ""; state.liveRefreshEnabled = false;
+      elements.time.disabled = true;
       elements.slotStatus.textContent = text("اختر التاريخ والموظف والخدمات.", "Choose date, employee, and services.");
       return;
     }
-    const requestSequence = ++state.availabilityRequestSequence;
     try {
-      const response = await RomeoApi.request({
-        action: "getInternalBookingOptions", branchId, date: elements.date.value, serviceIds,
+      const response = await readBooking({
+        action: "getInternalBookingOptions", branchId, employeeId, date: elements.date.value, serviceIds,
         durationMinutes: state.otherService ? duration : undefined, ifNoneMatch: silent ? state.availabilityToken : ""
       });
       if (response?.status !== "success") throw new Error(response?.message || "Could not load slots.");
@@ -389,12 +424,14 @@
       elements.time.innerHTML = `<option value="">${slots.length ? text("اختر الموعد", "Choose appointment") : text("لا توجد مواعيد", "No appointments")}</option>` +
         slots.map((time) => `<option value="${escapeHtml(time)}">${escapeHtml(formatTime(time))}</option>`).join("");
       elements.time.disabled = !slots.length;
+      if (silent && slots.includes(selectedTime)) elements.time.value = selectedTime;
       elements.slotStatus.textContent = slots.length ? "" : text("لا توجد مواعيد متاحة للمدة المختارة.", "No available appointments for the selected duration.");
     } catch (error) {
+      if (requestSequence !== state.availabilityRequestSequence) return;
       state.availabilityPollDelay = Math.min(120000, Math.max(10000, state.availabilityPollDelay * 2));
       if (!silent) elements.slotStatus.textContent = error.message;
     } finally {
-      scheduleInternalAvailabilityPoll();
+      if (requestSequence === state.availabilityRequestSequence) scheduleInternalAvailabilityPoll();
     }
   }
 
@@ -417,6 +454,7 @@
 
   async function createBooking(event) {
     event.preventDefault();
+    if (state.busy) return;
     const branchId = elements.branch.value;
     if (!branchId) return notify(text("اختر الفرع أولاً.", "Choose a branch first."), "error");
     const selected = state.services.filter((service) => state.selectedServiceIds.has(String(service.serviceId)));
@@ -426,6 +464,7 @@
     const employeeOption = elements.employee.selectedOptions[0];
     setButtonBusy(elements.save, true);
     state.busy = true;
+    invalidateBookingReads();
     try {
       const response = await RomeoApi.request(attachClientRequestId({
         action: "createBooking", branchId, customerName: elements.customerName.value.trim(),
@@ -439,6 +478,7 @@
         note: elements.note.value.trim(), status: "pending", source: "staff"
       }));
       if (response?.status !== "success") throw new Error(response?.message || text("تعذر حفظ الحجز.", "Could not save booking."));
+      invalidateBookingReads();
       notify(text("تم حفظ الحجز.", "Booking saved."), "success");
       state.pendingCreateRequest = null;
       resetForm();
@@ -460,6 +500,7 @@
   async function updateStatus(booking, status, extra = {}, button) {
     setButtonBusy(button, true);
     state.busy = true;
+    invalidateBookingReads();
     try {
       const requestKey = `update:${booking.id}:${status}:${JSON.stringify(extra)}`;
       if (!state.pendingMutationRequests.has(requestKey)) {
@@ -470,6 +511,7 @@
         clientRequestId: state.pendingMutationRequests.get(requestKey)
       });
       if (response?.status !== "success") throw new Error(response?.message || text("تعذر تحديث الحجز.", "Could not update booking."));
+      invalidateBookingReads();
       notify(text("تم تحديث الحجز.", "Booking updated."), "success");
       state.busy = false;
       await fetchBookings({ silent: true });
@@ -546,6 +588,7 @@
           if (!state.pendingMutationRequests.has(requestKey)) {
             state.pendingMutationRequests.set(requestKey, newClientRequestId());
           }
+          invalidateBookingReads();
           const response = await RomeoApi.request({
             action: "deleteBooking", id: booking.id, reason,
             clientRequestId: state.pendingMutationRequests.get(requestKey)
@@ -601,21 +644,21 @@
   }
 
   async function fetchRatings() {
-    if (!can("view_ratings") || state.busy) return;
-    state.busy = true;
+    if (!can("view_ratings")) return;
+    const sequence = ++state.ratingsRequestSequence;
+    const filters = { employeeId: elements.ratingEmployee.value, status: elements.ratingStatus.value, fromDate: elements.ratingFrom.value, toDate: elements.ratingTo.value, pageSize: 100 };
     elements.ratingsList.innerHTML = `<div class="empty-state">${text("جاري تحميل التقييمات...", "Loading ratings...")}</div>`;
     try {
-      const response = await RomeoApi.request({
-        action: "getRatingsAdmin",
-        filters: { employeeId: elements.ratingEmployee.value, status: elements.ratingStatus.value, fromDate: elements.ratingFrom.value, toDate: elements.ratingTo.value, pageSize: 100 }
-      });
+      const response = await readBooking({ action: "getRatingsAdmin", filters });
+      if (sequence !== state.ratingsRequestSequence) return;
       if (response?.status !== "success") throw new Error(response?.message || "Could not load ratings.");
       state.ratings = response.ratings || []; state.ratingMeta = response;
       elements.ratingsCount.textContent = response.total || 0;
       renderRatings();
     } catch (error) {
+      if (sequence !== state.ratingsRequestSequence) return;
       elements.ratingsList.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
-    } finally { state.busy = false; }
+    }
   }
 
   function renderRatings() {
@@ -646,9 +689,10 @@
     if (!button) return;
     setButtonBusy(button, true);
     const ratingId = button.closest("[data-rating-id]").dataset.ratingId;
+    invalidateBookingReads();
     const response = await RomeoApi.request({ action: "updateRatingStatus", ratingId, ratingStatus: button.dataset.ratingStatus });
     if (response?.status !== "success") notify(response?.message || "Could not update rating.", "error");
-    else { notify(text("تم تحديث حالة التقييم.", "Rating status updated."), "success"); await fetchRatings(); }
+    else { invalidateBookingReads(); notify(text("تم تحديث حالة التقييم.", "Rating status updated."), "success"); await fetchRatings(); }
   });
 
   function updateCountdowns() {
@@ -685,17 +729,19 @@
   elements.employee.addEventListener("change", loadInternalSlots);
   elements.otherDuration.addEventListener("input", () => { clearTimeout(loadInternalSlots.timer); loadInternalSlots.timer = setTimeout(loadInternalSlots, 350); });
   elements.filterDate.addEventListener("change", fetchBookings);
-  elements.status.addEventListener("change", fetchBookings);
+  elements.status.addEventListener("change", render);
   elements.search.addEventListener("input", render);
   elements.list.addEventListener("click", handleAction);
   elements.sourceTabs.addEventListener("click", (event) => {
     const tab = event.target.closest("[data-source]");
     if (!tab) return;
+    const sourceChanged = state.activeSource !== tab.dataset.source;
     state.activeSource = tab.dataset.source;
     elements.sourceTabs.querySelectorAll("[data-source]").forEach((item) => {
       item.classList.toggle("active", item === tab); item.setAttribute("aria-selected", String(item === tab));
     });
     render();
+    if (sourceChanged && state.activeSource === "ratings") fetchRatings();
   });
   [elements.ratingEmployee, elements.ratingStatus, elements.ratingFrom, elements.ratingTo].forEach((control) => control.addEventListener("change", fetchRatings));
   document.addEventListener("keydown", (event) => {
@@ -718,12 +764,12 @@
   elements.date.min = todayKey();
   elements.filterDate.value = todayKey();
   Promise.all([
-    loadBranchOptions().then(loadServiceOptions),
+    can("create_bookings") ? loadBranchOptions().then(loadServiceOptions) : Promise.resolve(),
     fetchBookings()
   ]).catch((error) => notify(error.message, "error"));
   state.countdownTimer = setInterval(updateCountdowns, 1000);
   state.refreshTimer = setInterval(() => {
-    if (!state.modalOpen && !state.busy) {
+    if (!document.hidden && !state.modalOpen && !state.busy) {
       if (state.activeSource === "ratings") fetchRatings();
       else fetchBookings({ silent: true });
     }

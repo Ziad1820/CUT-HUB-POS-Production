@@ -350,7 +350,13 @@
         },
         {
           "path": "056_booking_options.gs",
-          "sha256": "1193e17b3cee6fd0700f132a7b10e1c27664eed26c3449c6ddd911e0f7a82915"
+          "sha256": "1193e17b3cee6fd0700f132a7b10e1c27664eed26c3449c6ddd911e0f7a82915",
+          "baselineSourcePath": "baseline/056_booking_options.js",
+          "currentSha256": "d1638a5c696ca6cdd0e79ff16228ff56c96f417515f6ab3bb0c183ebad226a1b",
+          "changedGlobals": [
+            "getBookingOptionsForAudience"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "057_booking_public-actions.gs",

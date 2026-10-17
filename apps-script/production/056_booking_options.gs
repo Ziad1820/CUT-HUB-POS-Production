@@ -28,6 +28,19 @@ function bookingAvailabilityReadResponseSnapshot(token, context) {
 function getBookingOptionsForAudience(data, forcedAudience) {
   const audience = forcedAudience === "internal" ? "internal" : "public";
   try {
+    let catalogBranches = null;
+    if (audience === "internal" && data.catalogOnly === true && data.includeBranches === true) {
+      const catalogActor = bookingAvailabilityPhase5Actor(data);
+      if (!bookingAvailabilityPhase5HasPermission(catalogActor, "booking_availability.view")) {
+        throw BookingAvailabilityPhase5.availabilityError("AVAILABILITY_PERMISSION_DENIED", "Booking Availability permission is required.");
+      }
+      catalogBranches = bookingAvailabilityPhase5ListBranches(catalogActor, false).filter((branch) => branch.active === true);
+      const selected = String(data.branchId || "").trim();
+      if (!selected && catalogBranches.length !== 1) {
+        return jsonOutput({ status: "success", catalogOnly: true, branches: catalogBranches, services: [], barbers: [] });
+      }
+      data = inheritProtectedReadContext(data, Object.assign({}, data, { branchId: selected || catalogBranches[0].branchId }));
+    }
     if (!bookingServiceIdsInputIsValid(data)) {
       return bookingApiError("INVALID_SERVICES", "serviceIds must be an array.");
     }
@@ -51,9 +64,8 @@ function getBookingOptionsForAudience(data, forcedAudience) {
     if (!isValidBookingDuration(durationMinutes)) {
       return jsonOutput({ status: "error", code: "INVALID_APPOINTMENT", message: "The requested booking duration is invalid." });
     }
-    const bookings = getAllBookingsV2();
-    const ratings = getAllBookingRatings();
-    const availabilitySnapshot = typeof bookingAvailabilityPhase5RequestSnapshot === "function"
+
+    const availabilitySnapshot = data.catalogOnly === true && audience === "internal" ? null : typeof bookingAvailabilityPhase5RequestSnapshot === "function"
       && bookingAvailabilityEngineMode() === "PHASE5"
       ? bookingAvailabilityPhase5RequestSnapshot() : null;
     const selectedBranchId = String(data.branchId || "").trim();
@@ -81,7 +93,22 @@ function getBookingOptionsForAudience(data, forcedAudience) {
       audience === "internal"
         ? barber.branchId === selectedBranchId
         : (!availabilitySnapshot || barber.branchId === selectedBranchId));
-    const barbers = activeBarbers.map((barber) => {
+    // Catalogs contain identities and services only, never availability or approval.
+    // Internal branch permission and scope were checked above. Public reads retain full behavior.
+    if (audience === "internal" && data.catalogOnly === true) {
+      if (bookingAvailabilityEngineMode() === "PHASE5") {
+        bookingAvailabilityPhase5Branch(selectedBranchId, { publicAudience: false });
+      }
+      return jsonOutput({ status: "success", catalogOnly: true, services,
+        ...(catalogBranches ? { branches: catalogBranches } : {}),
+        barbers: activeBarbers.map((barber) => ({ staffId: barber.staffId, name: barber.name, code: barber.code })) });
+    }
+    const bookings = getAllBookingsV2();
+    const ratings = getAllBookingRatings();
+    const requestedEmployeeId = audience === "internal" ? String(data.employeeId || "").trim() : "";
+    const requestedBarbers = requestedEmployeeId
+      ? activeBarbers.filter((barber) => String(barber.staffId) === requestedEmployeeId) : activeBarbers;
+    const barbers = requestedBarbers.map((barber) => {
       const summary = calculatePublicBarberRatingSummary(barber.staffId, ratings, bookings);
       return {
         staffId: barber.staffId,

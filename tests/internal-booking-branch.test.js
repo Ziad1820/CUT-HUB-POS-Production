@@ -25,7 +25,7 @@ test("loadInternalSlots blocks without a branch and sends the selected branch", 
   const body = functionSource("loadInternalSlots", "scheduleInternalAvailabilityPoll");
   assert.match(body, /const branchId = elements\.branch\.value;/);
   const guard = body.indexOf("if (!branchId)");
-  const request = body.indexOf("RomeoApi.request");
+  const request = body.indexOf("action:");
   assert.ok(guard >= 0 && request > guard, "missing branch must be rejected before the request");
   assert.match(body, /action: "getInternalBookingOptions", branchId,/);
 });

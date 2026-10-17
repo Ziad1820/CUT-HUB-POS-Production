@@ -46,11 +46,10 @@ test("staff proposal availability uses the booking branch and ignores stale date
   assert.match(bookings, /await updateStatus\(booking, "proposed"[\s\S]{0,180}setTimeout\(\(\) => fetchBookings\(\{ silent: true \}\), 0\)/);
 });
 
-test("booking filters queue the canonical date and status after in-flight reads", () => {
+test("booking reads queue the canonical date while status filtering remains local", () => {
   assert.match(bookings, /bookingRequestSequence:\s*0,\s*bookingReloadQueued:\s*false/);
   assert.match(bookings, /const requestedDate = elements\.filterDate\.value/);
-  assert.match(bookings, /const requestedStatus = elements\.status\.value/);
-  assert.match(bookings, /filters:\s*\{ date: requestedDate, status: requestedStatus \}/);
+  assert.match(bookings, /filters:\s*\{ date: requestedDate \}/);
   assert.match(bookings, /requestSequence !== state\.bookingRequestSequence[\s\S]{0,180}elements\.filterDate\.value !== requestedDate/);
   assert.match(bookings, /state\.bookingReloadQueued \|\| requestSequence !== state\.bookingRequestSequence[\s\S]{0,180}fetchBookings\(\{ silent: true \}\)/);
 });

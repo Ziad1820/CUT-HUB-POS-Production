@@ -25,6 +25,7 @@ const files = {
   "047_accounting_expenses.gs": ["getExpenses"],
   "048_invoices_pdf.gs": ["createInvoicePdf"],
   "049_reports_sales-customers.gs": [],
+  "056_booking_options.gs": ["getBookingOptionsForAudience"],
   "064_phase_staff-scheduling-phase2.gs": [],
   "065_phase_staff-scheduling-phase2-gas.gs": ["schedulePhase2CreateRepository", "handleStaffSchedulingPhase2Action"],
   "067_phase_staff-attendance-phase3.gs": [],
