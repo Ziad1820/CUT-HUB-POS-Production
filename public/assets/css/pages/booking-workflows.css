@@ -19,6 +19,7 @@
 .schedule-board-actions { margin-top:16px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
 .schedule-board-actions p { flex:1 1 220px; color:#75695d; margin:0; }
 .schedule-day-segments { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:14px; }
+.schedule-day-segments > button { align-self:start; justify-self:start; min-height:44px; }
 .schedule-segment-card { border:1px solid #e5d5be; border-radius:18px; background:#fffaf2; padding:18px; display:grid; gap:12px; }
 .schedule-segment-card h3, .schedule-segment-card p { margin:0; }
 .schedule-segment-card h3 { direction:ltr; text-align:start; }
