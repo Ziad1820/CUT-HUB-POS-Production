@@ -450,7 +450,7 @@ test("UI exposes server-backed grid, range, bulk, day-off, override, and audit c
   const js = fs.readFileSync(path.join(__dirname, "../public/assets/js/pages/schedule-management.js"), "utf8");
   const css = fs.readFileSync(path.join(__dirname, "../public/assets/css/pages/schedule-management.css"), "utf8");
   [
-    "weeklyBody", "rangeGrid", "staffFilter", "branchFilter", "activeOnly",
+    "staffWeekBoard", "daySegments", "rangeGrid", "staffFilter", "branchFilter", "activeOnly",
     "segmentDialog", "copyDayBtn", "copyEmployeeBtn", "applyRangeBtn",
     "addOverrideBtn", "auditList", "beforeunload", "migrationPreviewBtn",
     "migrationPreviewDialog", "decisionDialog", "decisionReason", "decisionEvidence"

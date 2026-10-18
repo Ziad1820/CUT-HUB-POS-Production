@@ -34,7 +34,7 @@ const localStagingOnlyPaths = new Set([
 ]);
 
 const explicitPaths = [
-  "public/assets/css/pages/booking-workflows.css", "tests/booking-workflow-redesign.test.js",
+  "public/assets/css/pages/booking-workflows.css", "tests/booking-workflow-redesign.test.js", "tests/schedule-single-board.test.js",
   "tests/fixtures/booking-workflow-preview.cjs", "docs/booking-workflow-redesign.md",
   "tests/finance-payment-methods.test.js", "docs/finance-payment-methods.md",
   "tests/financial-audit-remediation.test.js", "docs/reports/system-audit-remediation-2026-10-17.md",

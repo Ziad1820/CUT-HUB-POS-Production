@@ -1,3 +1,12 @@
+// Select only the effective recurring records behind a clicked week-board cell.
+function scheduleRowsForDay(schedules, staffId, date) {
+  if (!staffId || !/^\d{4}-\d{2}-\d{2}$/.test(date || "")) return [];
+  const weekday = ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"][new Date(date + "T12:00:00Z").getUTCDay()];
+  return (schedules || []).filter(item => item.staffId === staffId && item.active !== false && item.weekday === weekday &&
+    (!item.effectiveFrom || item.effectiveFrom <= date) && (!item.effectiveTo || item.effectiveTo >= date))
+    .sort((a,b) => Number(a.segmentIndex || 0) - Number(b.segmentIndex || 0));
+}
+
 // Share concurrent reads only; settled responses are never cached.
 function createScheduleReadDispatcher(request, observe) {
   const reads = new Set(["getScheduleWeekBoard", "getScheduleSelection", "getSchedulePageData", "listScheduleUserScopes", "listWorkPolicies",
@@ -150,7 +159,7 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     staff: [], schedules: [], overrides: [], resolved: [], scopes: [], policies: [],
     permissions: {}, dirty: false, busy: false, policyBusy: false, decisionResolve: null,
     selectedRequestSequence: 0, policyRequestSequence: 0,
-    weeklyLoading: false, weeklyLoadFailed: false, scopeRequestSequence: 0
+    selectedBoardDate: null, weeklyLoading: false, weeklyLoadFailed: false, scopeRequestSequence: 0
   };
   const byId = id => document.getElementById(id);
 
@@ -309,65 +318,53 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
   }
 
   function renderWeekly() {
-    const body = byId("weeklyBody");
+    const body = byId("daySegments");
     body.replaceChildren();
     const staffId = byId("staffFilter").value;
-    const records = state.schedules.filter(item => item.staffId === staffId && item.active !== false);
-    const unresolved = records.filter(item => item.resolutionEligible === false);
-    byId("validationSummary").textContent = unresolved.length
-      ? `${unresolved.length} سجل قديم غير محلول تم استبعاده من الحساب: ${
-        unresolved.flatMap(item => item.warnings || []).join("، ")}`
-      : "";
-    WEEKDAYS.forEach(day => {
-      const dayRecords = records.filter(item => item.weekday === day);
-      const dayOff = dayRecords.find(item => item.recordType === "WEEKLY_DAY_OFF");
-      const rows = dayRecords.filter(item => (item.recordType || "SHIFT") === "SHIFT")
-        .sort((a, b) => Number(a.segmentIndex) - Number(b.segmentIndex));
-      const tr = document.createElement("tr");
-      const values = [
-        DAY_LABELS[day],
-        dayOff ? "راحة أسبوعية" : (rows.map(item =>
-          item.resolutionEligible === false
-            ? "سجل قديم غير محلول" : shiftLabel(item)).join("، ") ||
-            (state.weeklyLoading ? "جارٍ تحميل الجدول…" : state.weeklyLoadFailed ? "تعذر تحميل الجدول" : "غير مجدول")),
-        rows.reduce((sum, item) => sum + Number(item.requiredWorkMinutes || 0), 0) || "—",
-        rows.reduce((sum, item) => sum + Number(item.allowedBreakMinutes || 0), 0) || "—",
-        (dayOff ? [dayOff] : rows)
-          .map(item => `${item.effectiveFrom}${item.effectiveTo ? ` ← ${item.effectiveTo}` : ""}`).join("، ") || "—"
-      ];
-      values.forEach(value => {
-        const td = document.createElement("td");
-        td.textContent = String(value);
-        tr.appendChild(td);
-      });
-      const actions = document.createElement("td");
+    const date = state.selectedBoardDate;
+    const selected = state.staff.find(item => item.staffId === staffId);
+    const blocked = state.weeklyLoading || state.weeklyLoadFailed || !staffId;
+    const records = scheduleRowsForDay(state.schedules, staffId, date);
+    const dayOff = records.find(item => item.recordType === "WEEKLY_DAY_OFF");
+    byId("selectedScheduleDay").hidden = !staffId || !date;
+    byId("selectedScheduleContext").textContent = selected
+      ? `${selected.staffName}${date ? " · " + date : ""}`
+      : "اختر يوم موظف من أسبوع الفريق لإدارة فتراته.";
+    byId("selectedScheduleDayTitle").textContent = `${selected?.staffName || ""} · ${date || ""}`;
+    byId("validationSummary").textContent = records.filter(item => item.resolutionEligible === false)
+      .flatMap(item => item.warnings || []).join("، ");
+    records.forEach(item => {
+      const card = document.createElement("article");
+      card.className = "schedule-segment-card";
+      const title = document.createElement("h3");
+      title.textContent = item.recordType === "WEEKLY_DAY_OFF" ? "راحة أسبوعية" : shiftLabel(item);
+      const details = document.createElement("p");
+      details.textContent = item.recordType === "WEEKLY_DAY_OFF" ? "لا يوجد شفت متكرر لهذا اليوم."
+        : `العمل: ${item.requiredWorkMinutes || 0} دقيقة · البريك: ${item.allowedBreakMinutes || 0} دقيقة`;
+      const effective = document.createElement("small");
+      effective.textContent = `فعّال من ${item.effectiveFrom || "بدون بداية"} إلى ${item.effectiveTo || "نهاية مفتوحة"}`;
+      const actions = document.createElement("div");
       actions.className = "row-actions";
-      if (staffId && state.permissions.manage && !state.weeklyLoading && !state.weeklyLoadFailed) {
-        if (dayOff && !dayOff.readOnly) {
-          actions.appendChild(actionButton("إلغاء الراحة", "deactivate-segment", dayOff.scheduleId, true));
-        } else if (!dayRecords.some(item => item.readOnly)) {
-          actions.appendChild(actionButton("تعيين راحة أسبوعية", "weekly-day-off", day));
-        }
-        rows.forEach(item => {
-          if (item.readOnly) {
-            const label = document.createElement("span");
-            label.className = "tag";
-            label.textContent = item.resolutionEligible === false
-              ? "قديم غير محلول" : "قديم للقراءة فقط";
-            actions.appendChild(label);
-            return;
-          }
-          actions.appendChild(actionButton("تعديل", "edit-segment", item.scheduleId));
-          actions.appendChild(actionButton("تعطيل", "deactivate-segment", item.scheduleId, true));
-        });
+      if (state.permissions.manage && !blocked && !item.readOnly) {
+        if (item.recordType !== "WEEKLY_DAY_OFF") actions.appendChild(actionButton("تعديل", "edit-segment", item.scheduleId));
+        actions.appendChild(actionButton(item.recordType === "WEEKLY_DAY_OFF" ? "إلغاء الراحة" : "تعطيل الفترة", "deactivate-segment", item.scheduleId, true));
       }
-      tr.appendChild(actions);
-      body.appendChild(tr);
+      if (item.readOnly) {
+        const tag = document.createElement("span"); tag.className = "tag";
+        tag.textContent = item.resolutionEligible === false ? "قديم غير محلول" : "قديم للقراءة فقط";
+        actions.appendChild(tag);
+      }
+      card.append(title, details, effective, actions); body.appendChild(card);
     });
-    byId("weeklyEmpty").hidden = !!records.length || state.weeklyLoading || state.weeklyLoadFailed;
-    ["addSegmentBtn", "copyDayBtn", "copyEmployeeBtn", "applyRangeBtn"].forEach(id => {
-      byId(id).disabled = state.weeklyLoading || state.weeklyLoadFailed || !staffId;
-    });
+    if (staffId && date && state.permissions.manage && !blocked && !dayOff && !records.some(item => item.readOnly)) {
+      const weekday = WEEKDAYS[(new Date(date + "T12:00:00Z").getUTCDay() + 6) % 7];
+      body.appendChild(actionButton("تعيين راحة أسبوعية", "weekly-day-off", weekday));
+    }
+    byId("weeklyEmpty").hidden = !!records.length || !date;
+    byId("weeklyEmpty").textContent = state.weeklyLoading ? "جارٍ تحميل فترات اليوم…"
+      : state.weeklyLoadFailed ? "تعذر تحميل الفترات. حدّث الجدول قبل إجراء تغيير." : "لا توجد فترات لهذا اليوم؛ يمكنك إضافة فترة من أسبوع الفريق.";
+    ["addSegmentBtn", "copyDayBtn", "copyEmployeeBtn", "applyRangeBtn"].forEach(id => { byId(id).disabled = blocked; });
+    if (dayOff) byId("addSegmentBtn").disabled = true;
   }
 
   function renderRange() {
@@ -820,7 +817,8 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     byId("sourceDayLabel").hidden = employee;
     byId("targetDayLabel").hidden = employee;
     byId("targetStaffLabel").hidden = !employee;
-    byId("copyEffectiveFrom").value = dateKey(new Date());
+    byId("copyEffectiveFrom").value = state.selectedBoardDate || dateKey(new Date());
+    if (state.selectedBoardDate) byId("sourceDay").value = ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"][new Date(state.selectedBoardDate+"T12:00:00Z").getUTCDay()];
     byId("copyReason").value = "";
     byId("copyDialog").showModal();
   }
@@ -907,16 +905,27 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
       const first=document.createElement("th");first.textContent="الموظف";header.append(first);
       dates.forEach(date=>{const th=document.createElement("th");th.textContent=new Intl.DateTimeFormat("ar-EG",{weekday:"short",day:"numeric",month:"short"}).format(new Date(date+"T12:00:00"));header.append(th);});head.append(header);table.append(head);
       const body=document.createElement("tbody");
-      (result.staff||[]).forEach(staff=>{const row=document.createElement("tr"),name=document.createElement("th");name.textContent=staff.staffName;row.append(name);dates.forEach(date=>{const day=(result.resolvedSchedules||[]).find(item=>item.staffId===staff.staffId&&item.date===date),cell=document.createElement("td"),button=document.createElement("button");button.type="button";button.className="shift-cell";const shifts=day?.shiftSegments||[];button.classList.toggle("rest-day",!shifts.length);button.textContent=(result.staffErrors||[]).some(item=>item.staffId===staff.staffId)?"تحتاج مراجعة سياسة العمل":shifts.length?shifts.map(shiftLabel).join(" / "):(day?.classification==="WEEKLY_DAY_OFF"?"راحة":"غير مجدول");button.setAttribute("aria-label",staff.staffName+" "+date+" "+button.textContent);button.onclick=async()=>{if(state.busy)return;byId("staffFilter").value=staff.staffId;byId("scheduleEditor").open=true;await loadSelected();if(state.weeklyLoadFailed || byId("staffFilter").value!==staff.staffId || sequence!==boardSequence)return;const weekday=["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"][new Date(date+"T12:00:00Z").getUTCDay()];const existing=state.schedules.find(item=>item.weekday===weekday&&item.active!==false&&(!item.effectiveFrom||item.effectiveFrom<=date)&&(!item.effectiveTo||item.effectiveTo>=date));if(state.permissions.manage){openSegment(existing);byId("segmentWeekday").value=weekday;if(!existing)byId("effectiveFrom").value=date;}};cell.append(button);row.append(cell);});body.append(row);});table.append(body);mount.replaceChildren(table);byId("weekBoardStatus").textContent=result.staff?.length?"":"لا يوجد موظفون في النطاق المتاح لك.";
+      (result.staff||[]).forEach(staff=>{const row=document.createElement("tr"),name=document.createElement("th");name.textContent=staff.staffName;row.append(name);dates.forEach(date=>{const day=(result.resolvedSchedules||[]).find(item=>item.staffId===staff.staffId&&item.date===date),cell=document.createElement("td"),button=document.createElement("button");button.type="button";button.className="shift-cell";const shifts=day?.shiftSegments||[];button.classList.toggle("rest-day",!shifts.length);button.textContent=(result.staffErrors||[]).some(item=>item.staffId===staff.staffId)?"تحتاج مراجعة سياسة العمل":shifts.length?shifts.map(shiftLabel).join(" / "):(day?.classification==="WEEKLY_DAY_OFF"?"راحة":"غير مجدول");button.setAttribute("aria-label",staff.staffName+" "+date+" "+button.textContent);button.onclick=()=>openBoardDay(staff,date,sequence);cell.append(button);row.append(cell);});body.append(row);});table.append(body);mount.replaceChildren(table);byId("weekBoardStatus").textContent=result.staff?.length?"":"لا يوجد موظفون في النطاق المتاح لك.";
     } catch(error){if(sequence===boardSequence)byId("weekBoardStatus").textContent=scheduleManagementErrorMessage(error);}finally{if(sequence===boardSequence)mount.setAttribute("aria-busy","false");}
   }
-  function moveBoardWeek(offset) { if(state.busy)return;byId("rangeStart").value=plusDays(byId("rangeStart").value,offset);byId("scheduleEditor").open=false;void loadWeekBoard(); }
+  async function openBoardDay(staff, date, sequence) {
+    if (state.busy) return;
+    state.selectedBoardDate = date;
+    byId("staffFilter").value = staff.staffId;
+    await loadSelected();
+    if (byId("staffFilter").value !== staff.staffId || state.selectedBoardDate !== date || sequence !== boardSequence) return;
+    renderWeekly();
+    byId("selectedScheduleDay").scrollIntoView({behavior:"smooth",block:"nearest"});
+  }
+
+  function moveBoardWeek(offset) { if(state.busy)return;state.selectedBoardDate=null;renderWeekly();byId("rangeStart").value=plusDays(byId("rangeStart").value,offset);byId("scheduleEditor").open=false;void loadWeekBoard(); }
 
   function bindEvents() {
+    byId("closeScheduleDay").addEventListener("click",()=>{state.selectedBoardDate=null;renderWeekly();});
     byId("boardPreviousWeek").addEventListener("click",()=>moveBoardWeek(-7));
     byId("boardNextWeek").addEventListener("click",()=>moveBoardWeek(7));
-    byId("boardThisWeek").addEventListener("click",()=>{byId("rangeStart").value=dateKey(new Date());void loadWeekBoard();});
-    byId("boardWeekDate").addEventListener("change",()=>{if(!byId("boardWeekDate").value)return;byId("rangeStart").value=byId("boardWeekDate").value;void loadWeekBoard();});
+    byId("boardThisWeek").addEventListener("click",()=>{state.selectedBoardDate=null;renderWeekly();byId("rangeStart").value=dateKey(new Date());void loadWeekBoard();});
+    byId("boardWeekDate").addEventListener("change",()=>{if(!byId("boardWeekDate").value)return;state.selectedBoardDate=null;renderWeekly();byId("rangeStart").value=byId("boardWeekDate").value;void loadWeekBoard();});
     byId("branchFilter").addEventListener("change",()=>{void loadWeekBoard();});
     byId("policySourceId").addEventListener("change", () => {
       const policy = state.policies.find(item => item.policyId === byId("policySourceId").value);
@@ -929,7 +938,7 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
       byId("policyDeductionRate").value = (policy.deficitRateMinorPerMinute || 0) / 100;
       byId("policyOvertimeRate").value = (policy.overtimeRateMinorPerMinute || 0) / 100;
     });
-    byId("staffFilter").addEventListener("change", () => { byId("scheduleEditor").open = true; void loadSelected(); });
+    byId("staffFilter").addEventListener("change", () => { state.selectedBoardDate = null; byId("scheduleEditor").open = true; void loadSelected(); });
     byId("branchFilter").addEventListener("change", () => {
       populateSelectors();
       loadSelected();
@@ -996,6 +1005,13 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     byId("addSegmentBtn").addEventListener("click", () => {
       if (!selectedStaff()) return toast("اختر موظفًا أولًا.", true);
       openSegment(null);
+      if (state.selectedBoardDate) {
+        const date = state.selectedBoardDate;
+        byId("segmentWeekday").value = ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"][new Date(date+"T12:00:00Z").getUTCDay()];
+        byId("effectiveFrom").value = date;
+        const records = scheduleRowsForDay(state.schedules, selectedStaff().staffId, date);
+        byId("segmentIndex").value = Math.max(0, ...records.map(item=>Number(item.segmentIndex)||0)) + 1;
+      }
     });
     byId("addOverrideBtn").addEventListener("click", () => {
       if (!selectedStaff() && byId("overrideScope").value === "STAFF") return toast("اختر موظفًا أولًا.", true);
@@ -1167,9 +1183,9 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
       }
     });
 
-    byId("weeklyBody").addEventListener("click", async event => {
+    byId("daySegments").addEventListener("click", async event => {
       const button = event.target.closest("button[data-action]");
-      if (!button) return;
+      if (!button || state.busy || state.weeklyLoading || state.weeklyLoadFailed) return;
       const record = state.schedules.find(item => item.scheduleId === button.dataset.id);
       if (button.dataset.action === "edit-segment") openSegment(record);
       if (button.dataset.action === "deactivate-segment") {
@@ -1196,12 +1212,12 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
           confirmLabel: "تعيين يوم الراحة",
           consequence: "سيتم تعطيل فترات العمل النشطة في هذا اليوم وتسجيل يوم راحة أسبوعية بدلًا منها.",
           details: [["الموظف", staff.staffName], ["اليوم", DAY_LABELS[button.dataset.id]],
-            ["فعّال من", byId("rangeStart").value]]
+            ["فعّال من", state.selectedBoardDate || byId("rangeStart").value]]
         });
         if (!decision) return;
         runMutation(button, "setWeeklyDayOff", {
           staffId: staff.staffId, weekday: button.dataset.id,
-          effectiveFrom: byId("rangeStart").value,
+          effectiveFrom: state.selectedBoardDate || byId("rangeStart").value,
           effectiveTo: "",
           reason: decision.reason
         }, "تم تعيين يوم الراحة الأسبوعية.");

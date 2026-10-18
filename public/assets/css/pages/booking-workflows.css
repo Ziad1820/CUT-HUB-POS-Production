@@ -16,6 +16,13 @@
 .shift-cell { width:100%; min-height:78px; background:#e9f3ed; border-color:#b9d6c3; color:#245039; font-size:14px; line-height:1.8; white-space:pre-line; }
 .shift-cell.rest-day { background:#f5f0e8; border-style:dashed; border-color:#e5d5be; color:#75695d; }
 .shift-cell:hover, .calendar-add:hover { border-color:#b7863f; box-shadow:0 0 0 2px #b7863f22; }
+.schedule-board-actions { margin-top:16px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.schedule-board-actions p { flex:1 1 220px; color:#75695d; margin:0; }
+.schedule-day-segments { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:14px; }
+.schedule-segment-card { border:1px solid #e5d5be; border-radius:18px; background:#fffaf2; padding:18px; display:grid; gap:12px; }
+.schedule-segment-card h3, .schedule-segment-card p { margin:0; }
+.schedule-segment-card h3 { direction:ltr; text-align:start; }
+.schedule-segment-card small { color:#75695d; line-height:1.7; }
 .schedule-app .filters label:has(#rangeStart), .schedule-app .filters label:has(#rangeEnd), .schedule-app #loadRangeBtn { display:none; }
 .schedule-app .filters { grid-template-columns:repeat(3,minmax(0,1fr)); }
 .attendance-cards { grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr)); align-items:start; }

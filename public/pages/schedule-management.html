@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="../assets/css/shared.css">
   <link rel="stylesheet" href="../assets/css/system-layout.css">
   <link rel="stylesheet" href="../assets/css/pages/schedule-management.css?v=20261016-theme-performance-3">
-  <link rel="stylesheet" href="../assets/css/pages/booking-workflows.css?v=20261018-workflows-1">
+  <link rel="stylesheet" href="../assets/css/pages/booking-workflows.css?v=20261018-single-board-1">
 </head>
 <body>
   <div class="schedule-app system-app app">
@@ -35,7 +35,7 @@
           <button class="secondary-btn" id="refreshBtn" type="button">تحديث</button>
         </div>
       </section>
-      <section class="panel week-board-panel"><div class="workflow-heading"><div><h2>أسبوع الفريق</h2><p>اضغط على يوم أي موظف لتعديل شفته. الإجازات والشفتات تنعكس على الحجوزات.</p></div><div class="week-navigation"><button id="boardPreviousWeek" type="button" aria-label="الأسبوع السابق">‹</button><input id="boardWeekDate" type="date" aria-label="الأسبوع المعروض"><button id="boardNextWeek" type="button" aria-label="الأسبوع التالي">›</button><button id="boardThisWeek" type="button">هذا الأسبوع</button></div></div><p id="weekBoardStatus" role="status"></p><div class="week-board-scroll" id="staffWeekBoard"></div></section>
+      <section class="panel week-board-panel"><div class="workflow-heading"><div><h2>أسبوع الفريق</h2><p>اضغط على يوم أي موظف لتعديل شفته. الإجازات والشفتات تنعكس على الحجوزات.</p></div><div class="week-navigation"><button id="boardPreviousWeek" type="button" aria-label="الأسبوع السابق">‹</button><input id="boardWeekDate" type="date" aria-label="الأسبوع المعروض"><button id="boardNextWeek" type="button" aria-label="الأسبوع التالي">›</button><button id="boardThisWeek" type="button">هذا الأسبوع</button></div></div><p id="weekBoardStatus" role="status"></p><div class="week-board-scroll" id="staffWeekBoard"></div><div class="schedule-board-actions actions"><p id="selectedScheduleContext">اختر يوم موظف من أسبوع الفريق لإدارة فتراته.</p><button class="secondary-btn manage-only" id="copyDayBtn" type="button">نسخ يوم</button><button class="secondary-btn manage-only" id="copyEmployeeBtn" type="button">نسخ موظف</button><button class="secondary-btn manage-only" id="applyRangeBtn" type="button">تطبيق على الأسبوع المعروض</button><button class="primary-btn manage-only" id="addSegmentBtn" type="button">إضافة فترة</button></div></section>
       <section class="panel filters" aria-label="مرشحات الجدول">
         <label>الموظف<select id="staffFilter" aria-describedby="staffEmptyState"><option value="">جاري تحميل الموظفين…</option></select></label>
         <label>الفرع<select id="branchFilter"><option value="">كل الفروع</option></select></label>
@@ -48,27 +48,14 @@
 
       <div id="statusBanner" class="status" role="status" aria-live="polite"></div>
 
-      <details id="scheduleEditor" class="workflow-details"><summary>إعدادات الموظف وتفاصيل الشفتات</summary>
-      <section class="panel">
-        <div class="section-title">
-          <div><h2>الجدول الأسبوعي المتكرر</h2><p>يمكن إضافة أكثر من فترة في اليوم ودعم الورديات الليلية.</p></div>
-          <div class="actions">
-            <button class="secondary-btn manage-only" id="copyDayBtn" type="button">نسخ يوم</button>
-            <button class="secondary-btn manage-only" id="copyEmployeeBtn" type="button">نسخ موظف</button>
-            <button class="secondary-btn manage-only" id="applyRangeBtn" type="button">تطبيق جماعي للفترة</button>
-            <button class="primary-btn manage-only" id="addSegmentBtn" type="button">إضافة فترة</button>
-          </div>
-        </div>
-        <div class="table-scroll">
-          <table>
-            <thead><tr><th>اليوم</th><th>الفترات</th><th>الدقائق المطلوبة</th><th>البريك</th><th>الفترة الفعالة</th><th>إجراءات</th></tr></thead>
-            <tbody id="weeklyBody"></tbody>
-          </table>
-        </div>
+      <section id="selectedScheduleDay" class="panel selected-schedule-day" hidden aria-labelledby="selectedScheduleDayTitle">
+        <div class="section-title"><h2 id="selectedScheduleDayTitle">فترات اليوم المحدد</h2><button id="closeScheduleDay" class="secondary-btn" type="button">إغلاق التفاصيل</button></div>
         <div id="validationSummary" class="validation-summary" role="status" aria-live="polite"></div>
-        <div id="weeklyEmpty" class="empty" hidden>لا توجد فترات أسبوعية لهذا الموظف.</div>
+        <div id="daySegments" class="schedule-day-segments"></div>
+        <div id="weeklyEmpty" class="empty" hidden>لا توجد فترات لهذا اليوم.</div>
       </section>
 
+      <details id="scheduleEditor" class="workflow-details"><summary>سياسات العمل والإجازات والإعدادات المتقدمة</summary>
       <section class="panel" id="scopePanel" hidden>
         <div class="section-title">
           <div>
@@ -269,6 +256,6 @@
   <script src="../assets/js/utils/layout.js?v=20261009-single-analysis-1"></script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>
-  <script src="../assets/js/pages/schedule-management.js?v=20261018-workflows-1"></script>
+  <script src="../assets/js/pages/schedule-management.js?v=20261018-single-board-1"></script>
 </body>
 </html>

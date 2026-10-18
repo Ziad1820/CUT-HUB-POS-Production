@@ -4,9 +4,9 @@ Generated locally by `scripts/generate-release-manifest.js`. Do not hand-edit. T
 
 ## Counts
 
-- Required tracked files: **426**
+- Required tracked files: **427**
 - Required untracked files: **0**
-- Total classified entries: **456**
+- Total classified entries: **457**
 
 ## Intended Apps Script application package
 
@@ -492,6 +492,7 @@ Never upload constituent Phase 1-5 sources or earlier aggregate bundles with ite
 | `tests/schedule-management-functional.test.js` | tracked | Phase 2 Scheduling | test | yes | no | — | Local validation only | tests/staff-scheduling-phase2.test.js<br>tests/staff-scheduling-phase2-contract.test.js | Release-blocking local regression or safety evidence. |
 | `tests/schedule-page-performance.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/schedule-performance-production.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
+| `tests/schedule-single-board.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/schedule-work-policy-ui.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
 | `tests/shared-system-layout.test.js` | tracked | Authentication & navigation | test | yes | no | — | Local validation only | tests/auth-navigation.test.js | Release-blocking local regression or safety evidence. |
 | `tests/source-control-inclusion-plan.test.js` | tracked | Cross-phase/local | test | yes | no | — | Local validation only | — | Release-blocking local regression or safety evidence. |
