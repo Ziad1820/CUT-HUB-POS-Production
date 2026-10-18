@@ -136,6 +136,11 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     overtimeRateMinorPerMinute: minor(input.overtimePerMinute) };
 }
 
+function effectiveWorkPolicies(policies, date) {
+  return (policies || []).filter(policy => policy.active &&
+    policy.effectiveFrom <= date && (!policy.effectiveTo || policy.effectiveTo >= date));
+}
+
 (function () {
   "use strict";
 
@@ -157,7 +162,7 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
   const INTERVAL_TYPES = ["PARTIAL_ABSENCE", "PLANNED_BREAK", "TRAINING"];
   const state = {
     staff: [], schedules: [], overrides: [], resolved: [], scopes: [], policies: [],
-    permissions: {}, dirty: false, busy: false, policyBusy: false, decisionResolve: null,
+    permissions: {}, dirty: false, busy: false, policyBusy: false, policyLoading: false, policyLoadFailed: true, decisionResolve: null,
     selectedRequestSequence: 0, policyRequestSequence: 0,
     selectedBoardDate: null, weeklyLoading: false, weeklyLoadFailed: false, scopeRequestSequence: 0
   };
@@ -461,10 +466,54 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     status.className = `inline-status${type ? ` ${type}` : ""}`;
   }
 
+  function fillWorkPolicyForm(policy) {
+    byId("policyRequiredMinutes").value = policy?.requiredDailyMinutes ?? "";
+    byId("policyBreakMinutes").value = policy?.allowedBreakMinutes ?? "";
+    byId("policyShiftStart").value = policy?.defaultShiftStart || "";
+    byId("policyShiftEnd").value = policy?.defaultShiftEnd || "";
+    byId("policyLateGrace").value = policy?.graceLateMinutes ?? "";
+    byId("policyDeductionRate").value = policy?.deficitRateMinorPerMinute == null ? "" : policy.deficitRateMinorPerMinute / 100;
+    byId("policyOvertimeRate").value = policy?.overtimeRateMinorPerMinute == null ? "" : policy.overtimeRateMinorPerMinute / 100;
+    byId("policySalaryBasis").value = policy?.salaryBasis || "MONTHLY";
+    byId("policyCurrency").value = policy?.currency || "EGP";
+  }
+
   function renderWorkPolicies() {
     const body = byId("workPolicyBody");
     body.replaceChildren();
     const selectedId = byId("staffFilter").value;
+    const today = dateKey(new Date());
+    const currentPolicies = effectiveWorkPolicies(state.policies, today);
+    const current = byId("workPolicyCurrent");
+    current.replaceChildren();
+    if (selectedId && currentPolicies.length === 1) {
+      const policy = currentPolicies[0];
+      const title = document.createElement("h3");
+      title.textContent = `الإعدادات السارية اليوم · ${selectedStaff()?.staffName || ""}`;
+      current.appendChild(title);
+      const grid = document.createElement("dl");
+      grid.className = "policy-summary-grid";
+      const display = value => value == null || value === "" ? "غير محدد" : value;
+      const rate = value => value == null ? "غير محدد" : `${value / 100} ${policy.currency || "EGP"}`;
+      const basis = { MONTHLY: "شهري", DAILY: "يومي", HOURLY: "بالساعة", PER_MINUTE: "بالدقيقة" };
+      [
+        ["الشفت الافتراضي", `${display(policy.defaultShiftStart)} ← ${display(policy.defaultShiftEnd)}`],
+        ["العمل المطلوب", `${display(policy.requiredDailyMinutes)} دقيقة`],
+        ["البريك المسموح", `${display(policy.allowedBreakMinutes)} دقيقة`],
+        ["خصم الدقيقة", rate(policy.deficitRateMinorPerMinute)],
+        ["دقيقة الإضافي بعد الاعتماد", rate(policy.overtimeRateMinorPerMinute)],
+        ["سماح التأخير", `${display(policy.graceLateMinutes)} دقيقة`],
+        ["أساس الراتب", basis[policy.salaryBasis] || display(policy.salaryBasis)],
+        ["فترة السريان", `${policy.effectiveFrom} ← ${policy.effectiveTo || "مستمرة"}`]
+      ].forEach(([label, value]) => {
+        const item = document.createElement("div");
+        const term = document.createElement("dt"); term.textContent = label;
+        const description = document.createElement("dd"); description.textContent = value;
+        item.append(term, description); grid.appendChild(item);
+      });
+      current.appendChild(grid);
+    }
+    byId("workPolicyHistory").hidden = !state.policies.length;
     state.policies.forEach(policy => {
       const row = document.createElement("tr");
       if (!policy.active) row.className = "inactive-policy";
@@ -475,7 +524,7 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
         String(policy.allowedBreakMinutes ?? 0),
         policy.salaryBasis || "—",
         policy.currency || "—",
-        policy.active ? "فعالة" : "غير فعالة"
+        !policy.active ? "معطلة" : currentPolicies.includes(policy) ? "سارية اليوم" : policy.effectiveFrom > today ? "قادمة" : "انتهت فترتها"
       ];
       values.forEach((value, index) => {
         const cell = document.createElement("td");
@@ -490,11 +539,12 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
       row.appendChild(actions);
       body.appendChild(row);
     });
-    byId("workPolicyEmpty").hidden = !!state.policies.length;
+    byId("workPolicyEmpty").hidden = !!selectedId && currentPolicies.length === 1;
     byId("workPolicyEmpty").textContent = selectedId
-      ? "لا توجد سياسات عمل لهذا الموظف."
-      : "اختر موظفًا لعرض سياسات العمل.";
-    byId("addPolicyBtn").disabled = !selectedId || state.policyBusy;
+      ? currentPolicies.length > 1 ? "توجد إعدادات متداخلة لهذا اليوم. راجع الفترات في السجل قبل التعديل." : "لا توجد إعدادات سارية اليوم. يمكنك إعداد دوام الموظف أو مراجعة الفترات السابقة والقادمة في السجل."
+      : "اختر موظفًا لعرض إعدادات دوامه وحساباته.";
+    byId("addPolicyBtn").disabled = !selectedId || state.policyBusy || state.policyLoading || state.policyLoadFailed;
+    byId("addPolicyBtn").textContent = currentPolicies.length === 1 ? "تعديل الإعدادات" : "إعداد دوام الموظف";
   }
 
   async function loadWorkPolicies(expectedStaffId) {
@@ -503,12 +553,16 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     const staff = selectedStaff();
     if (expectedStaffId && staff?.staffId !== expectedStaffId) return;
     state.policies = [];
+    state.policyLoading = true;
+    state.policyLoadFailed = false;
+    byId("workPolicyHistory").open = false;
     renderWorkPolicies();
     if (!staff) {
+      state.policyLoading = false;
       setWorkPolicyStatus("");
       return;
     }
-    setWorkPolicyStatus("جارٍ تحميل سياسات العمل…");
+    setWorkPolicyStatus("جارٍ تحميل إعدادات الموظف…");
     try {
       const result = await api("listWorkPolicies", {
         staffId: staff.staffId, includeInactive: true
@@ -516,15 +570,20 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
       if (sequence !== state.policyRequestSequence ||
           selectedStaff()?.staffId !== staff.staffId) return;
       state.policies = result.workPolicies || [];
+      state.policyLoading = false;
       renderWorkPolicies();
       setWorkPolicyStatus("");
     } catch (error) {
       if (sequence !== state.policyRequestSequence || selectedStaff()?.staffId !== staff.staffId) return;
+      state.policyLoading = false;
+      state.policyLoadFailed = true;
+      renderWorkPolicies();
       setWorkPolicyStatus(`${error.code}: ${error.message}`, "error");
     }
   }
 
   function openWorkPolicyDialog() {
+    if (state.policyLoading || state.policyLoadFailed || state.policyBusy) return;
     const staff = selectedStaff();
     if (!staff) return toast("اختر موظفًا أولًا.", true);
     const source = byId("policySourceId");
@@ -532,20 +591,16 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     source.replaceChildren(option("", "إعداد جديد بدون سياسة سابقة"));
     activePolicies.forEach(policy => source.appendChild(option(
       policy.policyId,
-      `${policy.policyId} · ${policy.effectiveFrom}${policy.effectiveTo ? ` ← ${policy.effectiveTo}` : ""}`
+      `من ${policy.effectiveFrom}${policy.effectiveTo ? ` إلى ${policy.effectiveTo}` : " · مستمرة"}`
     )));
-    byId("policyStaffName").value = `${staff.staffName} · ${staff.staffId}`;
+    byId("policyStaffName").value = staff.staffName;
     byId("policyEffectiveFrom").value = "";
     byId("policyEffectiveTo").value = "";
-    byId("policyRequiredMinutes").value = "";
-    byId("policyBreakMinutes").value = "0";
-    byId("policySalaryBasis").value = "MONTHLY";
-    byId("policyCurrency").value = "EGP";
     byId("policyReason").value = "";
-    ["policyShiftStart", "policyShiftEnd", "policyDeductionRate", "policyOvertimeRate"].forEach(id => {
-      byId(id).value = "";
-    });
-    byId("policyLateGrace").value = "0";
+    const current = effectiveWorkPolicies(state.policies, dateKey(new Date()));
+    const initial = current.length === 1 ? current[0] : null;
+    source.value = initial?.policyId || "";
+    fillWorkPolicyForm(initial);
     state.dirty = false;
     byId("workPolicyDialog").showModal();
   }
@@ -587,8 +642,8 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
         item.entityId === created.policyId && item.action === "CREATE_WORK_POLICY").length;
       byId("workPolicyPanel").dataset.lastCreatedPolicyId = created.policyId || "";
       byId("workPolicyPanel").dataset.lastCreateAuditCount = String(auditCount);
-      setWorkPolicyStatus(`تم إنشاء السياسة ${created.policyId}.`, "success");
-      toast("تم إنشاء سياسة العمل.");
+      setWorkPolicyStatus("تم حفظ إعدادات الموظف وتاريخ سريانها.", "success");
+      toast("تم حفظ إعدادات الموظف.");
     } catch (error) {
       const message = `${error.code}: ${error.message}`;
       setWorkPolicyStatus(message, "error");
@@ -929,14 +984,7 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     byId("branchFilter").addEventListener("change",()=>{void loadWeekBoard();});
     byId("policySourceId").addEventListener("change", () => {
       const policy = state.policies.find(item => item.policyId === byId("policySourceId").value);
-      if (!policy) return;
-      byId("policyRequiredMinutes").value = policy.requiredDailyMinutes;
-      byId("policyBreakMinutes").value = policy.allowedBreakMinutes;
-      byId("policyShiftStart").value = policy.defaultShiftStart || "";
-      byId("policyShiftEnd").value = policy.defaultShiftEnd || "";
-      byId("policyLateGrace").value = policy.graceLateMinutes || 0;
-      byId("policyDeductionRate").value = (policy.deficitRateMinorPerMinute || 0) / 100;
-      byId("policyOvertimeRate").value = (policy.overtimeRateMinorPerMinute || 0) / 100;
+      fillWorkPolicyForm(policy);
     });
     byId("staffFilter").addEventListener("change", () => { state.selectedBoardDate = null; byId("scheduleEditor").open = true; void loadSelected(); });
     byId("branchFilter").addEventListener("change", () => {
@@ -958,25 +1006,6 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
       }
     });
     byId("refreshPoliciesBtn").addEventListener("click", () => loadWorkPolicies());
-    byId("recoverPolicyAvailabilityBtn").addEventListener("click", async () => {
-      const button = byId("recoverPolicyAvailabilityBtn");
-      if (button.disabled) return;
-      button.disabled = true;
-      try {
-        const result = await api("recoverBookingAvailabilityTransaction", {
-          transactionId: "BAT-a5d15535-df6b-4fad-9e73-2da0c101764a",
-          originalRequestId: "createWorkPolicy-908d6924-f403-429f-8de1-a6536151babd",
-          requestId: "recoverWorkPolicyPhase5-20260811-0448"
-        });
-        button.dataset.result = JSON.stringify(result.recovery || {});
-        setWorkPolicyStatus("Phase 5 recovery completed.", "success");
-      } catch (error) {
-        button.dataset.result = JSON.stringify({ code: error.code, message: error.message });
-        setWorkPolicyStatus(`${error.code}: ${error.message}`, "error");
-      } finally {
-        button.disabled = false;
-      }
-    });
     byId("addPolicyBtn").addEventListener("click", openWorkPolicyDialog);
     byId("workPolicyForm").addEventListener("submit", event => {
       event.preventDefault();

@@ -120,3 +120,32 @@ test("RTL mobile layout contains policy inputs and permits horizontal table cont
   assert.match(css, /\.work-policy-form-grid>\*\{min-width:0\}/);
   assert.match(html, /class="table-scroll"[\s\S]*?class="work-policy-table"/);
 });
+
+test("effective settings distinguish inactive, future, expired and inclusive boundaries without hiding overlaps", () => {
+  const context = loadPureHelpers();
+  const policies = [
+    {policyId:"old",active:true,effectiveFrom:"2026-09-01",effectiveTo:"2026-10-17"},
+    {policyId:"current",active:true,effectiveFrom:"2026-10-18",effectiveTo:"2026-10-18"},
+    {policyId:"future",active:true,effectiveFrom:"2026-10-19"},
+    {policyId:"disabled",active:false,effectiveFrom:"2026-10-01"}
+  ];
+  assert.deepEqual(Array.from(context.effectiveWorkPolicies(policies,"2026-10-18"),p=>p.policyId),["current"]);
+  assert.deepEqual(Array.from(context.effectiveWorkPolicies(policies,"2026-10-20"),p=>p.policyId),["future"]);
+  assert.equal(context.effectiveWorkPolicies([...policies,{active:true,effectiveFrom:"2026-10-01"}],"2026-10-18").length,2);
+  assert.equal(context.effectiveWorkPolicies([],"2026-10-18").length,0);
+});
+
+test("editing fills stored values including currency and zero rates; new settings clear previous employee values", () => {
+  const elements = new Map();
+  const context = {Date,JSON,Object,Array,String,Number,Boolean,Math,Error,URLSearchParams,
+    window:{crypto:{}}, document:{addEventListener(){},getElementById(id){if(!elements.has(id))elements.set(id,{value:"stale"});return elements.get(id);},querySelectorAll(){return [];}}};
+  vm.createContext(context);
+  vm.runInContext(js.replace('  document.addEventListener("DOMContentLoaded", init);','  window.fillPolicyForTest = fillWorkPolicyForm;'),context);
+  context.window.fillPolicyForTest({requiredDailyMinutes:480,allowedBreakMinutes:0,defaultShiftStart:"16:00",defaultShiftEnd:"01:00",graceLateMinutes:0,deficitRateMinorPerMinute:0,overtimeRateMinorPerMinute:125,salaryBasis:"DAILY",currency:"USD"});
+  assert.equal(elements.get("policyDeductionRate").value,0);
+  assert.equal(elements.get("policyOvertimeRate").value,1.25);
+  assert.equal(elements.get("policySalaryBasis").value,"DAILY");
+  assert.equal(elements.get("policyCurrency").value,"USD");
+  context.window.fillPolicyForTest(null);
+  for(const id of ["policyRequiredMinutes","policyBreakMinutes","policyShiftStart","policyShiftEnd","policyLateGrace","policyDeductionRate","policyOvertimeRate"])assert.equal(elements.get(id).value,"");
+});

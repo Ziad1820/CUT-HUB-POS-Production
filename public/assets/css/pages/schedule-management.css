@@ -89,3 +89,15 @@ dialog form,.dialog-content { padding: 24px; }
   .wide { grid-column: auto; }
 }
 @media(max-width:520px) { .filters { grid-template-columns: minmax(0,1fr); } .schedule-intro .header-actions { flex-wrap: wrap; } }
+/* Current employee settings first; complete history on demand. */
+.policy-current h3{margin:14px 0;font-size:1.05rem}
+.policy-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:0}
+.policy-summary-grid>div{min-width:0;background:#faf4ea;border:1px solid var(--border);border-radius:14px;padding:14px}
+.policy-summary-grid dt{color:var(--muted);font-size:.9rem}
+.policy-summary-grid dd{margin:6px 0 0;font-weight:800;overflow-wrap:anywhere}
+.policy-history{margin-top:18px;padding-top:16px;border-top:1px solid var(--border)}
+.policy-explainer{color:var(--muted);line-height:1.8;margin-bottom:0}
+@media(max-width:520px){.policy-summary-grid{grid-template-columns:minmax(0,1fr)}}
+.schedule-app .system-content{grid-template-columns:minmax(0,1fr)}
+.schedule-app #scheduleEditor,.policy-history{min-width:0;max-width:100%}
+.policy-history{width:100%}

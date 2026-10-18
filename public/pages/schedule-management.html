@@ -6,7 +6,7 @@
   <title>Staff Scheduling - SALONIX</title>
   <link rel="stylesheet" href="../assets/css/shared.css">
   <link rel="stylesheet" href="../assets/css/system-layout.css">
-  <link rel="stylesheet" href="../assets/css/pages/schedule-management.css?v=20261016-theme-performance-3">
+  <link rel="stylesheet" href="../assets/css/pages/schedule-management.css?v=20261018-policy-settings-1">
   <link rel="stylesheet" href="../assets/css/pages/booking-workflows.css?v=20261018-single-board-1">
 </head>
 <body>
@@ -77,23 +77,27 @@
       <section class="panel owner-only" id="workPolicyPanel" aria-labelledby="workPolicyTitle" hidden>
         <div class="section-title">
           <div>
-            <h2 id="workPolicyTitle">سياسات العمل</h2>
-            <p>إدارة السياسة الفعالة للموظف المحدد مع الاحتفاظ بالسجل السابق للتدقيق.</p>
+            <h2 id="workPolicyTitle">إعدادات دوام وحسابات الموظف</h2>
+            <p>حدد الدوام والبريك وأسعار الدقائق للموظف المختار. التعديلات السابقة محفوظة في السجل.</p>
           </div>
           <div class="actions">
-            <button class="secondary-btn" id="refreshPoliciesBtn" type="button">تحديث السياسات</button>
-            <button class="secondary-btn" id="recoverPolicyAvailabilityBtn" type="button">Recover Phase 5</button>
-            <button class="primary-btn" id="addPolicyBtn" type="button">إضافة سياسة</button>
+            <button class="secondary-btn" id="refreshPoliciesBtn" type="button">تحديث الإعدادات</button>
+            <button class="primary-btn" id="addPolicyBtn" type="button">إعداد دوام الموظف</button>
           </div>
         </div>
         <div id="workPolicyStatus" class="inline-status" role="status" aria-live="polite"></div>
-        <div class="table-scroll">
+        <div id="workPolicyCurrent" class="policy-current" aria-live="polite"></div>
+        <div id="workPolicyEmpty" class="empty">اختر موظفًا لعرض إعدادات دوامه وحساباته.</div>
+        <p class="policy-explainer">الخصم يشمل التأخير والخروج المبكر وتجاوز البريك، ويظهر كل سبب منفصلًا في الحسابات. الوقت الإضافي لا يدخل الحسابات إلا بعد اعتمادك.</p>
+        <details id="workPolicyHistory" class="policy-history">
+          <summary>سجل الإعدادات والفترات السابقة والقادمة</summary>
+          <div class="table-scroll">
           <table class="work-policy-table">
             <thead><tr><th>المعرّف</th><th>الفترة الفعالة</th><th>دقائق العمل</th><th>البريك</th><th>أساس الراتب</th><th>العملة</th><th>الحالة</th><th>إجراء</th></tr></thead>
             <tbody id="workPolicyBody"></tbody>
           </table>
-        </div>
-        <div id="workPolicyEmpty" class="empty">اختر موظفًا لعرض سياسات العمل.</div>
+          </div>
+        </details>
       </section>
 
       <section class="panel">
@@ -206,13 +210,13 @@
 
   <dialog id="workPolicyDialog" aria-labelledby="workPolicyDialogTitle">
     <form id="workPolicyForm" method="dialog">
-      <div class="dialog-title"><h2 id="workPolicyDialogTitle">إضافة سياسة عمل</h2><button type="button" data-close="workPolicyDialog" aria-label="إغلاق">×</button></div>
+      <div class="dialog-title"><h2 id="workPolicyDialogTitle">إعدادات دوام وحسابات الموظف</h2><button type="button" data-close="workPolicyDialog" aria-label="إغلاق">×</button></div>
       <p class="dialog-hint">حدد إعدادات الموظف وتاريخ سريانها. اختيار سياسة سابقة يستبدلها من هذا التاريخ ويحافظ على الأيام المسجلة. الجدول الأسبوعي والاستثناءات لهما الأولوية على الشفت الافتراضي.</p>
       <div class="form-grid work-policy-form-grid">
         <label class="wide">الموظف<input id="policyStaffName" readonly></label>
         <label class="wide">الإعداد السابق المراد تغييره<select id="policySourceId"></select></label>
-        <label>فعالة من<input id="policyEffectiveFrom" type="date" required></label>
-        <label>فعالة إلى (اختياري)<input id="policyEffectiveTo" type="date"></label>
+        <label>تسري من<input id="policyEffectiveFrom" type="date" required></label>
+        <label>تسري إلى (اختياري)<input id="policyEffectiveTo" type="date"></label>
         <label>بداية الشفت الافتراضي<input id="policyShiftStart" type="time" required></label>
         <label>نهاية الشفت الافتراضي<input id="policyShiftEnd" type="time" required></label>
         <label>دقائق العمل المطلوبة<input id="policyRequiredMinutes" type="number" min="0" step="1" required></label>
@@ -222,9 +226,9 @@
         <label>سماح تأخير الحضور (دقائق)<input id="policyLateGrace" type="number" min="0" step="1" required></label>
         <label>أساس الراتب<select id="policySalaryBasis" required><option value="MONTHLY">شهري</option><option value="DAILY">يومي</option><option value="HOURLY">بالساعة</option><option value="PER_MINUTE">بالدقيقة</option></select></label>
         <label>العملة<input id="policyCurrency" maxlength="3" value="EGP" required></label>
-        <label class="wide">سبب الإنشاء<input id="policyReason" maxlength="500" required></label>
+        <label class="wide">سبب التغيير<input id="policyReason" maxlength="500" required></label>
       </div>
-      <div class="dialog-actions"><button class="secondary-btn" type="button" data-close="workPolicyDialog">إلغاء</button><button class="primary-btn" id="savePolicyBtn" type="submit">حفظ السياسة</button></div>
+      <div class="dialog-actions"><button class="secondary-btn" type="button" data-close="workPolicyDialog">إلغاء</button><button class="primary-btn" id="savePolicyBtn" type="submit">حفظ الإعدادات</button></div>
     </form>
   </dialog>
 
@@ -256,6 +260,6 @@
   <script src="../assets/js/utils/layout.js?v=20261009-single-analysis-1"></script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>
-  <script src="../assets/js/pages/schedule-management.js?v=20261018-single-board-1"></script>
+  <script src="../assets/js/pages/schedule-management.js?v=20261018-policy-settings-1"></script>
 </body>
 </html>

@@ -17,6 +17,11 @@ function response(p){
   if(p.action==="attendanceCheckIn"||p.action==="attendanceEndBreak"){Object.assign(days.find(d=>d.staffId===p.staffId),{state:"CHECKED_IN",status:"CHECKED_IN",openSession:true,openBreak:false,actualCheckIn:new Date().toISOString()});return result;}
   if(p.action==="attendanceStartBreak"){Object.assign(days.find(d=>d.staffId===p.staffId),{state:"ON_BREAK",status:"ON_BREAK",openBreak:true});return result;}
   if(p.action==="getSchedulePageData")return {...result,staff,permissions};
+  if(p.action==="listWorkPolicies")return {...result,workPolicies:p.staffId!=="S0"?[]:[
+    {policyId:"FIXTURE-CURRENT",staffId:"S0",active:true,effectiveFrom:plus(date(),-7),effectiveTo:plus(date(),7),requiredDailyMinutes:480,allowedBreakMinutes:60,defaultShiftStart:"09:00",defaultShiftEnd:"18:00",graceLateMinutes:5,deficitRateMinorPerMinute:150,overtimeRateMinorPerMinute:200,salaryBasis:"MONTHLY",currency:"EGP"},
+    {policyId:"FIXTURE-PAST",staffId:"S0",active:true,effectiveFrom:plus(date(),-30),effectiveTo:plus(date(),-8),requiredDailyMinutes:420,allowedBreakMinutes:30,salaryBasis:"DAILY",currency:"EGP"},
+    {policyId:"FIXTURE-FUTURE",staffId:"S0",active:true,effectiveFrom:plus(date(),8),requiredDailyMinutes:450,allowedBreakMinutes:45,salaryBasis:"MONTHLY",currency:"EGP"}
+  ]};
   if(p.action==="getScheduleWeekBoard")return {...result,staff,permissions,resolvedSchedules:staff.flatMap(s=>Array.from({length:7},(_,i)=>({staffId:s.staffId,date:plus(p.dateFrom,i),classification:i===5?"WEEKLY_DAY_OFF":"SCHEDULED",shiftSegments:i===5?[]:[{shiftStart:"09:00",shiftEnd:"18:00"}]})))};
   if(p.action==="getScheduleSelection")return {...result,weekly:{...result,schedules:[]},overrides:{...result,overrides:[]},resolved:{...result,resolvedSchedules:[]},audit:{...result,audit:[]}};
   if(p.action==="getPublicBookingOptions"||p.action==="getInternalBookingOptions")return {...result,catalogOnly:p.catalogOnly,branches:[branch],services,attendanceLinked:true,autoConfirm:confirmation,barbers:staff.map(s=>({staffId:s.staffId,name:s.staffName,code:s.code,slots:s.staffId==="S1"?[]:["10:00","10:30","12:00","15:00"],availability:s.staffId==="S1"?"unavailable":"available",reasonCode:s.staffId==="S1"?"ON_BREAK":"AVAILABLE"})),liveRefreshEnabled:false};
