@@ -1,6 +1,6 @@
 // Share concurrent reads only; settled responses are never cached.
 function createScheduleReadDispatcher(request, observe) {
-  const reads = new Set(["getScheduleSelection", "getSchedulePageData", "listScheduleUserScopes", "listWorkPolicies",
+  const reads = new Set(["getScheduleWeekBoard", "getScheduleSelection", "getSchedulePageData", "listScheduleUserScopes", "listWorkPolicies",
     "getStaffWeeklySchedule", "listScheduleOverrides", "resolveStaffSchedulesRange", "getScheduleAuditHistory"]);
   const pending = new Map();
   return function dispatch(action, payload) {
@@ -785,13 +785,15 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
 
   function openSegment(existing) {
     const today = dateKey(new Date());
+    const policy = state.policies.find(item => item.active !== false &&
+      (!item.effectiveFrom || item.effectiveFrom <= today) && (!item.effectiveTo || item.effectiveTo >= today));
     byId("segmentId").value = existing?.scheduleId || "";
     byId("segmentWeekday").value = existing?.weekday || "MONDAY";
     byId("segmentIndex").value = existing?.segmentIndex || 1;
-    byId("segmentStart").value = existing?.shiftStart || "09:00";
-    byId("segmentEnd").value = existing?.shiftEnd || "17:00";
-    byId("requiredMinutes").value = existing?.requiredWorkMinutes ?? 420;
-    byId("breakMinutes").value = existing?.allowedBreakMinutes ?? 60;
+    byId("segmentStart").value = existing?.shiftStart || policy?.defaultShiftStart || "";
+    byId("segmentEnd").value = existing?.shiftEnd || policy?.defaultShiftEnd || "";
+    byId("requiredMinutes").value = existing?.requiredWorkMinutes ?? policy?.requiredDailyMinutes ?? "";
+    byId("breakMinutes").value = existing?.allowedBreakMinutes ?? policy?.allowedBreakMinutes ?? "";
     byId("effectiveFrom").value = existing?.effectiveFrom === "0001-01-01" ? today : (existing?.effectiveFrom || today);
     byId("effectiveTo").value = existing?.effectiveTo || "";
     byId("segmentReason").value = "";
@@ -853,6 +855,7 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
       document.querySelectorAll("dialog[open]").forEach(dialog => dialog.close());
       if (copying) await refreshCopiedSelection(result);
       else await loadSelected();
+      void loadWeekBoard();
     } catch (error) {
       const message = scheduleManagementErrorMessage(error);
       setStatus(message, "error");
@@ -889,7 +892,32 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     setStatus(failure ? "تم حفظ النسخ، لكن تعذر تحديث جزء من العرض. اضغط «عرض الفترة» لتحديثه؛ لا تعِد النسخ." : "", failure ? "error" : "");
   }
 
+  let boardSequence = 0;
+  async function loadWeekBoard() {
+    const mount=byId("staffWeekBoard"); if (!mount) return;
+    const from=byId("rangeStart").value; if(!/^\d{4}-\d{2}-\d{2}$/.test(from)) return;
+    const sequence=++boardSequence, to=plusDays(from,6);
+    byId("rangeEnd").value=to; byId("boardWeekDate").value=from;
+    byId("weekBoardStatus").textContent="جاري تحميل أسبوع الفريق…"; mount.setAttribute("aria-busy","true");
+    mount.querySelectorAll("button").forEach(button=>button.disabled=true);
+    try { const result=await api("getScheduleWeekBoard",{dateFrom:from,dateTo:to,branchId:byId("branchFilter").value});
+      if(sequence!==boardSequence)return;
+      const dates=Array.from({length:7},(_,i)=>plusDays(from,i));
+      const table=document.createElement("table"),head=document.createElement("thead"),header=document.createElement("tr");
+      const first=document.createElement("th");first.textContent="الموظف";header.append(first);
+      dates.forEach(date=>{const th=document.createElement("th");th.textContent=new Intl.DateTimeFormat("ar-EG",{weekday:"short",day:"numeric",month:"short"}).format(new Date(date+"T12:00:00"));header.append(th);});head.append(header);table.append(head);
+      const body=document.createElement("tbody");
+      (result.staff||[]).forEach(staff=>{const row=document.createElement("tr"),name=document.createElement("th");name.textContent=staff.staffName;row.append(name);dates.forEach(date=>{const day=(result.resolvedSchedules||[]).find(item=>item.staffId===staff.staffId&&item.date===date),cell=document.createElement("td"),button=document.createElement("button");button.type="button";button.className="shift-cell";const shifts=day?.shiftSegments||[];button.classList.toggle("rest-day",!shifts.length);button.textContent=(result.staffErrors||[]).some(item=>item.staffId===staff.staffId)?"تحتاج مراجعة سياسة العمل":shifts.length?shifts.map(shiftLabel).join(" / "):(day?.classification==="WEEKLY_DAY_OFF"?"راحة":"غير مجدول");button.setAttribute("aria-label",staff.staffName+" "+date+" "+button.textContent);button.onclick=async()=>{if(state.busy)return;byId("staffFilter").value=staff.staffId;byId("scheduleEditor").open=true;await loadSelected();if(state.weeklyLoadFailed || byId("staffFilter").value!==staff.staffId || sequence!==boardSequence)return;const weekday=["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"][new Date(date+"T12:00:00Z").getUTCDay()];const existing=state.schedules.find(item=>item.weekday===weekday&&item.active!==false&&(!item.effectiveFrom||item.effectiveFrom<=date)&&(!item.effectiveTo||item.effectiveTo>=date));if(state.permissions.manage){openSegment(existing);byId("segmentWeekday").value=weekday;if(!existing)byId("effectiveFrom").value=date;}};cell.append(button);row.append(cell);});body.append(row);});table.append(body);mount.replaceChildren(table);byId("weekBoardStatus").textContent=result.staff?.length?"":"لا يوجد موظفون في النطاق المتاح لك.";
+    } catch(error){if(sequence===boardSequence)byId("weekBoardStatus").textContent=scheduleManagementErrorMessage(error);}finally{if(sequence===boardSequence)mount.setAttribute("aria-busy","false");}
+  }
+  function moveBoardWeek(offset) { if(state.busy)return;byId("rangeStart").value=plusDays(byId("rangeStart").value,offset);byId("scheduleEditor").open=false;void loadWeekBoard(); }
+
   function bindEvents() {
+    byId("boardPreviousWeek").addEventListener("click",()=>moveBoardWeek(-7));
+    byId("boardNextWeek").addEventListener("click",()=>moveBoardWeek(7));
+    byId("boardThisWeek").addEventListener("click",()=>{byId("rangeStart").value=dateKey(new Date());void loadWeekBoard();});
+    byId("boardWeekDate").addEventListener("change",()=>{if(!byId("boardWeekDate").value)return;byId("rangeStart").value=byId("boardWeekDate").value;void loadWeekBoard();});
+    byId("branchFilter").addEventListener("change",()=>{void loadWeekBoard();});
     byId("policySourceId").addEventListener("change", () => {
       const policy = state.policies.find(item => item.policyId === byId("policySourceId").value);
       if (!policy) return;
@@ -901,7 +929,7 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
       byId("policyDeductionRate").value = (policy.deficitRateMinorPerMinute || 0) / 100;
       byId("policyOvertimeRate").value = (policy.overtimeRateMinorPerMinute || 0) / 100;
     });
-    byId("staffFilter").addEventListener("change", loadSelected);
+    byId("staffFilter").addEventListener("change", () => { byId("scheduleEditor").open = true; void loadSelected(); });
     byId("branchFilter").addEventListener("change", () => {
       populateSelectors();
       loadSelected();
@@ -914,6 +942,7 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     byId("refreshBtn").addEventListener("click", async () => {
       try {
         await loadPageData();
+      await loadWeekBoard();
         await loadSelected();
       } catch (error) {
         setStatus(`${error.code}: ${error.message}`, "error");
@@ -1239,13 +1268,15 @@ function buildMinuteWorkPolicyPayload(input, requestId) {
     if (!authorizedUser) return;
     const today = dateKey(new Date());
     byId("rangeStart").value = today;
-    byId("rangeEnd").value = plusDays(today, 13);
+    byId("rangeEnd").value = plusDays(today, 6);
+    byId("boardWeekDate").value = today;
     populateStaticOptions();
     bindEvents();
     applyPermissions();
     renderWeekly(); renderRange(); renderOverrides(); renderAudit([]);
     try {
       await loadPageData();
+      await loadWeekBoard();
       if (state.staff.length === 1) {
         byId("staffFilter").value = state.staff[0].staffId;
         await loadSelected();

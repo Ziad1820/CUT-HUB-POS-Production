@@ -11,7 +11,7 @@ function functionSource(name, nextName) {
   const start = source.indexOf(`function ${name}`);
   const end = nextName
     ? source.indexOf(`function ${nextName}`, start + 1)
-    : source.indexOf("\n\n  elements.services.addEventListener", start + 1);
+    : source.indexOf("\n  document.getElementById(\"backToAppointment\")", start + 1);
   assert.ok(start >= 0 && end > start, `${name} source must be present`);
   return source.slice(start, end);
 }

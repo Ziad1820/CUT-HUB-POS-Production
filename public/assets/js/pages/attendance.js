@@ -161,13 +161,19 @@
       metric("إضافي مؤهل", minutes(day.eligibleOvertimeMinutes)),
       metric("إضافي معتمد", minutes(day.approvedOvertimeMinutes))
     );
-    article.append(head, schedule, metrics);
+    const dailyDetails = create("details", "attendance-extra");
+    dailyDetails.append(create("summary", "", "تفاصيل الساعات والحسابات"), schedule, metrics);
+    const presence = create("p", "attendance-presence", day.state === "CHECKED_IN" ? "حاضر · المواعيد حسب الحجوزات والشفت" : day.state === "ON_BREAK" ? "غير متاح للحجز حتى تسجيل الرجوع" : "لم يسجل حضورًا مفتوحًا لهذا اليوم");
+    const quickMetrics = create("div", "attendance-quick-metrics");
+    quickMetrics.append(metric("الحضور", clock(day.actualCheckIn)), metric("الشفت", day.scheduledStart ? `${day.scheduledStart} — ${day.scheduledEnd}` : "غير محدد"));
+    article.append(head, presence, quickMetrics, dailyDetails);
     const warnings = [...(day.calculationWarnings || [])];
     if (day.staleCalculation) warnings.push("STALE_CALCULATION");
     if (warnings.length) {
       article.append(create("div", "warnings", `تنبيه: ${warnings.join(" · ")}`));
     }
     const actions = create("div", "card-actions");
+    const advancedActions = create("div", "card-actions");
     const self = day.staffId && day.staffId === (state.permissions.selfStaffId || "");
     if (state.permissions.selfAction || state.permissions.manage) {
       if (["NOT_STARTED", "CHECKED_OUT"].includes(day.state) && !day.locked) {
@@ -185,53 +191,59 @@
       }
     }
     if (state.permissions.manage && day.state === "NOT_STARTED" && !day.locked) {
-      actions.append(actionButton("تسجيل غياب", "markAttendanceAbsent", day, "danger"));
+      advancedActions.append(actionButton("تسجيل غياب", "markAttendanceAbsent", day, "danger"));
     }
     if ((state.permissions.correct || self) && !day.locked) {
-      actions.append(actionButton("طلب تصحيح", "requestAttendanceCorrection", day));
+      advancedActions.append(actionButton("طلب تصحيح", "requestAttendanceCorrection", day));
     }
     if ((state.permissions.selfAction || state.permissions.manage) &&
         day.eligibleOvertimeMinutes > 0 && !day.locked &&
         !(RomeoAuth.isOwnerUser(user) && state.permissions.approveOvertime)) {
-      actions.append(actionButton("مراجعة الإضافي", "requestAttendanceOvertime", day));
+      advancedActions.append(actionButton("مراجعة الإضافي", "requestAttendanceOvertime", day));
     }
     if (state.permissions.approveOvertime) {
       if (RomeoAuth.isOwnerUser(user) && !day.locked && !day.openSession && !day.openBreak &&
           day.eligibleOvertimeMinutes > 0 && !(day.pendingOvertime || []).length &&
           !["APPROVED", "REJECTED"].includes(day.overtimeApprovalStatus)) {
-        actions.append(actionButton("إضافة الوقت الإضافي", "reviewOvertime", day, "primary"));
+        advancedActions.append(actionButton("إضافة الوقت الإضافي", "reviewOvertime", day, "primary"));
       }
       (day.pendingOvertime || []).forEach(entry => {
-        actions.append(actionButton("اعتماد الإضافي", "approveAttendanceOvertime", day,
+        advancedActions.append(actionButton("اعتماد الإضافي", "approveAttendanceOvertime", day,
           "primary", entry.overtimeApprovalId));
-        actions.append(actionButton("رفض الإضافي", "rejectAttendanceOvertime", day,
+        advancedActions.append(actionButton("رفض الإضافي", "rejectAttendanceOvertime", day,
           "danger", entry.overtimeApprovalId));
       });
     }
     if (state.permissions.approveAdjustment) {
       (day.pendingAdjustments || []).forEach(entry => {
-        actions.append(actionButton("اعتماد التصحيح", "approveAttendanceCorrection", day,
+        advancedActions.append(actionButton("اعتماد التصحيح", "approveAttendanceCorrection", day,
           "primary", entry.adjustmentId));
-        actions.append(actionButton("رفض التصحيح", "rejectAttendanceCorrection", day,
+        advancedActions.append(actionButton("رفض التصحيح", "rejectAttendanceCorrection", day,
           "danger", entry.adjustmentId));
       });
     }
     if (state.permissions.manage && !day.locked && !day.openSession && !day.openBreak) {
-      actions.append(actionButton("إقفال اليوم", "closeAttendanceDay", day));
+      advancedActions.append(actionButton("إقفال اليوم", "closeAttendanceDay", day));
     }
     if (state.permissions.correct && day.locked) {
-      actions.append(actionButton("إعادة فتح", "reopenAttendanceDay", day, "danger"));
+      advancedActions.append(actionButton("إعادة فتح", "reopenAttendanceDay", day, "danger"));
     }
     actions.append(actionButton("التفاصيل", "details", day));
-    article.append(actions);
+    const moreActions = create("details", "attendance-extra");
+    moreActions.append(create("summary", "", "إدارة اليوم والتصحيحات"), advancedActions);
+    article.append(actions, moreActions);
     return article;
+  }
+  function needsReview(day) {
+    return day.status === "UNRESOLVED" || day.staleCalculation ||
+      (day.calculationWarnings || []).length > 0 ||
+      (day.pendingAdjustments || []).length > 0 || (day.pendingOvertime || []).length > 0;
   }
   function filteredDays() {
     return state.days.filter(day =>
       (!byId("branchFilter").value || day.branchId === byId("branchFilter").value) &&
       (!byId("staffFilter").value || day.staffId === byId("staffFilter").value) &&
-      (!byId("unresolvedFilter").checked ||
-        day.openSession || day.openBreak || (day.calculationWarnings || []).length || day.status === "UNRESOLVED") &&
+      (!byId("unresolvedFilter").checked || needsReview(day)) &&
       (!byId("openBreakFilter").checked || day.openBreak));
   }
   function render() {
@@ -241,10 +253,9 @@
     else visible.forEach(day => cards.append(renderCard(day)));
     byId("totalCount").textContent = String(visible.length);
     byId("workingCount").textContent = String(visible.filter(day =>
-      ["CHECKED_IN", "ON_BREAK"].includes(day.state)).length);
+      day.state === "CHECKED_IN").length);
     byId("breakCount").textContent = String(state.days.filter(day => day.openBreak).length);
-    byId("warningCount").textContent = String(state.days.filter(day =>
-      day.openSession || day.openBreak || (day.calculationWarnings || []).length).length);
+    byId("warningCount").textContent = String(visible.filter(needsReview).length);
     updateControls();
   }
   function populateFilters(days) {
@@ -350,6 +361,11 @@
     if (["attendanceCheckIn", "attendanceCheckOut", "attendanceStartBreak", "attendanceEndBreak"].includes(action)) {
       byId("actionReason").value = labels[action];
     }
+    if (["attendanceCheckIn", "attendanceEndBreak"].includes(action)) {
+      updateControls();
+      return submitAction({ preventDefault() {} });
+    }
+    byId("actionReason").closest("label").hidden = ["attendanceStartBreak", "attendanceCheckOut"].includes(action);
     actionDialog.showModal();
     updateControls();
     byId("actionReason").focus();

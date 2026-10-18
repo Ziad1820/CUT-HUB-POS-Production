@@ -21,7 +21,7 @@
     trackingToken: "", phoneLast4: "", language: "ar", lastFocus: null,
     pendingCreateRequest: null, availabilityToken: "", availabilityPollTimer: null,
     availabilityPollDelay: 30000, availabilityRequestSequence: 0,
-    liveRefreshEnabled: false, pendingProposalRequests: {}
+    autoConfirm: false, liveRefreshEnabled: false, pendingProposalRequests: {}
   };
 
   const copy = {
@@ -42,7 +42,7 @@
       requestPending: "هذا طلب حجز ويحتاج إلى تأكيد من الصالون.",
       thankYou: "شكرًا لمشاركتنا رأيك.", ratingQuestion: "كيف كانت تجربتك مع",
       submitRating: "إرسال التقييم", optionalComment: "تعليق اختياري", copyDone: "تم النسخ.",
-      statuses: { pending: "بانتظار التأكيد", proposed: "موعد بديل مقترح", confirmed: "تم تأكيد الحجز", rejected: "تم رفض الطلب", done: "اكتمل الحجز", cancelled: "تم إلغاء الحجز", expired: "انتهت مهلة الطلب" }
+      statuses: { pending: "بانتظار التأكيد", proposed: "موعد بديل مقترح", confirmed: "تم تأكيد الحجز", arrived: "وصل / في الخدمة", no_show: "لم يحضر", rejected: "تم رفض الطلب", done: "اكتمل الحجز", cancelled: "تم إلغاء الحجز", expired: "انتهت مهلة الطلب" }
     },
     en: {
       loadingServices: "Loading services...", noServices: "No services are currently available.",
@@ -61,7 +61,7 @@
       requestPending: "This is a booking request and requires confirmation from the salon.",
       thankYou: "Thank you for your feedback.", ratingQuestion: "How was your experience with",
       submitRating: "Submit rating", optionalComment: "Optional comment", copyDone: "Copied.",
-      statuses: { pending: "Pending confirmation", proposed: "New appointment proposed", confirmed: "Booking confirmed", rejected: "Request rejected", done: "Booking completed", cancelled: "Booking cancelled", expired: "Request hold expired" }
+      statuses: { pending: "Pending confirmation", proposed: "New appointment proposed", confirmed: "Booking confirmed", arrived: "Arrived / in service", no_show: "No-show", rejected: "Request rejected", done: "Booking completed", cancelled: "Booking cancelled", expired: "Request hold expired" }
     }
   };
 
@@ -83,6 +83,8 @@
     document.querySelectorAll("[data-ui-ar][data-ui-en]").forEach((node) => {
       node.textContent = node.dataset[state.language === "ar" ? "uiAr" : "uiEn"];
     });
+    renderConfirmationMode();
+    renderPublicWeek();
     elements.note.placeholder = state.language === "ar" ? "أي تفاصيل مهمة للحجز" : "Any important booking details";
     elements.customerPhone.placeholder = state.language === "ar" ? "010xxxxxxxx أو +2010xxxxxxxx" : "010xxxxxxxx or +2010xxxxxxxx";
   }
@@ -120,11 +122,20 @@
     notify.timer = setTimeout(() => elements.toast.classList.remove("visible"), 4200);
   }
 
+  function renderConfirmationMode() {
+    const notice = document.getElementById("confirmationNotice");
+    if (notice) notice.textContent = state.autoConfirm ? (state.language === "ar" ? "الموعد المتاح يتأكد فور إتمام الحجز." : "Available appointments are confirmed when you book.") : tr("requestPending");
+    elements.submit.textContent = state.language === "ar" ? (state.autoConfirm ? "تأكيد الحجز" : "إرسال طلب الحجز") : (state.autoConfirm ? "Confirm booking" : "Submit booking request");
+  }
+
   function setStep(step) {
+    const displayStep = step <= 2 ? 1 : 2;
+    const appointment = document.getElementById("appointmentStep");
+    if (appointment) appointment.classList.toggle("hidden", displayStep === 2);
     elements.steps.querySelectorAll("[data-step]").forEach((item) => {
       const number = Number(item.dataset.step);
-      item.classList.toggle("active", number === step);
-      item.classList.toggle("complete", number < step);
+      item.classList.toggle("active", number === displayStep);
+      item.classList.toggle("complete", number < displayStep);
     });
   }
 
@@ -197,7 +208,7 @@
 
   function renderBarbers() {
     const earliest = earliestSlot();
-    if (!state.barbers.length || !earliest) {
+    if (!state.barbers.length) {
       elements.barberGrid.innerHTML = `<div class="empty-public-state">${tr("noSlots")}</div>`;
       return;
     }
@@ -206,7 +217,7 @@
         ? `<span class="barber-rating" aria-label="${barber.averageRating} out of 5">★ ${Number(barber.averageRating).toFixed(1)} · ${barber.ratingsCount} ${tr("ratings")}</span>`
         : `<span class="barber-rating new">${tr("newBarber")}</span>`;
       const slots = (barber.slots || []).map((time) => {
-        const recommended = earliest.barber.staffId === barber.staffId && earliest.time === time;
+        const recommended = earliest?.barber.staffId === barber.staffId && earliest?.time === time;
         return `<button class="slot-btn ${state.employeeId === barber.staffId && state.time === time ? "selected" : ""} ${recommended ? "recommended" : ""}"
           type="button" data-staff-id="${escapeHtml(barber.staffId)}" data-time="${escapeHtml(time)}"
           aria-label="${escapeHtml(formatTime(time))}${recommended ? `, ${tr("earliest")}` : ""}">
@@ -215,7 +226,7 @@
       }).join("");
       return `<article class="barber-card ${state.employeeId === barber.staffId ? "selected" : ""}">
         <div class="barber-head"><div><h3 class="barber-name">${escapeHtml(barber.name)}</h3>${rating}</div>
-          <span class="availability-badge ${escapeHtml(barber.availability)}">${barber.slots?.length ? tr("available") : tr(barber.availability === "not_started" ? "notStarted" : "unavailable")}</span>
+          <span class="availability-badge ${escapeHtml(barber.availability)}">${barber.slots?.length ? (elements.date.value !== todayKey() ? (state.language === "ar" ? "متاح حسب الجدول" : "Scheduled availability") : state.attendanceLinked ? (state.language === "ar" ? "حاضر اليوم" : "Checked in today") : tr("available")) : tr(barber.availability === "not_started" ? "notStarted" : "unavailable")}</span>
         </div>
         <div class="slots">${slots || `<span class="barber-shift">${tr("noSlots")}</span>`}</div>
       </article>`;
@@ -237,6 +248,7 @@
         <div><dt>${state.language === "ar" ? "الإجمالي" : "Total"}</dt><dd>${selectedDuration()} ${state.language === "ar" ? "دقيقة" : "min"} · ${escapeHtml(money(selectedPrice()))}</dd></div>
       </dl>`;
     setStep(3);
+    document.getElementById("appointmentStep")?.classList.add("hidden");
     renderBarbers();
     elements.customerPanel.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -254,6 +266,7 @@
       renderServices();
     }
     elements.customerPanel.classList.add("hidden");
+    setStep(1);
     elements.barberGrid.replaceChildren();
   }
 
@@ -272,7 +285,23 @@
     loadOptions();
   }
 
+  function renderPublicWeek() {
+    const mount = document.getElementById("publicWeekPicker");
+    if (!mount) return;
+    const selected = elements.date.value || todayKey();
+    const start = new Date(selected + "T12:00:00Z");
+    const weekday = (start.getUTCDay() + 6) % 7;
+    start.setUTCDate(start.getUTCDate() - weekday);
+    mount.replaceChildren();
+    const previous = document.createElement("button"); previous.type = "button"; previous.className = "week-arrow"; previous.textContent = "‹"; previous.setAttribute("aria-label", "الأسبوع السابق");
+    const move = offset => { const d = new Date(start); d.setUTCDate(d.getUTCDate() + offset); const key = d.toISOString().slice(0,10); elements.date.value = key < todayKey() ? todayKey() : elements.date.max && key > elements.date.max ? elements.date.max : key; changePublicDate(); };
+    previous.onclick = () => move(-7); mount.append(previous);
+    for (let i=0;i<7;i++) { const d = new Date(start); d.setUTCDate(d.getUTCDate()+i); const key=d.toISOString().slice(0,10); const button=document.createElement("button");button.type="button";button.className="week-day";button.classList.toggle("chosen",key===selected);button.disabled=key<todayKey() || !!elements.date.max && key>elements.date.max;button.setAttribute("aria-pressed",String(key===selected));button.textContent=new Intl.DateTimeFormat(state.language==="ar"?"ar-EG":"en-GB",{weekday:"short",day:"numeric",month:"short",timeZone:"Africa/Cairo"}).format(d);button.onclick=()=>{elements.date.value=key;changePublicDate();};mount.append(button); }
+    const next = document.createElement("button");next.type="button";next.className="week-arrow";next.textContent="›";next.setAttribute("aria-label","الأسبوع التالي");next.onclick=()=>move(7);mount.append(next);
+  }
+
   function changePublicDate() {
+    renderPublicWeek();
     clearPublicAvailability();
     loadOptions();
   }
@@ -300,6 +329,9 @@
       });
       if (result?.status !== "success") throw new Error(result?.message || tr("error"));
       if (requestSequence !== state.availabilityRequestSequence || elements.branch.value !== branchId) return;
+      state.autoConfirm = result.autoConfirm === true;
+      state.attendanceLinked = result.attendanceLinked === true;
+      renderConfirmationMode();
       state.liveRefreshEnabled = result.liveRefreshEnabled === true;
       state.availabilityPollDelay = Math.max(30000, Number(result.retryAfterSeconds || 30) * 1000);
       if (result.unchanged) return;
@@ -325,7 +357,7 @@
       }
       renderServices();
       renderBarbers();
-      setStep(state.selectedServiceIds.size ? 2 : 1);
+      setStep(state.time ? 3 : state.selectedServiceIds.size ? 2 : 1);
     } catch (error) {
       state.availabilityPollDelay = Math.min(300000, Math.max(30000, state.availabilityPollDelay * 2));
       if (!silent) {
@@ -375,6 +407,8 @@
 
   async function submitBooking(event) {
     event.preventDefault();
+    if (elements.submit.disabled) return;
+    if (!elements.customerName.value.trim()) { elements.customerName.focus(); return notify(state.language === "ar" ? "اكتب اسمك لإتمام الحجز." : "Enter your name to complete the booking.", "error"); }
     const services = selectedServices();
     if (!services.length || !state.employeeId || !state.time) return notify(tr("requiredSelection"), "error");
     const phone = normalizedEgyptianPhone(elements.customerPhone.value);
@@ -406,25 +440,25 @@
       state.phoneLast4 = phone.slice(-4);
       sessionStorage.setItem(phoneLast4Key(state.trackingToken), state.phoneLast4);
       notify(tr("sent"), "success");
-      showSuccess(result.trackingToken);
+      showSuccess(result.trackingToken, result.booking?.status === "confirmed");
     } catch (error) {
       notify(error.message || tr("error"), "error");
     } finally {
       elements.submit.disabled = false;
       elements.submit.classList.remove("loading");
-      elements.submit.textContent = state.language === "ar" ? "إرسال طلب الحجز" : "Submit booking request";
+      renderConfirmationMode();
     }
   }
 
-  function showSuccess(token) {
+  function showSuccess(token, confirmed = false) {
     setStep(4);
     elements.bookingWorkspace.classList.add("hidden");
     elements.trackingWorkspace.classList.remove("hidden");
     elements.trackingContent.className = "tracking-card success-card";
     elements.trackingContent.innerHTML = `
       <div class="success-mark" aria-hidden="true">✓</div>
-      <h2>${escapeHtml(tr("sent"))}</h2>
-      <p>${escapeHtml(tr("requestPending"))}</p>
+      <h2>${escapeHtml(confirmed ? (state.language === "ar" ? "تم تأكيد حجزك" : "Your booking is confirmed") : tr("sent"))}</h2>
+      <p>${escapeHtml(confirmed ? (state.language === "ar" ? "حجزك مؤكد. احتفظ بكود المتابعة." : "Your appointment is confirmed. Keep your tracking code.") : tr("requestPending"))}</p>
       <div class="tracking-code-card"><span>${state.language === "ar" ? "كود المتابعة" : "Tracking code"}</span>
         <strong>${escapeHtml(token)}</strong><button class="secondary-action" type="button" data-copy-token>${state.language === "ar" ? "نسخ" : "Copy"}</button>
       </div>
@@ -607,6 +641,8 @@
     scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  document.getElementById("backToAppointment")?.addEventListener("click", () => { elements.customerPanel.classList.add("hidden"); setStep(1); renderPublicWeek(); });
+  renderPublicWeek();
   elements.services.addEventListener("change", changePublicServices);
   elements.date.addEventListener("change", changePublicDate);
   elements.branch.addEventListener("change", changePublicBranch);

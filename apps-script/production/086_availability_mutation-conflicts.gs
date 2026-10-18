@@ -33,7 +33,7 @@ function bookingAvailabilityPhase5RecordConflicts(kind, data, result, branchId, 
       : bookingAvailabilityPhase5Text(booking.employeeId) === staffId;
     return !booking.deleted && subjectMatches &&
       bookingAvailabilityPhase5Text(booking.date) === date &&
-      ["confirmed", "proposed", "pending"].indexOf(String(booking.status).toLowerCase()) !== -1;
+      ["confirmed", "arrived", "proposed", "pending"].indexOf(String(booking.status).toLowerCase()) !== -1;
   }).forEach(function (booking) {
     var evidenceScheduleIds = (day && day.scheduleSourceIds) ||
       (scheduleMutation && [scheduleMutation.overrideId || scheduleMutation.scheduleId].filter(Boolean)) || [];

@@ -16,7 +16,7 @@
           "path": "002_core_http-router.gs",
           "sha256": "2e44415efd4e9b8fb43037197feb0461662a11236523bc247487941be64c2614",
           "baselineSourcePath": "baseline/002_core_http-router.js",
-          "currentSha256": "93b1e8321d5207c0436ca7464c79f31878001ad200110f51a320414717bb4eb4",
+          "currentSha256": "1f2857b44dd4f17e18f9627baf69723f324365880f9a5934caccc9b196c642e0",
           "changedGlobals": [
             "doPost"
           ],
@@ -351,7 +351,14 @@
         },
         {
           "path": "051_booking_repository.gs",
-          "sha256": "ef1a86a8ee2c81d79449d59298528dbade896a23ed69f4d765d250aa552e6c85"
+          "sha256": "ef1a86a8ee2c81d79449d59298528dbade896a23ed69f4d765d250aa552e6c85",
+          "baselineSourcePath": "baseline/051_booking_repository.js",
+          "currentSha256": "cec6d8c71653a2048876fa47ba348ab132fc8ab7dabff422061933526311fc2d",
+          "changedGlobals": [
+            "normalizeBookingStatusV2",
+            "isRecognizedBookingStatusV2"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "052_booking_idempotency.gs",
@@ -363,7 +370,15 @@
         },
         {
           "path": "054_booking_legacy-availability.gs",
-          "sha256": "cb9f2da0e8cec6207e592634c67d267c900e27dc8eea7354bf3566ec3532b5ad"
+          "sha256": "cb9f2da0e8cec6207e592634c67d267c900e27dc8eea7354bf3566ec3532b5ad",
+          "baselineSourcePath": "baseline/054_booking_legacy-availability.js",
+          "currentSha256": "d563fddb74210dbb069530a9ee16c20e2e2ba9120bd46509dafff68c92f3ca1a",
+          "changedGlobals": [
+            "bookingBlocksSlot",
+            "isBookingStatusTransitionAllowed",
+            "bookingStatusIsTerminal"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "055_booking_availability-authority.gs",
@@ -373,7 +388,7 @@
           "path": "056_booking_options.gs",
           "sha256": "1193e17b3cee6fd0700f132a7b10e1c27664eed26c3449c6ddd911e0f7a82915",
           "baselineSourcePath": "baseline/056_booking_options.js",
-          "currentSha256": "d1638a5c696ca6cdd0e79ff16228ff56c96f417515f6ab3bb0c183ebad226a1b",
+          "currentSha256": "e0d66574e3ed6b5e896d488260bf0e68c68731ba1b96a8d32d226692fbbef7aa",
           "changedGlobals": [
             "getBookingOptionsForAudience"
           ],
@@ -381,11 +396,30 @@
         },
         {
           "path": "057_booking_public-actions.gs",
-          "sha256": "2e3e6fa8ed24f4ab9ef85061dac35498382e9b028dd821ffc3618d3920dfba74"
+          "sha256": "2e3e6fa8ed24f4ab9ef85061dac35498382e9b028dd821ffc3618d3920dfba74",
+          "baselineSourcePath": "baseline/057_booking_public-actions.js",
+          "currentSha256": "b5b152fd0eb6ecc181fd42c5129a5928b13e782617e265e410de6ea53dff9a69",
+          "changedGlobals": [
+            "createPublicBookingRequest"
+          ],
+          "addedGlobals": [
+            "bookingPublicAutoConfirm",
+            "getBookingConfirmationMode",
+            "setBookingConfirmationMode"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "058_booking_internal-actions.gs",
-          "sha256": "f526c4065395019c9902f8957511d9b92363c29629ea419afd35f6467130f74e"
+          "sha256": "f526c4065395019c9902f8957511d9b92363c29629ea419afd35f6467130f74e",
+          "baselineSourcePath": "baseline/058_booking_internal-actions.js",
+          "currentSha256": "a86cb3b027ed8e3ab1b003fd529a74504fad9f90ae9282e130b4971b0607bd6e",
+          "changedGlobals": [
+            "createBookingV2",
+            "getBookingsV2",
+            "updateBookingV2"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "059_booking_ratings.gs",
@@ -426,7 +460,7 @@
           "path": "065_phase_staff-scheduling-phase2-gas.gs",
           "sha256": "f7780cdc44903e1609faca27d279312b10b766d3a5733afa865456997ad1745f",
           "baselineSourcePath": "baseline/065_phase_staff-scheduling-phase2-gas.js",
-          "currentSha256": "b103544efb19114acb58cb039753a8b8aa69960d571a895b28934491e554301c",
+          "currentSha256": "4bb0ace083ba66e3ea6a57f9a2cc025967591007abd0bed190bc89dce7da2563",
           "changedGlobals": [
             "schedulePhase2CreateRepository",
             "handleStaffSchedulingPhase2Action"
@@ -491,7 +525,7 @@
           "path": "073_phase_booking-availability-phase5.gs",
           "sha256": "6be31b5cbcc146d45f5b73e942b31aec902f902a76e0fb974307c78282428109",
           "baselineSourcePath": "baseline/073_phase_booking-availability-phase5.js",
-          "currentSha256": "d2a8ec28a83dc4b8cc5b6ba220f881a6e9a204c1f9c399cd4dd654a651c092ab",
+          "currentSha256": "fdb1b7fa0cfe952a65747baa3b11f34a5a6456ce0fb6cd4eaf4746711076f9b0",
           "changedGlobals": [],
           "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
@@ -551,7 +585,13 @@
         },
         {
           "path": "086_availability_mutation-conflicts.gs",
-          "sha256": "6d5d41d5a962afdb04a6321ea9107779b8edf690dd966a75f29a459597fb39a3"
+          "sha256": "6d5d41d5a962afdb04a6321ea9107779b8edf690dd966a75f29a459597fb39a3",
+          "baselineSourcePath": "baseline/086_availability_mutation-conflicts.js",
+          "currentSha256": "c6f211e302e69011a1102dd478f7dc8818831fbd2d90fa6db62707370df394a1",
+          "changedGlobals": [
+            "bookingAvailabilityPhase5RecordConflicts"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "087_availability_branch-actions.gs",
@@ -559,7 +599,13 @@
         },
         {
           "path": "088_availability_no-check-in-detector.gs",
-          "sha256": "43382666557db00848d47da6c88dd9990bff1e70f57ec512b64ff41e2abce901"
+          "sha256": "43382666557db00848d47da6c88dd9990bff1e70f57ec512b64ff41e2abce901",
+          "baselineSourcePath": "baseline/088_availability_no-check-in-detector.js",
+          "currentSha256": "ac617f414754d9eb9d445013560d4c1a43ed31aecec40636c49b1557c37c9eb5",
+          "changedGlobals": [
+            "runBookingNoCheckInDetector"
+          ],
+          "changeReason": "Owner-configured minute attendance accounting and shared live booking availability"
         },
         {
           "path": "089_availability_action-router.gs",

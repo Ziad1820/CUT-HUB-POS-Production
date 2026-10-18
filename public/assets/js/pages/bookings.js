@@ -43,8 +43,8 @@
   const user = RomeoAuth.getCurrentUser();
   const can = (permission) => RomeoAuth.isOwnerUser(user) || RomeoAuth.hasPermission(permission);
   const state = {
-    bookings: [], services: [], selectedServiceIds: new Set(), otherService: false,
-    barbers: [], activeSource: "public", busy: false, modalOpen: false, lastFocus: null,
+    calendarView: window.matchMedia?.("(max-width: 700px)").matches ? "list" : "day", calendarStaff: "", calendarPick: null, bookings: [], services: [], selectedServiceIds: new Set(), otherService: false,
+    barbers: [], activeSource: "all", busy: false, modalOpen: false, lastFocus: null,
     ratings: [], ratingMeta: null, countdownTimer: null, refreshTimer: null,
     pendingCreateRequest: null, availabilityToken: "", availabilityPollTimer: null,
     availabilityPollDelay: 10000, availabilityRequestSequence: 0,
@@ -127,6 +127,7 @@
     elements.modal.classList.remove("hidden");
     const close = () => {
       state.modalOpen = false;
+      if (state.bookingReloadQueued) setTimeout(() => fetchBookings({silent:true}),0);
       elements.modal.classList.add("hidden");
       state.lastFocus?.focus();
     };
@@ -150,7 +151,8 @@
 
   async function fetchBookings({ silent = false } = {}) {
     const requestedDate = elements.filterDate.value;
-    const pendingKey = JSON.stringify([requestedDate]);
+    const requestedView = state.calendarView || "day";
+    const pendingKey = JSON.stringify([requestedDate, requestedView]);
     if (state.busy && state.bookingPendingKey === pendingKey) return;
     const requestSequence = ++state.bookingRequestSequence;
     if (state.busy || state.modalOpen) {
@@ -160,19 +162,24 @@
     state.busy = true;
     state.bookingPendingKey = pendingKey;
     if (!silent) elements.list.innerHTML = `<div class="empty-state"><span class="spinner"></span> ${text("جاري تحميل الحجوزات...", "Loading bookings...")}</div>`;
+    const calendar = document.getElementById("receptionCalendar");
+    if (!silent && calendar) calendar.textContent = text("جاري تحميل التقويم…", "Loading calendar…");
     try {
       const response = await readBooking({
         action: "getBookings",
-        filters: { date: requestedDate }
+        filters: { fromDate: calendarPlusDays(requestedDate, -1), toDate: calendarPlusDays(requestedDate, requestedView === "week" ? 6 : 0) }
       });
       if (response?.status !== "success") throw new Error(response?.message || text("تعذر تحميل الحجوزات.", "Could not load bookings."));
       if (requestSequence !== state.bookingRequestSequence ||
-          elements.filterDate.value !== requestedDate) return;
+          elements.filterDate.value !== requestedDate || (state.calendarView || "day") !== requestedView) return;
       state.bookings = (response.bookings || []).map(normalizeBooking);
       render();
     } catch (error) {
       if (requestSequence !== state.bookingRequestSequence) return;
-      if (!silent) elements.list.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+      if (!silent) {
+        elements.list.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+        if (calendar) calendar.textContent = error.message;
+      }
       notify(error.message, "error");
     } finally {
       state.busy = false;
@@ -201,15 +208,15 @@
 
   function visibleBookings() {
     if (state.activeSource === "ratings") return [];
-    return state.bookings.filter((booking) => booking.source === state.activeSource)
-      .filter(localSearchMatch).sort(bookingSort);
+    return state.bookings.filter((booking) => state.activeSource === "all" || booking.source === state.activeSource)
+      .filter(localSearchMatch).filter(booking => !state.calendarStaff || booking.employeeId === state.calendarStaff).filter(booking => (booking.status === "proposed" && booking.proposedDate || booking.date) >= elements.filterDate.value && (booking.status === "proposed" && booking.proposedDate || booking.date) <= calendarPlusDays(elements.filterDate.value, state.calendarView === "week" ? 6 : 0)).sort(bookingSort);
   }
 
   function statusLabel(status) {
     return ({
-      pending: text("بانتظار التأكيد", "Pending"), confirmed: text("مؤكد", "Confirmed"),
+      pending: text("بانتظار التأكيد", "Pending"), confirmed: text("مؤكد", "Confirmed"), arrived: text("وصل / في الخدمة", "Arrived / in service"), no_show: text("لم يحضر", "No-show"),
       proposed: text("موعد بديل مقترح", "Proposed"), rejected: text("مرفوض", "Rejected"),
-      done: text("تم الحضور", "Completed"), cancelled: text("ملغي", "Cancelled"),
+      done: text("انتهت الخدمة", "Completed"), cancelled: text("ملغي", "Cancelled"),
       expired: text("منتهي", "Expired")
     })[status] || status;
   }
@@ -235,14 +242,15 @@
     return ({
       pending: ["confirmed", "propose", "reject", "cancelled"],
       proposed: ["confirmed", "reject", "cancelled"],
-      confirmed: ["done", "cancelled"]
+      confirmed: ["arrived", "propose", "no_show", "cancelled"],
+      arrived: ["done", "cancelled"]
     })[booking.status] || [];
   }
 
   function actionButton(action) {
     const labels = {
       confirmed: text("تأكيد", "Confirm"), propose: text("اقتراح موعد", "Propose time"),
-      reject: text("رفض الطلب", "Reject"), done: text("تم الحضور", "Complete"),
+      reject: text("رفض الطلب", "Reject"), arrived: text("وصل / بدء الخدمة", "Arrived / start"), no_show: text("لم يحضر", "No-show"), done: text("إنهاء الخدمة", "Complete service"),
       cancelled: text("إلغاء", "Cancel")
     };
     const classes = action === "confirmed" ? "confirm" : action === "done" ? "done" : ["reject", "cancelled"].includes(action) ? "cancel" : "";
@@ -250,7 +258,7 @@
   }
 
   function render() {
-    const allVisible = state.bookings.filter(localSearchMatch);
+    const allVisible = state.bookings.filter(localSearchMatch).filter(booking => (booking.status === "proposed" && booking.proposedDate || booking.date) >= elements.filterDate.value && (booking.status === "proposed" && booking.proposedDate || booking.date) <= calendarPlusDays(elements.filterDate.value, state.calendarView === "week" ? 6 : 0));
     elements.today.textContent = allVisible.length;
     elements.confirmed.textContent = allVisible.filter((booking) => booking.status === "confirmed").length;
     elements.pending.textContent = allVisible.filter((booking) => booking.status === "pending").length;
@@ -259,6 +267,7 @@
     elements.ratingsDashboard.classList.toggle("hidden", state.activeSource !== "ratings");
     elements.list.classList.toggle("hidden", state.activeSource === "ratings");
     document.querySelector(".booking-filters").classList.toggle("hidden", state.activeSource === "ratings");
+    renderReceptionCalendar();
     if (state.activeSource === "ratings") {
       if (can("view_ratings")) renderRatings();
       else elements.ratingsDashboard.innerHTML = `<div class="empty-state">${text("لا تملك صلاحية عرض التقييمات.", "You do not have permission to view ratings.")}</div>`;
@@ -316,11 +325,13 @@
     if (optionsSequence !== state.optionsRequestSequence) return;
     state.services = response.services || [];
     state.barbers = response.barbers || [];
+    state.receptionStaffCatalog = state.barbers.slice();
     elements.employee.disabled = false;
     elements.slotStatus.textContent = "";
     elements.employee.innerHTML = `<option value="">${text("اختر الموظف", "Choose employee")}</option>` +
       state.barbers.map((barber) => `<option value="${escapeHtml(barber.staffId)}">${escapeHtml(barber.name)}</option>`).join("");
     renderServiceOptions();
+    renderReceptionCalendar();
   }
 
   async function loadBranchOptions() {
@@ -424,8 +435,13 @@
       elements.time.innerHTML = `<option value="">${slots.length ? text("اختر الموعد", "Choose appointment") : text("لا توجد مواعيد", "No appointments")}</option>` +
         slots.map((time) => `<option value="${escapeHtml(time)}">${escapeHtml(formatTime(time))}</option>`).join("");
       elements.time.disabled = !slots.length;
+      if (state.calendarPick && state.calendarPick.date === elements.date.value && state.calendarPick.staffId === employeeId) {
+        const desired = state.calendarPick.time;
+        if (slots.includes(desired)) elements.time.value = desired;
+        else elements.slotStatus.textContent = text("الوقت المختار غير متاح للخدمات المحددة؛ اختر موعدًا آخر.", "Selected time is unavailable for these services; choose another.");
+      }
       if (silent && slots.includes(selectedTime)) elements.time.value = selectedTime;
-      elements.slotStatus.textContent = slots.length ? "" : text("لا توجد مواعيد متاحة للمدة المختارة.", "No available appointments for the selected duration.");
+      if (!state.calendarPick || slots.includes(state.calendarPick.time)) elements.slotStatus.textContent = slots.length ? "" : text("لا توجد مواعيد متاحة للمدة المختارة.", "No available appointments for the selected duration.");
     } catch (error) {
       if (requestSequence !== state.availabilityRequestSequence) return;
       state.availabilityPollDelay = Math.min(120000, Math.max(10000, state.availabilityPollDelay * 2));
@@ -475,13 +491,14 @@
         service: state.otherService ? elements.otherName.value.trim() : selected.map((service) => service.name).join(", "),
         durationMinutes: state.otherService ? Number(elements.otherDuration.value) : selected.reduce((sum, service) => sum + Number(service.durationMinutes || 30), 0),
         totalPrice: state.otherService ? 0 : selected.reduce((sum, service) => sum + Number(service.price || 0), 0),
-        note: elements.note.value.trim(), status: "pending", source: "staff"
+        note: elements.note.value.trim(), status: "confirmed", source: "staff"
       }));
       if (response?.status !== "success") throw new Error(response?.message || text("تعذر حفظ الحجز.", "Could not save booking."));
       invalidateBookingReads();
       notify(text("تم حفظ الحجز.", "Booking saved."), "success");
       state.pendingCreateRequest = null;
       resetForm();
+      if (elements.formPanel?.tagName === "DETAILS") elements.formPanel.open = false;
     } catch (error) {
       notify(error.message, "error");
     } finally {
@@ -512,6 +529,7 @@
       });
       if (response?.status !== "success") throw new Error(response?.message || text("تعذر تحديث الحجز.", "Could not update booking."));
       invalidateBookingReads();
+      state.modalOpen = false; elements.modal.classList.add("hidden");
       notify(text("تم تحديث الحجز.", "Booking updated."), "success");
       state.busy = false;
       await fetchBookings({ silent: true });
@@ -573,6 +591,7 @@
   function reasonModal(booking, type) {
     const config = {
       reject: { title: text("رفض طلب الحجز", "Reject booking request"), label: text("سبب الرفض", "Rejection reason"), status: "rejected", key: "rejectionReason" },
+      no_show: { title: text("تسجيل عدم حضور العميل", "Mark no-show"), label: text("ملاحظة", "Note"), status: "no_show", key: "note" },
       cancelled: { title: text("إلغاء الحجز", "Cancel booking"), label: text("سبب الإلغاء", "Cancellation reason"), status: "cancelled", key: "cancellationReason" },
       delete: { title: text("حذف الحجز", "Delete booking"), label: text("سبب الحذف", "Deletion reason"), status: null, key: "reason" }
     }[type];
@@ -611,7 +630,7 @@
     const international = phone.startsWith("0") ? `20${phone.slice(1)}` : phone;
     const statusMessage = {
       pending: text("طلب حجزك قيد المراجعة", "your booking request is under review"),
-      confirmed: text("تم تأكيد حجزك", "your booking is confirmed"),
+      confirmed: text("تم تأكيد حجزك", "your booking is confirmed"), arrived: text("بدأت زيارتك", "your visit has started"),
       proposed: text("اقترحنا لك موعدًا بديلًا", "we proposed a different appointment"),
       cancelled: text("تم إلغاء الحجز", "your booking was cancelled"),
       done: text("شكرًا لزيارتك", "thank you for visiting")
@@ -627,14 +646,14 @@
 
   async function handleAction(event) {
     const button = event.target.closest("[data-action]");
-    if (!button || button.disabled) return;
+    if (!button || button.disabled || state.busy) return;
     const card = button.closest("[data-id]");
     const booking = state.bookings.find((item) => item.id === card?.dataset.id);
     if (!booking) return;
     try {
       const action = button.dataset.action;
       if (action === "propose") proposalModal(booking);
-      else if (action === "reject" || action === "cancelled" || action === "delete") reasonModal(booking, action);
+      else if (action === "reject" || action === "no_show" || action === "cancelled" || action === "delete") reasonModal(booking, action);
       else if (action === "whatsapp") whatsapp(booking);
       else if (action === "copy-token") copyToken(booking);
       else await updateStatus(booking, action, {}, button);
@@ -708,6 +727,55 @@
     if (shouldRefresh && !state.busy && !state.modalOpen) fetchBookings({ silent: true });
   }
 
+  function calendarPlusDays(value, count) {
+    const date = new Date((value || todayKey()) + "T12:00:00Z"); date.setUTCDate(date.getUTCDate()+count);return date.toISOString().slice(0,10);
+  }
+  function calendarInterval(booking, date) {
+    const occupiedDate = booking.status === "proposed" && booking.proposedDate || booking.date;
+    const occupiedTime = booking.status === "proposed" && booking.proposedTime || booking.time;
+    const base = Date.parse(date+"T00:00:00Z"), instant=Date.parse(occupiedDate+"T"+occupiedTime+":00Z");
+    const prep=Number(booking.preparationMinutesSnapshot||0),cleanup=Number(booking.cleanupMinutesSnapshot||0);
+    return {start:(instant-base)/60000-prep,end:(instant-base)/60000+Number(booking.serviceDurationSnapshot||booking.durationMinutes||30)+cleanup};
+  }
+  function openReceptionForm(date, staffId, time) {
+    if(!can("create_bookings") || state.busy)return;
+    elements.formPanel.open=true;elements.date.value=date||elements.filterDate.value||todayKey();
+    if(staffId)elements.employee.value=staffId;
+    state.calendarPick=time?{date:elements.date.value,staffId:staffId||elements.employee.value,time}:null;
+    void loadInternalSlots();elements.formPanel.scrollIntoView({behavior:"smooth",block:"start"});elements.customerName.focus();
+  }
+  function renderReceptionCalendar() {
+    const mount=document.getElementById("receptionCalendar");if(!mount)return;
+    const rating=state.activeSource==="ratings", listView=state.calendarView==="list";mount.classList.toggle("hidden",rating||listView);elements.list.classList.toggle("hidden",rating||!listView);
+    document.querySelectorAll("[data-calendar-view]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.calendarView===state.calendarView)));
+    if(rating)return;
+    const staffMap=new Map((state.receptionStaffCatalog || state.barbers).map(item=>[String(item.staffId),item.name]));state.bookings.forEach(item=>{if(item.employeeId)staffMap.set(item.employeeId,item.employee);});
+    const select=document.getElementById("receptionStaff");if(select){select.innerHTML='<option value="">'+text("كل الحلاقين","All barbers")+'</option>'+[...staffMap].map(([id,name])=>'<option value="'+escapeHtml(id)+'">'+escapeHtml(name)+'</option>').join("");select.value=state.calendarStaff;}
+    if(listView)return;
+    const active=state.bookings.filter(localSearchMatch).filter(item=>state.activeSource==="all"||state.activeSource===item.source).filter(item=>!state.calendarStaff||item.employeeId===state.calendarStaff).filter(item=>!elements.status.value||item.status===elements.status.value).filter(item=>!["cancelled","rejected","expired","no_show"].includes(item.status));
+    const occupying=state.bookings.filter(item=>["confirmed","arrived","proposed"].includes(item.status)||item.status==="pending"&&(!item.holdExpiresAt||Date.parse(item.holdExpiresAt)>Date.now()));
+    const event=item=>'<button type="button" class="calendar-event status-'+escapeHtml(item.status)+'" data-go-booking="'+escapeHtml(item.id)+'"><strong>'+escapeHtml(item.customerName)+'</strong><span>'+escapeHtml(formatTime(item.status==="proposed"&&item.proposedTime||item.time))+' · '+escapeHtml(item.service)+'</span><small>'+escapeHtml(statusLabel(item.status))+' · '+(item.source==="public"?text("الموقع","Website"):text("الاستقبال","Reception"))+'</small></button>';
+    if(state.calendarView==="week"){mount.innerHTML='<div class="reception-week">'+Array.from({length:7},(_,i)=>{const date=calendarPlusDays(elements.filterDate.value,i);return '<section class="calendar-day-column"><h3>'+escapeHtml(formatDate(date))+'</h3>'+active.filter(item=>(item.status==="proposed"&&item.proposedDate||item.date)===date).sort((a,b)=>a.time.localeCompare(b.time)).map(event).join("")+(can("manage_bookings")?'<button class="calendar-add" type="button" data-calendar-date="'+date+'">+ '+text("حجز","Book")+'</button>':'')+'</section>';}).join("")+'</div>';return;}
+    const employees=[...staffMap].filter(([id])=>!state.calendarStaff||state.calendarStaff===id);if(!employees.length){mount.textContent=text("جاري تحميل الحلاقين…","Loading barbers…");return;}
+    const date=elements.filterDate.value,previousScroll=mount.scrollTop,sameDate=mount.dataset.date===date;
+    let html='<table class="reception-day"><thead><tr><th>'+text("الوقت","Time")+'</th>'+employees.map(([,name])=>'<th>'+escapeHtml(name)+'</th>').join("")+'</tr></thead><tbody>';
+    for(let minute=0;minute<1440;minute+=30){const time=String(Math.floor(minute/60)).padStart(2,"0")+':'+String(minute%60).padStart(2,"0");html+='<tr><th>'+escapeHtml(formatTime(time))+'</th>'+employees.map(([id])=>{const busy=occupying.filter(item=>item.employeeId===id).find(item=>{const range=calendarInterval(item,date);return range.start<minute+30&&range.end>minute;});if(busy){const range=calendarInterval(busy,date);return '<td class="occupied">'+(active.includes(busy)&&(range.start>=minute&&range.start<minute+30||minute===0)?event(busy):'<span class="occupied-continuation">'+text("في الخدمة / محجوز","Occupied")+'</span>')+'</td>';}return '<td>'+(can("manage_bookings")?'<button class="calendar-add" type="button" data-calendar-date="'+date+'" data-calendar-staff="'+escapeHtml(id)+'" data-calendar-time="'+time+'" aria-label="'+escapeHtml(nameFor(id))+' '+time+'">+</button>':'—')+'</td>';}).join("")+'</tr>';}mount.innerHTML=html+'</tbody></table>';mount.dataset.date=date;mount.scrollTop=sameDate?previousScroll:Math.max(0,(Number((active.find(item=>item.date===date)?.time||"09:00").slice(0,2))*2)*48);
+    function nameFor(id){return staffMap.get(id)||"";}
+  }
+  function openCalendarBooking(id) {
+    const booking=state.bookings.find(item=>item.id===id);if(!booking)return;
+    showModal({title:booking.customerName,body:'<article data-id="'+escapeHtml(id)+'"><p>'+escapeHtml(formatDate(booking.date))+' · '+escapeHtml(formatTime(booking.time))+'</p><p>'+escapeHtml(booking.employee)+' · '+escapeHtml(booking.service)+'</p><p>'+escapeHtml(booking.customerPhone)+'</p><p>'+escapeHtml(statusLabel(booking.status))+'</p><div class="booking-actions">'+allowedActions(booking).map(actionButton).join("")+'</div></article>',confirmText:text("إغلاق","Close"),onConfirm:()=>true});
+  }
+
+  document.getElementById("receptionCalendar")?.addEventListener("click",event=>{const target=event.target.closest("[data-calendar-date],[data-go-booking]");if(!target)return;if(target.dataset.goBooking)openCalendarBooking(target.dataset.goBooking);else openReceptionForm(target.dataset.calendarDate,target.dataset.calendarStaff||state.calendarStaff,target.dataset.calendarTime);});
+  elements.modalBody.addEventListener("click",handleAction);
+  document.querySelectorAll("[data-calendar-view]").forEach(button=>button.addEventListener("click",()=>{state.calendarView=button.dataset.calendarView;void fetchBookings();}));
+  document.getElementById("receptionNew")?.addEventListener("click",()=>openReceptionForm());
+  document.getElementById("receptionStaff")?.addEventListener("change",event=>{state.calendarStaff=event.target.value;render();});
+  const moveCalendar=offset=>{if(state.busy)return;elements.filterDate.value=calendarPlusDays(elements.filterDate.value,offset);void fetchBookings();};
+  document.getElementById("receptionPrevious")?.addEventListener("click",()=>moveCalendar(state.calendarView==="week"?-7:-1));
+  document.getElementById("receptionNext")?.addEventListener("click",()=>moveCalendar(state.calendarView==="week"?7:1));
+  document.getElementById("receptionToday")?.addEventListener("click",()=>{elements.filterDate.value=todayKey();void fetchBookings();});
   elements.form.addEventListener("submit", createBooking);
   elements.clear.addEventListener("click", resetForm);
   elements.branch.addEventListener("change", () => changeInternalBranch().catch((error) => notify(error.message, "error")));

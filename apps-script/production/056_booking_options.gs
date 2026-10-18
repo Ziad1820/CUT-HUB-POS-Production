@@ -37,7 +37,7 @@ function getBookingOptionsForAudience(data, forcedAudience) {
       catalogBranches = bookingAvailabilityPhase5ListBranches(catalogActor, false).filter((branch) => branch.active === true);
       const selected = String(data.branchId || "").trim();
       if (!selected && catalogBranches.length !== 1) {
-        return jsonOutput({ status: "success", catalogOnly: true, branches: catalogBranches, services: [], barbers: [] });
+        return jsonOutput({ status: "success", autoConfirm: bookingPublicAutoConfirm(), catalogOnly: true, branches: catalogBranches, services: [], barbers: [] });
       }
       data = inheritProtectedReadContext(data, Object.assign({}, data, { branchId: selected || catalogBranches[0].branchId }));
     }
@@ -99,11 +99,12 @@ function getBookingOptionsForAudience(data, forcedAudience) {
       if (bookingAvailabilityEngineMode() === "PHASE5") {
         bookingAvailabilityPhase5Branch(selectedBranchId, { publicAudience: false });
       }
-      return jsonOutput({ status: "success", catalogOnly: true, services,
+      return jsonOutput({ status: "success", autoConfirm: bookingPublicAutoConfirm(), catalogOnly: true, services,
         ...(catalogBranches ? { branches: catalogBranches } : {}),
         barbers: activeBarbers.map((barber) => ({ staffId: barber.staffId, name: barber.name, code: barber.code })) });
     }
-    const bookings = getAllBookingsV2();
+    const attendanceLinked = !!availabilitySnapshot && typeof bookingAvailabilityPhase5Flags === "function" && bookingAvailabilityPhase5Flags().attendanceLiveEnabled === true;
+    const bookings = availabilitySnapshot && availabilitySnapshot.bookings || getAllBookingsV2();
     const ratings = getAllBookingRatings();
     const requestedEmployeeId = audience === "internal" ? String(data.employeeId || "").trim() : "";
     const requestedBarbers = requestedEmployeeId
@@ -139,7 +140,7 @@ function getBookingOptionsForAudience(data, forcedAudience) {
     };
     if (data.ifNoneMatch && responseToken && data.ifNoneMatch === responseToken) {
       return jsonOutput({
-        status: "success", unchanged: true, availabilityToken: responseToken,
+        status: "success", autoConfirm: bookingPublicAutoConfirm(), attendanceLinked, unchanged: true, availabilityToken: responseToken,
         generatedAt: getCairoDateTime(), retryAfterSeconds: 30,
         liveRefreshEnabled: bookingAvailabilityLiveRefreshEnabled(audience)
       });
@@ -156,7 +157,7 @@ function getBookingOptionsForAudience(data, forcedAudience) {
           .filter((staffId) => !currentByStaff.has(staffId));
         bookingAvailabilityCacheResponseSnapshot(responseToken, responseContext, barbers);
         return jsonOutput({
-          status: "success", unchanged: false, delta: true, date: dateKey, services,
+          status: "success", autoConfirm: bookingPublicAutoConfirm(), attendanceLinked, unchanged: false, delta: true, date: dateKey, services,
           selectedServiceIds: selectedServices.map((service) => service.serviceId),
           durationMinutes, preparationMinutes, cleanupMinutes,
           changedBarbers, removedStaffIds, availabilityToken: responseToken,
@@ -168,7 +169,7 @@ function getBookingOptionsForAudience(data, forcedAudience) {
     }
     bookingAvailabilityCacheResponseSnapshot(responseToken, responseContext, barbers);
     return jsonOutput({
-      status: "success", date: dateKey, services,
+      status: "success", autoConfirm: bookingPublicAutoConfirm(), attendanceLinked, date: dateKey, services,
       selectedServiceIds: selectedServices.map((service) => service.serviceId),
       durationMinutes, preparationMinutes, cleanupMinutes, barbers,
       availabilityToken: responseToken, generatedAt: getCairoDateTime(),

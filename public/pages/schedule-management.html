@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="../assets/css/shared.css">
   <link rel="stylesheet" href="../assets/css/system-layout.css">
   <link rel="stylesheet" href="../assets/css/pages/schedule-management.css?v=20261016-theme-performance-3">
+  <link rel="stylesheet" href="../assets/css/pages/booking-workflows.css?v=20261018-workflows-1">
 </head>
 <body>
   <div class="schedule-app system-app app">
@@ -34,6 +35,7 @@
           <button class="secondary-btn" id="refreshBtn" type="button">تحديث</button>
         </div>
       </section>
+      <section class="panel week-board-panel"><div class="workflow-heading"><div><h2>أسبوع الفريق</h2><p>اضغط على يوم أي موظف لتعديل شفته. الإجازات والشفتات تنعكس على الحجوزات.</p></div><div class="week-navigation"><button id="boardPreviousWeek" type="button" aria-label="الأسبوع السابق">‹</button><input id="boardWeekDate" type="date" aria-label="الأسبوع المعروض"><button id="boardNextWeek" type="button" aria-label="الأسبوع التالي">›</button><button id="boardThisWeek" type="button">هذا الأسبوع</button></div></div><p id="weekBoardStatus" role="status"></p><div class="week-board-scroll" id="staffWeekBoard"></div></section>
       <section class="panel filters" aria-label="مرشحات الجدول">
         <label>الموظف<select id="staffFilter" aria-describedby="staffEmptyState"><option value="">جاري تحميل الموظفين…</option></select></label>
         <label>الفرع<select id="branchFilter"><option value="">كل الفروع</option></select></label>
@@ -46,6 +48,7 @@
 
       <div id="statusBanner" class="status" role="status" aria-live="polite"></div>
 
+      <details id="scheduleEditor" class="workflow-details"><summary>إعدادات الموظف وتفاصيل الشفتات</summary>
       <section class="panel">
         <div class="section-title">
           <div><h2>الجدول الأسبوعي المتكرر</h2><p>يمكن إضافة أكثر من فترة في اليوم ودعم الورديات الليلية.</p></div>
@@ -133,6 +136,7 @@
           <div id="auditList" class="audit-list"></div>
         </details>
       </section>
+      </details>
     </main>
   </div>
 
@@ -265,6 +269,6 @@
   <script src="../assets/js/utils/layout.js?v=20261009-single-analysis-1"></script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>
-  <script src="../assets/js/pages/schedule-management.js?v=20261016-theme-performance-3"></script>
+  <script src="../assets/js/pages/schedule-management.js?v=20261018-workflows-1"></script>
 </body>
 </html>

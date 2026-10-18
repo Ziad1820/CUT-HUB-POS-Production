@@ -190,6 +190,9 @@ function doPost(e) {
   if (data.action === "getPublicBookingStatus") return getPublicBookingStatus(data);
   if (data.action === "respondToBookingProposal") return respondToBookingProposal(data);
   if (data.action === "createBooking") return createBookingV2(data);
+  if (data.action === "getScheduleWeekBoard") return handleStaffSchedulingPhase2Action(data);
+  if (data.action === "getBookingConfirmationMode") return getBookingConfirmationMode(data);
+  if (data.action === "setBookingConfirmationMode") return setBookingConfirmationMode(data);
   if (data.action === "getBookings") return getBookingsV2(data);
   if (data.action === "updateBooking") return updateBookingV2(data);
   if (data.action === "deleteBooking") return deleteBooking(data);

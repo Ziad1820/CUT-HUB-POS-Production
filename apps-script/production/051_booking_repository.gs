@@ -116,13 +116,13 @@ function getBarberScheduleSheetReadOnly() {
 function normalizeBookingStatusV2(value) {
   const status = String(value || "pending").trim().toLowerCase();
   if (status === "completed") return "done";
-  return ["pending", "confirmed", "proposed", "rejected", "done", "cancelled", "expired"].indexOf(status) !== -1
+  return ["pending", "confirmed", "arrived", "no_show", "proposed", "rejected", "done", "cancelled", "expired"].indexOf(status) !== -1
     ? status
     : "pending";
 }
 
 function isRecognizedBookingStatusV2(value) {
-  return ["pending", "confirmed", "proposed", "rejected", "done", "completed", "cancelled", "expired"]
+  return ["pending", "confirmed", "arrived", "no_show", "proposed", "rejected", "done", "completed", "cancelled", "expired"]
     .indexOf(String(value || "").trim().toLowerCase()) !== -1;
 }
 

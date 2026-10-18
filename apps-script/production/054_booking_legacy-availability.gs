@@ -129,14 +129,16 @@ function bookingHoldIsActive(booking) {
 }
 
 function bookingBlocksSlot(booking) {
-  return !booking.deleted && (booking.status === "confirmed" || booking.status === "proposed" || bookingHoldIsActive(booking));
+  return !booking.deleted && (["confirmed", "arrived"].includes(booking.status) || booking.status === "proposed" || bookingHoldIsActive(booking));
 }
 
 function isBookingStatusTransitionAllowed(currentStatus, nextStatus) {
   const allowed = {
     pending: ["confirmed", "proposed", "rejected", "cancelled", "expired"],
     proposed: ["confirmed", "rejected", "cancelled", "expired"],
-    confirmed: ["done", "cancelled"],
+    confirmed: ["arrived", "proposed", "done", "no_show", "cancelled"],
+    arrived: ["done", "cancelled"],
+    no_show: [],
     done: [],
     rejected: [],
     cancelled: [],
@@ -148,7 +150,7 @@ function isBookingStatusTransitionAllowed(currentStatus, nextStatus) {
 }
 
 function bookingStatusIsTerminal(status) {
-  return ["done", "cancelled", "rejected", "expired"].indexOf(normalizeBookingStatusV2(status)) !== -1;
+  return ["done", "no_show", "cancelled", "rejected", "expired"].indexOf(normalizeBookingStatusV2(status)) !== -1;
 }
 
 function getAllBookingsV2() {

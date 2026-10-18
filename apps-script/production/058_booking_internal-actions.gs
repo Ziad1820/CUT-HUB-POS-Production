@@ -91,11 +91,11 @@ function createBookingV2(data) {
       customerPhone: normalizePublicPhone(data.customerPhone || data.phone),
       employee: barber.name,
       service: otherService ? manualServiceName : selectedServices.map((service) => service.name).join(", "),
-      note: normalizeProtectedText(data.note, 500), status: "pending",
+      note: normalizeProtectedText(data.note, 500), status: "confirmed",
       createdAt: now, updatedAt: now, serviceId: otherService ? "" : requestedServiceIds.join(","),
       serviceIds: otherService ? [] : requestedServiceIds,
       durationMinutes, totalPrice, source: "staff",
-      trackingToken: "", requestedAt: now, confirmedAt: "", confirmedBy: "",
+      trackingToken: "", requestedAt: now, confirmedAt: now, confirmedBy: getActor(data).displayName || getActor(data).userName || "staff",
       rejectionReason: "", proposedDate: "", proposedTime: "", holdExpiresAt: "", customerResponse: "",
       employeeId: barber.staffId, cancelledAt: "", cancelledBy: "", cancellationReason: "",
       completedAt: "", completedBy: "", deleted: false, deletedAt: "", deletedBy: "",
@@ -148,6 +148,12 @@ function getBookingsV2(data) {
     const permissionError = requirePermission(data, "view_bookings", "You do not have permission to view bookings.");
     if (permissionError) return permissionError;
     const filters = data.filters || {};
+    const fromDate = String(filters.fromDate || "").trim();
+    const toDate = String(filters.toDate || "").trim();
+    if ((fromDate || toDate) && (!isValidBookingDateKey(fromDate) || !isValidBookingDateKey(toDate) ||
+        toDate < fromDate || (Date.parse(toDate) - Date.parse(fromDate)) / 86400000 > 31)) {
+      return jsonOutput({status:"error",code:"INVALID_DATE_RANGE",message:"Choose a valid booking range of at most 32 days."});
+    }
     const targetDate = getDateKey(filters.date || data.date || "", TIME_ZONE);
     const targetStatus = String(filters.status || data.status || "").trim().toLowerCase();
     const search = String(filters.search || data.search || "").trim().toLowerCase();
@@ -157,6 +163,10 @@ function getBookingsV2(data) {
       ...booking, status: bookingEffectiveStatusV2(booking)
     })).filter((booking) => includeDeleted || !booking.deleted)
       .filter((booking) => !targetDate || booking.date === targetDate)
+      .filter((booking) => {
+        const occupiedDate = booking.status === "proposed" && booking.proposedDate || booking.date;
+        return !fromDate || occupiedDate >= fromDate && occupiedDate <= toDate;
+      })
       .filter((booking) => !targetStatus || booking.status === targetStatus)
       .filter((booking) => !search || `${booking.customerName} ${booking.customerPhone} ${booking.employee} ${booking.service} ${booking.note} ${booking.trackingToken}`.toLowerCase().indexOf(search) !== -1)
       .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
@@ -196,6 +206,16 @@ function updateBookingV2(data) {
     }
     const nextStatus = requestedStatus ? normalizeBookingStatusV2(requestedStatus) : booking.status;
     const statusChanged = nextStatus !== booking.status;
+    if (statusChanged && ["arrived", "no_show"].includes(nextStatus)) {
+      const currentDate = Utilities.formatDate(new Date(), TIME_ZONE, "yyyy-MM-dd");
+      const currentTime = Utilities.formatDate(new Date(), TIME_ZONE, "HH:mm");
+      if (nextStatus === "arrived" && booking.date !== currentDate) {
+        return jsonOutput({status:"error",code:"ARRIVAL_DATE_INVALID",message:"Arrival can only be recorded on the appointment day."});
+      }
+      if (nextStatus === "no_show" && (booking.date > currentDate || booking.date === currentDate && booking.time > currentTime)) {
+        return jsonOutput({status:"error",code:"NO_SHOW_TOO_EARLY",message:"Wait until the appointment time before marking no-show."});
+      }
+    }
     const hasDateInput = data.date !== undefined || data.bookingDate !== undefined;
     const hasTimeInput = data.time !== undefined || data.bookingTime !== undefined;
     const hasProposedDateInput = data.proposedDate !== undefined;

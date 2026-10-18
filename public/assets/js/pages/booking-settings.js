@@ -203,6 +203,9 @@
   }
   function mappedError(error) {
     const code = error?.code || "REQUEST_FAILED";
+    if (["POLICY_NOT_FOUND", "OVERLAPPING_EFFECTIVE_POLICIES", "INVALID_POLICY_RANGE", "AVAILABILITY_SETUP_REQUIRED"].includes(code)) {
+      return ["لا يمكن تشغيل الربط قبل استكمال سياسة العمل الفعّالة لكل حلاق في صفحة جداول الموظفين: ساعات الشفت والعمل والبريك وأسعار الدقائق.", "error"];
+    }
     if (code.includes("PERMISSION") || code.includes("SCOPE")) return ["ليس لديك صلاحية لهذا الإجراء.", "denied"];
     if (code.includes("STALE") || code.includes("SOURCE_CHANGED") || code.includes("RESCHEDULED")) return ["تغيرت البيانات. حدّث الصفحة ثم أعد المراجعة.", "stale"];
     if (code.includes("CONFLICT") || code.includes("FOUR_EYES")) return [error.message, "conflict"];
@@ -320,8 +323,8 @@
   byId("refreshBtn").addEventListener("click", load);
   byId("attendanceIntegrationBtn").addEventListener("click", () => {
     const enabled = !(state.flags?.engine === "PHASE5" && state.flags?.attendanceLiveEnabled);
-    const reason = prompt(enabled ? "سبب تشغيل ربط الحضور بالحجوزات:" : "سبب إيقاف ربط الحضور بالحجوزات:");
-    if (!reason) return;
+    const reason = byId("integrationReason").value.trim();
+    if (!reason) { status("اكتب سبب تغيير الربط أولًا.", "error"); byId("integrationReason").focus(); return; }
     guarded(async () => {
       await api("setBookingAttendanceIntegration", { enabled, reason, clientRequestId: requestId("integration") });
       await refreshData();
@@ -368,6 +371,36 @@
     populateBranchForm();
     byId("branchForm").branchId.focus();
   });
+  if (owner && byId("saveConfirmationMode")) {
+    const control = byId("publicAutoConfirm");
+    const message = byId("confirmationModeStatus");
+    const loadMode = async () => {
+      state.confirmationLoaded = false;
+      control.disabled = true;
+      try {
+        const result = await api("getBookingConfirmationMode");
+        control.checked = result.autoConfirm === true;
+        state.confirmationLoaded = true;
+        control.disabled = false;
+        message.textContent = "";
+      } catch (_) {
+        message.textContent = "تعذر تحميل إعداد التأكيد. اضغط تحديث الإعدادات.";
+      }
+    };
+    byId("refreshBtn").addEventListener("click", loadMode);
+    byId("saveConfirmationMode").addEventListener("click", () => {
+      if (!state.confirmationLoaded) {
+        status("تعذر تحميل الإعداد الحالي. حدّث الإعدادات أولًا.", "error");
+        return;
+      }
+      return guarded(async () => {
+        const result = await api("setBookingConfirmationMode", { autoConfirm: control.checked });
+        control.checked = result.autoConfirm === true;
+        message.textContent = "تم حفظ طريقة تأكيد الحجوزات الجديدة.";
+      });
+    });
+    void loadMode();
+  }
   load();
   }
   root.addEventListener("toggle", () => { if (root.open) initialize(); });

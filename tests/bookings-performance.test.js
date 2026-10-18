@@ -7,7 +7,7 @@ const tick=()=>new Promise(r=>setImmediate(r));
 function backend(){
  let calls={bookings:0,ratings:0,snapshot:0,slots:0};
  const barbers=[{staffId:'S1',branchId:'B1',name:'One',code:'01'},{staffId:'S2',branchId:'B1',name:'Two',code:'02'},{staffId:'X',branchId:'B2',name:'Outside'}];
- const context=vm.createContext({console,Map,Date,Utilities:{formatDate:()=> '2026-10-17'},TIME_ZONE:'Africa/Cairo',jsonOutput:x=>x,inheritProtectedReadContext:(_,x)=>x,
+ const context=vm.createContext({console,Map,Date,bookingPublicAutoConfirm:()=>true,Utilities:{formatDate:()=> '2026-10-17'},TIME_ZONE:'Africa/Cairo',jsonOutput:x=>x,inheritProtectedReadContext:(_,x)=>x,
  bookingServiceIdsInputIsValid:()=>true,publicBookingServices:()=>[{serviceId:'SV',durationMinutes:30,price:50}],
  getSelectedPublicBookingServices:()=>[],getDateKey:x=>x,getPublicBookingServiceIds:()=>[],bookingServiceIdsHaveDuplicates:()=>false,isValidBookingDuration:x=>x>=15,
  bookingAvailabilityPhase5RequestSnapshot:()=>{calls.snapshot++;return{branches:[]};},bookingAvailabilityEngineMode:()=> 'PHASE5',
@@ -97,8 +97,8 @@ test('status filtering stays local and preserves the server status/search/source
  {id:'B1',status:'pending',source:'public',customerName:'First',date:'2026-10-17',time:'10:00'},
  {id:'B2',status:'confirmed',source:'public',customerName:'Second',date:'2026-10-17',time:'10:30'},
  {id:'B3',status:'confirmed',source:'staff',customerName:'Third',date:'2026-10-17',time:'11:00'}]});});
- h.e.filterDate.value='2026-10-17';await h.a.fetchBookings();assert.deepEqual(plain(calls[0].filters),{date:'2026-10-17'});
- h.e.statusFilter.value='confirmed';h.a.render();assert.deepEqual(plain(h.a.visibleBookings().map(x=>x.id)),['B2']);assert.equal(h.e.todayBookingsCount.textContent,2);
+ h.e.filterDate.value='2026-10-17';await h.a.fetchBookings();assert.deepEqual(plain(calls[0].filters),{fromDate:'2026-10-16',toDate:'2026-10-17'});
+ h.e.statusFilter.value='confirmed';h.a.render();assert.deepEqual(plain(h.a.visibleBookings().map(x=>x.id)),['B2','B3']);assert.equal(h.e.todayBookingsCount.textContent,2);
  h.a.state.activeSource='staff';h.a.render();assert.deepEqual(plain(h.a.visibleBookings().map(x=>x.id)),['B3']);
  h.e.statusFilter.value='rejected';h.a.render();assert.deepEqual(plain(h.a.visibleBookings()),[]);assert.equal(calls.length,1);
 });

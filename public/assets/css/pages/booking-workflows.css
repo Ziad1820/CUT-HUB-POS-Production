@@ -1,0 +1,87 @@
+/* Daily operation screens share SALONIX surfaces; detailed controls stay optional. */
+.hidden, [hidden] { display: none !important; }
+.workflow-heading, .week-navigation, .reception-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.workflow-heading h2 { margin:0 0 8px; }
+.workflow-heading p, .calendar-hint { color:#75695d; line-height:1.7; }
+.week-navigation button, .reception-toolbar button, .calendar-add, .shift-cell, .week-picker button { font:inherit; cursor:pointer; min-height:44px; border:1px solid #e5d5be; border-radius:14px; background:#fffaf2; color:#493019; padding:10px 16px; }
+.week-navigation input { width:170px; min-height:44px; border:1px solid #e5d5be; border-radius:14px; padding:10px; }
+.workflow-details, #receptionForm { background:#fffaf2; border:1px solid #e5d5be; border-radius:24px; padding:20px; }
+.workflow-details > summary, #receptionForm > summary, .attendance-extra > summary { cursor:pointer; font-weight:800; padding:10px 4px; }
+.workflow-details[open] > summary, #receptionForm[open] > summary { margin-bottom:20px; }
+.week-board-scroll { overflow:auto; max-width:100%; border:1px solid #e5d5be; border-radius:18px; margin-top:16px; }
+.week-board-scroll table { width:100%; min-width:1000px; border-collapse:separate; border-spacing:0; }
+.week-board-scroll th, .week-board-scroll td { padding:10px; border-bottom:1px solid #eee1cc; text-align:center; }
+.week-board-scroll thead th { background:#f2e6d2; font-size:14px; }
+.week-board-scroll tr > th:first-child { position:sticky; inset-inline-start:0; background:#fffaf2; z-index:1; min-width:130px; }
+.shift-cell { width:100%; min-height:78px; background:#e9f3ed; border-color:#b9d6c3; color:#245039; font-size:14px; line-height:1.8; white-space:pre-line; }
+.shift-cell.rest-day { background:#f5f0e8; border-style:dashed; border-color:#e5d5be; color:#75695d; }
+.shift-cell:hover, .calendar-add:hover { border-color:#b7863f; box-shadow:0 0 0 2px #b7863f22; }
+.schedule-app .filters label:has(#rangeStart), .schedule-app .filters label:has(#rangeEnd), .schedule-app #loadRangeBtn { display:none; }
+.schedule-app .filters { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.attendance-cards { grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr)); align-items:start; }
+.attendance-card { padding:22px; }
+.attendance-presence { padding:10px 14px; background:#f3eadb; color:#493019; border-radius:12px; margin:14px 0; line-height:1.7; }
+.attendance-quick-metrics { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:14px 0; }
+.attendance-extra { border-top:1px solid #eee1cc; margin-top:14px; padding-top:4px; }
+.attendance-extra .attendance-metrics { margin:12px 0; }
+.attendance-card > .card-actions { display:flex; gap:10px; flex-wrap:wrap; }
+.attendance-card > .card-actions > button { flex:1 1 110px; min-height:48px; }
+.bookings-layout { display:flex; flex-direction:column; }
+#receptionForm { order:1; width:100%; }
+.bookings-layout > :not(#receptionForm) { order:0; }
+.reception-toolbar { padding:16px; background:#fffaf2; border:1px solid #e5d5be; border-radius:20px; }
+.reception-toolbar > div { display:flex; gap:8px; flex-wrap:wrap; }
+.reception-toolbar button[aria-pressed="true"], #receptionNew { color:#fffaf2; background:linear-gradient(135deg,#24180d,#5f4524); }
+.reception-toolbar select { min-width:160px; width:auto; padding:12px 16px; border:1px solid #e5d5be; border-radius:14px; background:#fffaf2; font:inherit; color:#493019; }
+#receptionCalendar { overflow:auto; max-height:680px; border:1px solid #e5d5be; border-radius:18px; margin:16px 0; background:#fffaf2; }
+.reception-day { width:100%; min-width:650px; table-layout:fixed; border-collapse:separate; border-spacing:0; }
+.reception-day thead th { position:sticky; top:0; background:#f2e6d2; z-index:3; padding:16px 8px; }
+.reception-day th:first-child { width:92px; position:sticky; inset-inline-start:0; background:#f8f0e3; z-index:2; }
+.reception-day td { border-inline-start:1px solid #eee1cc; border-bottom:1px solid #eee1cc; min-width:150px; padding:4px; height:48px; vertical-align:top; }
+.reception-day td .calendar-add { width:100%; border:0; background:transparent; min-height:40px; color:#b7863f; }
+.reception-day .occupied { background:#f4ead9; }
+.occupied-continuation { font-size:12px; color:#8a785f; padding:8px; display:block; }
+.calendar-event { display:grid; gap:5px; width:100%; text-align:start; padding:12px; border:1px solid #c1d7c8; border-inline-start:4px solid #18794e; border-radius:12px; background:#edf5ef; color:#24180d; font:inherit; cursor:pointer; }
+.calendar-event span, .calendar-event small { font-size:12px; line-height:1.6; }
+.calendar-event.status-arrived { background:#e7f0fc; border-color:#b5cae5; border-inline-start-color:#356dac; }
+.calendar-event.status-pending, .calendar-event.status-proposed { background:#fff3da; border-color:#ecd09b; border-inline-start-color:#b7863f; }
+.calendar-event.status-done { background:#f0eeeb; border-color:#d8d4ce; border-inline-start-color:#8a8177; }
+.reception-week { display:grid; grid-template-columns:repeat(7,minmax(175px,1fr)); min-width:1250px; gap:12px; padding:14px; }
+.calendar-day-column { display:flex; flex-direction:column; gap:10px; padding:10px; background:#f8f2e8; border-radius:14px; min-height:220px; }
+.calendar-day-column h3 { margin:6px 0 12px; font-size:15px; }
+.public-booking-app { max-width:1100px; }
+.public-hero, .public-panel, .barber-card { border-radius:24px; }
+.public-hero { min-height:200px; }
+.public-hero h1 { letter-spacing:6px; font-size:clamp(36px,7vw,64px); }
+.public-brand-logo { width:60px; height:60px; }
+.public-booking-app .primary-action { background:linear-gradient(135deg,#24180d,#5f4524); color:#fffaf2; }
+.public-hero p { letter-spacing:2px; font-size:12px; }
+.step-indicator { display:flex; justify-content:center; gap:22px; margin:24px 0; }
+.step-indicator > span { flex:1; max-width:380px; }
+.week-picker { display:grid; grid-template-columns:44px repeat(7,minmax(65px,1fr)) 44px; gap:8px; overflow:auto; padding:12px 0 20px; }
+.week-picker button { padding:10px 6px; font-size:14px; }
+.week-picker .chosen { background:#493019; border-color:#493019; color:#fffaf2; }
+.week-picker button:disabled { opacity:.4; cursor:default; }
+.public-booking-app .selection-grid { grid-template-columns:1fr; }
+.public-booking-app .service-picker { max-height:245px; overflow:auto; }
+.public-booking-app .customer-form { max-width:850px; margin:auto; }
+@media(max-width:700px) {
+  .workflow-heading, .reception-toolbar { align-items:stretch; }
+  .week-navigation { width:100%; gap:6px; }
+  .week-navigation input { flex:1; width:130px; }
+  .week-navigation button { padding:10px; }
+  .workflow-details, #receptionForm { padding:14px; border-radius:18px; }
+  .attendance-card { padding:18px; }
+  .attendance-app .toolbar { grid-template-columns:1fr 1fr; gap:12px; }
+  .attendance-app .toolbar label:has(#attendanceDate), .attendance-app .toolbar #refreshBtn { grid-column:1/-1; }
+  .schedule-app .filters { grid-template-columns:1fr; }
+  .reception-toolbar > div { width:100%; }
+  .reception-toolbar button { flex:1; }
+  .reception-toolbar select { width:100%; }
+  .week-picker { grid-template-columns:36px repeat(7,70px) 36px; }
+  .public-hero { padding:55px 20px 24px; min-height:180px; }
+  .public-panel { padding:18px; }
+  .public-booking-app { width:calc(100% - 24px); }
+  .step-indicator { gap:8px; }
+  .step-indicator em { font-size:13px; }
+}

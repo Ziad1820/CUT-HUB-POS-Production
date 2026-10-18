@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="../assets/css/pages/booking-settings.css?v=20261017-settings-1">
 <title>Bookings - SALONIX</title>
 
+  <link rel="stylesheet" href="../assets/css/pages/booking-workflows.css?v=20261018-workflows-1">
 </head>
 <body>
   <div class="app system-app">
@@ -26,7 +27,7 @@
     </section>
 
     <main class="bookings-layout system-content" aria-label="Bookings workspace">
-      <section class="booking-panel booking-form-panel">
+      <details class="booking-panel booking-form-panel" id="receptionForm"><summary>حجز جديد بالتليفون أو من الاستقبال</summary>
         <div class="section-heading">
           <h2 data-i18n-ar="حجز جديد" data-i18n-en="New Booking">حجز جديد</h2>
           <p data-i18n-ar="سجل بيانات العميل وحدد الموعد والموظف والخدمة المطلوبة." data-i18n-en="Add customer details, appointment time, employee, and requested service.">سجل بيانات العميل وحدد الموعد والموظف والخدمة المطلوبة.</p>
@@ -76,12 +77,12 @@
             <button class="soft-btn" id="clearBookingBtn" type="button" data-i18n-ar="مسح البيانات" data-i18n-en="Clear Form">مسح البيانات</button>
           </div>
         </form>
-      </section>
+      </details>
 
       <section class="booking-panel booking-board-panel">
         <div class="section-heading">
           <h2 data-i18n-ar="الحجوزات" data-i18n-en="Bookings">الحجوزات</h2>
-          <p data-i18n-ar="تابع حجوزات اليوم، أكد الموعد، أو أغلق الحجز بعد حضوره." data-i18n-en="Track today bookings, confirm appointments, or mark them as completed.">تابع حجوزات اليوم، أكد الموعد، أو أغلق الحجز بعد حضوره.</p>
+          <p data-i18n-ar="حجوزات الموقع والاستقبال معًا. سجل وصول العميل، ثم أنهِ الخدمة عند الانتهاء." data-i18n-en="Track today bookings, confirm appointments, or mark them as completed.">حجوزات الموقع والاستقبال معًا. سجل وصول العميل، ثم أنهِ الخدمة عند الانتهاء.</p>
         </div>
 
         <div class="booking-stats">
@@ -99,6 +100,7 @@
           </div>
         </div>
 
+        <div class="reception-toolbar"><div class="segmented"><button type="button" data-calendar-view="day" aria-pressed="true">اليوم</button><button type="button" data-calendar-view="week" aria-pressed="false">الأسبوع</button><button type="button" data-calendar-view="list" aria-pressed="false">قائمة</button></div><div class="week-navigation"><button id="receptionPrevious" type="button" aria-label="الفترة السابقة">‹</button><button id="receptionToday" type="button">اليوم الحالي</button><button id="receptionNext" type="button" aria-label="الفترة التالية">›</button></div><select id="receptionStaff" aria-label="الحلاق المعروض"><option value="">كل الحلاقين</option></select><button id="receptionNew" class="primary-btn" type="button">+ حجز جديد</button></div>
         <div class="booking-filters">
           <label>
             <span data-i18n-ar="التاريخ" data-i18n-en="Date">التاريخ</span>
@@ -109,10 +111,10 @@
             <select id="statusFilter">
               <option value="" data-i18n-ar="كل الحالات" data-i18n-en="All Statuses">كل الحالات</option>
               <option value="pending" data-i18n-ar="بانتظار التأكيد" data-i18n-en="Pending">بانتظار التأكيد</option>
-              <option value="confirmed" data-i18n-ar="مؤكد" data-i18n-en="Confirmed">مؤكد</option>
+              <option value="arrived">وصل / في الخدمة</option><option value="no_show">لم يحضر</option><option value="confirmed" data-i18n-ar="مؤكد" data-i18n-en="Confirmed">مؤكد</option>
               <option value="proposed" data-i18n-ar="موعد بديل مقترح" data-i18n-en="Proposed">موعد بديل مقترح</option>
               <option value="rejected" data-i18n-ar="مرفوض" data-i18n-en="Rejected">مرفوض</option>
-              <option value="done" data-i18n-ar="تم الحضور" data-i18n-en="Completed">تم الحضور</option>
+              <option value="done" data-i18n-ar="انتهت الخدمة" data-i18n-en="Completed">انتهت الخدمة</option>
               <option value="cancelled" data-i18n-ar="ملغي" data-i18n-en="Cancelled">ملغي</option>
               <option value="expired" data-i18n-ar="منتهي" data-i18n-en="Expired">منتهي</option>
             </select>
@@ -123,8 +125,8 @@
           </label>
         </div>
 
-        <div class="booking-source-tabs" id="bookingSourceTabs" role="tablist" aria-label="أقسام الحجوزات">
-          <button class="booking-source-tab active" type="button" role="tab" aria-selected="true" data-source="public">
+        <div class="booking-source-tabs" id="bookingSourceTabs" role="tablist" aria-label="أقسام الحجوزات"><button class="booking-source-tab active" type="button" role="tab" aria-selected="true" data-source="all">كل الحجوزات</button>
+          <button class="booking-source-tab" type="button" role="tab" aria-selected="false" data-source="public">
             <span data-i18n-ar="طلبات العملاء من الموقع" data-i18n-en="Website Requests">طلبات العملاء من الموقع</span>
             <strong id="publicBookingsCount">0</strong>
           </button>
@@ -138,6 +140,8 @@
           </button>
         </div>
 
+        <p class="calendar-hint">اضغط على وقت فارغ لبدء الحجز؛ المواعيد النهائية تتأكد بعد اختيار الخدمات ومدتها.</p>
+        <div id="receptionCalendar" class="reception-calendar"></div>
         <div class="bookings-list" id="bookingsList"></div>
         <section id="ratingsDashboard" class="ratings-dashboard hidden" aria-live="polite">
           <div class="ratings-summary" id="ratingsSummary"></div>
@@ -155,6 +159,7 @@
     <details id="bookingSettings" class="booking-settings" hidden>
       <summary>إعدادات الحجوزات</summary>
       <div class="settings-content">
+        <section class="owner-only"><h2>تأكيد حجوزات العملاء</h2><p>الحجز الداخلي يتأكد مباشرة. اختر طريقة تأكيد طلبات الموقع.</p><label><input id="publicAutoConfirm" type="checkbox"> تأكيد المواعيد المتاحة تلقائيًا</label><button id="saveConfirmationMode" type="button">حفظ طريقة التأكيد</button><p id="confirmationModeStatus" role="status"></p></section>
         <div class="panel-heading"><p>ساعات الفروع وربط الحضور والاستثناءات حسب صلاحياتك.</p><button id="refreshBtn" type="button">تحديث الإعدادات</button></div>
     <div id="status" class="status" role="status" aria-live="polite" tabindex="-1"></div>
     <section class="toolbar" aria-label="نطاق الفرع">
@@ -171,6 +176,7 @@
         <div id="featureFlags" class="flag-grid"></div>
         <div class="owner-only">
           <p>أكمل إعداد الشفت والبريك وأسعار الدقائق للموظفين في صفحة الجداول، ثم شغّل الربط. التشغيل يمنع حجز اليوم قبل الحضور وأثناء البريك وبعد الانصراف.</p>
+          <label>سبب تغيير الربط<input id="integrationReason" type="text" maxlength="500" placeholder="مثال: اعتماد إعدادات الفريق وربط الحجز بالحضور"></label>
           <button id="attendanceIntegrationBtn" type="button">تشغيل ربط الحضور بالحجوزات</button>
         </div>
       </article>
@@ -264,8 +270,8 @@
   </script>
   <script src="../assets/js/utils/keyboard-navigation.js"></script>
   <script src="../assets/js/utils/language.js"></script>
-  <script src="../assets/js/pages/bookings.js?v=20261017-performance-3"></script>
-  <script src="../assets/js/pages/booking-settings.js?v=20261017-settings-1"></script>
+  <script src="../assets/js/pages/bookings.js?v=20261018-workflows-1"></script>
+  <script src="../assets/js/pages/booking-settings.js?v=20261018-workflows-1"></script>
 </body>
 </html>
 

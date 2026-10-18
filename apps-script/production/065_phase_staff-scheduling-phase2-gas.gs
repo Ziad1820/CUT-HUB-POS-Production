@@ -291,7 +291,7 @@ function schedulePhase2WithTransaction(details, callback) {
 
 function schedulePhase2CreateRepository(action) {
   // The server selects snapshot reads. Mutations retain fresh reads under their lock.
-  var readOnly = ["getScheduleSelection", "getSchedulePageData", "listScheduleUserScopes", "listStaffSchedules",
+  var readOnly = ["getScheduleWeekBoard", "getScheduleSelection", "getSchedulePageData", "listScheduleUserScopes", "listStaffSchedules",
     "getStaffWeeklySchedule", "listScheduleOverrides", "resolveStaffSchedule",
     "resolveStaffSchedulesRange", "getScheduleAuditHistory"].indexOf(action) !== -1;
   var cache = Object.create(null);
@@ -581,7 +581,7 @@ function diagnosticPreviewStaffScheduleMigration(data) {
 
 function handleStaffSchedulingPhase2Action(data) {
   try {
-    if (!StaffSchedulingPhase2 || StaffSchedulingPhase2.ACTIONS.indexOf(data.action) === -1) {
+    if (!StaffSchedulingPhase2 || StaffSchedulingPhase2.ACTIONS.indexOf(data.action) === -1 && data.action !== "getScheduleWeekBoard") {
       throw StaffSchedulingPhase2.schedulingError("SCHEDULE_ACTION_UNKNOWN", "Schedule action is not supported.");
     }
     schedulePhase2AssertEnvironmentIdentity();
@@ -596,9 +596,14 @@ function handleStaffSchedulingPhase2Action(data) {
       });
     }
     if (StaffSchedulingPhase2.WRITE_ACTIONS.has(data.action)) schedulePhase2AssertWriteReady();
+    var aggregateActor = data.action === "getScheduleWeekBoard" ? schedulePhase2Actor(data) : null;
     var service = StaffSchedulingPhase2.createService({
       repository: schedulePhase2CreateRepository(data.action),
-      actorResolver: schedulePhase2Actor,
+      // Share the server-resolved actor only inside this aggregate read.
+      // Child inputs lack transport/session fields; write authorization is unchanged.
+      actorResolver: data.action === "getScheduleWeekBoard"
+        ? function () { return aggregateActor; }
+        : schedulePhase2Actor,
       userResolver: function (username) {
         return readUsersFromSheet().filter(function (user) {
           return schedulePhase2Text(user.username).toLowerCase() ===
@@ -621,6 +626,26 @@ function handleStaffSchedulingPhase2Action(data) {
       now: function () { return new Date().toISOString(); },
       uuid: function () { return Utilities.getUuid(); }
     });
+    if (data.action === "getScheduleWeekBoard") {
+      var page = service.execute("getSchedulePageData", data);
+      var from = StaffAttendanceCore.parseDateKey(data.dateFrom);
+      var to = StaffAttendanceCore.parseDateKey(data.dateTo);
+      if (to.epochDay < from.epochDay || to.epochDay - from.epochDay > 6) throw StaffSchedulingPhase2.schedulingError("SCHEDULE_WEEK_RANGE_INVALID", "Choose a seven-day week.");
+      var staff = page.staff.filter(function (item) { return item.active !== false && (!data.branchId || item.branchId === data.branchId); });
+      var resolved = [], staffErrors = [];
+      staff.forEach(function (item) {
+        try {
+          var selection = {
+            staffIds: [item.staffId], dateFrom: data.dateFrom, dateTo: data.dateTo
+          };
+          resolved = resolved.concat(service.execute("resolveStaffSchedulesRange", selection).resolvedSchedules);
+        } catch (error) {
+          if (["POLICY_NOT_FOUND", "OVERLAPPING_EFFECTIVE_POLICIES", "INVALID_POLICY_RANGE"].indexOf(error.code) === -1) throw error;
+          staffErrors.push({staffId:item.staffId,code:error.code});
+        }
+      });
+      return jsonOutput({status:"success", staff:staff.map(function(item){ return {staffId:item.staffId,staffName:item.staffName,branchId:item.branchId}; }), resolvedSchedules:resolved, staffErrors:staffErrors, permissions:page.permissions});
+    }
     var result = service.execute(data.action, data);
     return jsonOutput(result);
   } catch (error) {

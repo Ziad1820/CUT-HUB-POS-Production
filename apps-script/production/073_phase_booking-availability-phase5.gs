@@ -301,7 +301,7 @@
   function bookingBlocks(booking, serverNowMs) {
     if (!booking || booking.deleted) return false;
     const status = upper(booking.status);
-    if (status === "CONFIRMED" || status === "PROPOSED") return true;
+    if (status === "CONFIRMED" || status === "ARRIVED" || status === "PROPOSED") return true;
     if (status !== "PENDING") return false;
     if (!booking.holdExpiresAt) return true;
     const expiry = Date.parse(booking.holdExpiresAt);

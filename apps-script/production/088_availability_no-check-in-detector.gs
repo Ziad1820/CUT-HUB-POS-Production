@@ -329,7 +329,7 @@ function runBookingNoCheckInDetector(data) {
         bookingAvailabilityPhase5Text(booking.branchId) === unit.branchId &&
         bookingAvailabilityPhase5Text(booking.employeeId) === unit.staffId &&
         bookingAvailabilityPhase5Text(booking.date) === initialContext.date &&
-        ["confirmed", "proposed", "pending"].indexOf(
+        ["confirmed", "arrived", "proposed", "pending"].indexOf(
           String(booking.status).toLowerCase()) !== -1;
     }).slice().sort(function (left, right) {
       return bookingAvailabilityPhase5Text(left.id || left.bookingId).localeCompare(
@@ -372,7 +372,7 @@ function runBookingNoCheckInDetector(data) {
               !booking.deleted && bookingAvailabilityPhase5Text(booking.branchId) === unit.branchId &&
               bookingAvailabilityPhase5Text(booking.employeeId) === unit.staffId &&
               bookingAvailabilityPhase5Text(booking.date) === fresh.date &&
-              ["confirmed", "proposed", "pending"].indexOf(
+              ["confirmed", "arrived", "proposed", "pending"].indexOf(
                 String(booking.status).toLowerCase()) !== -1;
           });
           if (currentBookings.length !== 1) {

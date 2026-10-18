@@ -120,14 +120,15 @@ function createPublicBookingRequest(data) {
     const nowText = getCairoDateTime();
     const id = generateUniqueBookingIdV2(bookings);
     const token = generatePublicBookingTrackingToken(bookings);
+    const autoConfirm = bookingPublicAutoConfirm();
     const booking = {
       id, date: dateKey, time, customerName, customerPhone, employee: barber.name,
-      service: serviceName, note, status: "pending", createdAt: nowText, updatedAt: nowText,
+      service: serviceName, note, status: autoConfirm ? "confirmed" : "pending", createdAt: nowText, updatedAt: nowText,
       serviceId, serviceIds, durationMinutes,
       totalPrice,
       source: "public", trackingToken: token,
-      requestedAt: nowText, confirmedAt: "", confirmedBy: "", rejectionReason: "",
-      proposedDate: "", proposedTime: "", holdExpiresAt: new Date(now.getTime() + (15 * 60 * 1000)).toISOString(),
+      requestedAt: nowText, confirmedAt: autoConfirm ? nowText : "", confirmedBy: autoConfirm ? "automatic" : "", rejectionReason: "",
+      proposedDate: "", proposedTime: "", holdExpiresAt: autoConfirm ? "" : new Date(now.getTime() + (15 * 60 * 1000)).toISOString(),
       customerResponse: "pending", employeeId, cancelledAt: "", cancelledBy: "",
       cancellationReason: "", completedAt: "", completedBy: "", deleted: false, deletedAt: "", deletedBy: "",
       deletionReason: "", clientRequestId, clientRequestFingerprint: fingerprint,
@@ -307,3 +308,31 @@ function respondToBookingProposal(data) {
   }
 }
 
+
+function bookingPublicAutoConfirm() {
+  return PropertiesService.getScriptProperties().getProperty("BOOKING_PUBLIC_AUTO_CONFIRM_ENABLED") !== "false";
+}
+function getBookingConfirmationMode(data) {
+  const denied = requirePermission(data, "manage_bookings", "Booking management permission required.");
+  if (denied) return denied;
+  return jsonOutput({ status:"success", autoConfirm:bookingPublicAutoConfirm() });
+}
+function setBookingConfirmationMode(data) {
+  if (!actorCanManageUsers(data)) return jsonOutput({status:"error", code:"OWNER_REQUIRED", message:"Only owner may change booking confirmation."});
+  if (typeof data.autoConfirm !== "boolean") return jsonOutput({status:"error",code:"INVALID_SETTING",message:"Choose confirmation mode."});
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return jsonOutput({status:"error",code:"BUSY",message:"Please try again shortly."});
+  try {
+    const properties = PropertiesService.getScriptProperties();
+    const previous = properties.getProperty("BOOKING_PUBLIC_AUTO_CONFIRM_ENABLED");
+    try {
+      properties.setProperty("BOOKING_PUBLIC_AUTO_CONFIRM_ENABLED", String(data.autoConfirm));
+      logActivity(data, "settings", "booking", "public_confirmation", "Public auto confirmation: " + data.autoConfirm);
+    } catch (error) {
+      if (previous === null) properties.deleteProperty("BOOKING_PUBLIC_AUTO_CONFIRM_ENABLED");
+      else properties.setProperty("BOOKING_PUBLIC_AUTO_CONFIRM_ENABLED", previous);
+      throw error;
+    }
+    return jsonOutput({status:"success",autoConfirm:data.autoConfirm});
+  } finally { lock.releaseLock(); }
+}

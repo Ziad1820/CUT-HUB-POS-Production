@@ -3,29 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="احجز موعدك في CUT HUB واختر المصفف والخدمات والوقت المناسب.">
-  <title>حجز موعد - CUT HUB</title>
+  <meta name="description" content="احجز موعدك في SALONIX واختر المصفف والخدمات والوقت المناسب.">
+  <title>حجز موعد - SALONIX</title>
   <link rel="stylesheet" href="../assets/css/pages/customer-booking.css">
+  <link rel="stylesheet" href="../assets/css/pages/booking-workflows.css?v=20261018-workflows-1">
 </head>
 <body>
   <a class="skip-link" href="#bookingWorkspace">تخطى إلى نموذج الحجز</a>
   <main class="public-booking-app">
     <header class="public-hero">
       <div>
-        <h1>CUT HUB</h1>
-        <p>Your style, our passion</p>
+        <img class="public-brand-logo" src="../assets/images/salonix-logo.svg" alt="SALONIX">
+        <h1>SALONIX</h1>
+        <p>THE SMART WAY TO RUN YOUR SALON</p>
       </div>
       <button id="languageToggle" class="language-toggle" type="button" aria-label="Switch language">English</button>
     </header>
 
     <nav id="stepIndicator" class="step-indicator" aria-label="خطوات الحجز">
-      <span class="active" data-step="1"><b>1</b><em data-ui-ar="الخدمات" data-ui-en="Services">الخدمات</em></span>
-      <span data-step="2"><b>2</b><em data-ui-ar="الموعد" data-ui-en="Appointment">الموعد</em></span>
-      <span data-step="3"><b>3</b><em data-ui-ar="بيانات العميل" data-ui-en="Customer Details">بيانات العميل</em></span>
-      <span data-step="4"><b>4</b><em data-ui-ar="التأكيد" data-ui-en="Confirmation">التأكيد</em></span>
+      <span class="active" data-step="1"><b>1</b><em data-ui-ar="الخدمة والموعد" data-ui-en="Service & time">الخدمة والموعد</em></span>
+      <span data-step="2"><b>2</b><em data-ui-ar="بياناتك والتأكيد" data-ui-en="Details & confirmation">بياناتك والتأكيد</em></span>
     </nav>
 
     <section id="bookingWorkspace">
+      <div id="appointmentStep">
       <section class="public-panel">
         <div class="section-title">
           <div>
@@ -61,25 +62,28 @@
           </div>
           <button id="anyBarberBtn" class="secondary-action recommended-control" type="button" data-ui-ar="أي مصفف متاح" data-ui-en="Any Available Barber">أي مصفف متاح</button>
         </div>
+        <div class="week-picker" id="publicWeekPicker" aria-label="اختيار يوم الحجز"></div>
         <div id="barberGrid" class="barber-grid" aria-live="polite">
           <div class="empty-public-state">اختر الخدمات والتاريخ لعرض المواعيد.</div>
         </div>
       </section>
 
+      </div>
       <section id="customerPanel" class="public-panel hidden">
         <div class="section-title">
           <div>
             <h2 data-ui-ar="بيانات الحجز" data-ui-en="Booking Details">بيانات الحجز</h2>
-            <p data-ui-ar="اكتب بياناتك حتى يراجع فريق CUT HUB الطلب ويؤكد الموعد." data-ui-en="Enter your details so the CUT HUB team can review and confirm the request.">اكتب بياناتك حتى يراجع فريق CUT HUB الطلب ويؤكد الموعد.</p>
+            <p data-ui-ar="راجع الموعد واكتب اسمك ورقم هاتفك لإتمام الحجز." data-ui-en="Review your appointment and enter your name and phone to book.">راجع الموعد واكتب اسمك ورقم هاتفك لإتمام الحجز.</p>
           </div>
         </div>
         <div id="bookingSummary" class="booking-summary"></div>
-        <p class="request-notice" data-ui-ar="هذا طلب حجز ويحتاج إلى تأكيد من الصالون." data-ui-en="This is a booking request and requires confirmation from the salon.">هذا طلب حجز ويحتاج إلى تأكيد من الصالون.</p>
+        <p id="confirmationNotice" class="request-notice">هذا طلب حجز ويحتاج إلى تأكيد من الصالون.</p>
         <form id="publicBookingForm" class="customer-form" novalidate>
           <label class="field"><span data-ui-ar="الاسم" data-ui-en="Name">الاسم</span><input id="publicCustomerName" type="text" autocomplete="name" maxlength="100" required></label>
           <label class="field"><span data-ui-ar="رقم الهاتف المصري" data-ui-en="Egyptian Mobile Number">رقم الهاتف المصري</span><input id="publicCustomerPhone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="010xxxxxxxx أو +2010xxxxxxxx" required aria-describedby="phoneHint"><small id="phoneHint" data-ui-ar="11 رقمًا يبدأ بـ 010 أو 011 أو 012 أو 015." data-ui-en="11 digits starting with 010, 011, 012, or 015.">11 رقمًا يبدأ بـ 010 أو 011 أو 012 أو 015.</small></label>
           <label class="field full"><span data-ui-ar="ملاحظة (اختياري)" data-ui-en="Note (optional)">ملاحظة (اختياري)</span><textarea id="publicNote" maxlength="500" placeholder="أي تفاصيل مهمة للحجز"></textarea></label>
           <div class="form-actions">
+            <button id="backToAppointment" class="secondary-action" type="button" data-ui-ar="تعديل الموعد" data-ui-en="Edit appointment">تعديل الموعد</button>
             <button id="submitPublicBooking" class="primary-action" type="submit" data-ui-ar="إرسال طلب الحجز" data-ui-en="Submit Booking Request">إرسال طلب الحجز</button>
           </div>
         </form>
@@ -107,6 +111,6 @@
 
   <script src="../assets/js/core/runtime-config.js?v=20261008-relay-1"></script>
   <script src="../assets/js/core/api.js?v=20261008-relay-1"></script>
-  <script src="../assets/js/pages/customer-booking.js"></script>
+  <script src="../assets/js/pages/customer-booking.js?v=20261018-workflows-1"></script>
 </body>
 </html>

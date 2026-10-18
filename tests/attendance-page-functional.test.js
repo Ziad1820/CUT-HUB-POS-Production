@@ -21,7 +21,7 @@ test("changing branch clears stale employee identity before applying local filte
 });
 
 test("Attendance page cache-busts the corrected selector behavior", () => {
-  assert.match(html, /attendance\.js\?v=20261016-attendance-1/);
+  assert.match(html, /attendance\.js\?v=20261018-workflows-1/);
 });
 
 test("Attendance renders server-derived fractional durations as whole minutes", () => {

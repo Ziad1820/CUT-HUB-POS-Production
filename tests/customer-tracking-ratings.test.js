@@ -49,7 +49,7 @@ test("staff proposal availability uses the booking branch and ignores stale date
 test("booking reads queue the canonical date while status filtering remains local", () => {
   assert.match(bookings, /bookingRequestSequence:\s*0,\s*bookingReloadQueued:\s*false/);
   assert.match(bookings, /const requestedDate = elements\.filterDate\.value/);
-  assert.match(bookings, /filters:\s*\{ date: requestedDate \}/);
+  assert.match(bookings, /filters:\s*\{ fromDate: calendarPlusDays\(requestedDate, -1\), toDate: calendarPlusDays\(requestedDate, requestedView === "week" \? 6 : 0\) \}/);
   assert.match(bookings, /requestSequence !== state\.bookingRequestSequence[\s\S]{0,180}elements\.filterDate\.value !== requestedDate/);
   assert.match(bookings, /state\.bookingReloadQueued \|\| requestSequence !== state\.bookingRequestSequence[\s\S]{0,180}fetchBookings\(\{ silent: true \}\)/);
 });

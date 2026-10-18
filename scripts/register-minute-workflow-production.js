@@ -25,6 +25,10 @@ const files = {
   "047_accounting_expenses.gs": ["getExpenses", "createExpense", "deleteExpense"],
   "048_invoices_pdf.gs": ["createInvoicePdf"],
   "049_reports_sales-customers.gs": [],
+  "051_booking_repository.gs": ["normalizeBookingStatusV2", "isRecognizedBookingStatusV2"],
+  "054_booking_legacy-availability.gs": ["bookingBlocksSlot", "isBookingStatusTransitionAllowed", "bookingStatusIsTerminal"],
+  "057_booking_public-actions.gs": ["createPublicBookingRequest"],
+  "058_booking_internal-actions.gs": ["createBookingV2", "getBookingsV2", "updateBookingV2"],
   "056_booking_options.gs": ["getBookingOptionsForAudience"],
   "064_phase_staff-scheduling-phase2.gs": [],
   "065_phase_staff-scheduling-phase2-gas.gs": ["schedulePhase2CreateRepository", "handleStaffSchedulingPhase2Action"],
@@ -34,6 +38,8 @@ const files = {
   "070_phase_staff-payroll-attendance-phase4-gas.gs": ["payrollAttendancePhase4CreateRepository", "handleStaffPayrollAttendancePhase4Action"],
   "073_phase_booking-availability-phase5.gs": [],
   "078_availability_authorization-cache.gs": ["bookingAvailabilityPhase5CacheKey"],
+  "086_availability_mutation-conflicts.gs": ["bookingAvailabilityPhase5RecordConflicts"],
+  "088_availability_no-check-in-detector.gs": ["runBookingNoCheckInDetector"],
   "089_availability_action-router.gs": ["handleBookingAvailabilityPhase5Action"]
 };
 const hash = value => crypto.createHash("sha256").update(value).digest("hex");
@@ -49,6 +55,7 @@ for (const [name, changedGlobals] of Object.entries(files)) {
   }
   record.currentSha256 = hash(fs.readFileSync(path.join(base, name)));
   record.changedGlobals = changedGlobals;
+  if (name === "057_booking_public-actions.gs") record.addedGlobals = ["bookingPublicAutoConfirm", "getBookingConfirmationMode", "setBookingConfirmationMode"];
   if (name === "042_invoices_schema.gs") record.addedGlobals = ["financialNumber", "validateInvoiceFinance", "appendFinanceOnce", "financePaymentMethod", "readFinanceRows", "ensureFinanceColumns", "financePaymentBreakdown"];
   if (name === "048_invoices_pdf.gs") record.addedGlobals = ["getInvoicePdf"];
   if (name === "030_staff_branch-repository.gs") record.addedGlobals = ["cashierContextAllows", "getCashierCatalog", "getStaffAccountingPeriod"];
